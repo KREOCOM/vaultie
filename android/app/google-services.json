@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "747647617629",
+    "project_id": "vaultie-1a2c4",
+    "storage_bucket": "vaultie-1a2c4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:747647617629:android:0e9aa6339d569d9ee0dbb4",
+        "android_client_info": {
+          "package_name": "com.example.vaultie"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbCptene8dYYsiQfwwSZ6X6gUgMiJSFHE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

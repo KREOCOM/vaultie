@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter create *)",
+      "Bash(echo \"create exit: $?\")",
+      "Read(//tmp/**)",
+      "Bash(adb devices *)",
+      "Bash(usbipd.exe list *)",
+      "Bash(adb.exe devices *)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell dumpsys window)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell am start -n com.example.vaultie/.MainActivity)",
+      "Bash(flutter analyze *)",
+      "Bash(flutter run *)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell input tap 360 676)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell input text test@vaultie.app)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell input tap 360 819)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell input text secret123)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell input keyevent 4)",
+      "Bash(pkill -f \"flutter_tools.*run\\\\|flutter.*run -d IZPBVKPBYPRSPZNF\")",
+      "Bash(pkill -f \"dart.*run\")",
+      "Bash(pkill -f \"flutter.*START=add\")",
+      "Bash(pkill -f \"flutter_tools.*run\")",
+      "Bash(flutter --version)",
+      "Bash(flutter pub *)",
+      "Bash(flutter gen-l10n *)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell getprop persist.sys.locale)",
+      "Bash(flutter test *)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell pm clear com.example.vaultie)",
+      "Bash(python3 -c \"import json;d=json.load\\(open\\('assets/animations/revenue.json'\\)\\);print\\('valid lottie keys:', [k for k in \\('v','fr','ip','op','layers'\\) if k in d]\\)\")",
+      "Bash(rm -f \"Revenue.json:Zone.Identifier\")",
+      "Bash(mv Revenue.json revenue.json)",
+      "Bash(python3 -c \"import json;d=json.load\\(open\\('revenue.json'\\)\\);print\\('valid lottie, keys present:', [k for k in \\('v','fr','ip','op','layers'\\) if k in d], 'fr=',d.get\\('fr'\\),'frames',d.get\\('ip'\\),'-',d.get\\('op'\\)\\)\")",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell am force-stop com.example.vaultie)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF shell pidof com.example.vaultie)",
+      "Bash(adb -s IZPBVKPBYPRSPZNF exec-out screencap -p)",
+      "Bash(grep -vE \"Analyzing|^\\\\s*$\")"
+    ]
+  }
+}
