@@ -33,6 +33,10 @@ class VaultieColors {
 class HiveBoxes {
   static const String subscriptions = 'subscriptions';
   static const String settings = 'settings';
+
+  /// Records of cancelled subscriptions ({monthly, date, name}), used by the
+  /// dashboard savings tracker to total up what cancelling has saved.
+  static const String cancellations = 'cancellations';
 }
 
 Future<void> main() async {
@@ -51,6 +55,7 @@ Future<void> main() async {
   }
   final subsBox = await Hive.openBox<Subscription>(HiveBoxes.subscriptions);
   final settings = await Hive.openBox(HiveBoxes.settings);
+  await Hive.openBox(HiveBoxes.cancellations);
 
   await NotificationService.instance.init();
   // Loads the persisted premium entitlement (mock for now; swap for RevenueCat

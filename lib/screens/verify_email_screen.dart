@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../services/auth_service.dart';
-import '../widgets/wallet_mascot.dart';
 import 'auth_screen.dart';
 import 'dashboard_screen.dart';
 
@@ -142,7 +141,17 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 24),
-              const Center(child: WalletMascot(size: 140, mood: MascotMood.neutral)),
+              Center(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 132,
+                    height: 132,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
               const SizedBox(height: 32),
               Text(
                 isLt ? 'Patvirtinkite savo el. paštą' : 'Verify your email',
@@ -182,7 +191,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _checking ? null : () => _checkVerified(showFeedback: true),
+                onPressed:
+                    _checking ? null : () => _checkVerified(showFeedback: true),
                 child: Text(isLt ? 'Patvirtinau' : "I've verified"),
               ),
               const SizedBox(height: 12),

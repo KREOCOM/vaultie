@@ -55,4 +55,4 @@ flutter:
   generate: true
   assets:
     - assets/images/
-    - assets/icon/app_icon_splash.png
+    - assets/icon/
