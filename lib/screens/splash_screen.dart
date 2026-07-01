@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import 'auth_screen.dart';
 import 'dashboard_screen.dart';
 import 'onboarding_screen.dart';
+import 'verify_email_screen.dart';
 
 /// Branded splash shown for ~2 seconds on launch, then fades into the app.
 ///
@@ -28,12 +29,13 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 700),
+    duration: const Duration(milliseconds: 900),
   )..forward();
 
+  // Subtle fade-in for the logo + wordmark as the splash appears.
   late final Animation<double> _fade = CurvedAnimation(
     parent: _controller,
-    curve: Curves.easeIn,
+    curve: Curves.easeOut,
   );
 
   Timer? _timer;
@@ -47,13 +49,17 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _goNext() {
     if (!mounted) return;
-    // New users see onboarding; otherwise a signed-in user goes straight to
-    // the dashboard, and everyone else to the auth screen.
+    // New users see onboarding; a signed-in & verified user goes straight to
+    // the dashboard; a signed-in but unverified user resumes at the verify
+    // screen; everyone else lands on the auth screen.
+    final auth = AuthService();
     final Widget next;
     if (!widget.hasOnboarded) {
       next = const OnboardingScreen();
-    } else if (AuthService().isLoggedIn) {
-      next = const DashboardScreen();
+    } else if (auth.isLoggedIn) {
+      next = auth.isEmailVerified
+          ? const DashboardScreen()
+          : const VerifyEmailScreen();
     } else {
       next = const AuthScreen();
     }
@@ -84,31 +90,31 @@ class _SplashScreenState extends State<SplashScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Logo: white "V" in a rounded square.
+              // Logo: dark-green "V" in a white rounded square.
               Container(
-                width: 96,
-                height: 96,
+                width: 128,
+                height: 128,
                 decoration: BoxDecoration(
-                  color: VaultieColors.accent,
-                  borderRadius: BorderRadius.circular(24),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
                 ),
                 alignment: Alignment.center,
                 child: const Text(
                   'V',
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 52,
+                    color: VaultieColors.primary,
+                    fontSize: 72,
                     fontWeight: FontWeight.w800,
                     height: 1,
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
               const Text(
                 'Vaultie',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 32,
+                  fontSize: 36,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -116,8 +122,8 @@ class _SplashScreenState extends State<SplashScreen>
               Text(
                 'Smarter money habits',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 15,
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 16,
                   fontWeight: FontWeight.w400,
                 ),
               ),

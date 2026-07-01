@@ -8,11 +8,17 @@ import '../models/subscription.dart';
 import '../services/notification_service.dart';
 import '../widgets/subscription_icons.dart';
 
-/// Form for creating a new subscription and saving it to Hive.
+/// Form for creating — or editing — a subscription and saving it to Hive.
+///
+/// Passing [existing] switches the form into edit mode: fields are prefilled
+/// and saving overwrites that record (same id) instead of creating a new one.
 class AddSubscriptionScreen extends StatefulWidget {
-  const AddSubscriptionScreen({super.key});
+  const AddSubscriptionScreen({super.key, this.existing});
 
   static const route = '/add';
+
+  /// The subscription being edited, or null when creating a new one.
+  final Subscription? existing;
 
   @override
   State<AddSubscriptionScreen> createState() => _AddSubscriptionScreenState();
@@ -56,6 +62,23 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
     Color(0xFF8E5BA6),
   ];
 
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Prefill every field from the record being edited.
+    final e = widget.existing;
+    if (e != null) {
+      _name.text = e.name;
+      _cost.text = e.cost.toString();
+      _cycle = e.billingCycle;
+      _category = e.category;
+      _nextBilling = e.nextBillingDate;
+      _color = Color(e.colorValue);
+    }
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -77,8 +100,10 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final box = Hive.box<Subscription>(HiveBoxes.subscriptions);
-    // A stable, unique-enough id without pulling in a uuid dependency.
-    final id = '${DateTime.now().microsecondsSinceEpoch}';
+    // Reuse the id when editing (overwrites in place); otherwise mint a new,
+    // unique-enough one without pulling in a uuid dependency.
+    final id =
+        widget.existing?.id ?? '${DateTime.now().microsecondsSinceEpoch}';
     final sub = Subscription(
       id: id,
       name: _name.text.trim(),
@@ -104,7 +129,11 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
         '${_nextBilling.year}-${_nextBilling.month.toString().padLeft(2, '0')}-${_nextBilling.day.toString().padLeft(2, '0')}';
 
     return Scaffold(
-      appBar: AppBar(title: Text(l.addSubscriptionTitle)),
+      appBar: AppBar(
+        title: Text(_isEditing
+            ? (isLithuanian ? 'Redaguoti prenumeratą' : 'Edit subscription')
+            : l.addSubscriptionTitle),
+      ),
       body: SafeArea(
         child: Form(
           key: _formKey,
@@ -159,9 +188,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 10,
-                              fontWeight: selected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
+                              fontWeight:
+                                  selected ? FontWeight.w700 : FontWeight.w500,
                               color: selected
                                   ? VaultieColors.primary
                                   : VaultieColors.subtle,
@@ -257,7 +285,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                         color: c,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: selected ? VaultieColors.ink : Colors.transparent,
+                          color:
+                              selected ? VaultieColors.ink : Colors.transparent,
                           width: 3,
                         ),
                       ),
@@ -272,7 +301,9 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _save,
-                child: Text(l.saveToVault),
+                child: Text(_isEditing
+                    ? (isLithuanian ? 'Išsaugoti pakeitimus' : 'Save changes')
+                    : l.saveToVault),
               ),
             ],
           ),

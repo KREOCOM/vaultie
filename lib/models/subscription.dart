@@ -26,6 +26,18 @@ extension BillingCycleX on BillingCycle {
         BillingCycle.quarterly => 91,
         BillingCycle.yearly => 365,
       };
+
+  /// [from] advanced by exactly one billing cycle.
+  ///
+  /// Uses calendar arithmetic (not [approxDays]) so a charge on the 15th stays
+  /// on the 15th. Day-of-month is clamped by [DateTime] when the target month
+  /// is shorter (e.g. Jan 31 + 1 month → early March).
+  DateTime advance(DateTime from) => switch (this) {
+        BillingCycle.weekly => from.add(const Duration(days: 7)),
+        BillingCycle.monthly => DateTime(from.year, from.month + 1, from.day),
+        BillingCycle.quarterly => DateTime(from.year, from.month + 3, from.day),
+        BillingCycle.yearly => DateTime(from.year + 1, from.month, from.day),
+      };
 }
 
 /// A single recurring subscription tracked in the vault.
@@ -68,6 +80,23 @@ class Subscription {
       nextBillingDate.day,
     );
     return due.difference(today).inDays;
+  }
+
+  /// The next billing date that is today or later, rolling any elapsed cycles
+  /// forward. Returns [nextBillingDate] unchanged when it hasn't passed yet.
+  ///
+  /// Used by the launch-time reschedule pass so a subscription whose renewal
+  /// date has slipped into the past advances to its next real occurrence.
+  DateTime rolledForwardBillingDate([DateTime? now]) {
+    final ref = now ?? DateTime.now();
+    final today = DateTime(ref.year, ref.month, ref.day);
+    var d = nextBillingDate;
+    // Guard against pathological loops; 1000 weekly cycles is ~19 years.
+    var guard = 0;
+    while (DateTime(d.year, d.month, d.day).isBefore(today) && guard++ < 1000) {
+      d = billingCycle.advance(d);
+    }
+    return d;
   }
 
   Subscription copyWith({

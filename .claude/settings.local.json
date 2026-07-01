@@ -33,7 +33,14 @@
       "Bash(adb -s IZPBVKPBYPRSPZNF shell am force-stop com.example.vaultie)",
       "Bash(adb -s IZPBVKPBYPRSPZNF shell pidof com.example.vaultie)",
       "Bash(adb -s IZPBVKPBYPRSPZNF exec-out screencap -p)",
-      "Bash(grep -vE \"Analyzing|^\\\\s*$\")"
+      "Bash(grep -vE \"Analyzing|^\\\\s*$\")",
+      "Read(//Applications/**)",
+      "Bash(xcrun simctl *)",
+      "Bash(xcode-select -p)",
+      "Bash(flutter doctor *)",
+      "Bash(brew --version)",
+      "Bash(flutter devices *)",
+      "Bash(dart format *)"
     ]
   }
 }

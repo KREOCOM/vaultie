@@ -8,10 +8,13 @@ import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'models/subscription.dart';
 import 'services/notification_service.dart';
+import 'services/purchase_service.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/paywall_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/verify_email_screen.dart';
 
 /// Vaultie brand palette. The hero colour is the deep "vault green".
 class VaultieColors {
@@ -46,12 +49,48 @@ Future<void> main() async {
   if (!Hive.isAdapterRegistered(SubscriptionAdapter().typeId)) {
     Hive.registerAdapter(SubscriptionAdapter());
   }
-  await Hive.openBox<Subscription>(HiveBoxes.subscriptions);
+  final subsBox = await Hive.openBox<Subscription>(HiveBoxes.subscriptions);
   final settings = await Hive.openBox(HiveBoxes.settings);
 
   await NotificationService.instance.init();
+  // Loads the persisted premium entitlement (mock for now; swap for RevenueCat
+  // in PurchaseService.instance later).
+  await PurchaseService.instance.init();
 
-  runApp(VaultieApp(hasOnboarded: settings.get('onboarded', defaultValue: false)));
+  // Roll any lapsed renewal dates forward to their next cycle and (re)schedule
+  // every subscription's reminders. Runs on each launch so reminders survive
+  // past renewals, app reinstalls, and OS-cleared notifications.
+  final isLithuanian =
+      WidgetsBinding.instance.platformDispatcher.locale.languageCode == 'lt';
+  await _rescheduleReminders(subsBox, isLithuanian: isLithuanian);
+
+  runApp(
+      VaultieApp(hasOnboarded: settings.get('onboarded', defaultValue: false)));
+}
+
+/// Launch-time pass: advances elapsed billing dates and (re)schedules reminders
+/// for every subscription. Failures are swallowed per-subscription so a single
+/// bad record can never block app startup.
+Future<void> _rescheduleReminders(
+  Box<Subscription> box, {
+  required bool isLithuanian,
+}) async {
+  final now = DateTime.now();
+  for (final sub in box.values.toList()) {
+    try {
+      final rolled = sub.rolledForwardBillingDate(now);
+      final effective = rolled.isAtSameMomentAs(sub.nextBillingDate)
+          ? sub
+          : sub.copyWith(nextBillingDate: rolled);
+      if (!identical(effective, sub)) {
+        await box.put(sub.id, effective);
+      }
+      await NotificationService.instance
+          .scheduleForSubscription(effective, isLithuanian: isLithuanian);
+    } catch (_) {
+      // Never let one subscription's scheduling failure abort startup.
+    }
+  }
 }
 
 /// Debug-only preview hook (no effect unless the dart-define is passed).
@@ -98,7 +137,8 @@ class VaultieApp extends StatelessWidget {
         cardTheme: CardThemeData(
           color: VaultieColors.card,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           margin: EdgeInsets.zero,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
@@ -131,7 +171,8 @@ class VaultieApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: VaultieColors.primary, width: 2),
+            borderSide:
+                const BorderSide(color: VaultieColors.primary, width: 2),
           ),
         ),
       ),
@@ -142,7 +183,9 @@ class VaultieApp extends StatelessWidget {
       routes: {
         OnboardingScreen.route: (_) => const OnboardingScreen(),
         AuthScreen.route: (_) => const AuthScreen(),
+        VerifyEmailScreen.route: (_) => const VerifyEmailScreen(),
         DashboardScreen.route: (_) => const DashboardScreen(),
+        PaywallScreen.route: (_) => const PaywallScreen(),
       },
     );
   }

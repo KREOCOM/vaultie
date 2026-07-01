@@ -8,10 +8,12 @@ import '../main.dart';
 import '../models/subscription.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../services/purchase_service.dart';
 import '../widgets/wallet_mascot.dart';
 import 'add_subscription_screen.dart';
 import 'analytics_screen.dart';
 import 'auth_screen.dart';
+import 'paywall_screen.dart';
 
 /// Home screen: a summary header plus the list of tracked subscriptions.
 class DashboardScreen extends StatelessWidget {
@@ -29,9 +31,7 @@ class DashboardScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: VaultieColors.primary,
         foregroundColor: Colors.white,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AddSubscriptionScreen()),
-        ),
+        onPressed: () => _onAddPressed(context, box),
         icon: const Icon(Icons.add),
         label: Text(AppLocalizations.of(context).addButton),
       ),
@@ -40,8 +40,8 @@ class DashboardScreen extends StatelessWidget {
           valueListenable: box.listenable(),
           builder: (context, Box<Subscription> b, _) {
             final subs = b.values.toList()
-              ..sort((a, c) =>
-                  a.daysUntilRenewal.compareTo(c.daysUntilRenewal));
+              ..sort(
+                  (a, c) => a.daysUntilRenewal.compareTo(c.daysUntilRenewal));
             final monthlyTotal =
                 subs.fold<double>(0, (sum, s) => sum + s.monthlyCost);
 
@@ -80,6 +80,25 @@ class DashboardScreen extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+
+  /// Opens the add form — unless a free user is at the subscription limit, in
+  /// which case the paywall is shown first. If they unlock premium there, the
+  /// add form opens right after so the tap isn't wasted.
+  Future<void> _onAddPressed(
+      BuildContext context, Box<Subscription> box) async {
+    final atLimit = box.length >= kFreeSubscriptionLimit &&
+        !PurchaseService.instance.isPremium;
+    if (atLimit) {
+      final unlocked = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const PaywallScreen()),
+      );
+      if (unlocked != true || !context.mounted) return;
+    }
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AddSubscriptionScreen()),
     );
   }
 }
@@ -314,70 +333,80 @@ class _SubscriptionTile extends StatelessWidget {
         );
       },
       child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Color(sub.colorValue).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  sub.name.isNotEmpty ? sub.name[0].toUpperCase() : '?',
-                  style: TextStyle(
-                    color: Color(sub.colorValue),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 20,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          // Tapping a subscription opens the form in edit mode; saving there
+          // reschedules its renewal reminders via NotificationService.
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AddSubscriptionScreen(existing: sub),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Color(sub.colorValue).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    sub.name.isNotEmpty ? sub.name[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      color: Color(sub.colorValue),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sub.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${categoryLabel(l, sub.category)} · $renews',
+                        style: const TextStyle(
+                          color: VaultieColors.subtle,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      sub.name,
+                      DashboardScreen._money.format(sub.cost),
                       style: const TextStyle(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         fontSize: 16,
                       ),
                     ),
-                    const SizedBox(height: 2),
                     Text(
-                      '${categoryLabel(l, sub.category)} · $renews',
+                      billingCycleLabel(l, sub.billingCycle),
                       style: const TextStyle(
                         color: VaultieColors.subtle,
-                        fontSize: 13,
+                        fontSize: 12,
                       ),
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    DashboardScreen._money.format(sub.cost),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
-                  ),
-                  Text(
-                    billingCycleLabel(l, sub.billingCycle),
-                    style: const TextStyle(
-                      color: VaultieColors.subtle,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

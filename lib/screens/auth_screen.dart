@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
 import 'dashboard_screen.dart';
+import 'verify_email_screen.dart';
 
 /// Email/password sign-in & registration backed by Firebase Auth.
 ///
@@ -50,22 +51,31 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       if (_isLogin) {
         await _auth.signIn(email: _email.text, password: _password.text);
+        if (!mounted) return;
+        // Signed-in but unverified accounts are held at the verify screen.
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => _auth.isEmailVerified
+                ? const DashboardScreen()
+                : const VerifyEmailScreen(),
+          ),
+        );
       } else {
+        // register() already fires the verification email; land the user on
+        // the verify screen until they click the link.
         await _auth.register(email: _email.text, password: _password.text);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(isLt
-                  ? 'Patvirtinimo laiškas išsiųstas į ${_email.text.trim()}.'
-                  : 'Verification email sent to ${_email.text.trim()}.'),
-            ),
-          );
-        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isLt
+                ? 'Patvirtinimo laiškas išsiųstas į ${_email.text.trim()}.'
+                : 'Verification email sent to ${_email.text.trim()}.'),
+          ),
+        );
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const VerifyEmailScreen()),
+        );
       }
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
-      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
