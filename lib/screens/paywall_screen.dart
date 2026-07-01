@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/purchase_service.dart';
 
+/// Accent colours specific to the paywall.
+const Color _gold = Color(0xFFFFD24A);
+const Color _selectedBorder = Color(0xFF2E7D4F);
+const Color _brightGreen = Color(0xFF4CAF72);
+
 /// Paywall shown when a free user hits [kFreeSubscriptionLimit].
 ///
 /// Pops with `true` once premium has been granted, so the caller can resume the
@@ -76,23 +81,27 @@ class _PaywallScreenState extends State<PaywallScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Premium badge.
+                  // Premium badge — gold diamond inside a gold-tinted circle.
                   Center(
                     child: Container(
-                      width: 84,
-                      height: 84,
+                      width: 96,
+                      height: 96,
                       decoration: BoxDecoration(
-                        color: VaultieColors.accent.withValues(alpha: 0.18),
+                        color: _gold.withValues(alpha: 0.18),
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _gold.withValues(alpha: 0.5),
+                          width: 2,
+                        ),
                       ),
                       child: const Icon(
-                        Icons.workspace_premium_rounded,
-                        color: VaultieColors.accent,
-                        size: 44,
+                        Icons.diamond_rounded,
+                        color: _gold,
+                        size: 50,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
                   Text(
                     isLt
                         ? 'Atrakinkite Vaultie Premium'
@@ -100,12 +109,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 26,
+                      fontSize: 30,
                       fontWeight: FontWeight.w800,
                       height: 1.2,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Text(
                     isLt
                         ? 'Pasiekėte nemokamą $kFreeSubscriptionLimit prenumeratų limitą. Atnaujinkite, kad pridėtumėte daugiau.'
@@ -113,11 +122,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.75),
-                      fontSize: 15,
+                      fontSize: 17,
                       height: 1.4,
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 32),
                   _feature(isLt
                       ? 'Neribotas prenumeratų skaičius'
                       : 'Unlimited subscriptions'),
@@ -127,23 +136,24 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   _feature(isLt
                       ? 'Palaikote kūrimą'
                       : 'Support ongoing development'),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 32),
                   _planCard(PlanId.lifetime, isLt),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   _planCard(PlanId.monthly, isLt),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 32),
                   _CtaButton(
                     label: ctaLabel,
                     busy: _busy,
                     onPressed: _busy ? null : _purchase,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   TextButton(
                     onPressed: _busy ? null : _restore,
                     child: Text(
                       isLt ? 'Atkurti pirkimą' : 'Restore purchase',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 15,
                       ),
                     ),
                   ),
@@ -179,16 +189,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   Widget _feature(String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_rounded,
-              color: VaultieColors.accent, size: 22),
+          const Icon(Icons.check_circle_rounded, color: _brightGreen, size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: Colors.white, fontSize: 15),
+              style: const TextStyle(color: Colors.white, fontSize: 17),
             ),
           ),
         ],
@@ -199,10 +208,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
   Widget _planCard(PlanId id, bool isLt) {
     final plan = PurchaseService.planFor(id);
     final selected = _selected == id;
-    final title = id == PlanId.lifetime
+    final lifetime = id == PlanId.lifetime;
+    final title = lifetime
         ? (isLt ? 'Visam laikui' : 'Lifetime')
         : (isLt ? 'Mėnesinis' : 'Monthly');
-    final period = id == PlanId.lifetime
+    final period = lifetime
         ? (isLt ? 'vienkartinis mokėjimas' : 'one-time payment')
         : (isLt ? 'per mėnesį' : 'per month');
 
@@ -210,20 +220,22 @@ class _PaywallScreenState extends State<PaywallScreen> {
       onTap: _busy ? null : () => setState(() => _selected = id),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
         decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.white.withValues(alpha: 0.08),
+          // Cards are darker than the background; the border signals selection.
+          color: VaultieColors.primaryDark,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: selected ? VaultieColors.accent : Colors.white24,
-            width: 2,
+            color: selected ? _selectedBorder : Colors.white,
+            width: selected ? 2.5 : 1.5,
           ),
         ),
         child: Row(
           children: [
             Icon(
               selected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: selected ? VaultieColors.primary : Colors.white54,
+              color: selected ? _brightGreen : Colors.white54,
+              size: 26,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -232,44 +244,36 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          color: selected ? VaultieColors.ink : Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                      if (id == PlanId.lifetime) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: VaultieColors.accent,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            isLt ? 'GERIAUSIA' : 'BEST VALUE',
-                            style: const TextStyle(
-                              color: VaultieColors.primaryDark,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
+                      const SizedBox(width: 8),
+                      lifetime
+                          ? _badge(
+                              isLt ? 'Geriausia vertė' : 'Best Value',
+                              background: _gold,
+                              foreground: VaultieColors.primaryDark,
+                            )
+                          : _badge(
+                              isLt ? 'Populiariausias' : 'Most Popular',
+                              background: _brightGreen,
+                              foreground: Colors.white,
                             ),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     period,
                     style: TextStyle(
-                      color: selected
-                          ? VaultieColors.subtle
-                          : Colors.white.withValues(alpha: 0.6),
-                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.65),
+                      fontSize: 14,
                     ),
                   ),
                 ],
@@ -277,13 +281,33 @@ class _PaywallScreenState extends State<PaywallScreen> {
             ),
             Text(
               plan.price,
-              style: TextStyle(
-                color: selected ? VaultieColors.primary : Colors.white,
-                fontSize: 20,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _badge(String text,
+      {required Color background, required Color foreground}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          color: foreground,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
         ),
       ),
     );
@@ -303,12 +327,12 @@ class _CtaButton extends StatelessWidget {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: VaultieColors.accent,
-        foregroundColor: VaultieColors.primaryDark,
-        disabledBackgroundColor: VaultieColors.accent.withValues(alpha: 0.6),
-        minimumSize: const Size.fromHeight(56),
+        backgroundColor: _brightGreen,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: _brightGreen.withValues(alpha: 0.6),
+        minimumSize: const Size.fromHeight(58),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
       ),
       child: busy
           ? const SizedBox(
@@ -316,7 +340,7 @@ class _CtaButton extends StatelessWidget {
               width: 22,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                color: VaultieColors.primaryDark,
+                color: Colors.white,
               ),
             )
           : Text(label),
