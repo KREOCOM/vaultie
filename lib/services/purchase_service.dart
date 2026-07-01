@@ -46,7 +46,7 @@ abstract class PurchaseService {
   /// Plans shown on the paywall (single source of truth for pricing).
   static const List<PurchasePlan> plans = [
     PurchasePlan(id: PlanId.monthly, price: '€2.99'),
-    PurchasePlan(id: PlanId.lifetime, price: '€30'),
+    PurchasePlan(id: PlanId.lifetime, price: '€29.99'),
   ];
 
   static PurchasePlan planFor(PlanId id) => plans.firstWhere((p) => p.id == id);
