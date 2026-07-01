@@ -38,9 +38,21 @@ dev_dependencies:
   hive_generator: ^2.0.1
   build_runner: ^2.4.11
 
+  # App-icon generation for Android & iOS from assets/icon/app_icon.png.
+  # Regenerate with:  dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.1
+
+# App-icon generator config. Source is a 1024×1024 PNG (no alpha).
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icon/app_icon.png"
+
 flutter:
   uses-material-design: true
   # Generate the localization sources from lib/l10n/*.arb (see l10n.yaml).
   generate: true
   assets:
     - assets/images/
+    - assets/icon/app_icon_splash.png

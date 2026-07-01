@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../main.dart';
 import '../services/auth_service.dart';
 import 'auth_screen.dart';
 import 'dashboard_screen.dart';
@@ -83,31 +82,20 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: VaultieColors.primary, // #174E35
+      backgroundColor: const Color(0xFF174E35), // brand vault green
       body: Center(
         child: FadeTransition(
           opacity: _fade,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Logo: dark-green "V" in a white rounded square.
-              Container(
-                width: 128,
-                height: 128,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(32),
-                ),
-                alignment: Alignment.center,
-                child: const Text(
-                  'V',
-                  style: TextStyle(
-                    color: VaultieColors.primary,
-                    fontSize: 72,
-                    fontWeight: FontWeight.w800,
-                    height: 1,
-                  ),
-                ),
+              // Logo: the white vault on a transparent background (the icon's
+              // green was removed) so it sits on the splash with no square seam.
+              Image.asset(
+                'assets/icon/app_icon_splash.png',
+                width: 184,
+                height: 184,
+                fit: BoxFit.contain,
               ),
               const SizedBox(height: 28),
               const Text(

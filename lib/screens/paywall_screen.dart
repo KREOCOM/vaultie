@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../services/purchase_service.dart';
+import 'dashboard_screen.dart';
 
 /// Accent colours specific to the paywall.
 const Color _gold = Color(0xFFFFD24A);
@@ -60,6 +61,21 @@ class _PaywallScreenState extends State<PaywallScreen> {
   void _snack(String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
+  /// Dismisses the paywall. Normally this pops back to whatever pushed it (the
+  /// dashboard). If the paywall happens to be the only route on the stack,
+  /// popping would leave an empty navigator (black screen), so we fall back to
+  /// showing the dashboard instead.
+  void _dismiss() {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop(false);
+    } else {
+      nav.pushReplacement(
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLt = _isLt;
@@ -71,117 +87,125 @@ class _PaywallScreenState extends State<PaywallScreen> {
             ? 'Prenumeruoti už ${PurchaseService.planFor(PlanId.monthly).price}/mėn.'
             : 'Subscribe for ${PurchaseService.planFor(PlanId.monthly).price}/mo');
 
-    return Scaffold(
-      backgroundColor: VaultieColors.primary,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Premium badge — gold diamond inside a gold-tinted circle.
-                  Center(
-                    child: Container(
-                      width: 96,
-                      height: 96,
-                      decoration: BoxDecoration(
-                        color: _gold.withValues(alpha: 0.18),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _gold.withValues(alpha: 0.5),
-                          width: 2,
+    return PopScope(
+      // Intercept the system back button/gesture so it routes through _dismiss
+      // (which falls back to the dashboard) rather than popping to a black
+      // screen when the paywall is the only route.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _dismiss();
+      },
+      child: Scaffold(
+        backgroundColor: VaultieColors.primary,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Premium badge — gold diamond inside a gold-tinted circle.
+                    Center(
+                      child: Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          color: _gold.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _gold.withValues(alpha: 0.5),
+                            width: 2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.diamond_rounded,
+                          color: _gold,
+                          size: 50,
                         ),
                       ),
-                      child: const Icon(
-                        Icons.diamond_rounded,
-                        color: _gold,
-                        size: 50,
+                    ),
+                    const SizedBox(height: 28),
+                    Text(
+                      isLt
+                          ? 'Atrakinkite Vaultie Premium'
+                          : 'Unlock Vaultie Premium',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 28),
-                  Text(
-                    isLt
-                        ? 'Atrakinkite Vaultie Premium'
-                        : 'Unlock Vaultie Premium',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    isLt
-                        ? 'Pasiekėte nemokamą $kFreeSubscriptionLimit prenumeratų limitą. Atnaujinkite, kad pridėtumėte daugiau.'
-                        : "You've reached the free limit of $kFreeSubscriptionLimit subscriptions. Upgrade to add more.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.75),
-                      fontSize: 17,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  _feature(isLt
-                      ? 'Neribotas prenumeratų skaičius'
-                      : 'Unlimited subscriptions'),
-                  _feature(isLt
-                      ? 'Visos būsimos funkcijos'
-                      : 'Every future feature'),
-                  _feature(isLt
-                      ? 'Palaikote kūrimą'
-                      : 'Support ongoing development'),
-                  const SizedBox(height: 32),
-                  _planCard(PlanId.lifetime, isLt),
-                  const SizedBox(height: 14),
-                  _planCard(PlanId.monthly, isLt),
-                  const SizedBox(height: 32),
-                  _CtaButton(
-                    label: ctaLabel,
-                    busy: _busy,
-                    onPressed: _busy ? null : _purchase,
-                  ),
-                  const SizedBox(height: 10),
-                  TextButton(
-                    onPressed: _busy ? null : _restore,
-                    child: Text(
-                      isLt ? 'Atkurti pirkimą' : 'Restore purchase',
+                    const SizedBox(height: 12),
+                    Text(
+                      isLt
+                          ? 'Pasiekėte nemokamą $kFreeSubscriptionLimit prenumeratų limitą. Atnaujinkite, kad pridėtumėte daugiau.'
+                          : "You've reached the free limit of $kFreeSubscriptionLimit subscriptions. Upgrade to add more.",
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 15,
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 17,
+                        height: 1.4,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isLt
-                        ? 'Bandomasis režimas — tikri mokėjimai dar neįjungti.'
-                        : 'Demo mode — no real payment is charged yet.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 12,
+                    const SizedBox(height: 32),
+                    _feature(isLt
+                        ? 'Neribotas prenumeratų skaičius'
+                        : 'Unlimited subscriptions'),
+                    _feature(isLt
+                        ? 'Visos būsimos funkcijos'
+                        : 'Every future feature'),
+                    _feature(isLt
+                        ? 'Palaikote kūrimą'
+                        : 'Support ongoing development'),
+                    const SizedBox(height: 32),
+                    _planCard(PlanId.lifetime, isLt),
+                    const SizedBox(height: 14),
+                    _planCard(PlanId.monthly, isLt),
+                    const SizedBox(height: 32),
+                    _CtaButton(
+                      label: ctaLabel,
+                      busy: _busy,
+                      onPressed: _busy ? null : _purchase,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: _busy ? null : _restore,
+                      child: Text(
+                        isLt ? 'Atkurti pirkimą' : 'Restore purchase',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isLt
+                          ? 'Bandomasis režimas — tikri mokėjimai dar neįjungti.'
+                          : 'Demo mode — no real payment is charged yet.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            // Dismiss.
-            Positioned(
-              top: 4,
-              left: 4,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white70),
-                onPressed:
-                    _busy ? null : () => Navigator.of(context).pop(false),
+              // Dismiss.
+              Positioned(
+                top: 4,
+                left: 4,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                  onPressed: _busy ? null : _dismiss,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

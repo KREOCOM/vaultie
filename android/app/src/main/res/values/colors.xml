@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Vaultie brand "vault green" — used for the launch/splash background so
+         the native splash matches the in-app Flutter splash. -->
+    <color name="vaultie_splash">#FF174E35</color>
+</resources>
