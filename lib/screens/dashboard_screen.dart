@@ -159,13 +159,6 @@ class _OverviewHeader extends StatelessWidget {
   final double monthlyTotal;
   final int count;
 
-  String _greeting(bool isLt) {
-    final h = DateTime.now().hour;
-    if (h >= 5 && h < 12) return isLt ? 'Labas rytas' : 'Good morning';
-    if (h >= 12 && h < 18) return isLt ? 'Labas' : 'Good afternoon';
-    return isLt ? 'Labas vakaras' : 'Good evening';
-  }
-
   String _userName(bool isLt) {
     final u = AuthService().currentUser;
     final display = u?.displayName?.trim();
@@ -181,81 +174,255 @@ class _OverviewHeader extends StatelessWidget {
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
     final name = _userName(isLt);
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: VaultieColors.primary, // #174E35
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              SubscriptionAvatar(name: name, size: 48),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_greeting(isLt),
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 14)),
-                    const SizedBox(height: 2),
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              InkWell(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                ),
-                child: const Icon(Icons.settings_outlined,
-                    color: Colors.white70, size: 22),
-              ),
-              const SizedBox(width: 14),
-              InkWell(
-                onTap: () async {
-                  await AuthService().signOut();
-                  if (!context.mounted) return;
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const AuthScreen()),
-                    (route) => false,
-                  );
-                },
-                child:
-                    const Icon(Icons.logout, color: Colors.white70, size: 20),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      child: AspectRatio(
+        aspectRatio: 1.6,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF0D4A2E), Color(0xFF1A6B45), Color(0xFF0F7A4D)],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0D4A2E).withValues(alpha: 0.45),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          Text(l.monthlySpend, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 4),
-          Text(
-            formatMoney(monthlyTotal),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 34,
-              fontWeight: FontWeight.w800,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              children: [
+                // Subtle diagonal line pattern.
+                const Positioned.fill(
+                  child: CustomPaint(painter: _CardPattern()),
+                ),
+                // Soft aurora highlight in the top-right corner.
+                Positioned(
+                  top: -40,
+                  right: -30,
+                  child: Container(
+                    width: 170,
+                    height: 170,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          Colors.white.withValues(alpha: 0.13),
+                          Colors.white.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Top: gold chip · brand + controls.
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _goldChip(),
+                          const Spacer(),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _iconButton(
+                                    Icons.settings_outlined,
+                                    () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const SettingsScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _iconButton(Icons.logout, () async {
+                                    await AuthService().signOut();
+                                    if (!context.mounted) return;
+                                    Navigator.of(context).pushAndRemoveUntil(
+                                      MaterialPageRoute(
+                                        builder: (_) => const AuthScreen(),
+                                      ),
+                                      (route) => false,
+                                    );
+                                  }),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'VAULTIE',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      // Middle: where a card number would sit.
+                      Text(
+                        'track • save • control',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.32),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const Spacer(),
+                      // Bottom: monthly spend (left) · user + count (right).
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  l.monthlySpend.toUpperCase(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.6),
+                                    fontSize: 10,
+                                    letterSpacing: 1,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  formatMoney(monthlyTotal),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  l.activeSubscriptions(count),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.6),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(l.activeSubscriptions(count),
-              style: const TextStyle(color: Colors.white70)),
-        ],
+        ),
       ),
     );
   }
+
+  /// Gold EMV-style chip.
+  Widget _goldChip() {
+    return Container(
+      width: 46,
+      height: 34,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(7),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF6DE9B), Color(0xFFC79A3E)],
+        ),
+      ),
+      child: Center(
+        child: Container(
+          width: 30,
+          height: 20,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: const Color(0x66000000)),
+          ),
+          child: Center(
+            child: Container(
+              width: 1,
+              height: 20,
+              color: const Color(0x66000000),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconButton(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.14),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 18),
+      ),
+    );
+  }
+}
+
+/// Faint diagonal hatch drawn over the card for a textured, premium feel.
+class _CardPattern extends CustomPainter {
+  const _CardPattern();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.05)
+      ..strokeWidth = 1;
+    const gap = 16.0;
+    for (double x = -size.height; x < size.width; x += gap) {
+      canvas.drawLine(
+          Offset(x, 0), Offset(x + size.height, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// "Artimiausi mokėjimai" — next three renewals with a colour dot and a
