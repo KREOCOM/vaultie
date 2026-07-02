@@ -124,12 +124,26 @@ class _OverviewTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final monthlyTotal = subs.fold<double>(0, (sum, s) => sum + s.monthlyCost);
 
+    // Show the month-over-month badge only once there is something to compare:
+    // at least one subscription, and at least one that already existed before
+    // this month started (its id is a creation-time microsecond timestamp).
+    final monthStart = DateTime(DateTime.now().year, DateTime.now().month, 1);
+    final hasHistory = subs.any((s) {
+      final micros = int.tryParse(s.id);
+      return micros != null &&
+          DateTime.fromMicrosecondsSinceEpoch(micros).isBefore(monthStart);
+    });
+    final showChange = subs.isNotEmpty && hasHistory;
+
     return CustomScrollView(
       slivers: [
         const SliverToBoxAdapter(child: _VerifyEmailBanner()),
         SliverToBoxAdapter(
-          child:
-              _OverviewHeader(monthlyTotal: monthlyTotal, count: subs.length),
+          child: _OverviewHeader(
+            monthlyTotal: monthlyTotal,
+            count: subs.length,
+            showChange: showChange,
+          ),
         ),
         if (subs.isEmpty)
           const SliverFillRemaining(
@@ -152,12 +166,21 @@ class _OverviewTab extends StatelessWidget {
   }
 }
 
-/// Green header: avatar, time-of-day greeting + user name, monthly spend, count.
+/// Mint-gradient header: greeting + name, monthly spend, count, optional badge.
 class _OverviewHeader extends StatelessWidget {
-  const _OverviewHeader({required this.monthlyTotal, required this.count});
+  const _OverviewHeader({
+    required this.monthlyTotal,
+    required this.count,
+    required this.showChange,
+  });
 
   final double monthlyTotal;
   final int count;
+
+  /// Whether to show the "vs last month" change badge (needs prior-month data).
+  final bool showChange;
+
+  static const _darkGreen = Color(0xFF1B5E20);
 
   String _userName(bool isLt) {
     final u = AuthService().currentUser;
@@ -181,7 +204,7 @@ class _OverviewHeader extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: Icon(icon, color: Colors.white70, size: 21),
+        child: Icon(icon, color: _darkGreen.withValues(alpha: 0.7), size: 21),
       ),
     );
   }
@@ -194,132 +217,117 @@ class _OverviewHeader extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: ColoredBox(
-          color: const Color(0xFF0A0A0A),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 22, 18, 22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _greeting(isLt),
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.55),
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 22, 18, 22),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9), Color(0xFFA5D6A7)],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _greeting(isLt),
+                        style: const TextStyle(
+                          color: VaultieColors.subtle,
+                          fontSize: 14,
                         ),
-                        _iconBtn(
-                          Icons.settings_outlined,
-                          () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const SettingsScreen(),
-                            ),
-                          ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _darkGreen,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(width: 10),
-                        _iconBtn(Icons.logout, () async {
-                          await AuthService().signOut();
-                          if (!context.mounted) return;
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (_) => const AuthScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        }),
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+                _iconBtn(
+                  Icons.settings_outlined,
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SettingsScreen(),
                     ),
-                    const SizedBox(height: 22),
-                    Text(
-                      l.monthlySpend.toUpperCase(),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.45),
-                        fontSize: 11,
-                        letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _iconBtn(Icons.logout, () async {
+                  await AuthService().signOut();
+                  if (!context.mounted) return;
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const AuthScreen()),
+                    (route) => false,
+                  );
+                }),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Text(
+              l.monthlySpend.toUpperCase(),
+              style: const TextStyle(
+                color: _darkGreen,
+                fontSize: 11,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  formatMoney(monthlyTotal),
+                  style: const TextStyle(
+                    color: _darkGreen,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (showChange) ...[
+                  const SizedBox(width: 12),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _darkGreen.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      isLt ? '↓ 12% nei pernai mėn.' : '↓ 12% vs last month',
+                      style: const TextStyle(
+                        color: _darkGreen,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          formatMoney(monthlyTotal),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 34,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color:
-                                const Color(0xFF4CAF72).withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            isLt
-                                ? '↓ 12% nei pernai mėn.'
-                                : '↓ 12% vs last month',
-                            style: const TextStyle(
-                              color: Color(0xFF6FE3A0),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      l.activeSubscriptions(count),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.5),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Thin green gradient accent line at the bottom.
-              Container(
-                height: 3,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF4CAF72), Color(0xFF2E7D32)],
                   ),
-                ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l.activeSubscriptions(count),
+              style: const TextStyle(
+                color: VaultieColors.subtle,
+                fontSize: 13,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
