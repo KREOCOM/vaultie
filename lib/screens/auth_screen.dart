@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../main.dart';
@@ -9,8 +10,9 @@ import 'verify_email_screen.dart';
 
 /// Email/password sign-in & registration backed by Firebase Auth.
 ///
-/// Registration collects the password twice and sends a verification email;
-/// users are let into the app immediately and reminded to verify later.
+/// Cinematic dark theme: a floating logo over a green glow, with the form in a
+/// bottom-sheet-style panel. Registration collects the password twice and sends
+/// a verification email; users are let in immediately and reminded to verify.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -20,7 +22,7 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   final _auth = AuthService();
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
@@ -32,8 +34,25 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _obscureConfirm = true;
   bool _busy = false;
 
+  // Gentle up/down float for the logo.
+  late final AnimationController _floatController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2600),
+  )..repeat(reverse: true);
+
+  // One-shot slide-up for the bottom panel.
+  late final AnimationController _panelController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 550),
+  )..forward();
+
+  static const _bg = Color(0xFF050F08);
+  static const _accent = Color(0xFF4CAF72);
+
   @override
   void dispose() {
+    _floatController.dispose();
+    _panelController.dispose();
     _email.dispose();
     _password.dispose();
     _confirm.dispose();
@@ -93,99 +112,184 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final isLt = _isLt;
-    return Scaffold(
-      // Sampled from the reg.png corners so the artwork blends in with no box.
-      backgroundColor: const Color(0xFFF8F6F4),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: _bg,
+        body: Stack(
+          children: [
+            // Subtle green radial glow in the centre.
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(0, -0.35),
+                    radius: 0.95,
+                    colors: [Color(0x59206B41), Color(0x00050F08)],
+                    stops: [0.0, 0.72],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              bottom: false,
+              child: Column(
+                children: [
+                  // Hero: floating logo + wordmark.
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 24, bottom: 34),
+                          child: Column(
+                            children: [
+                              AnimatedBuilder(
+                                animation: _floatController,
+                                builder: (context, child) {
+                                  final t = Curves.easeInOut
+                                      .transform(_floatController.value);
+                                  return Transform.translate(
+                                    offset: Offset(0, 6 - 12 * t),
+                                    child: child,
+                                  );
+                                },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(22),
+                                  child: Image.asset(
+                                    'assets/icon/app_icon.png',
+                                    width: 90,
+                                    height: 90,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              const Text(
+                                'Vaultie',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                isLt
+                                    ? 'Tavo pinigų seifas'
+                                    : 'Your money vault',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  _buildPanel(l, isLt),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The dark bottom-sheet-style panel that slides up on entry.
+  Widget _buildPanel(AppLocalizations l, bool isLt) {
+    final slide = Tween<Offset>(
+      begin: const Offset(0, 0.25),
+      end: Offset.zero,
+    ).animate(
+        CurvedAnimation(parent: _panelController, curve: Curves.easeOutCubic));
+
+    return SlideTransition(
+      position: slide,
+      child: FadeTransition(
+        opacity: _panelController,
+        child: Container(
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            color: Color(0xFF0B160F),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            border: Border(
+              top: BorderSide(color: Color(0x1AFFFFFF)),
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            16,
+            24,
+            24 + MediaQuery.of(context).viewInsets.bottom,
+          ),
           child: Form(
             key: _formKey,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 16),
                 Center(
-                  child: Image.asset(
-                    'assets/images/reg.png',
-                    height: 300,
-                    fit: BoxFit.contain,
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 Text(
-                  _isLogin ? 'Sveiki sugrįžę! 👋' : 'Sveiki atvykę! 👋',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  _isLogin
+                      ? (isLt ? 'Įeik į savo seifą' : 'Enter your vault')
+                      : (isLt ? 'Sukurk savo seifą' : 'Create your vault'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  _isLogin ? l.authSignInSubtitle : l.authCreateSubtitle,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: VaultieColors.subtle),
-                ),
-                const SizedBox(height: 32),
-                TextFormField(
+                const SizedBox(height: 20),
+                _field(
                   controller: _email,
+                  hint: l.email,
+                  icon: Icons.mail_outline,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
-                  enabled: !_busy,
-                  decoration: InputDecoration(
-                    labelText: l.email,
-                    prefixIcon: const Icon(Icons.mail_outline),
-                  ),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return l.emailEmptyError;
                     if (!v.contains('@')) return l.emailInvalidError;
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
+                const SizedBox(height: 14),
+                _field(
                   controller: _password,
-                  obscureText: _obscure,
-                  enabled: !_busy,
+                  hint: l.password,
+                  icon: Icons.lock_outline,
+                  obscure: _obscure,
+                  onToggleObscure: () => setState(() => _obscure = !_obscure),
                   textInputAction:
                       _isLogin ? TextInputAction.done : TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: l.password,
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined),
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
-                  ),
                   validator: (v) {
                     if (v == null || v.length < 6) return l.passwordError;
                     return null;
                   },
                 ),
-                // Confirm-password only appears when creating an account.
                 if (!_isLogin) ...[
-                  const SizedBox(height: 16),
-                  TextFormField(
+                  const SizedBox(height: 14),
+                  _field(
                     controller: _confirm,
-                    obscureText: _obscureConfirm,
-                    enabled: !_busy,
-                    decoration: InputDecoration(
-                      labelText:
-                          isLt ? 'Pakartokite slaptažodį' : 'Confirm password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscureConfirm
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined),
-                        onPressed: () =>
-                            setState(() => _obscureConfirm = !_obscureConfirm),
-                      ),
-                    ),
+                    hint: isLt ? 'Pakartokite slaptažodį' : 'Confirm password',
+                    icon: Icons.lock_outline,
+                    obscure: _obscureConfirm,
+                    onToggleObscure: () =>
+                        setState(() => _obscureConfirm = !_obscureConfirm),
                     validator: (v) {
                       if (v != _password.text) {
                         return isLt
@@ -197,34 +301,161 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ],
                 const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _busy ? null : _submit,
-                  child: _busy
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(_isLogin ? l.signIn : l.createAccount),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: _busy
-                      ? null
-                      : () => setState(() {
-                            _isLogin = !_isLogin;
-                            _confirm.clear();
-                          }),
-                  child: Text(
-                    _isLogin ? l.authToggleToCreate : l.authToggleToSignIn,
-                    style: const TextStyle(color: VaultieColors.primary),
-                  ),
-                ),
+                _openVaultButton(l, isLt),
+                const SizedBox(height: 16),
+                _toggleLink(isLt),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A dark "glass" input field.
+  Widget _field({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    bool obscure = false,
+    VoidCallback? onToggleObscure,
+    TextInputType? keyboardType,
+    TextInputAction? textInputAction,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      enabled: !_busy,
+      obscureText: obscure,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      style: const TextStyle(color: Colors.white, fontSize: 15),
+      cursorColor: _accent,
+      validator: validator,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+        prefixIcon: Icon(icon, color: Colors.white.withValues(alpha: 0.5)),
+        suffixIcon: onToggleObscure == null
+            ? null
+            : IconButton(
+                icon: Icon(
+                  obscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
+                onPressed: onToggleObscure,
+              ),
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.06),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: _accent, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFE57373)),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFE57373), width: 1.5),
+        ),
+        errorStyle: const TextStyle(color: Color(0xFFE57373)),
+      ),
+    );
+  }
+
+  /// The green-gradient primary action.
+  Widget _openVaultButton(AppLocalizations l, bool isLt) {
+    final label = _isLogin
+        ? (isLt ? 'Atidaryti seifą →' : 'Open vault →')
+        : (isLt ? 'Sukurti seifą →' : 'Create vault →');
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2E7D4F), Color(0xFF4CAF72)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _accent.withValues(alpha: 0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _busy ? null : _submit,
+          child: SizedBox(
+            height: 56,
+            child: Center(
+              child: _busy
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _toggleLink(bool isLt) {
+    final prefix = _isLogin
+        ? (isLt ? 'Neturi paskyros? ' : 'No account? ')
+        : (isLt ? 'Jau turi paskyrą? ' : 'Have an account? ');
+    final action = _isLogin
+        ? (isLt ? 'Sukurk nemokamai' : 'Create one free')
+        : (isLt ? 'Prisijunk' : 'Sign in');
+    return Center(
+      child: GestureDetector(
+        onTap: _busy
+            ? null
+            : () => setState(() {
+                  _isLogin = !_isLogin;
+                  _confirm.clear();
+                }),
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: prefix,
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+              ),
+              TextSpan(
+                text: action,
+                style: const TextStyle(
+                  color: _accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
         ),
       ),

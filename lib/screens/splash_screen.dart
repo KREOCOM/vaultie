@@ -82,42 +82,53 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF174E35), // brand vault green
-      body: Center(
-        child: FadeTransition(
-          opacity: _fade,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Logo: the app icon, clipped to a rounded square.
-              ClipRRect(
-                borderRadius: BorderRadius.circular(32),
-                child: Image.asset(
-                  'assets/icon/app_icon.png',
-                  width: 132,
-                  height: 132,
-                  fit: BoxFit.cover,
+      backgroundColor: const Color(0xFF1A1A1A), // dark charcoal
+      body: Container(
+        // Subtle green radial glow behind the logo.
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -0.1),
+            radius: 0.9,
+            colors: [Color(0x662E6B4D), Color(0x001A1A1A)],
+            stops: [0.0, 0.75],
+          ),
+        ),
+        child: Center(
+          child: FadeTransition(
+            opacity: _fade,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Logo: the app icon, clipped to a rounded square.
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(32),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 132,
+                    height: 132,
+                    fit: BoxFit.cover,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 28),
-              const Text(
-                'Vaultie',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 36,
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 28),
+                const Text(
+                  'Vaultie',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 36,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Smarter money habits',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
+                const SizedBox(height: 8),
+                Text(
+                  'Smarter money habits',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
