@@ -70,9 +70,43 @@ class AuthService {
 
   /// Permanently deletes the signed-in account. Firebase may throw a
   /// [FirebaseAuthException] with code `requires-recent-login` if the session
-  /// is too old — the caller should then ask the user to sign in again.
+  /// is too old — the caller should re-authenticate (see the methods below)
+  /// and retry, or ask the user to sign in again.
   Future<void> deleteAccount() async {
     await _auth.currentUser?.delete();
+  }
+
+  /// True when the signed-in user authenticated via Google.
+  bool get isGoogleUser =>
+      _auth.currentUser?.providerData
+          .any((p) => p.providerId == 'google.com') ??
+      false;
+
+  /// Re-authenticates a password user (required before sensitive actions like
+  /// account deletion when the last sign-in is too old).
+  Future<void> reauthenticateWithPassword(String password) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) {
+      throw FirebaseAuthException(code: 'no-current-user');
+    }
+    final cred = EmailAuthProvider.credential(email: email, password: password);
+    await user.reauthenticateWithCredential(cred);
+  }
+
+  /// Re-authenticates a Google user. Returns false if they cancel the picker.
+  Future<bool> reauthenticateWithGoogle() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    final googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) return false; // cancelled
+    final googleAuth = await googleUser.authentication;
+    final cred = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+    await user.reauthenticateWithCredential(cred);
+    return true;
   }
 }
 

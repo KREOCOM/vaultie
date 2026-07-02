@@ -181,7 +181,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isLt = _isLt;
     setState(() => _busy = true);
     try {
-      await _auth.deleteAccount();
+      try {
+        await _auth.deleteAccount();
+      } on FirebaseAuthException catch (e) {
+        if (e.code != 'requires-recent-login') rethrow;
+        // Firebase needs a fresh login before deleting — re-auth, then retry.
+        final reauthed = await _reauthenticate();
+        if (!reauthed) return; // cancelled/failed; `finally` stops the spinner
+        await _auth.deleteAccount();
+      }
+      // Deleted — clear local data and return to the auth screen.
       await _wipeBox(HiveBoxes.subscriptions);
       await _wipeBox(HiveBoxes.cancellations);
       await _wipeBox(HiveBoxes.settings);
@@ -192,22 +201,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      setState(() => _busy = false);
-      if (e.code == 'requires-recent-login') {
-        await _auth.signOut();
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AuthScreen()),
-          (route) => false,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isLt
-                ? 'Saugumo sumetimais prisijunkite iš naujo ir bandykite ištrinti dar kartą.'
-                : 'For security, please sign in again and retry deleting your account.'),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authErrorMessage(e, isLithuanian: isLt)),
+          backgroundColor: VaultieColors.danger,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isLt
+              ? 'Nepavyko ištrinti paskyros. Bandykite dar kartą.'
+              : 'Could not delete your account. Please try again.'),
+          backgroundColor: VaultieColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Re-authenticates before deletion. Google users re-run the picker; password
+  /// users are prompted for their password. Returns true on success.
+  Future<bool> _reauthenticate() async {
+    final isLt = _isLt;
+    if (_auth.isGoogleUser) {
+      try {
+        return await _auth.reauthenticateWithGoogle();
+      } catch (_) {
+        return false;
+      }
+    }
+    final controller = TextEditingController();
+    final password = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isLt ? 'Patvirtinkite tapatybę' : 'Confirm your identity'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: isLt ? 'Slaptažodis' : 'Password',
           ),
-        );
-      } else {
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(isLt ? 'Atšaukti' : 'Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: Text(isLt ? 'Patvirtinti' : 'Confirm'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (password == null || password.isEmpty) return false;
+    try {
+      await _auth.reauthenticateWithPassword(password);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(authErrorMessage(e, isLithuanian: isLt)),
@@ -215,6 +273,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       }
+      return false;
     }
   }
 
