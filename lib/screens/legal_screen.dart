@@ -21,7 +21,7 @@ class LegalScreen extends StatelessWidget {
   final String intro;
   final List<LegalSection> sections;
 
-  static const _contactEmail = 'support@vaultie.app';
+  static const _contactEmail = 'osva50042@gmail.com';
 
   factory LegalScreen.privacy(bool isLt) {
     return LegalScreen(
