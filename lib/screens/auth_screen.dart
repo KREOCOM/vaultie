@@ -28,6 +28,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _confirm = TextEditingController();
+  final _passwordFocus = FocusNode();
+  final _confirmFocus = FocusNode();
 
   bool _isLogin = true;
   bool _obscure = true;
@@ -56,6 +58,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     _email.dispose();
     _password.dispose();
     _confirm.dispose();
+    _passwordFocus.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 
@@ -221,12 +225,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
               top: BorderSide(color: Color(0x1AFFFFFF)),
             ),
           ),
-          padding: EdgeInsets.fromLTRB(
-            24,
-            16,
-            24,
-            24 + MediaQuery.of(context).viewInsets.bottom,
-          ),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
           child: Form(
             key: _formKey,
             child: Column(
@@ -261,6 +260,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                   icon: Icons.mail_outline,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
+                  onSubmitted: (_) => _passwordFocus.requestFocus(),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return l.emailEmptyError;
                     if (!v.contains('@')) return l.emailInvalidError;
@@ -270,12 +270,20 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                 const SizedBox(height: 14),
                 _field(
                   controller: _password,
+                  focusNode: _passwordFocus,
                   hint: l.password,
                   icon: Icons.lock_outline,
                   obscure: _obscure,
                   onToggleObscure: () => setState(() => _obscure = !_obscure),
                   textInputAction:
                       _isLogin ? TextInputAction.done : TextInputAction.next,
+                  onSubmitted: (_) {
+                    if (_isLogin) {
+                      _submit();
+                    } else {
+                      _confirmFocus.requestFocus();
+                    }
+                  },
                   validator: (v) {
                     if (v == null || v.length < 6) return l.passwordError;
                     return null;
@@ -285,11 +293,14 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                   const SizedBox(height: 14),
                   _field(
                     controller: _confirm,
+                    focusNode: _confirmFocus,
                     hint: isLt ? 'Pakartokite slaptažodį' : 'Confirm password',
                     icon: Icons.lock_outline,
                     obscure: _obscureConfirm,
                     onToggleObscure: () =>
                         setState(() => _obscureConfirm = !_obscureConfirm),
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
                     validator: (v) {
                       if (v != _password.text) {
                         return isLt
@@ -317,18 +328,22 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     required TextEditingController controller,
     required String hint,
     required IconData icon,
+    FocusNode? focusNode,
     bool obscure = false,
     VoidCallback? onToggleObscure,
     TextInputType? keyboardType,
     TextInputAction? textInputAction,
+    ValueChanged<String>? onSubmitted,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
       enabled: !_busy,
       obscureText: obscure,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
+      onFieldSubmitted: onSubmitted,
       style: const TextStyle(color: Colors.white, fontSize: 15),
       cursorColor: _accent,
       validator: validator,
