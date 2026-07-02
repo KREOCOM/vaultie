@@ -187,6 +187,25 @@ class VaultieApp extends StatelessWidget {
                   const BorderSide(color: VaultieColors.primary, width: 2),
             ),
           ),
+          // Date picker: filled green OK, grey outlined Cancel.
+          datePickerTheme: DatePickerThemeData(
+            confirmButtonStyle: TextButton.styleFrom(
+              backgroundColor: VaultieColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            cancelButtonStyle: TextButton.styleFrom(
+              foregroundColor: VaultieColors.subtle,
+              side: const BorderSide(color: Color(0xFFCBD6CF)),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
         ),
         // Always launch into the branded splash; it decides where to go next.
         // `--dart-define=SHOW_ONBOARDING=true` forces the intro flow even after
