@@ -15,6 +15,7 @@ import '../widgets/subscription_avatar.dart';
 import 'add_subscription_screen.dart';
 import 'auth_screen.dart';
 import 'paywall_screen.dart';
+import 'settings_screen.dart';
 
 /// Category donut colours.
 const List<Color> _catPalette = [
@@ -217,6 +218,14 @@ class _OverviewHeader extends StatelessWidget {
                   ],
                 ),
               ),
+              InkWell(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
+                child: const Icon(Icons.settings_outlined,
+                    color: Colors.white70, size: 22),
+              ),
+              const SizedBox(width: 14),
               InkWell(
                 onTap: () async {
                   await AuthService().signOut();
@@ -922,12 +931,15 @@ class _SubscriptionTile extends StatelessWidget {
         child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
       onDismissed: (_) {
-        // Record the cancellation (kept for future savings insights).
-        Hive.box(HiveBoxes.cancellations).add({
-          'monthly': sub.monthlyCost,
-          'date': DateTime.now().millisecondsSinceEpoch,
-          'name': sub.name,
-        });
+        // Record the cancellation (kept for future savings insights). Guarded
+        // so it never throws if the box somehow isn't open.
+        if (Hive.isBoxOpen(HiveBoxes.cancellations)) {
+          Hive.box(HiveBoxes.cancellations).add({
+            'monthly': sub.monthlyCost,
+            'date': DateTime.now().millisecondsSinceEpoch,
+            'name': sub.name,
+          });
+        }
         Hive.box<Subscription>(HiveBoxes.subscriptions).delete(sub.id);
         NotificationService.instance.cancelForSubscription(sub.id);
         ScaffoldMessenger.of(context).showSnackBar(

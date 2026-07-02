@@ -164,8 +164,7 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               value,
-              style:
-                  const TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
             ),
           ],
         ),
@@ -198,8 +197,7 @@ class _CategoryRow extends StatelessWidget {
               Container(
                 width: 12,
                 height: 12,
-                decoration:
-                    BoxDecoration(color: color, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -208,8 +206,7 @@ class _CategoryRow extends StatelessWidget {
               ),
               Text('${(fraction * 100).round()}%  ',
                   style: const TextStyle(color: VaultieColors.subtle)),
-              Text(amount,
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(amount, style: const TextStyle(fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 8),

@@ -13,6 +13,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/paywall_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/verify_email_screen.dart';
 
@@ -191,6 +192,7 @@ class VaultieApp extends StatelessWidget {
         VerifyEmailScreen.route: (_) => const VerifyEmailScreen(),
         DashboardScreen.route: (_) => const DashboardScreen(),
         PaywallScreen.route: (_) => const PaywallScreen(),
+        SettingsScreen.route: (_) => const SettingsScreen(),
       },
     );
   }

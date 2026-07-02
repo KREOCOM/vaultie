@@ -240,9 +240,12 @@ class _BrandMarkPainter extends CustomPainter {
             Offset(x2 - s * 0.03, c.dy + s * 0.08), s * 0.065, accent);
       case Brand.icloud:
         // Fluffy cloud from overlapping circles + a base bar.
-        canvas.drawCircle(Offset(c.dx - s * 0.13, c.dy + s * 0.02), s * 0.12, accent);
-        canvas.drawCircle(Offset(c.dx + s * 0.04, c.dy - s * 0.06), s * 0.16, accent);
-        canvas.drawCircle(Offset(c.dx + s * 0.18, c.dy + s * 0.03), s * 0.11, accent);
+        canvas.drawCircle(
+            Offset(c.dx - s * 0.13, c.dy + s * 0.02), s * 0.12, accent);
+        canvas.drawCircle(
+            Offset(c.dx + s * 0.04, c.dy - s * 0.06), s * 0.16, accent);
+        canvas.drawCircle(
+            Offset(c.dx + s * 0.18, c.dy + s * 0.03), s * 0.11, accent);
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTWH(c.dx - s * 0.22, c.dy + s * 0.02, s * 0.44, s * 0.14),
@@ -290,20 +293,24 @@ class _BrandMarkPainter extends CustomPainter {
     final body = Paint()..color = color;
 
     // Two overlapping lobes form the rounded body.
-    final left =
-        Path()..addOval(Rect.fromCircle(center: c + Offset(-0.11 * s, 0.04 * s), radius: 0.19 * s));
-    final right =
-        Path()..addOval(Rect.fromCircle(center: c + Offset(0.11 * s, 0.04 * s), radius: 0.19 * s));
+    final left = Path()
+      ..addOval(Rect.fromCircle(
+          center: c + Offset(-0.11 * s, 0.04 * s), radius: 0.19 * s));
+    final right = Path()
+      ..addOval(Rect.fromCircle(
+          center: c + Offset(0.11 * s, 0.04 * s), radius: 0.19 * s));
     var apple = Path.combine(PathOperation.union, left, right);
 
     // Top dimple where the stem sits.
-    final dimple =
-        Path()..addOval(Rect.fromCircle(center: c + Offset(0, -0.18 * s), radius: 0.08 * s));
+    final dimple = Path()
+      ..addOval(
+          Rect.fromCircle(center: c + Offset(0, -0.18 * s), radius: 0.08 * s));
     apple = Path.combine(PathOperation.difference, apple, dimple);
 
     // The signature bite on the right edge.
-    final bite =
-        Path()..addOval(Rect.fromCircle(center: c + Offset(0.26 * s, 0.0), radius: 0.11 * s));
+    final bite = Path()
+      ..addOval(
+          Rect.fromCircle(center: c + Offset(0.26 * s, 0.0), radius: 0.11 * s));
     apple = Path.combine(PathOperation.difference, apple, bite);
 
     canvas.drawPath(apple, body);
@@ -313,8 +320,7 @@ class _BrandMarkPainter extends CustomPainter {
     canvas.translate(c.dx + 0.03 * s, c.dy - 0.24 * s);
     canvas.rotate(-math.pi / 5);
     canvas.drawOval(
-      Rect.fromCenter(
-          center: Offset.zero, width: 0.16 * s, height: 0.09 * s),
+      Rect.fromCenter(center: Offset.zero, width: 0.16 * s, height: 0.09 * s),
       body,
     );
     canvas.restore();

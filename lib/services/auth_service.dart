@@ -47,15 +47,26 @@ class AuthService {
   }
 
   Future<void> signOut() => _auth.signOut();
+
+  /// Permanently deletes the signed-in account. Firebase may throw a
+  /// [FirebaseAuthException] with code `requires-recent-login` if the session
+  /// is too old — the caller should then ask the user to sign in again.
+  Future<void> deleteAccount() async {
+    await _auth.currentUser?.delete();
+  }
 }
 
 /// Maps a [FirebaseAuthException] to a localized, user-facing message.
 String authErrorMessage(FirebaseAuthException e, {required bool isLithuanian}) {
   switch (e.code) {
     case 'invalid-email':
-      return isLithuanian ? 'Neteisingas el. pašto adresas.' : 'Invalid email address.';
+      return isLithuanian
+          ? 'Neteisingas el. pašto adresas.'
+          : 'Invalid email address.';
     case 'user-disabled':
-      return isLithuanian ? 'Ši paskyra užblokuota.' : 'This account has been disabled.';
+      return isLithuanian
+          ? 'Ši paskyra užblokuota.'
+          : 'This account has been disabled.';
     case 'user-not-found':
     case 'wrong-password':
     case 'invalid-credential':

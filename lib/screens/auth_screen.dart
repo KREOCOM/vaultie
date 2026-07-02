@@ -182,8 +182,8 @@ class _AuthScreenState extends State<AuthScreen> {
                         icon: Icon(_obscureConfirm
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined),
-                        onPressed: () => setState(
-                            () => _obscureConfirm = !_obscureConfirm),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
                     ),
                     validator: (v) {

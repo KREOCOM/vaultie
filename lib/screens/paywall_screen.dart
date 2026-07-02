@@ -26,40 +26,9 @@ class PaywallScreen extends StatefulWidget {
 class _PaywallScreenState extends State<PaywallScreen> {
   // Default to the best-value plan.
   PlanId _selected = PlanId.lifetime;
-  bool _busy = false;
+  final bool _busy = false;
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
-
-  Future<void> _purchase() async {
-    setState(() => _busy = true);
-    final result = await PurchaseService.instance.purchase(_selected);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (result.isSuccess) {
-      Navigator.of(context).pop(true);
-    } else if (result.status != PurchaseStatus.cancelled) {
-      _snack(_isLt
-          ? 'Pirkimas nepavyko. Bandykite dar kartą.'
-          : 'Purchase failed. Please try again.');
-    }
-  }
-
-  Future<void> _restore() async {
-    setState(() => _busy = true);
-    final result = await PurchaseService.instance.restore();
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (result.isSuccess) {
-      Navigator.of(context).pop(true);
-    } else {
-      _snack(_isLt
-          ? 'Nerasta ankstesnių pirkimų.'
-          : 'No previous purchase found.');
-    }
-  }
-
-  void _snack(String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
   /// Dismisses the paywall. Normally this pops back to whatever pushed it (the
   /// dashboard). If the paywall happens to be the only route on the stack,
@@ -79,13 +48,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final isLt = _isLt;
-    final ctaLabel = _selected == PlanId.lifetime
-        ? (isLt
-            ? 'Pirkti visam laikui už ${PurchaseService.planFor(PlanId.lifetime).price}'
-            : 'Get lifetime for ${PurchaseService.planFor(PlanId.lifetime).price}')
-        : (isLt
-            ? 'Prenumeruoti už ${PurchaseService.planFor(PlanId.monthly).price}/mėn.'
-            : 'Subscribe for ${PurchaseService.planFor(PlanId.monthly).price}/mo');
+    // Real payments aren't wired up yet, so the CTA is a disabled placeholder.
+    final ctaLabel = isLt ? 'Netrukus' : 'Coming soon';
 
     return PopScope(
       // Intercept the system back button/gesture so it routes through _dismiss
@@ -165,31 +129,23 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     const SizedBox(height: 14),
                     _planCard(PlanId.monthly, isLt),
                     const SizedBox(height: 32),
+                    // Payments aren't wired up yet — the CTA is disabled and a
+                    // "coming soon" message stands in for the prices.
                     _CtaButton(
                       label: ctaLabel,
-                      busy: _busy,
-                      onPressed: _busy ? null : _purchase,
+                      busy: false,
+                      onPressed: null,
                     ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: _busy ? null : _restore,
-                      child: Text(
-                        isLt ? 'Atkurti pirkimą' : 'Restore purchase',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 12),
                     Text(
                       isLt
-                          ? 'Bandomasis režimas — tikri mokėjimai dar neįjungti.'
-                          : 'Demo mode — no real payment is charged yet.',
+                          ? 'Netrukus — tikri mokėjimai jau greitai'
+                          : 'Coming Soon - Real payments coming',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.5),
-                        fontSize: 12,
+                      style: const TextStyle(
+                        color: _brightGreen,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -230,7 +186,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   Widget _planCard(PlanId id, bool isLt) {
-    final plan = PurchaseService.planFor(id);
     final selected = _selected == id;
     final lifetime = id == PlanId.lifetime;
     final title = lifetime
@@ -301,14 +256,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     ),
                   ),
                 ],
-              ),
-            ),
-            Text(
-              plan.price,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
               ),
             ),
           ],

@@ -42,15 +42,25 @@ class NotificationService {
     }
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    // iOS/macOS: request alert/badge/sound authorisation on init.
+    const darwin = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
     await _plugin.initialize(
-      settings: const InitializationSettings(android: android),
+      settings: const InitializationSettings(android: android, iOS: darwin),
     );
 
     // Android 13+ requires a runtime prompt to post notifications.
-    final androidImpl =
-        _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    final androidImpl = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
     await androidImpl?.requestNotificationsPermission();
+
+    // iOS requires an explicit authorisation request too.
+    final iosImpl = _plugin.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>();
+    await iosImpl?.requestPermissions(alert: true, badge: true, sound: true);
 
     _initialized = true;
   }
