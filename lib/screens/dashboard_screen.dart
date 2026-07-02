@@ -596,6 +596,8 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
             ),
           ],
         ),
+        const SizedBox(height: 20),
+        _WorldComparison(monthly: monthly, isLt: isLt),
         const SizedBox(height: 28),
         Text(
           l.byCategory,
@@ -749,6 +751,140 @@ class _BarChart extends StatelessWidget {
             ),
           );
         }),
+      ),
+    );
+  }
+}
+
+/// Compares the user's monthly spend against hardcoded regional averages
+/// (in €), with progress bars and a motivational badge.
+class _WorldComparison extends StatelessWidget {
+  const _WorldComparison({required this.monthly, required this.isLt});
+
+  final double monthly;
+  final bool isLt;
+
+  static const _ltAvg = 89.0;
+  static const _euAvg = 165.0;
+  static const _worldAvg = 142.0;
+
+  /// The most flattering true comparison, e.g. "You spend 61% less than
+  /// Europeans!"; falls back to an encouraging line if above every average.
+  String _badge() {
+    final groups = <(String, double)>[
+      (isLt ? 'lietuvių' : 'Lithuanians', _ltAvg),
+      (isLt ? 'europiečių' : 'Europeans', _euAvg),
+      (isLt ? 'pasaulio vidurkio' : 'the world average', _worldAvg),
+    ];
+    String? best;
+    double bestPct = 0;
+    for (final (group, avg) in groups) {
+      if (monthly > 0 && monthly < avg) {
+        final pct = (avg - monthly) / avg * 100;
+        if (pct > bestPct) {
+          bestPct = pct;
+          best = group;
+        }
+      }
+    }
+    if (best != null) {
+      final p = bestPct.round();
+      return isLt
+          ? 'Išleidžiate $p% mažiau nei $best! 🎉'
+          : 'You spend $p% less than $best! 🎉';
+    }
+    return isLt
+        ? 'Išleidžiate daugiau nei vidurkis — gal laikas apsikarpyti.'
+        : "You're above average — maybe trim a subscription.";
+  }
+
+  Widget _row(String label, double value, double maxVal, bool highlight) {
+    final frac = maxVal <= 0 ? 0.0 : (value / maxVal).clamp(0.0, 1.0);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 74,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
+                color: highlight ? VaultieColors.primary : VaultieColors.subtle,
+              ),
+            ),
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: frac,
+                minHeight: 10,
+                backgroundColor: const Color(0xFFE1E8E3),
+                color:
+                    highlight ? VaultieColors.primary : const Color(0xFFB4D2BE),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 46,
+            child: Text(
+              '€${value.round()}',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: highlight ? VaultieColors.primary : VaultieColors.ink,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxVal =
+        [monthly, _ltAvg, _euAvg, _worldAvg].reduce((a, b) => a > b ? a : b);
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: VaultieColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE1E8E3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isLt ? 'Palyginti su vidurkiu' : 'vs Average spend',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: VaultieColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              _badge(),
+              style: const TextStyle(
+                color: VaultieColors.primary,
+                fontWeight: FontWeight.w600,
+                fontSize: 13.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _row(isLt ? 'Jūs' : 'You', monthly, maxVal, true),
+          _row(isLt ? 'Lietuva' : 'Lithuania', _ltAvg, maxVal, false),
+          _row(isLt ? 'Europa' : 'Europe', _euAvg, maxVal, false),
+          _row(isLt ? 'Pasaulis' : 'World', _worldAvg, maxVal, false),
+        ],
       ),
     );
   }
