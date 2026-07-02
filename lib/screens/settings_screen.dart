@@ -11,11 +11,11 @@ import '../services/notification_service.dart';
 import '../services/purchase_service.dart';
 import '../widgets/subscription_avatar.dart';
 import 'auth_screen.dart';
+import 'legal_screen.dart';
 import 'paywall_screen.dart';
 
-// Placeholder URLs — replace with the real pages before release.
-const _kPrivacyUrl = 'https://vaultie.app/privacy';
-const _kTermsUrl = 'https://vaultie.app/terms';
+// Privacy Policy & Terms are shown in-app (see LegalScreen). Rate link is a
+// placeholder App Store URL — replace the id with the real one after release.
 const _kRateUrl = 'https://apps.apple.com/app/id000000000';
 
 const Color _gold = Color(0xFFFFD24A);
@@ -285,16 +285,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     leading: const Icon(Icons.privacy_tip_outlined,
                         color: VaultieColors.primary),
                     title: Text(isLt ? 'Privatumo politika' : 'Privacy Policy'),
-                    trailing: const Icon(Icons.open_in_new, size: 18),
-                    onTap: () => _openUrl(_kPrivacyUrl),
+                    trailing: const Icon(Icons.chevron_right, size: 20),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => LegalScreen.privacy(isLt),
+                      ),
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.description_outlined,
                         color: VaultieColors.primary),
                     title: Text(isLt ? 'Naudojimo sąlygos' : 'Terms of Use'),
-                    trailing: const Icon(Icons.open_in_new, size: 18),
-                    onTap: () => _openUrl(_kTermsUrl),
+                    trailing: const Icon(Icons.chevron_right, size: 20),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => LegalScreen.terms(isLt),
+                      ),
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(

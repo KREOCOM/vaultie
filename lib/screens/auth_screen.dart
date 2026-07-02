@@ -142,10 +142,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                   // Hero: floating logo + wordmark.
                   Expanded(
                     child: Align(
-                      alignment: Alignment.bottomCenter,
+                      alignment: const Alignment(0, -0.1),
                       child: SingleChildScrollView(
                         child: Padding(
-                          padding: const EdgeInsets.only(top: 24, bottom: 34),
+                          padding: const EdgeInsets.symmetric(vertical: 24),
                           child: Column(
                             children: [
                               AnimatedBuilder(
