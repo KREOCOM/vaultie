@@ -168,6 +168,24 @@ class _OverviewHeader extends StatelessWidget {
     return isLt ? 'Naudotojau' : 'there';
   }
 
+  String _greeting(bool isLt) {
+    final h = DateTime.now().hour;
+    if (h >= 5 && h < 12) return isLt ? 'Labas rytas' : 'Good morning';
+    if (h >= 12 && h < 18) return isLt ? 'Laba diena' : 'Good afternoon';
+    return isLt ? 'Labas vakaras' : 'Good evening';
+  }
+
+  Widget _iconBtn(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(icon, color: Colors.white70, size: 21),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -176,253 +194,136 @@ class _OverviewHeader extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: AspectRatio(
-        aspectRatio: 1.6,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0D4A2E), Color(0xFF1A6B45), Color(0xFF0F7A4D)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0D4A2E).withValues(alpha: 0.45),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Stack(
-              children: [
-                // Subtle diagonal line pattern.
-                const Positioned.fill(
-                  child: CustomPaint(painter: _CardPattern()),
-                ),
-                // Soft aurora highlight in the top-right corner.
-                Positioned(
-                  top: -40,
-                  right: -30,
-                  child: Container(
-                    width: 170,
-                    height: 170,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          Colors.white.withValues(alpha: 0.13),
-                          Colors.white.withValues(alpha: 0.0),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(22),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Top: gold chip · brand + controls.
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _goldChip(),
-                          const Spacer(),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: ColoredBox(
+          color: const Color(0xFF0A0A0A),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 22, 18, 22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _iconButton(
-                                    Icons.settings_outlined,
-                                    () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const SettingsScreen(),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  _iconButton(Icons.logout, () async {
-                                    await AuthService().signOut();
-                                    if (!context.mounted) return;
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      MaterialPageRoute(
-                                        builder: (_) => const AuthScreen(),
-                                      ),
-                                      (route) => false,
-                                    );
-                                  }),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'VAULTIE',
+                              Text(
+                                _greeting(isLt),
                                 style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 3,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                      const Spacer(),
-                      // Middle: where a card number would sit.
-                      Text(
-                        'track • save • control',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.32),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 2,
                         ),
-                      ),
-                      const Spacer(),
-                      // Bottom: monthly spend (left) · user + count (right).
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  l.monthlySpend.toUpperCase(),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.6),
-                                    fontSize: 10,
-                                    letterSpacing: 1,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  formatMoney(monthlyTotal),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
+                        _iconBtn(
+                          Icons.settings_outlined,
+                          () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SettingsScreen(),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Flexible(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  l.activeSubscriptions(count),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.6),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
+                        ),
+                        const SizedBox(width: 10),
+                        _iconBtn(Icons.logout, () async {
+                          await AuthService().signOut();
+                          if (!context.mounted) return;
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (_) => const AuthScreen(),
+                            ),
+                            (route) => false,
+                          );
+                        }),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+                    Text(
+                      l.monthlySpend.toUpperCase(),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.45),
+                        fontSize: 11,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          formatMoney(monthlyTotal),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 34,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF4CAF72).withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            isLt
+                                ? '↓ 12% nei pernai mėn.'
+                                : '↓ 12% vs last month',
+                            style: const TextStyle(
+                              color: Color(0xFF6FE3A0),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      l.activeSubscriptions(count),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        fontSize: 13,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              // Thin green gradient accent line at the bottom.
+              Container(
+                height: 3,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF4CAF72), Color(0xFF2E7D32)],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
-
-  /// Gold EMV-style chip.
-  Widget _goldChip() {
-    return Container(
-      width: 46,
-      height: 34,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(7),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFF6DE9B), Color(0xFFC79A3E)],
-        ),
-      ),
-      child: Center(
-        child: Container(
-          width: 30,
-          height: 20,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: const Color(0x66000000)),
-          ),
-          child: Center(
-            child: Container(
-              width: 1,
-              height: 20,
-              color: const Color(0x66000000),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _iconButton(IconData icon, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.14),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 18),
-      ),
-    );
-  }
-}
-
-/// Faint diagonal hatch drawn over the card for a textured, premium feel.
-class _CardPattern extends CustomPainter {
-  const _CardPattern();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
-      ..strokeWidth = 1;
-    const gap = 16.0;
-    for (double x = -size.height; x < size.width; x += gap) {
-      canvas.drawLine(
-          Offset(x, 0), Offset(x + size.height, size.height), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// "Artimiausi mokėjimai" — next three renewals with a colour dot and a
