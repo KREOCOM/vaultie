@@ -7,6 +7,7 @@ import '../l10n/localized_labels.dart';
 import '../main.dart';
 import '../models/subscription.dart';
 import '../services/notification_service.dart';
+import '../widgets/subscription_avatar.dart';
 import '../widgets/subscription_icons.dart';
 
 /// Form for creating — or editing — a subscription and saving it to Hive.
@@ -80,10 +81,17 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
       _nextBilling = e.nextBillingDate;
       _color = Color(e.colorValue);
     }
+    // Live logo preview: rebuild as the name changes so the avatar updates.
+    _name.addListener(_onNameChanged);
+  }
+
+  void _onNameChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _name.removeListener(_onNameChanged);
     _name.dispose();
     _cost.dispose();
     _nameFocus.dispose();
@@ -317,6 +325,9 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
           _fieldRow(
             emoji: '📝',
             label: l.name,
+            leading: _name.text.trim().isEmpty
+                ? const Text('📝', style: TextStyle(fontSize: 20))
+                : SubscriptionAvatar(name: _name.text, size: 30),
             child: AnimatedBuilder(
               animation: _flash,
               builder: (context, child) {
@@ -390,12 +401,13 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
     required String emoji,
     required String label,
     required Widget child,
+    Widget? leading,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 14),
       child: Row(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
+          leading ?? Text(emoji, style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 14),
           Text(label,
               style: const TextStyle(
