@@ -10,6 +10,7 @@ import 'l10n/app_localizations.dart';
 import 'models/subscription.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
+import 'services/recap_service.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -39,6 +40,9 @@ class HiveBoxes {
   /// Records of cancelled subscriptions ({monthly, date, name}), used by the
   /// dashboard savings tracker to total up what cancelling has saved.
   static const String cancellations = 'cancellations';
+
+  /// Per-month spend snapshots for the Monthly Recap.
+  static const String monthlyStats = 'monthlyStats';
 }
 
 Future<void> main() async {
@@ -58,6 +62,7 @@ Future<void> main() async {
   final subsBox = await Hive.openBox<Subscription>(HiveBoxes.subscriptions);
   final settings = await Hive.openBox(HiveBoxes.settings);
   await Hive.openBox(HiveBoxes.cancellations);
+  await Hive.openBox(HiveBoxes.monthlyStats);
   // Load persisted language/currency preferences into their notifiers.
   AppPrefs.load();
 
@@ -72,6 +77,9 @@ Future<void> main() async {
   final isLithuanian =
       WidgetsBinding.instance.platformDispatcher.locale.languageCode == 'lt';
   await _rescheduleReminders(subsBox, isLithuanian: isLithuanian);
+
+  // Snapshot this month's spend so the Monthly Recap has data to show later.
+  RecapService.recordCurrentMonth(subsBox.values.toList());
 
   runApp(
       VaultieApp(hasOnboarded: settings.get('onboarded', defaultValue: false)));

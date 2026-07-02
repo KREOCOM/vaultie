@@ -11,10 +11,12 @@ import '../models/subscription.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../services/purchase_service.dart';
+import '../services/recap_service.dart';
 import '../widgets/subscription_avatar.dart';
 import 'add_subscription_screen.dart';
 import 'auth_screen.dart';
 import 'paywall_screen.dart';
+import 'recap_screen.dart';
 import 'settings_screen.dart';
 
 /// Category donut colours.
@@ -32,10 +34,45 @@ const List<Color> _catPalette = [
 const Color _brightGreen = Color(0xFF4CAF72);
 
 /// Home screen: two tabs — Overview (Apžvalga) and Analytics (Analitika).
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   static const route = '/dashboard';
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // After the first frame, surface the once-a-month recap if one is due.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowRecap());
+  }
+
+  void _maybeShowRecap() {
+    if (!mounted) return;
+    // Debug hook: `--dart-define=PREVIEW_RECAP=true` shows a sample recap.
+    if (const bool.fromEnvironment('PREVIEW_RECAP')) {
+      showMonthlyRecap(
+        context,
+        MonthlyRecap(
+          month: '2026-06',
+          total: 65,
+          count: 4,
+          topName: 'Netflix',
+          topCost: 15.99,
+          prevTotal: 78,
+        ),
+      );
+      return;
+    }
+    final recap = RecapService.pendingRecap();
+    if (recap == null) return;
+    RecapService.markShown();
+    showMonthlyRecap(context, recap);
+  }
 
   @override
   Widget build(BuildContext context) {
