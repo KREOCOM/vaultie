@@ -25,9 +25,30 @@ class AddSubscriptionScreen extends StatefulWidget {
   State<AddSubscriptionScreen> createState() => _AddSubscriptionScreenState();
 }
 
-class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
+class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
+    with SingleTickerProviderStateMixin {
   final _name = TextEditingController();
   final _cost = TextEditingController();
+  final _nameFocus = FocusNode();
+  final _infoKey = GlobalKey();
+
+  // Brief green flash on the Name field when a service is picked (0→1→0).
+  late final AnimationController _flashController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+  late final Animation<double> _flash = TweenSequence<double>([
+    TweenSequenceItem(
+      tween:
+          Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)),
+      weight: 25,
+    ),
+    TweenSequenceItem(
+      tween:
+          Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeIn)),
+      weight: 75,
+    ),
+  ]).animate(_flashController);
 
   BillingCycle _cycle = BillingCycle.monthly;
   String _category = SubscriptionCategory.all.first;
@@ -65,6 +86,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
   void dispose() {
     _name.dispose();
     _cost.dispose();
+    _nameFocus.dispose();
+    _flashController.dispose();
     super.dispose();
   }
 
@@ -82,7 +105,27 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
         _category = spec.category;
       }
     });
-    FocusScope.of(context).unfocus();
+
+    // Draw attention to the Information section: scroll it into view and flash
+    // the Name field. "Other" also focuses the field so the keyboard opens.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _infoKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.1,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      }
+      _flashController.forward(from: 0);
+      if (spec.brand == Brand.other) {
+        _nameFocus.requestFocus();
+      } else {
+        FocusScope.of(context).unfocus();
+      }
+    });
   }
 
   Future<void> _pickDate() async {
@@ -263,6 +306,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
         '${_nextBilling.month.toString().padLeft(2, '0')}-'
         '${_nextBilling.day.toString().padLeft(2, '0')}';
     return Container(
+      key: _infoKey,
       decoration: BoxDecoration(
         color: VaultieColors.card,
         borderRadius: BorderRadius.circular(18),
@@ -273,14 +317,35 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
           _fieldRow(
             emoji: '📝',
             label: l.name,
-            child: TextField(
-              controller: _name,
-              textAlign: TextAlign.right,
-              textCapitalization: TextCapitalization.words,
-              decoration: InputDecoration(
-                isCollapsed: true,
-                border: InputBorder.none,
-                hintText: l.nameHint,
+            child: AnimatedBuilder(
+              animation: _flash,
+              builder: (context, child) {
+                final v = _flash.value.clamp(0.0, 1.0).toDouble();
+                return Container(
+                  foregroundDecoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: VaultieColors.primary.withValues(alpha: v),
+                      width: 2,
+                    ),
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: VaultieColors.primary.withValues(alpha: v * 0.10),
+                  ),
+                  child: child,
+                );
+              },
+              child: TextField(
+                controller: _name,
+                focusNode: _nameFocus,
+                textAlign: TextAlign.right,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  isCollapsed: true,
+                  border: InputBorder.none,
+                  hintText: l.nameHint,
+                ),
               ),
             ),
           ),
