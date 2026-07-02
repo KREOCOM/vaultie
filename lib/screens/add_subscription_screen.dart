@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../app_prefs.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/localized_labels.dart';
 import '../main.dart';
@@ -219,7 +220,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
                   labelText: l.cost,
-                  prefixText: '\$ ',
+                  prefixText: '${AppPrefs.currency.value} ',
                 ),
                 validator: (v) {
                   final parsed = double.tryParse(v?.trim() ?? '');

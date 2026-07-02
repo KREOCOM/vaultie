@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:intl/intl.dart';
 
+import '../app_prefs.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/localized_labels.dart';
 import '../main.dart';
@@ -36,8 +36,6 @@ class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   static const route = '/dashboard';
-
-  static final _money = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
 
   @override
   Widget build(BuildContext context) {
@@ -244,7 +242,7 @@ class _OverviewHeader extends StatelessWidget {
           Text(l.monthlySpend, style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 4),
           Text(
-            DashboardScreen._money.format(monthlyTotal),
+            formatMoney(monthlyTotal),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 34,
@@ -460,7 +458,6 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
     final l = AppLocalizations.of(context);
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
     final subs = widget.subs;
-    final money = DashboardScreen._money;
 
     if (subs.isEmpty) {
       return Center(
@@ -504,21 +501,21 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
             Expanded(
               child: _StatCard(
                 label: isLt ? 'Šį mėnesį' : 'This month',
-                value: money.format(monthly),
+                value: formatMoney(monthly),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
                 label: isLt ? 'Per metus' : 'Per year',
-                value: money.format(yearly),
+                value: formatMoney(yearly),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
                 label: isLt ? 'Per dieną' : 'Per day',
-                value: money.format(daily),
+                value: formatMoney(daily),
               ),
             ),
           ],
@@ -545,7 +542,7 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(money.format(monthly),
+                    Text(formatMoney(monthly),
                         style: const TextStyle(
                             fontWeight: FontWeight.w800, fontSize: 20)),
                     Text(l.slashMonth,
@@ -563,7 +560,7 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
           return _CategoryRow(
             color: _catPalette[i % _catPalette.length],
             label: categoryLabel(l, e.key),
-            amount: money.format(e.value),
+            amount: formatMoney(e.value),
             fraction: pct,
           );
         }),
@@ -988,7 +985,7 @@ class _SubscriptionTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      DashboardScreen._money.format(sub.cost),
+                      formatMoney(sub.cost),
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 16,

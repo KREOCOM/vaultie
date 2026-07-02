@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'app_prefs.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'models/subscription.dart';
@@ -57,6 +58,8 @@ Future<void> main() async {
   final subsBox = await Hive.openBox<Subscription>(HiveBoxes.subscriptions);
   final settings = await Hive.openBox(HiveBoxes.settings);
   await Hive.openBox(HiveBoxes.cancellations);
+  // Load persisted language/currency preferences into their notifiers.
+  AppPrefs.load();
 
   await NotificationService.instance.init();
   // Loads the persisted premium entitlement (mock for now; swap for RevenueCat
@@ -121,79 +124,83 @@ class VaultieApp extends StatelessWidget {
       scaffoldBackgroundColor: VaultieColors.surface,
     );
 
-    return MaterialApp(
-      title: 'Vaultie',
-      debugShowCheckedModeBanner: false,
-      // Localization: ships English (default) and Lithuanian. Flutter resolves
-      // the device locale against [supportedLocales]; anything that isn't
-      // Lithuanian falls back to the first supported locale (English).
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      theme: base.copyWith(
-        textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
-          bodyColor: VaultieColors.ink,
-          displayColor: VaultieColors.ink,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: VaultieColors.surface,
-          foregroundColor: VaultieColors.ink,
-          elevation: 0,
-          centerTitle: false,
-        ),
-        cardTheme: CardThemeData(
-          color: VaultieColors.card,
-          elevation: 0,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          margin: EdgeInsets.zero,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: VaultieColors.primary,
-            foregroundColor: Colors.white,
+    // Rebuild the app when the user changes language or currency in Settings.
+    return AnimatedBuilder(
+      animation: Listenable.merge([AppPrefs.locale, AppPrefs.currency]),
+      builder: (context, _) => MaterialApp(
+        title: 'Vaultie',
+        debugShowCheckedModeBanner: false,
+        // Localization: ships English (default) and Lithuanian. `locale` is
+        // null to follow the system, or forced from the Settings language row.
+        locale: AppPrefs.locale.value,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: base.copyWith(
+          textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
+            bodyColor: VaultieColors.ink,
+            displayColor: VaultieColors.ink,
+          ),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: VaultieColors.surface,
+            foregroundColor: VaultieColors.ink,
             elevation: 0,
-            minimumSize: const Size.fromHeight(54),
-            shape: RoundedRectangleBorder(
+            centerTitle: false,
+          ),
+          cardTheme: CardThemeData(
+            color: VaultieColors.card,
+            elevation: 0,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            margin: EdgeInsets.zero,
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: VaultieColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              minimumSize: const Size.fromHeight(54),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              textStyle: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFFE1E8E3)),
             ),
-            textStyle: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFFE1E8E3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide:
+                  const BorderSide(color: VaultieColors.primary, width: 2),
             ),
           ),
         ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE1E8E3)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE1E8E3)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide:
-                const BorderSide(color: VaultieColors.primary, width: 2),
-          ),
-        ),
+        // Always launch into the branded splash; it decides where to go next.
+        // `--dart-define=SHOW_ONBOARDING=true` forces the intro flow even after
+        // it's been completed — handy for previewing onboarding on a device.
+        home: SplashScreen(hasOnboarded: !_kShowOnboarding && hasOnboarded),
+        routes: {
+          OnboardingScreen.route: (_) => const OnboardingScreen(),
+          AuthScreen.route: (_) => const AuthScreen(),
+          VerifyEmailScreen.route: (_) => const VerifyEmailScreen(),
+          DashboardScreen.route: (_) => const DashboardScreen(),
+          PaywallScreen.route: (_) => const PaywallScreen(),
+          SettingsScreen.route: (_) => const SettingsScreen(),
+        },
       ),
-      // Always launch into the branded splash; it decides where to go next.
-      // `--dart-define=SHOW_ONBOARDING=true` forces the intro flow even after
-      // it's been completed — handy for previewing onboarding on a device.
-      home: SplashScreen(hasOnboarded: !_kShowOnboarding && hasOnboarded),
-      routes: {
-        OnboardingScreen.route: (_) => const OnboardingScreen(),
-        AuthScreen.route: (_) => const AuthScreen(),
-        VerifyEmailScreen.route: (_) => const VerifyEmailScreen(),
-        DashboardScreen.route: (_) => const DashboardScreen(),
-        PaywallScreen.route: (_) => const PaywallScreen(),
-        SettingsScreen.route: (_) => const SettingsScreen(),
-      },
     );
   }
 }

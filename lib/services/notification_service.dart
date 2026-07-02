@@ -3,6 +3,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../app_prefs.dart';
 import '../models/subscription.dart';
 
 /// Schedules local "your subscription renews soon" reminders.
@@ -99,6 +100,9 @@ class NotificationService {
     await init();
     await cancelForSubscription(sub.id);
 
+    // Respect the user's Settings notifications preference.
+    if (!AppPrefs.notificationsEnabled) return;
+
     final now = tz.TZDateTime.now(tz.local);
     for (final daysBefore in _remindOffsets) {
       final remindDay =
@@ -129,5 +133,11 @@ class NotificationService {
     for (final daysBefore in _remindOffsets) {
       await _plugin.cancel(id: _notifId(subId, daysBefore));
     }
+  }
+
+  /// Cancels every scheduled reminder — used when notifications are turned off.
+  Future<void> cancelAll() async {
+    await init();
+    await _plugin.cancelAll();
   }
 }
