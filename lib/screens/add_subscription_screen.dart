@@ -66,6 +66,18 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
     Color(0xFF8E5BA6),
   ];
 
+  // Emoji + accent colour per category (keys match SubscriptionCategory.all).
+  static const Map<String, (String, Color)> _categoryStyle = {
+    'Streaming': ('🎬', Color(0xFFE53935)),
+    'Music': ('🎵', Color(0xFF2FA95B)),
+    'Software': ('💻', Color(0xFF1E88E5)),
+    'Gaming': ('🎮', Color(0xFF8E5BA6)),
+    'News': ('📰', Color(0xFFEF8B2B)),
+    'Fitness': ('💪', Color(0xFFEC407A)),
+    'Cloud': ('☁️', Color(0xFF29B6F6)),
+    'Other': ('➕', Color(0xFF8A968F)),
+  };
+
   bool get _isEditing => widget.existing != null;
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
 
@@ -152,23 +164,87 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
     final l = AppLocalizations.of(context);
     final choice = await showModalBottomSheet<String>(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            for (final c in SubscriptionCategory.all)
-              ListTile(
-                title: Text(categoryLabel(l, c)),
-                trailing: c == _category
-                    ? const Icon(Icons.check, color: VaultieColors.primary)
-                    : null,
-                onTap: () => Navigator.of(ctx).pop(c),
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD6CF),
+                borderRadius: BorderRadius.circular(2),
               ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(l.category,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w700)),
+              ),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  for (final c in SubscriptionCategory.all)
+                    _categoryTile(ctx, c, l),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
     if (choice != null) setState(() => _category = choice);
+  }
+
+  /// One category row: coloured emoji tile, label, and a check when selected.
+  Widget _categoryTile(BuildContext ctx, String c, AppLocalizations l) {
+    final (emoji, color) = _categoryStyle[c] ?? ('•', VaultieColors.subtle);
+    final selected = c == _category;
+    return InkWell(
+      onTap: () => Navigator.of(ctx).pop(c),
+      child: Container(
+        color: selected
+            ? VaultieColors.primary.withValues(alpha: 0.08)
+            : Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(emoji, style: const TextStyle(fontSize: 20)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                categoryLabel(l, c),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: VaultieColors.ink,
+                ),
+              ),
+            ),
+            if (selected) const Icon(Icons.check, color: VaultieColors.primary),
+          ],
+        ),
+      ),
+    );
   }
 
   void _save() {
