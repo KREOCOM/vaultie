@@ -89,13 +89,15 @@ class _SplashScreenState extends State<SplashScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Logo: the white vault on a transparent background (the icon's
-              // green was removed) so it sits on the splash with no square seam.
-              Image.asset(
-                'assets/icon/app_icon_splash.png',
-                width: 184,
-                height: 184,
-                fit: BoxFit.contain,
+              // Logo: the app icon, clipped to a rounded square.
+              ClipRRect(
+                borderRadius: BorderRadius.circular(32),
+                child: Image.asset(
+                  'assets/icon/app_icon.png',
+                  width: 132,
+                  height: 132,
+                  fit: BoxFit.cover,
+                ),
               ),
               const SizedBox(height: 28),
               const Text(
