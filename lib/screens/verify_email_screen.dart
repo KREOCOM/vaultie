@@ -36,9 +36,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   @override
   void initState() {
     super.initState();
-    // A verification mail was already sent at registration, so start the
-    // resend button on a cooldown rather than firing another one immediately.
-    _startCooldown();
+    // No on-arrival countdown: the resend button is available immediately.
+    // A short cooldown only kicks in after a manual resend (anti-spam).
     // Poll periodically; clicking the link happens out-of-app, so we can't
     // rely on a callback to tell us it's done.
     _poll = Timer.periodic(
@@ -189,7 +188,18 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 14),
+              Text(
+                isLt
+                    ? 'Nuoroda galioja 24 valandas — patvirtinti gali bet kada.'
+                    : 'The link is valid for 24 hours — verify anytime.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: VaultieColors.subtle,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 28),
               ElevatedButton(
                 onPressed:
                     _checking ? null : () => _checkVerified(showFeedback: true),

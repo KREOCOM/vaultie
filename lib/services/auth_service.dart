@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 /// Thin wrapper around [FirebaseAuth] for email/password auth.
 ///
@@ -37,6 +38,19 @@ class AuthService {
     );
   }
 
+  /// Signs in with Google via Firebase. Returns null if the user cancels the
+  /// Google account picker. Google accounts arrive already email-verified.
+  Future<UserCredential?> signInWithGoogle() async {
+    final googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) return null; // user dismissed the picker
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+    return _auth.signInWithCredential(credential);
+  }
+
   Future<void> sendEmailVerification() async {
     await _auth.currentUser?.sendEmailVerification();
   }
@@ -46,7 +60,13 @@ class AuthService {
     await _auth.currentUser?.reload();
   }
 
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() async {
+    // Also clear the cached Google account so the picker shows next time.
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {/* not signed in with Google — ignore */}
+    await _auth.signOut();
+  }
 
   /// Permanently deletes the signed-in account. Firebase may throw a
   /// [FirebaseAuthException] with code `requires-recent-login` if the session

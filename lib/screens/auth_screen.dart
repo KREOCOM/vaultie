@@ -112,6 +112,46 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _busy = true);
+    final isLt = _isLt;
+    try {
+      final cred = await _auth.signInWithGoogle();
+      if (cred == null) return; // user cancelled the picker
+      if (!mounted) return;
+      // Google accounts are already verified, so this lands on the dashboard.
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => _auth.isEmailVerified
+              ? const DashboardScreen()
+              : const VerifyEmailScreen(),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authErrorMessage(e, isLithuanian: isLt)),
+          backgroundColor: VaultieColors.danger,
+        ),
+      );
+    } catch (_) {
+      // e.g. PlatformException when Google Sign-In isn't fully configured.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isLt
+              ? 'Nepavyko prisijungti su Google.'
+              : 'Google sign-in failed.'),
+          backgroundColor: VaultieColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -313,6 +353,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                 ],
                 const SizedBox(height: 24),
                 _openVaultButton(l, isLt),
+                const SizedBox(height: 18),
+                _orDivider(isLt),
+                const SizedBox(height: 18),
+                _googleButton(isLt),
                 const SizedBox(height: 16),
                 _toggleLink(isLt),
               ],
@@ -436,6 +480,49 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                     ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _orDivider(bool isLt) {
+    final line = Expanded(
+      child: Divider(color: Colors.white.withValues(alpha: 0.15), thickness: 1),
+    );
+    return Row(
+      children: [
+        line,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            isLt ? 'arba' : 'or',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.4),
+              fontSize: 13,
+            ),
+          ),
+        ),
+        line,
+      ],
+    );
+  }
+
+  /// White "Continue with Google" button with the Google mark.
+  Widget _googleButton(bool isLt) {
+    return SizedBox(
+      height: 54,
+      child: OutlinedButton.icon(
+        onPressed: _busy ? null : _signInWithGoogle,
+        icon: Image.asset('assets/icon/google_g.png', width: 20, height: 20),
+        label: Text(isLt ? 'Tęsti su Google' : 'Continue with Google'),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF1F1F1F),
+          side: const BorderSide(color: Color(0xFFDADCE0)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
     );
