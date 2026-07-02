@@ -86,14 +86,15 @@ const Map<String, String> _serviceDomains = {
   'lastpass': 'lastpass.com',
   '1password': '1password.com',
   'dashlane': 'dashlane.com',
-  // Creators / misc
+  // Creators / editing / misc
+  'capcut': 'capcut.com',
   'patreon': 'patreon.com',
   'vinted': 'vinted.com',
   // Lithuanian services
   'telia': 'telia.lt',
   'teliaplay': 'telia.lt',
-  'tv3go': 'go.tv3.lt',
-  'tv3': 'go.tv3.lt',
+  'tv3go': 'tv3.lt',
+  'tv3': 'tv3.lt',
   'go3': 'go3.tv',
   'lrt': 'lrt.lt',
   'delfi': 'delfi.lt',
