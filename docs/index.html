@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vaultie — Smarter money habits</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="brand">Vault<span class="dot">ie</span></div>
+    <div class="tagline" data-lang="en">Track · Save · Control</div>
+    <div class="tagline" data-lang="lt" hidden>Sek · Taupyk · Valdyk</div>
+    <div class="lang-switch">
+      <button data-set="en" class="active" onclick="setLang('en')">EN</button>
+      <button data-set="lt" onclick="setLang('lt')">LT</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ENGLISH -->
+    <div data-lang="en">
+      <h1>Spend smarter. Save more.</h1>
+      <p class="intro">Vaultie is a subscription tracker that keeps all your
+        recurring payments in one place — so you cancel what you don't use, avoid
+        surprise charges, and keep more money every month.</p>
+
+      <h2>What Vaultie does</h2>
+      <ul>
+        <li>📊 See your total monthly and yearly subscription spend at a glance.</li>
+        <li>🔔 Get reminders 3, 2 and 1 days before each renewal.</li>
+        <li>🔒 Your subscription data stays on your device.</li>
+        <li>🇱🇹 Fully bilingual — Lithuanian and English.</li>
+      </ul>
+
+      <h2>Privacy first</h2>
+      <p>Your subscriptions are stored locally on your device. We only use your
+        email to sign you in. Read the full
+        <a href="privacy.html">Privacy Policy</a> and
+        <a href="terms.html">Terms of Use</a>.</p>
+
+      <div class="center">
+        <a class="btn" href="privacy.html">Privacy Policy</a>
+        <a class="btn secondary" href="terms.html">Terms of Use</a>
+      </div>
+
+      <h2>Contact</h2>
+      <p>Questions or support:
+        <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a></p>
+    </div>
+
+    <!-- LITHUANIAN -->
+    <div data-lang="lt" hidden>
+      <h1>Išleisk protingiau. Taupyk daugiau.</h1>
+      <p class="intro">Vaultie – prenumeratų sekimo programa, laikanti visus jūsų
+        pasikartojančius mokėjimus vienoje vietoje. Atsisakykite to, ko
+        nenaudojate, išvenkite netikėtų mokesčių ir kas mėnesį sutaupykite
+        daugiau.</p>
+
+      <h2>Ką daro Vaultie</h2>
+      <ul>
+        <li>📊 Iš karto matykite mėnesio ir metų prenumeratų išlaidas.</li>
+        <li>🔔 Gaukite priminimus prieš 3, 2 ir 1 dieną iki atsinaujinimo.</li>
+        <li>🔒 Prenumeratų duomenys lieka jūsų įrenginyje.</li>
+        <li>🇱🇹 Visiškai dvikalbė – lietuvių ir anglų.</li>
+      </ul>
+
+      <h2>Privatumas svarbiausia</h2>
+      <p>Jūsų prenumeratos saugomos lokaliai įrenginyje. El. paštą naudojame tik
+        prisijungimui. Skaitykite pilną
+        <a href="privacy.html">Privatumo politiką</a> ir
+        <a href="terms.html">Naudojimo sąlygas</a>.</p>
+
+      <div class="center">
+        <a class="btn" href="privacy.html">Privatumo politika</a>
+        <a class="btn secondary" href="terms.html">Naudojimo sąlygos</a>
+      </div>
+
+      <h2>Kontaktai</h2>
+      <p>Klausimai ar pagalba:
+        <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a></p>
+    </div>
+  </main>
+
+  <footer class="footer">© 2026 Vaultie</footer>
+
+  <script>
+    function setLang(l) {
+      document.documentElement.lang = l;
+      document.querySelectorAll('[data-lang]').forEach(function (e) {
+        e.hidden = e.getAttribute('data-lang') !== l;
+      });
+      document.querySelectorAll('.lang-switch button').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.set === l);
+      });
+    }
+  </script>
+</body>
+</html>
