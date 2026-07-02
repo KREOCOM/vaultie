@@ -26,10 +26,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -54,9 +51,17 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCbCptene8dYYsiQfwwSZ6X6gUgMiJSFHE',
-    appId: '1:747647617629:android:0e9aa6339d569d9ee0dbb4',
+    appId: '1:747647617629:android:3df9ef627303a0a6e0dbb4',
     messagingSenderId: '747647617629',
     projectId: 'vaultie-1a2c4',
     storageBucket: 'vaultie-1a2c4.firebasestorage.app',
+  );
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDtRzHnfkQ3Py4uzr_CEsnwwv_cwtTjNqQ',
+    appId: '1:747647617629:ios:bcff332211f85762e0dbb4',
+    messagingSenderId: '747647617629',
+    projectId: 'vaultie-1a2c4',
+    storageBucket: 'vaultie-1a2c4.firebasestorage.app',
+    iosBundleId: 'com.kreocom.vaultie',
   );
 }
