@@ -8,13 +8,13 @@
   "onboard1Title": "Where does your money disappear?",
   "onboard1Body": "The average person pays for 12 subscriptions — and forgets about half of them.",
   "onboard2Title": "Vaultie hunts them all down",
-  "onboard2Body": "Every charge, neatly scanned and sorted into one calm, tidy vault.",
+  "onboard2Body": "Every charge, neatly scanned and sorted in one place.",
   "onboard3Title": "Take back control",
   "onboard3Body": "See what is coming, cancel what you do not need, and keep more every month.",
 
   "authWelcomeBack": "Welcome back",
-  "authCreateVault": "Create your vault",
-  "authSignInSubtitle": "Sign in to peek inside your vault.",
+  "authCreateVault": "Create your account",
+  "authSignInSubtitle": "Sign in to see your subscriptions.",
   "authCreateSubtitle": "A few details and Vaultie is yours.",
   "email": "Email",
   "emailEmptyError": "Enter your email",
@@ -24,7 +24,7 @@
   "signIn": "Sign in",
   "createAccount": "Create account",
   "authToggleToCreate": "New here? Create an account",
-  "authToggleToSignIn": "Already have a vault? Sign in",
+  "authToggleToSignIn": "Already have an account? Sign in",
 
   "monthlySpend": "Monthly spend",
   "activeSubscriptions": "{count, plural, =0{No active subscriptions} =1{1 active subscription} other{{count} active subscriptions}}",
@@ -40,11 +40,11 @@
   "@renewInDays": {
     "placeholders": { "days": { "type": "int" } }
   },
-  "removedFromVault": "{name} removed from your vault",
+  "removedFromVault": "{name} removed",
   "@removedFromVault": {
     "placeholders": { "name": { "type": "String" } }
   },
-  "vaultEmptyTitle": "Your vault is empty",
+  "vaultEmptyTitle": "No subscriptions yet",
   "vaultEmptyBody": "Tap “Add” to track your first subscription.",
 
   "addSubscriptionTitle": "Add subscription",
@@ -58,7 +58,7 @@
   "category": "Category",
   "nextBillingDate": "Next billing date",
   "colour": "Colour",
-  "saveToVault": "Save to vault",
+  "saveToVault": "Save",
 
   "analyticsTitle": "Analytics",
   "analyticsEmpty": "Add a few subscriptions to unlock your spending insights.",

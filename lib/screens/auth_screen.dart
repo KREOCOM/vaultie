@@ -181,8 +181,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                               const SizedBox(height: 6),
                               Text(
                                 isLt
-                                    ? 'Tavo pinigų seifas'
-                                    : 'Your money vault',
+                                    ? 'Tavo prenumeratų sekiklis'
+                                    : 'Your subscription tracker',
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.55),
                                   fontSize: 15,
@@ -245,8 +245,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                 const SizedBox(height: 20),
                 Text(
                   _isLogin
-                      ? (isLt ? 'Įeik į savo seifą' : 'Enter your vault')
-                      : (isLt ? 'Sukurk savo seifą' : 'Create your vault'),
+                      ? (isLt ? 'Prisijunk, kad tęstum' : 'Sign in to continue')
+                      : (isLt ? 'Sukurk paskyrą' : 'Create your account'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
@@ -393,8 +393,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   /// The green-gradient primary action.
   Widget _openVaultButton(AppLocalizations l, bool isLt) {
     final label = _isLogin
-        ? (isLt ? 'Atidaryti seifą →' : 'Open vault →')
-        : (isLt ? 'Sukurti seifą →' : 'Create vault →');
+        ? (isLt ? 'Prisijungti →' : 'Sign in →')
+        : (isLt ? 'Sukurti paskyrą →' : 'Create account →');
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: const LinearGradient(

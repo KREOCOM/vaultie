@@ -137,7 +137,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboard2Body.
   ///
   /// In en, this message translates to:
-  /// **'Every charge, neatly scanned and sorted into one calm, tidy vault.'**
+  /// **'Every charge, neatly scanned and sorted in one place.'**
   String get onboard2Body;
 
   /// No description provided for @onboard3Title.
@@ -161,13 +161,13 @@ abstract class AppLocalizations {
   /// No description provided for @authCreateVault.
   ///
   /// In en, this message translates to:
-  /// **'Create your vault'**
+  /// **'Create your account'**
   String get authCreateVault;
 
   /// No description provided for @authSignInSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Sign in to peek inside your vault.'**
+  /// **'Sign in to see your subscriptions.'**
   String get authSignInSubtitle;
 
   /// No description provided for @authCreateSubtitle.
@@ -227,7 +227,7 @@ abstract class AppLocalizations {
   /// No description provided for @authToggleToSignIn.
   ///
   /// In en, this message translates to:
-  /// **'Already have a vault? Sign in'**
+  /// **'Already have an account? Sign in'**
   String get authToggleToSignIn;
 
   /// No description provided for @monthlySpend.
@@ -281,13 +281,13 @@ abstract class AppLocalizations {
   /// No description provided for @removedFromVault.
   ///
   /// In en, this message translates to:
-  /// **'{name} removed from your vault'**
+  /// **'{name} removed'**
   String removedFromVault(String name);
 
   /// No description provided for @vaultEmptyTitle.
   ///
   /// In en, this message translates to:
-  /// **'Your vault is empty'**
+  /// **'No subscriptions yet'**
   String get vaultEmptyTitle;
 
   /// No description provided for @vaultEmptyBody.
@@ -365,7 +365,7 @@ abstract class AppLocalizations {
   /// No description provided for @saveToVault.
   ///
   /// In en, this message translates to:
-  /// **'Save to vault'**
+  /// **'Save'**
   String get saveToVault;
 
   /// No description provided for @analyticsTitle.

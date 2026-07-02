@@ -29,7 +29,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboard2Body =>
-      'Every charge, neatly scanned and sorted into one calm, tidy vault.';
+      'Every charge, neatly scanned and sorted in one place.';
 
   @override
   String get onboard3Title => 'Take back control';
@@ -42,10 +42,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authWelcomeBack => 'Welcome back';
 
   @override
-  String get authCreateVault => 'Create your vault';
+  String get authCreateVault => 'Create your account';
 
   @override
-  String get authSignInSubtitle => 'Sign in to peek inside your vault.';
+  String get authSignInSubtitle => 'Sign in to see your subscriptions.';
 
   @override
   String get authCreateSubtitle => 'A few details and Vaultie is yours.';
@@ -75,7 +75,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authToggleToCreate => 'New here? Create an account';
 
   @override
-  String get authToggleToSignIn => 'Already have a vault? Sign in';
+  String get authToggleToSignIn => 'Already have an account? Sign in';
 
   @override
   String get monthlySpend => 'Monthly spend';
@@ -114,11 +114,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String removedFromVault(String name) {
-    return '$name removed from your vault';
+    return '$name removed';
   }
 
   @override
-  String get vaultEmptyTitle => 'Your vault is empty';
+  String get vaultEmptyTitle => 'No subscriptions yet';
 
   @override
   String get vaultEmptyBody => 'Tap “Add” to track your first subscription.';
@@ -157,7 +157,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get colour => 'Colour';
 
   @override
-  String get saveToVault => 'Save to vault';
+  String get saveToVault => 'Save';
 
   @override
   String get analyticsTitle => 'Analytics';

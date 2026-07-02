@@ -29,7 +29,7 @@ class AppLocalizationsLt extends AppLocalizations {
 
   @override
   String get onboard2Body =>
-      'Kiekvienas mokestis tvarkingai nuskaitytas ir sudėtas į vieną ramų seifą.';
+      'Kiekvienas mokestis tvarkingai nuskaitytas ir sudėtas į vieną vietą.';
 
   @override
   String get onboard3Title => 'Atgaukite kontrolę';
@@ -42,10 +42,11 @@ class AppLocalizationsLt extends AppLocalizations {
   String get authWelcomeBack => 'Sveiki sugrįžę';
 
   @override
-  String get authCreateVault => 'Sukurkite savo seifą';
+  String get authCreateVault => 'Sukurkite paskyrą';
 
   @override
-  String get authSignInSubtitle => 'Prisijunkite ir pažvelkite į savo seifą.';
+  String get authSignInSubtitle =>
+      'Prisijunkite ir matykite savo prenumeratas.';
 
   @override
   String get authCreateSubtitle => 'Keli duomenys ir Vaultie jūsų.';
@@ -75,7 +76,7 @@ class AppLocalizationsLt extends AppLocalizations {
   String get authToggleToCreate => 'Naujokas? Sukurkite paskyrą';
 
   @override
-  String get authToggleToSignIn => 'Jau turite seifą? Prisijunkite';
+  String get authToggleToSignIn => 'Jau turite paskyrą? Prisijunkite';
 
   @override
   String get monthlySpend => 'Mėnesio išlaidos';
@@ -115,11 +116,11 @@ class AppLocalizationsLt extends AppLocalizations {
 
   @override
   String removedFromVault(String name) {
-    return '$name pašalinta iš jūsų seifo';
+    return '$name pašalinta';
   }
 
   @override
-  String get vaultEmptyTitle => 'Jūsų seifas tuščias';
+  String get vaultEmptyTitle => 'Kol kas nėra prenumeratų';
 
   @override
   String get vaultEmptyBody =>
@@ -159,7 +160,7 @@ class AppLocalizationsLt extends AppLocalizations {
   String get colour => 'Spalva';
 
   @override
-  String get saveToVault => 'Išsaugoti į seifą';
+  String get saveToVault => 'Išsaugoti';
 
   @override
   String get analyticsTitle => 'Analitika';
