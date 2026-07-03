@@ -9,6 +9,7 @@ import '../models/subscription.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../services/purchase_service.dart';
+import '../widgets/budget_dialog.dart';
 import '../widgets/subscription_avatar.dart';
 import 'auth_screen.dart';
 import 'legal_screen.dart';
@@ -137,20 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await AppPrefs.setCurrency(choice);
   }
 
-  Future<void> _pickBudget() async {
-    // Returns: null = cancel, -1 = clear, >0 = new budget.
-    final result = await showDialog<double>(
-      context: context,
-      builder: (_) =>
-          _BudgetPrompt(isLt: _isLt, initial: AppPrefs.budget.value),
-    );
-    if (result == null) return; // cancelled or invalid
-    if (result < 0) {
-      await AppPrefs.setBudget(null); // cleared
-    } else if (result > 0) {
-      await AppPrefs.setBudget(result);
-    }
-  }
+  Future<void> _pickBudget() => editMonthlyBudget(context, isLt: _isLt);
 
   Future<void> _openUrl(String url) async {
     final ok =
@@ -633,66 +621,6 @@ class _PasswordPromptState extends State<_PasswordPrompt> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(_controller.text),
           child: Text(isLt ? 'Patvirtinti' : 'Confirm'),
-        ),
-      ],
-    );
-  }
-}
-
-/// Monthly-budget entry dialog. StatefulWidget so its controller is disposed by
-/// the framework (disposing inline after `await showDialog` crashes).
-class _BudgetPrompt extends StatefulWidget {
-  const _BudgetPrompt({required this.isLt, required this.initial});
-
-  final bool isLt;
-  final double? initial;
-
-  @override
-  State<_BudgetPrompt> createState() => _BudgetPromptState();
-}
-
-class _BudgetPromptState extends State<_BudgetPrompt> {
-  late final _controller =
-      TextEditingController(text: widget.initial?.toStringAsFixed(0) ?? '');
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  double? _parse() =>
-      double.tryParse(_controller.text.trim().replaceAll(',', '.'));
-
-  @override
-  Widget build(BuildContext context) {
-    final isLt = widget.isLt;
-    return AlertDialog(
-      title: Text(isLt ? 'Mėnesio biudžetas' : 'Monthly budget'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: InputDecoration(
-          prefixText: '${AppPrefs.currency.value} ',
-          hintText: '0',
-        ),
-        onSubmitted: (_) => Navigator.of(context).pop(_parse()),
-      ),
-      actions: [
-        if (widget.initial != null)
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(-1.0),
-            style: TextButton.styleFrom(foregroundColor: VaultieColors.danger),
-            child: Text(isLt ? 'Pašalinti' : 'Clear'),
-          ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(isLt ? 'Atšaukti' : 'Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(_parse()),
-          child: Text(isLt ? 'Išsaugoti' : 'Save'),
         ),
       ],
     );

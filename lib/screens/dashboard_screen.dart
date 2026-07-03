@@ -13,6 +13,7 @@ import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../services/purchase_service.dart';
 import '../services/recap_service.dart';
+import '../widgets/budget_dialog.dart';
 import '../widgets/subscription_avatar.dart';
 import '../widgets/subscription_icons.dart';
 import 'add_subscription_screen.dart';
@@ -217,11 +218,14 @@ class _OverviewTabState extends State<_OverviewTab> {
             count: subs.length,
           ),
         ),
-        if (AppPrefs.budget.value != null && subs.isNotEmpty)
+        if (subs.isNotEmpty)
           SliverToBoxAdapter(
-            child: _BudgetCard(
-              spent: monthlyTotal,
-              budget: AppPrefs.budget.value!,
+            // Reactive so setting/clearing the budget updates immediately.
+            child: ValueListenableBuilder<double?>(
+              valueListenable: AppPrefs.budget,
+              builder: (context, budget, _) => budget != null
+                  ? _BudgetCard(spent: monthlyTotal, budget: budget)
+                  : const _SetBudgetPrompt(),
             ),
           ),
         if (subs.isEmpty)
@@ -1119,7 +1123,10 @@ class _BudgetCard extends StatelessWidget {
         : ratio >= 0.8
             ? const Color(0xFFE9A23B)
             : VaultieColors.primary;
-    return Container(
+    return GestureDetector(
+      // Tap the card to change or remove the budget — no trip to Settings.
+      onTap: () => editMonthlyBudget(context, isLt: isLt),
+      child: Container(
       margin: const EdgeInsets.fromLTRB(20, 4, 20, 4),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1137,6 +1144,9 @@ class _BudgetCard extends StatelessWidget {
                 style:
                     const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
               ),
+              const SizedBox(width: 6),
+              const Icon(Icons.edit_outlined,
+                  size: 14, color: VaultieColors.subtle),
               const Spacer(),
               Text(
                 '${(ratio * 100).round()}%',
@@ -1166,6 +1176,57 @@ class _BudgetCard extends StatelessWidget {
             style: const TextStyle(color: VaultieColors.subtle, fontSize: 13),
           ),
         ],
+      ),
+      ),
+    );
+  }
+}
+
+/// Slim, optional prompt shown when no budget is set — discoverable but never
+/// forced. Tapping opens the same manual budget editor.
+class _SetBudgetPrompt extends StatelessWidget {
+  const _SetBudgetPrompt();
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: GestureDetector(
+        onTap: () => editMonthlyBudget(context, isLt: isLt),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: VaultieColors.card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE1E8E3)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.savings_outlined,
+                  color: VaultieColors.primary, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isLt ? 'Nustatyti mėnesio biudžetą' : 'Set a monthly budget',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15),
+                    ),
+                    Text(
+                      isLt ? 'Neprivaloma' : 'Optional',
+                      style: const TextStyle(
+                          color: VaultieColors.subtle, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.add, color: VaultieColors.primary),
+            ],
+          ),
+        ),
       ),
     );
   }
