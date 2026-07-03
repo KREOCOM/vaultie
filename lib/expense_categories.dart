@@ -96,8 +96,10 @@ const Map<String, String> _legacyKeys = {
   'Music': 'entertainment',
   'Gaming': 'entertainment',
   'News': 'entertainment',
-  'Software': 'other',
-  'Cloud': 'other',
+  // Software & cloud services are subscriptions too — group them with
+  // Entertainment & subscriptions so their brand logos are kept.
+  'Software': 'entertainment',
+  'Cloud': 'entertainment',
   'Fitness': 'health',
   'Other': 'other',
 };
