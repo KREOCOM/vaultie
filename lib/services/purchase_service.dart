@@ -123,7 +123,7 @@ class MockPurchaseService implements PurchaseService {
 /// Live [PurchaseService] backed by RevenueCat.
 ///
 /// Entitlement "Vaultie Pro" gates premium. Products are matched to our
-/// [PlanId]s by their store identifiers ("monthly", "lifetime"). Prices and the
+/// [PlanId]s by their store identifiers (see [_productIds]). Prices and the
 /// purchasable packages come from the current RevenueCat offering, so pricing
 /// is controlled in the RevenueCat dashboard rather than hard-coded.
 class RevenueCatPurchaseService implements PurchaseService {
@@ -132,8 +132,8 @@ class RevenueCatPurchaseService implements PurchaseService {
 
   /// Store product identifiers, mapped to our plan enum.
   static const _productIds = {
-    'monthly': PlanId.monthly,
-    'lifetime': PlanId.lifetime,
+    'com.kreocom.vaultie.pro.monthly': PlanId.monthly,
+    'com.kreocom.vaultie.pro.lifetime': PlanId.lifetime,
   };
 
   /// RevenueCat public SDK keys. iOS is live now; add the Android key when
