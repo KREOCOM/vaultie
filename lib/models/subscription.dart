@@ -30,14 +30,30 @@ extension BillingCycleX on BillingCycle {
   /// [from] advanced by exactly one billing cycle.
   ///
   /// Uses calendar arithmetic (not [approxDays]) so a charge on the 15th stays
-  /// on the 15th. Day-of-month is clamped by [DateTime] when the target month
-  /// is shorter (e.g. Jan 31 + 1 month → early March).
+  /// on the 15th. For monthly/quarterly/yearly cycles the day-of-month is
+  /// clamped to the last day of the target month, so a charge on the 29th–31st
+  /// never overflows into the next month (Jan 31 + 1 month → Feb 28/29, not
+  /// early March).
   DateTime advance(DateTime from) => switch (this) {
         BillingCycle.weekly => from.add(const Duration(days: 7)),
-        BillingCycle.monthly => DateTime(from.year, from.month + 1, from.day),
-        BillingCycle.quarterly => DateTime(from.year, from.month + 3, from.day),
-        BillingCycle.yearly => DateTime(from.year + 1, from.month, from.day),
+        BillingCycle.monthly => _addMonths(from, 1),
+        BillingCycle.quarterly => _addMonths(from, 3),
+        BillingCycle.yearly => _addMonths(from, 12),
       };
+}
+
+/// Adds [months] calendar months to [from], clamping the day-of-month to the
+/// last valid day of the target month. Without this, `DateTime` overflows a
+/// too-large day into the following month (e.g. Feb 31 → March 3), which would
+/// silently skip a billing month for subscriptions charged on the 29th–31st.
+DateTime _addMonths(DateTime from, int months) {
+  final zeroBasedMonth = from.month - 1 + months;
+  final year = from.year + zeroBasedMonth ~/ 12;
+  final month = zeroBasedMonth % 12 + 1;
+  // Day 0 of the *next* month resolves to the last day of the target month.
+  final lastDay = DateTime(year, month + 1, 0).day;
+  final day = from.day < lastDay ? from.day : lastDay;
+  return DateTime(year, month, day);
 }
 
 /// A single recurring subscription tracked in the vault.

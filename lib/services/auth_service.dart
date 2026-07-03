@@ -55,6 +55,13 @@ class AuthService {
     await _auth.currentUser?.sendEmailVerification();
   }
 
+  /// Sends a password-reset email. Firebase does not report whether the address
+  /// is registered (no error for unknown emails), which avoids account
+  /// enumeration — so the UI shows the same confirmation either way.
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email.trim());
+  }
+
   /// Re-fetches the user so [isEmailVerified] reflects a just-clicked link.
   Future<void> reloadUser() async {
     await _auth.currentUser?.reload();

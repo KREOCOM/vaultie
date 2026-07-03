@@ -112,6 +112,38 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     }
   }
 
+  /// Prompts for an email (pre-filled from the form) and sends a reset link.
+  /// Shows the same confirmation whether or not the address is registered, so
+  /// the flow can't be used to probe which emails have accounts.
+  Future<void> _forgotPassword() async {
+    final isLt = _isLt;
+    final email = await showDialog<String>(
+      context: context,
+      builder: (_) =>
+          _ResetPasswordDialog(isLt: isLt, initialEmail: _email.text.trim()),
+    );
+    if (email == null || email.isEmpty) return;
+    try {
+      await _auth.sendPasswordResetEmail(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isLt
+              ? 'Slaptažodžio atkūrimo nuoroda išsiųsta į $email.'
+              : 'Password reset link sent to $email.'),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authErrorMessage(e, isLithuanian: isLt)),
+          backgroundColor: VaultieColors.danger,
+        ),
+      );
+    }
+  }
+
   Future<void> _signInWithGoogle() async {
     FocusScope.of(context).unfocus();
     setState(() => _busy = true);
@@ -351,7 +383,24 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                     },
                   ),
                 ],
-                const SizedBox(height: 24),
+                if (_isLogin)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _busy ? null : _forgotPassword,
+                      style: TextButton.styleFrom(
+                        foregroundColor: _accent,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        isLt ? 'Pamiršai slaptažodį?' : 'Forgot password?',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                SizedBox(height: _isLogin ? 12 : 24),
                 _openVaultButton(l, isLt),
                 const SizedBox(height: 18),
                 _orDivider(isLt),
@@ -561,6 +610,83 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Email prompt for the "Forgot password?" flow. A StatefulWidget so its
+/// controller is disposed by the framework after the dialog closes (disposing
+/// inline right after `await showDialog` crashes mid-animation). Pops with the
+/// entered email, or null on cancel.
+class _ResetPasswordDialog extends StatefulWidget {
+  const _ResetPasswordDialog({required this.isLt, required this.initialEmail});
+
+  final bool isLt;
+  final String initialEmail;
+
+  @override
+  State<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+}
+
+class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
+  late final _controller = TextEditingController(text: widget.initialEmail);
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final email = _controller.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = widget.isLt
+          ? 'Įveskite galiojantį el. paštą.'
+          : 'Enter a valid email.');
+      return;
+    }
+    Navigator.of(context).pop(email);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = widget.isLt;
+    return AlertDialog(
+      title: Text(isLt ? 'Atkurti slaptažodį' : 'Reset password'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isLt
+                ? 'Atsiųsime atkūrimo nuorodą į jūsų el. paštą.'
+                : "We'll email you a link to reset your password.",
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              labelText: isLt ? 'El. paštas' : 'Email',
+              errorText: _error,
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(isLt ? 'Atšaukti' : 'Cancel'),
+        ),
+        TextButton(
+          onPressed: _submit,
+          child: Text(isLt ? 'Siųsti' : 'Send'),
+        ),
+      ],
     );
   }
 }
