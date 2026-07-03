@@ -19,7 +19,7 @@ import 'paywall_screen.dart';
 // Numeric App Store ID — found in App Store Connect → App Information →
 // "Apple ID". Set this once the app record's ID is known so "Rate the app"
 // deep-links straight to the review sheet.
-const String _kAppStoreId = ''; // TODO: set real App Store ID before release
+const String _kAppStoreId = '6786683683'; // App Store Connect → App Information
 
 // "Rate the app" target. Deep-links to the review sheet when the App Store ID
 // is known; until then it opens an App Store search for Vaultie, so the link is
