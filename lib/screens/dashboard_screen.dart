@@ -204,12 +204,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     return CustomScrollView(
       slivers: [
         const SliverToBoxAdapter(child: _VerifyEmailBanner()),
-        SliverToBoxAdapter(
-          child: _OverviewHeader(
-            monthlyTotal: monthlyTotal,
-            count: subs.length,
-          ),
-        ),
+        SliverToBoxAdapter(child: _OverviewHeader(subs: subs)),
         if (subs.isNotEmpty)
           SliverToBoxAdapter(
             // Reactive so setting/clearing the budget updates immediately.
@@ -394,16 +389,16 @@ class _OverviewTabState extends State<_OverviewTab> {
 }
 
 /// Mint-gradient header: greeting + name, monthly spend, count, optional badge.
+/// Dark-green overview header: greeting + monthly spend on the left, a category
+/// ring on the right, and a colour-dot legend below.
 class _OverviewHeader extends StatelessWidget {
-  const _OverviewHeader({
-    required this.monthlyTotal,
-    required this.count,
-  });
+  const _OverviewHeader({required this.subs});
 
-  final double monthlyTotal;
-  final int count;
+  final List<Subscription> subs;
 
-  static const _darkGreen = Color(0xFF1B5E20);
+  static const _bg = Color(0xFF0F2D1E);
+  // Muted accent green (deliberately not a bright neon green).
+  static const _accent = Color(0xFF2D8A5E);
 
   String _userName(bool isLt) {
     final u = AuthService().currentUser;
@@ -427,7 +422,7 @@ class _OverviewHeader extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: Icon(icon, color: _darkGreen.withValues(alpha: 0.7), size: 21),
+        child: Icon(icon, color: Colors.white.withValues(alpha: 0.75), size: 21),
       ),
     );
   }
@@ -437,23 +432,35 @@ class _OverviewHeader extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
     final name = _userName(isLt);
+    final monthlyTotal = subs.fold<double>(0, (s, e) => s + e.monthlyCost);
+
+    // Category breakdown for the ring + legend (legacy keys normalized).
+    final byCategory = <String, double>{};
+    for (final s in subs) {
+      byCategory.update(
+        normalizeCategoryKey(s.category),
+        (v) => v + s.monthlyCost,
+        ifAbsent: () => s.monthlyCost,
+      );
+    }
+    final entries = byCategory.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final total = entries.fold<double>(0, (a, e) => a + e.value);
+    final hasBreakdown = total > 0;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(22, 22, 18, 22),
+        padding: const EdgeInsets.fromLTRB(22, 20, 20, 20),
         decoration: BoxDecoration(
+          color: _bg,
           borderRadius: BorderRadius.circular(24),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9), Color(0xFFA5D6A7)],
-          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Greeting + settings/logout.
             Row(
               children: [
                 Expanded(
@@ -462,8 +469,8 @@ class _OverviewHeader extends StatelessWidget {
                     children: [
                       Text(
                         _greeting(isLt),
-                        style: const TextStyle(
-                          color: VaultieColors.subtle,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
                           fontSize: 14,
                         ),
                       ),
@@ -473,7 +480,7 @@ class _OverviewHeader extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: _darkGreen,
+                          color: Colors.white,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
                         ),
@@ -484,9 +491,7 @@ class _OverviewHeader extends StatelessWidget {
                 _iconBtn(
                   Icons.settings_outlined,
                   () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SettingsScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -500,33 +505,91 @@ class _OverviewHeader extends StatelessWidget {
                 }),
               ],
             ),
-            const SizedBox(height: 22),
-            Text(
-              l.monthlySpend.toUpperCase(),
-              style: const TextStyle(
-                color: _darkGreen,
-                fontSize: 11,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w600,
-              ),
+            const SizedBox(height: 20),
+            // Amount on the left, category ring on the right.
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l.monthlySpend.toUpperCase(),
+                        style: const TextStyle(
+                          color: _accent,
+                          fontSize: 11,
+                          letterSpacing: 1.2,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        formatMoney(monthlyTotal),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        l.activeSubscriptions(subs.length),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.55),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (hasBreakdown) ...[
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: 96,
+                    height: 96,
+                    child: CustomPaint(
+                      painter: _DonutPainter(
+                        values: [for (final e in entries) e.value],
+                        colors: [for (final e in entries) categoryFor(e.key).color],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              formatMoney(monthlyTotal),
-              style: const TextStyle(
-                color: _darkGreen,
-                fontSize: 34,
-                fontWeight: FontWeight.w800,
+            // Legend: category dot + percentage.
+            if (hasBreakdown) ...[
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: [
+                  for (final e in entries)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: categoryFor(e.key).color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${categoryLabel(e.key, isLt)}  ${(e.value / total * 100).round()}%',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.78),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l.activeSubscriptions(count),
-              style: const TextStyle(
-                color: VaultieColors.subtle,
-                fontSize: 13,
-              ),
-            ),
+            ],
           ],
         ),
       ),
