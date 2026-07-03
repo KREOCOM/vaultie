@@ -31,6 +31,7 @@ dependencies:
 
   # Opens external URLs (privacy policy, terms, app store rating)
   url_launcher: ^6.3.0
+  purchases_flutter: ^10.4.0
 
 dev_dependencies:
   flutter_test:

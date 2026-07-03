@@ -26,7 +26,7 @@ class PaywallScreen extends StatefulWidget {
 class _PaywallScreenState extends State<PaywallScreen> {
   // Default to the best-value plan.
   PlanId _selected = PlanId.lifetime;
-  final bool _busy = false;
+  bool _busy = false;
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
 
@@ -45,11 +45,71 @@ class _PaywallScreenState extends State<PaywallScreen> {
     }
   }
 
+  /// Buys the selected plan. On success, pops with `true` so the caller can
+  /// resume the blocked action. Cancellations are silent; other failures show
+  /// a message.
+  ///
+  /// NOTE: [PurchaseService.instance] is still the on-device mock — this grants
+  /// premium without a real transaction. Swap in the RevenueCat implementation
+  /// before shipping; the UI here needs no changes.
+  Future<void> _purchase() async {
+    final isLt = _isLt;
+    setState(() => _busy = true);
+    final result = await PurchaseService.instance.purchase(_selected);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (result.isSuccess) {
+      Navigator.of(context).pop(true);
+    } else if (result.status != PurchaseStatus.cancelled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message ??
+              (isLt ? 'Pirkimas nepavyko.' : 'Purchase failed.')),
+          backgroundColor: VaultieColors.danger,
+        ),
+      );
+    }
+  }
+
+  /// Restores a previous purchase. Pops with `true` if one is found.
+  Future<void> _restore() async {
+    final isLt = _isLt;
+    setState(() => _busy = true);
+    final result = await PurchaseService.instance.restore();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (result.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isLt ? 'Pirkimas atkurtas.' : 'Purchase restored.'),
+        ),
+      );
+      Navigator.of(context).pop(true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isLt
+              ? 'Nerasta pirkimų atkurti.'
+              : 'No purchases to restore.'),
+        ),
+      );
+    }
+  }
+
+  /// Live store price for [id], falling back to the static plan price until
+  /// RevenueCat offerings have loaded.
+  String _priceFor(PlanId id) =>
+      PurchaseService.instance.priceString(id) ??
+      PurchaseService.planFor(id).price;
+
   @override
   Widget build(BuildContext context) {
     final isLt = _isLt;
-    // Real payments aren't wired up yet, so the CTA is a disabled placeholder.
-    final ctaLabel = isLt ? 'Netrukus' : 'Coming soon';
+    // CTA reflects the selected plan and its price.
+    final price = _priceFor(_selected);
+    final ctaLabel = _selected == PlanId.lifetime
+        ? (isLt ? 'Pirkti — $price' : 'Unlock — $price')
+        : (isLt ? 'Prenumeruoti — $price/mėn.' : 'Subscribe — $price/mo');
 
     return PopScope(
       // Intercept the system back button/gesture so it routes through _dismiss
@@ -129,23 +189,38 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     const SizedBox(height: 14),
                     _planCard(PlanId.monthly, isLt),
                     const SizedBox(height: 32),
-                    // Payments aren't wired up yet — the CTA is disabled and a
-                    // "coming soon" message stands in for the prices.
                     _CtaButton(
                       label: ctaLabel,
-                      busy: false,
-                      onPressed: null,
+                      busy: _busy,
+                      onPressed: _busy ? null : _purchase,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 6),
+                    // Restore purchases — required for App Store approval so
+                    // users can re-entitle on a new device.
+                    TextButton(
+                      onPressed: _busy ? null : _restore,
+                      child: Text(
+                        isLt ? 'Atkurti pirkimus' : 'Restore purchases',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Text(
                       isLt
-                          ? 'Netrukus — tikri mokėjimai jau greitai'
-                          : 'Coming Soon - Real payments coming',
+                          ? 'Mėnesinė prenumerata atsinaujina automatiškai, kol '
+                              'neatšaukiama. „Visam laikui" — vienkartinis '
+                              'mokėjimas.'
+                          : 'The monthly plan auto-renews until cancelled. '
+                              'Lifetime is a one-time payment.',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: _brightGreen,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        fontSize: 12,
+                        height: 1.4,
                       ),
                     ),
                   ],
@@ -194,6 +269,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final period = lifetime
         ? (isLt ? 'vienkartinis mokėjimas' : 'one-time payment')
         : (isLt ? 'per mėnesį' : 'per month');
+    final price = _priceFor(id);
 
     return GestureDetector(
       onTap: _busy ? null : () => setState(() => _selected = id),
@@ -256,6 +332,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              price,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],

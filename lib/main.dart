@@ -67,8 +67,8 @@ Future<void> main() async {
   AppPrefs.load();
 
   await NotificationService.instance.init();
-  // Loads the persisted premium entitlement (mock for now; swap for RevenueCat
-  // in PurchaseService.instance later).
+  // Configures RevenueCat and resolves the "Vaultie Pro" entitlement so premium
+  // gating is correct from the first frame.
   await PurchaseService.instance.init();
 
   // Roll any lapsed renewal dates forward to their next cycle and (re)schedule

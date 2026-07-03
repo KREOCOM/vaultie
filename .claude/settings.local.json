@@ -40,7 +40,16 @@
       "Bash(flutter doctor *)",
       "Bash(brew --version)",
       "Bash(flutter devices *)",
-      "Bash(dart format *)"
+      "Bash(dart format *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Read(//Users/barzdyla/Downloads/**)",
+      "Bash(sips -g pixelWidth -g pixelHeight -g hasAlpha /Users/barzdyla/Downloads/ChatGPT_Image_2026-07-01_21_36_51.png)",
+      "Bash(sed -i '' 's#- assets/icon/app_icon.png#- assets/icon/app_icon_splash.png#' pubspec.yaml)",
+      "Bash(sed -i '' 's/#FF175135/#FF174E35/' android/app/src/main/res/values/colors.xml)",
+      "Bash(git restore *)",
+      "Bash(grep -nA6 \"TargetPlatform.iOS\\\\|static const FirebaseOptions ios\\\\|static const FirebaseOptions macos\" lib/firebase_options.dart)"
     ]
   }
 }
