@@ -21,7 +21,12 @@ import '../widgets/subscription_icons.dart';
 ///
 /// Passing [existing] switches the form into edit mode.
 class AddSubscriptionScreen extends StatefulWidget {
-  const AddSubscriptionScreen({super.key, this.existing, this.initialBrand});
+  const AddSubscriptionScreen({
+    super.key,
+    this.existing,
+    this.initialBrand,
+    this.initialCategory,
+  });
 
   static const route = '/add';
 
@@ -30,6 +35,9 @@ class AddSubscriptionScreen extends StatefulWidget {
 
   /// Optional service to preselect on a fresh form (quick-add from empty state).
   final Brand? initialBrand;
+
+  /// Optional category key to preselect on a fresh form (category quick-add).
+  final String? initialCategory;
 
   @override
   State<AddSubscriptionScreen> createState() => _AddSubscriptionScreenState();
@@ -98,6 +106,14 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
       _notes.text = e.notes ?? '';
       _logoDomain = e.logoDomain;
       _showMore = e.isEstimated || (e.notes?.isNotEmpty ?? false);
+    }
+    // Category quick-add from the empty state: preselect the category and its
+    // sensible defaults on a fresh form.
+    if (e == null && widget.initialCategory != null) {
+      final cat = categoryFor(widget.initialCategory!);
+      _category = cat.key;
+      _cycle = cat.defaultCycle;
+      _color = cat.color;
     }
     _name.addListener(_onNameChanged);
     // Quick-add: preselect a service passed in from the empty-state grid.

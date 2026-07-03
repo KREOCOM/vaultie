@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../expense_categories.dart';
 import '../main.dart';
 import 'auth_screen.dart';
 
@@ -76,25 +77,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ── Screen 1: subscription list ──────────────────────────────────────────
+  // ── Screen 1: all recurring payments (not just subscriptions) ────────────
 
   Widget _screen1(bool isLt) {
-    const subs = <_SubRow>[
-      _SubRow('Netflix', Color(0xFFE50914), 5, '€15.99'),
-      _SubRow('Spotify', Color(0xFF1DB954), 8, '€9.99'),
-      _SubRow('YouTube Premium', Color(0xFFFF0000), 12, '€11.99'),
-      _SubRow('Amazon Prime', Color(0xFF00A8E1), 15, '€4.99'),
+    final rows = <Widget>[
+      _payRow(isLt ? 'Nuoma' : 'Rent', 'housing',
+          isLt ? 'po 5 d.' : 'in 5 days', '€650'),
+      _payRow(isLt ? 'Auto draudimas' : 'Car insurance', 'insurance',
+          isLt ? 'kas mėnesį' : 'monthly', '€45'),
+      _payRow(isLt ? 'Sporto klubas' : 'Gym', 'health',
+          isLt ? 'kas mėnesį' : 'monthly', '€30'),
+      _payRow('Netflix', 'entertainment',
+          isLt ? 'po 12 d.' : 'in 12 days', '€15.99'),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _Title(isLt
-            ? 'Išleisk protingiau.\nTaupyk daugiau.'
-            : 'Spend smarter.\nSave more.'),
+            ? 'Visi mokėjimai\nvienoje vietoje.'
+            : 'All your payments,\nin one place.'),
         const SizedBox(height: 12),
         _Subtitle(isLt
-            ? 'Atsisakyk nenaudojamų prenumeratų, išvenk netikėtų mokesčių ir kas mėnesį sutaupyk daugiau.'
-            : 'Cancel unused subscriptions, avoid unexpected charges, and keep more money every month.'),
+            ? 'Nuoma, komunaliniai, draudimas, sporto salė, prenumeratos — sek viską, už ką moki reguliariai, ne tik programėles.'
+            : 'Rent, utilities, insurance, gym, subscriptions — track everything you pay for regularly, not just apps.'),
         const SizedBox(height: 24),
         Container(
           padding: const EdgeInsets.all(18),
@@ -106,12 +111,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   style: const TextStyle(
                       color: VaultieColors.subtle, fontSize: 13)),
               const SizedBox(height: 4),
-              const Text('€127.36',
+              const Text('€740.99',
                   style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
               const SizedBox(height: 18),
-              for (var i = 0; i < subs.length; i++) ...[
+              for (var i = 0; i < rows.length; i++) ...[
                 if (i > 0) const Divider(height: 20),
-                _subRow(subs[i], isLt),
+                rows[i],
               ],
             ],
           ),
@@ -121,41 +126,62 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final b in ['Apple TV', 'Disney+', 'iCloud', 'ChatGPT Plus'])
-              _chip(b),
+            for (final c in (isLt
+                ? [
+                    'Būstas',
+                    'Komunaliniai',
+                    'Draudimas',
+                    'Transportas',
+                    'Sporto salė',
+                    'Prenumeratos'
+                  ]
+                : [
+                    'Housing',
+                    'Utilities',
+                    'Insurance',
+                    'Transport',
+                    'Gym',
+                    'Subscriptions'
+                  ]))
+              _chip(c),
           ],
         ),
       ],
     );
   }
 
-  Widget _subRow(_SubRow s, bool isLt) {
-    final renews = s.days == 1
-        ? (isLt ? 'Atsinaujina rytoj' : 'Renews tomorrow')
-        : (isLt ? 'Atsinaujina po ${s.days} d.' : 'Renews in ${s.days} days');
+  /// A payment row using the real category icon + colour, so the breadth of
+  /// categories (rent, insurance, gym, subscriptions…) is obvious.
+  Widget _payRow(String name, String catKey, String sub, String price) {
+    final cat = categoryFor(catKey);
     return Row(
       children: [
         Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: s.color, shape: BoxShape.circle),
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: cat.color.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(cat.icon, color: cat.color, size: 19),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(s.name,
+              Text(name,
                   style: const TextStyle(
                       fontWeight: FontWeight.w600, fontSize: 15)),
               const SizedBox(height: 2),
-              Text(renews,
+              Text(sub,
                   style: const TextStyle(
                       color: VaultieColors.subtle, fontSize: 12)),
             ],
           ),
         ),
-        Text(s.price,
+        Text(price,
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
       ],
     );
@@ -204,11 +230,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         const SizedBox(height: 12),
         _featureCard(
-          Icons.travel_explore_rounded,
-          isLt ? 'Rask paslėptas išlaidas' : 'Find hidden costs',
+          Icons.category_rounded,
+          isLt ? 'Viskas vienoje vietoje' : 'Everything in one place',
           isLt
-              ? 'Aptik pamirštas prenumeratas'
-              : 'Spot forgotten subscriptions',
+              ? 'Nuoma, mokesčiai, draudimas ir prenumeratos kartu'
+              : 'Rent, bills, insurance and subscriptions together',
         ),
         const SizedBox(height: 12),
         _featureCard(
@@ -279,8 +305,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _Title(isLt
-            ? 'Mes seksime kiekvieną\nprenumeratą už tave.'
-            : "We'll track every\nsubscription for you."),
+            ? 'Priminsime prieš\nkiekvieną mokėjimą.'
+            : "We'll remind you before\nevery payment."),
         const SizedBox(height: 20),
         // Notification banner.
         Container(
@@ -299,9 +325,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isLt
-                          ? 'Priminimai apie atsinaujinimą'
-                          : 'Renewal reminders',
+                      isLt ? 'Mokėjimų priminimai' : 'Payment reminders',
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -310,8 +334,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     const SizedBox(height: 4),
                     Text(
                       isLt
-                          ? 'Pranešime prieš 3, 2 ir 1 dieną iki kiekvieno mokėjimo.'
-                          : 'We notify you 3, 2 and 1 days before every renewal.',
+                          ? 'Pranešime maždaug prieš 24 val. iki kiekvieno mokėjimo.'
+                          : 'We notify you about 24 hours before each payment.',
                       style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 13,
@@ -325,16 +349,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         const SizedBox(height: 20),
         _reminderCard(
-          isLt
-              ? 'Netflix atsinaujina rytoj · €15.99'
-              : 'Netflix renews tomorrow · €15.99',
+          isLt ? 'Nuoma · €650 – mokėjimas rytoj' : 'Rent · €650 – due tomorrow',
           isLt ? 'dabar' : 'now',
         ),
         const SizedBox(height: 12),
         _reminderCard(
           isLt
-              ? 'Spotify atsinaujina po 2 d. · €9.99'
-              : 'Spotify renews in 2 days · €9.99',
+              ? 'Auto draudimas · €45 – po 2 d.'
+              : 'Car insurance · €45 – in 2 days',
           isLt ? 'prieš 5 min.' : '5 min ago',
         ),
       ],
@@ -419,14 +441,6 @@ class _Subtitle extends StatelessWidget {
           color: VaultieColors.subtle,
         ),
       );
-}
-
-class _SubRow {
-  const _SubRow(this.name, this.color, this.days, this.price);
-  final String name;
-  final Color color;
-  final int days;
-  final String price;
 }
 
 /// Page chrome shared by all three screens: top-left logo, scrollable content,

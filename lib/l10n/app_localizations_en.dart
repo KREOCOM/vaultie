@@ -118,10 +118,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get vaultEmptyTitle => 'No subscriptions yet';
+  String get vaultEmptyTitle => 'No expenses yet';
 
   @override
-  String get vaultEmptyBody => 'Tap “Add” to track your first subscription.';
+  String get vaultEmptyBody =>
+      'Track rent, bills, insurance, subscriptions and more — tap “Add” to start.';
 
   @override
   String get addSubscriptionTitle => 'Add subscription';

@@ -120,11 +120,11 @@ class AppLocalizationsLt extends AppLocalizations {
   }
 
   @override
-  String get vaultEmptyTitle => 'Kol kas nėra prenumeratų';
+  String get vaultEmptyTitle => 'Kol kas nėra išlaidų';
 
   @override
   String get vaultEmptyBody =>
-      'Palieskite „Pridėti“, kad pradėtumėte sekti pirmąją prenumeratą.';
+      'Sek nuomą, mokesčius, draudimą, prenumeratas ir daugiau — palieskite „Pridėti“.';
 
   @override
   String get addSubscriptionTitle => 'Pridėti prenumeratą';

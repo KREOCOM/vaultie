@@ -1635,16 +1635,21 @@ class _EmptyState extends StatelessWidget {
             style: const TextStyle(color: VaultieColors.subtle),
           ),
           const SizedBox(height: 30),
-          Text(
-            (isLt ? 'Pridėk populiarią paslaugą' : 'Add a popular service')
-                .toUpperCase(),
-            style: const TextStyle(
-              color: VaultieColors.subtle,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              letterSpacing: 0.5,
-            ),
+          _emptyLabel(isLt ? 'Pradėk nuo kategorijos' : 'Start with a category'),
+          const SizedBox(height: 16),
+          GridView.count(
+            crossAxisCount: 4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 8,
+            childAspectRatio: 0.82,
+            children: [
+              for (final cat in kExpenseCategories) _catQuickTile(context, cat, isLt),
+            ],
           ),
+          const SizedBox(height: 26),
+          _emptyLabel(isLt ? 'Arba populiari paslauga' : 'Or a popular service'),
           const SizedBox(height: 16),
           Wrap(
             spacing: 18,
@@ -1653,6 +1658,56 @@ class _EmptyState extends StatelessWidget {
             children: [
               for (final b in kPopularGrid) _QuickAddTile(brand: b),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyLabel(String text) => Text(
+        text.toUpperCase(),
+        style: const TextStyle(
+          color: VaultieColors.subtle,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+          letterSpacing: 0.5,
+        ),
+      );
+
+  /// A category tile on the empty state — opens the add form with that category
+  /// (and its defaults) preselected.
+  Widget _catQuickTile(BuildContext context, ExpenseCategory cat, bool isLt) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AddSubscriptionScreen(initialCategory: cat.key),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: cat.color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(cat.icon, color: cat.color, size: 24),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            cat.label(isLt),
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 9.5,
+              height: 1.1,
+              fontWeight: FontWeight.w500,
+              color: VaultieColors.subtle,
+            ),
           ),
         ],
       ),
