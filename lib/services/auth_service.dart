@@ -79,8 +79,16 @@ class AuthService {
       rethrow;
     }
 
+    // identityToken is nullable; without it the Firebase credential is invalid.
+    final idToken = apple.identityToken;
+    if (idToken == null) {
+      throw FirebaseAuthException(
+        code: 'apple-no-identity-token',
+        message: 'Apple did not return an identity token.',
+      );
+    }
     final credential = OAuthProvider('apple.com').credential(
-      idToken: apple.identityToken,
+      idToken: idToken,
       rawNonce: rawNonce,
     );
     final userCred = await _auth.signInWithCredential(credential);
@@ -240,6 +248,19 @@ String authErrorMessage(FirebaseAuthException e, {required bool isLithuanian}) {
       return isLithuanian
           ? 'Per daug bandymų. Bandykite vėliau.'
           : 'Too many attempts. Try again later.';
+    case 'operation-not-allowed':
+      // Provider not enabled in the Firebase console (e.g. Apple/Google).
+      return isLithuanian
+          ? 'Šis prisijungimo būdas šiuo metu neįjungtas.'
+          : 'This sign-in method is not enabled.';
+    case 'account-exists-with-different-credential':
+      return isLithuanian
+          ? 'Šis el. paštas jau susietas su kitu prisijungimo būdu.'
+          : 'This email is already linked to a different sign-in method.';
+    case 'apple-no-identity-token':
+      return isLithuanian
+          ? 'Apple negrąžino tapatybės žetono. Bandykite dar kartą.'
+          : 'Apple did not return an identity token. Please try again.';
     case 'requires-recent-login':
       return isLithuanian
           ? 'Saugumo sumetimais prisijunkite iš naujo ir bandykite dar kartą.'

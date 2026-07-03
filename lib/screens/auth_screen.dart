@@ -208,27 +208,43 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         ),
       );
     } on FirebaseAuthException catch (e) {
+      // Surface the exact code so real-device failures are diagnosable
+      // (e.g. operation-not-allowed = Apple provider disabled in Firebase).
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authErrorMessage(e, isLithuanian: isLt)),
-          backgroundColor: VaultieColors.danger,
-        ),
+      _showAppleError(
+        authErrorMessage(e, isLithuanian: isLt),
+        detail: '[firebase_auth/${e.code}] ${e.message ?? ''}',
       );
-    } catch (_) {
-      // e.g. Apple Sign-In not available / not configured on this device.
+    } catch (e) {
+      // e.g. a SignInWithAppleAuthorizationException (missing entitlement /
+      // provisioning) or Apple Sign-In unavailable on this device.
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isLt
-              ? 'Nepavyko prisijungti su Apple.'
-              : 'Apple sign-in failed.'),
-          backgroundColor: VaultieColors.danger,
-        ),
+      _showAppleError(
+        isLt ? 'Nepavyko prisijungti su Apple.' : 'Apple sign-in failed.',
+        detail: e.toString(),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Shows the friendly message plus the raw error detail, so a failure on a
+  /// real device can actually be diagnosed instead of hidden behind a generic
+  /// "sign-in failed".
+  void _showAppleError(String message, {required String detail}) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_isLt ? 'Apple prisijungimas' : 'Apple sign-in'),
+        content: SingleChildScrollView(child: Text('$message\n\n$detail')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
