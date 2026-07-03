@@ -153,13 +153,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
 // Overview tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _OverviewTab extends StatelessWidget {
+enum _SortMode { renewal, priceHigh, nameAsc }
+
+class _OverviewTab extends StatefulWidget {
   const _OverviewTab({required this.subs});
 
   final List<Subscription> subs;
 
   @override
+  State<_OverviewTab> createState() => _OverviewTabState();
+}
+
+class _OverviewTabState extends State<_OverviewTab> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  _SortMode _sort = _SortMode.renewal;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  /// The list to render: filtered by the search query, then sorted.
+  List<Subscription> _visible() {
+    final q = _query.trim().toLowerCase();
+    final list = widget.subs
+        .where((s) => q.isEmpty || s.name.toLowerCase().contains(q))
+        .toList();
+    switch (_sort) {
+      case _SortMode.renewal:
+        list.sort((a, b) => a.daysUntilRenewal.compareTo(b.daysUntilRenewal));
+      case _SortMode.priceHigh:
+        list.sort((a, b) => b.monthlyCost.compareTo(a.monthlyCost));
+      case _SortMode.nameAsc:
+        list.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    }
+    return list;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final subs = widget.subs;
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
     final monthlyTotal = subs.fold<double>(0, (sum, s) => sum + s.monthlyCost);
 
     // Show the month-over-month badge only once there is something to compare:
@@ -172,6 +209,7 @@ class _OverviewTab extends StatelessWidget {
           DateTime.fromMicrosecondsSinceEpoch(micros).isBefore(monthStart);
     });
     final showChange = subs.isNotEmpty && hasHistory;
+    final visible = _visible();
 
     return CustomScrollView(
       slivers: [
@@ -187,16 +225,101 @@ class _OverviewTab extends StatelessWidget {
           const SliverToBoxAdapter(child: _EmptyState())
         else ...[
           SliverToBoxAdapter(child: _UpcomingRenewals(subs: subs)),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-            sliver: SliverList.separated(
-              itemCount: subs.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (_, i) => _SubscriptionTile(sub: subs[i]),
+          if (subs.length >= 2) SliverToBoxAdapter(child: _searchSortBar(isLt)),
+          if (visible.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(
+                  child: Text(
+                    isLt ? 'Nieko nerasta' : 'No matches',
+                    style: const TextStyle(color: VaultieColors.subtle),
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+              sliver: SliverList.separated(
+                itemCount: visible.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (_, i) => _SubscriptionTile(sub: visible[i]),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _searchSortBar(bool isLt) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _query = v),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: isLt ? 'Ieškoti' : 'Search',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: VaultieColors.card,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE1E8E3)),
+            ),
+            child: PopupMenuButton<_SortMode>(
+              icon: const Icon(Icons.sort, color: VaultieColors.primary),
+              tooltip: isLt ? 'Rūšiuoti' : 'Sort',
+              onSelected: (m) => setState(() => _sort = m),
+              itemBuilder: (_) => [
+                _sortItem(
+                    _SortMode.renewal, isLt ? 'Pagal datą' : 'By renewal'),
+                _sortItem(
+                    _SortMode.priceHigh, isLt ? 'Pagal kainą' : 'By price'),
+                _sortItem(
+                    _SortMode.nameAsc, isLt ? 'Pagal pavadinimą' : 'By name'),
+              ],
             ),
           ),
         ],
-      ],
+      ),
+    );
+  }
+
+  PopupMenuItem<_SortMode> _sortItem(_SortMode mode, String label) {
+    return PopupMenuItem<_SortMode>(
+      value: mode,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            child: _sort == mode
+                ? const Icon(Icons.check,
+                    size: 18, color: VaultieColors.primary)
+                : null,
+          ),
+          Text(label),
+        ],
+      ),
     );
   }
 }
