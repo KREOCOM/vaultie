@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -62,11 +63,13 @@ class AuthService {
   /// name on the very first authorization, so we persist it as the displayName
   /// when present.
   Future<UserCredential?> signInWithApple() async {
+    debugPrint('[SIWA] 1. start; generating nonce');
     final rawNonce = _generateNonce();
     final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
 
     final AuthorizationCredentialAppleID apple;
     try {
+      debugPrint('[SIWA] 2. requesting Apple ID credential');
       apple = await SignInWithApple.getAppleIDCredential(
         scopes: [
           AppleIDAuthorizationScopes.email,
@@ -74,7 +77,14 @@ class AuthService {
         ],
         nonce: hashedNonce,
       );
+      debugPrint('[SIWA] 3. Apple returned credential: '
+          'user=${apple.userIdentifier != null}, '
+          'hasIdentityToken=${apple.identityToken != null}, '
+          'hasAuthCode=${apple.authorizationCode.isNotEmpty}, '
+          'email=${apple.email}');
     } on SignInWithAppleAuthorizationException catch (e) {
+      debugPrint('[SIWA] Apple authorization FAILED: code=${e.code} '
+          'message=${e.message}');
       if (e.code == AuthorizationErrorCode.canceled) return null;
       rethrow;
     }
@@ -82,6 +92,7 @@ class AuthService {
     // identityToken is nullable; without it the Firebase credential is invalid.
     final idToken = apple.identityToken;
     if (idToken == null) {
+      debugPrint('[SIWA] identityToken is NULL — aborting');
       throw FirebaseAuthException(
         code: 'apple-no-identity-token',
         message: 'Apple did not return an identity token.',
@@ -91,17 +102,26 @@ class AuthService {
       idToken: idToken,
       rawNonce: rawNonce,
     );
-    final userCred = await _auth.signInWithCredential(credential);
+    try {
+      debugPrint('[SIWA] 4. exchanging with Firebase (signInWithCredential)');
+      final userCred = await _auth.signInWithCredential(credential);
+      debugPrint('[SIWA] 5. SUCCESS: uid=${userCred.user?.uid} '
+          'newUser=${userCred.additionalUserInfo?.isNewUser}');
 
-    final name = [apple.givenName, apple.familyName]
-        .where((s) => s != null && s.isNotEmpty)
-        .join(' ')
-        .trim();
-    final current = userCred.user?.displayName;
-    if (name.isNotEmpty && (current == null || current.isEmpty)) {
-      await userCred.user?.updateDisplayName(name);
+      final name = [apple.givenName, apple.familyName]
+          .where((s) => s != null && s.isNotEmpty)
+          .join(' ')
+          .trim();
+      final current = userCred.user?.displayName;
+      if (name.isNotEmpty && (current == null || current.isEmpty)) {
+        await userCred.user?.updateDisplayName(name);
+      }
+      return userCred;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('[SIWA] Firebase sign-in FAILED: code=${e.code} '
+          'message=${e.message}');
+      rethrow;
     }
-    return userCred;
   }
 
   Future<void> sendEmailVerification() async {
