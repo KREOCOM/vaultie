@@ -34,8 +34,18 @@ class LegalScreen extends StatelessWidget {
         LegalSection(
           isLt ? 'Kokius duomenis renkame' : 'Data we collect',
           isLt
-              ? 'Susikuriant paskyrą renkame tavo el. pašto adresą (per Firebase Authentication). Prenumeratų duomenys (pavadinimai, kainos, datos) saugomi tik lokaliai tavo įrenginyje.'
-              : 'When you create an account we collect your email address (via Firebase Authentication). Your subscription data (names, prices, dates) is stored locally on your device only.',
+              ? 'Susikuriant paskyrą renkame tavo el. pašto adresą (per Firebase '
+                  'Authentication — el. paštas, „Google" arba „Apple"). '
+                  'Prenumeratų duomenys (pavadinimai, kainos, datos) saugomi tik '
+                  'lokaliai tavo įrenginyje. Kai perki „Vaultie Pro", mūsų '
+                  'teikėjas „RevenueCat" apdoroja „App Store" pirkimą, kad '
+                  'atrakintų prieigą.'
+              : 'When you create an account we collect your email address (via '
+                  'Firebase Authentication — email/password, Google, or Apple). '
+                  'Your subscription data (names, prices, dates) is stored '
+                  'locally on your device only. When you buy Vaultie Pro, our '
+                  'provider RevenueCat processes your App Store purchase to '
+                  'unlock your entitlement.',
         ),
         LegalSection(
           isLt ? 'Kaip naudojame duomenis' : 'How we use your data',
@@ -46,8 +56,20 @@ class LegalScreen extends StatelessWidget {
         LegalSection(
           isLt ? 'Trečiosios šalys' : 'Third parties',
           isLt
-              ? 'Autentifikacijai naudojame Google Firebase. Prekių ženklų logotipai užkraunami per Google favicon paslaugą pagal paslaugos pavadinimą. Neparduodame tavo duomenų.'
-              : 'We use Google Firebase for authentication. Brand logos are loaded via the Google favicon service based on the service name. We do not sell your data.',
+              ? 'Autentifikacijai naudojame Google Firebase ir „Sign in with '
+                  'Apple" (jei pasirenki). Programinius pirkimus tvarko '
+                  '„RevenueCat", gaunantis tavo „App Store" operacijų duomenis. '
+                  'Prekių ženklų logotipai užkraunami iš Google favicon paslaugos '
+                  'pagal iš pavadinimo atspėtą domeną, todėl tavo sekamos '
+                  'paslaugos matomos „Google" šiose užklausose. Neparduodame tavo '
+                  'duomenų.'
+              : 'We use Google Firebase for authentication, plus Sign in with '
+                  'Apple if you choose it. In-app purchases are handled by '
+                  'RevenueCat, which receives your App Store transaction data. '
+                  'Brand logos are fetched from Google\'s favicon service using a '
+                  'domain guessed from each subscription\'s name, so the services '
+                  'you track are visible to Google in those requests. We do not '
+                  'sell your data.',
         ),
         LegalSection(
           isLt ? 'Pranešimai' : 'Notifications',
