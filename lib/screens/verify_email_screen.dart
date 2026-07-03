@@ -28,8 +28,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   final _auth = AuthService();
 
   Timer? _poll;
-  Timer? _cooldown;
-  int _resendIn = 0; // seconds until the resend button re-enables
+  bool _resending = false; // true only while a resend request is in flight
   bool _checking = false;
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
@@ -37,10 +36,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   @override
   void initState() {
     super.initState();
-    // No on-arrival countdown: the resend button is available immediately.
-    // A short cooldown only kicks in after a manual resend (anti-spam).
     // Poll periodically; clicking the link happens out-of-app, so we can't
-    // rely on a callback to tell us it's done.
+    // rely on a callback to tell us it's done. The resend button is always
+    // available (no countdown) — Firebase rate-limits abuse on its side.
     _poll = Timer.periodic(
       const Duration(seconds: 4),
       (_) => _checkVerified(),
@@ -50,22 +48,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   @override
   void dispose() {
     _poll?.cancel();
-    _cooldown?.cancel();
     super.dispose();
-  }
-
-  void _startCooldown([int seconds = 60]) {
-    _cooldown?.cancel();
-    setState(() => _resendIn = seconds);
-    _cooldown = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) return;
-      if (_resendIn <= 1) {
-        t.cancel();
-        setState(() => _resendIn = 0);
-      } else {
-        setState(() => _resendIn--);
-      }
-    });
   }
 
   /// Reloads the user and, if the address is now verified, advances to the app.
@@ -99,10 +82,11 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   Future<void> _resend() async {
     final isLt = _isLt;
+    if (_resending) return;
+    setState(() => _resending = true);
     try {
       await _auth.sendEmailVerification();
       if (!mounted) return;
-      _startCooldown();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(isLt
@@ -118,6 +102,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           backgroundColor: VaultieColors.danger,
         ),
       );
+    } finally {
+      if (mounted) setState(() => _resending = false);
     }
   }
 
@@ -237,7 +223,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               ),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: _resendIn > 0 ? null : _resend,
+                onPressed: _resending ? null : _resend,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: VaultieColors.primary,
                   minimumSize: const Size.fromHeight(54),
@@ -246,13 +232,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: Text(
-                  _resendIn > 0
-                      ? (isLt
-                          ? 'Siųsti dar kartą (${_resendIn}s)'
-                          : 'Resend email (${_resendIn}s)')
-                      : (isLt ? 'Siųsti dar kartą' : 'Resend email'),
-                ),
+                child: Text(isLt ? 'Siųsti dar kartą' : 'Resend email'),
               ),
               const SizedBox(height: 12),
               TextButton(
