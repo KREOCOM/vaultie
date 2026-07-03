@@ -249,6 +249,9 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
+          // Dragging the form dismisses the (Done-less) numeric keyboard, so the
+          // user can reach the fields and Save button below the amount.
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: [
             _sectionLabel(isLt ? 'Kategorija' : 'Category'),
             const SizedBox(height: 12),
@@ -492,6 +495,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
                 focusNode: _nameFocus,
                 textAlign: TextAlign.right,
                 textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.done,
+                onTapOutside: (_) => FocusScope.of(context).unfocus(),
                 decoration: InputDecoration(
                   isCollapsed: true,
                   border: InputBorder.none,
@@ -509,6 +514,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
               textAlign: TextAlign.right,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
+              onTapOutside: (_) => FocusScope.of(context).unfocus(),
               decoration: InputDecoration(
                 isCollapsed: true,
                 border: InputBorder.none,
@@ -689,6 +695,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
                     controller: _notes,
                     minLines: 1,
                     maxLines: 3,
+                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
                     decoration: InputDecoration(
                       isCollapsed: true,
                       border: InputBorder.none,
