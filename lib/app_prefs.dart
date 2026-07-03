@@ -62,7 +62,19 @@ class AppPrefs {
   }
 }
 
-/// Formats [value] as money using the currently-selected currency symbol.
-String formatMoney(num value) =>
-    NumberFormat.currency(symbol: AppPrefs.currency.value, decimalDigits: 2)
-        .format(value);
+/// Formats [value] as money using the selected currency symbol and the app's
+/// active language for grouping/decimal separators and symbol placement — e.g.
+/// "€1,234.56" in English but "1 234,56 €" in Lithuanian. Without a locale,
+/// intl would always use en_US-style formatting regardless of the UI language.
+String formatMoney(num value) {
+  final code = AppPrefs.locale.value?.languageCode ??
+      WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+  // The app only ships English and Lithuanian; map anything else to English so
+  // an unrelated device locale can't produce a surprising format.
+  final localeTag = code == 'lt' ? 'lt' : 'en';
+  return NumberFormat.currency(
+    locale: localeTag,
+    symbol: AppPrefs.currency.value,
+    decimalDigits: 2,
+  ).format(value);
+}
