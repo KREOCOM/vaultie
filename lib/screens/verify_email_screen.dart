@@ -202,7 +202,34 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   fontSize: 13,
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 12),
+              // Firebase's default emails often land in spam; nudge the user to
+              // check there and mark it "Not spam" so future links are clickable.
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF6E5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFF0C674)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.report_gmailerrorred_outlined,
+                        color: Color(0xFF9A7B2E), size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        isLt
+                            ? 'Nerandi laiško? Patikrink šlamšto (Spam) aplanką ir pažymėk „Ne šlamštas".'
+                            : "Can't find it? Check your Spam folder and mark it \"Not spam\".",
+                        style: const TextStyle(
+                            color: Color(0xFF6B5A20), fontSize: 12.5, height: 1.3),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
               ElevatedButton(
                 onPressed:
                     _checking ? null : () => _checkVerified(showFeedback: true),
