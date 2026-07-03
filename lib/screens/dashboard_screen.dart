@@ -396,7 +396,10 @@ class _OverviewHeader extends StatelessWidget {
 
   final List<Subscription> subs;
 
-  static const _bg = Color(0xFF0F2D1E);
+  // Soft, deep-green gradient — lighter and gentler than a flat near-black
+  // green, while staying in the brand palette so it's easy on the eyes.
+  static const _bgTop = Color(0xFF215240);
+  static const _bgBottom = Color(0xFF163B2B);
   // Muted accent green (deliberately not a bright neon green).
   static const _accent = Color(0xFF2D8A5E);
 
@@ -453,7 +456,11 @@ class _OverviewHeader extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(22, 20, 20, 20),
         decoration: BoxDecoration(
-          color: _bg,
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [_bgTop, _bgBottom],
+          ),
           borderRadius: BorderRadius.circular(24),
         ),
         child: Column(
