@@ -190,36 +190,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (!reauthed) return; // cancelled/failed; `finally` stops the spinner
         await _auth.deleteAccount();
       }
-      // Deleted — clear local data and return to the auth screen.
-      await _wipeBox(HiveBoxes.subscriptions);
-      await _wipeBox(HiveBoxes.cancellations);
-      await _wipeBox(HiveBoxes.settings);
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AuthScreen()),
-        (route) => false,
-      );
+      await _finishDeletion();
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authErrorMessage(e, isLithuanian: isLt)),
-          backgroundColor: VaultieColors.danger,
-        ),
-      );
-    } catch (_) {
+      _showDeleteError(authErrorMessage(e, isLithuanian: isLt),
+          detail: 'FirebaseAuthException: ${e.code}');
+    } catch (e) {
+      // Some firebase_auth versions throw a non-Firebase (Pigeon) error even
+      // though the native delete actually succeeded. If the user is now gone,
+      // treat it as success instead of showing a misleading failure.
+      if (_auth.currentUser == null) {
+        await _finishDeletion();
+        return;
+      }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isLt
-              ? 'Nepavyko ištrinti paskyros. Bandykite dar kartą.'
-              : 'Could not delete your account. Please try again.'),
-          backgroundColor: VaultieColors.danger,
-        ),
+      _showDeleteError(
+        isLt ? 'Nepavyko ištrinti paskyros.' : 'Could not delete your account.',
+        detail: e.toString(),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Clears local data and returns to the auth screen after a successful delete.
+  Future<void> _finishDeletion() async {
+    await _wipeBox(HiveBoxes.subscriptions);
+    await _wipeBox(HiveBoxes.cancellations);
+    await _wipeBox(HiveBoxes.settings);
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      (route) => false,
+    );
+  }
+
+  /// Error dialog for a failed deletion — shows the raw detail so unusual,
+  /// non-FirebaseAuth failures are diagnosable rather than silently generic.
+  void _showDeleteError(String message, {required String detail}) {
+    final isLt = _isLt;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isLt ? 'Klaida' : 'Error'),
+        content: SingleChildScrollView(
+          child: Text('$message\n\n$detail'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Re-authenticates before deletion. Google users re-run the picker; password

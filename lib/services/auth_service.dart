@@ -143,6 +143,10 @@ String authErrorMessage(FirebaseAuthException e, {required bool isLithuanian}) {
       return isLithuanian
           ? 'Per daug bandymų. Bandykite vėliau.'
           : 'Too many attempts. Try again later.';
+    case 'requires-recent-login':
+      return isLithuanian
+          ? 'Saugumo sumetimais prisijunkite iš naujo ir bandykite dar kartą.'
+          : 'For security, please sign in again, then try again.';
     default:
       return isLithuanian
           ? 'Įvyko klaida. Bandykite dar kartą.'
