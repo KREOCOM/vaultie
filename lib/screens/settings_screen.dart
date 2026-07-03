@@ -282,6 +282,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return false;
       }
     }
+    if (_auth.isAppleUser) {
+      try {
+        return await _auth.reauthenticateWithApple();
+      } catch (_) {
+        return false;
+      }
+    }
     final password = await showDialog<String>(
       context: context,
       builder: (_) => _PasswordPrompt(isLt: isLt),

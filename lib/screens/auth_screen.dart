@@ -184,6 +184,46 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _signInWithApple() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _busy = true);
+    final isLt = _isLt;
+    try {
+      final cred = await _auth.signInWithApple();
+      if (cred == null) return; // user cancelled the Apple sheet
+      if (!mounted) return;
+      // Apple accounts arrive verified, so this lands on the dashboard.
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => _auth.isEmailVerified
+              ? const DashboardScreen()
+              : const VerifyEmailScreen(),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authErrorMessage(e, isLithuanian: isLt)),
+          backgroundColor: VaultieColors.danger,
+        ),
+      );
+    } catch (_) {
+      // e.g. Apple Sign-In not available / not configured on this device.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isLt
+              ? 'Nepavyko prisijungti su Apple.'
+              : 'Apple sign-in failed.'),
+          backgroundColor: VaultieColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -405,6 +445,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                 const SizedBox(height: 18),
                 _orDivider(isLt),
                 const SizedBox(height: 18),
+                _appleButton(isLt),
+                const SizedBox(height: 12),
                 _googleButton(isLt),
                 const SizedBox(height: 16),
                 _toggleLink(isLt),
@@ -553,6 +595,29 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         ),
         line,
       ],
+    );
+  }
+
+  /// Black "Continue with Apple" button with the Apple mark, per Apple's
+  /// Sign in with Apple design guidance. Kept at least as prominent as the
+  /// Google button (same height, placed first) to satisfy Guideline 4.8.
+  Widget _appleButton(bool isLt) {
+    return SizedBox(
+      height: 54,
+      child: OutlinedButton.icon(
+        onPressed: _busy ? null : _signInWithApple,
+        icon: const Icon(Icons.apple, color: Colors.white, size: 22),
+        label: Text(isLt ? 'Tęsti su Apple' : 'Continue with Apple'),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: Colors.black),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
     );
   }
 

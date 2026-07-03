@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 /// Thin wrapper around [FirebaseAuth] for email/password auth.
 ///
@@ -51,6 +56,46 @@ class AuthService {
     return _auth.signInWithCredential(credential);
   }
 
+  /// Signs in with Apple via Firebase. Returns null if the user cancels the
+  /// Apple sheet. A SHA-256-hashed nonce is sent to Apple and the raw nonce to
+  /// Firebase, which prevents replay attacks. Apple only returns the user's
+  /// name on the very first authorization, so we persist it as the displayName
+  /// when present.
+  Future<UserCredential?> signInWithApple() async {
+    final rawNonce = _generateNonce();
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+    final AuthorizationCredentialAppleID apple;
+    try {
+      apple = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) return null;
+      rethrow;
+    }
+
+    final credential = OAuthProvider('apple.com').credential(
+      idToken: apple.identityToken,
+      rawNonce: rawNonce,
+    );
+    final userCred = await _auth.signInWithCredential(credential);
+
+    final name = [apple.givenName, apple.familyName]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' ')
+        .trim();
+    final current = userCred.user?.displayName;
+    if (name.isNotEmpty && (current == null || current.isEmpty)) {
+      await userCred.user?.updateDisplayName(name);
+    }
+    return userCred;
+  }
+
   Future<void> sendEmailVerification() async {
     await _auth.currentUser?.sendEmailVerification();
   }
@@ -88,6 +133,51 @@ class AuthService {
       _auth.currentUser?.providerData
           .any((p) => p.providerId == 'google.com') ??
       false;
+
+  /// True when the signed-in user authenticated via Apple.
+  bool get isAppleUser =>
+      _auth.currentUser?.providerData
+          .any((p) => p.providerId == 'apple.com') ??
+      false;
+
+  /// Re-authenticates an Apple user (required before sensitive actions like
+  /// account deletion when the last sign-in is too old). Returns false if they
+  /// cancel the Apple sheet.
+  Future<bool> reauthenticateWithApple() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    final rawNonce = _generateNonce();
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+    final AuthorizationCredentialAppleID apple;
+    try {
+      apple = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) return false;
+      rethrow;
+    }
+    final credential = OAuthProvider('apple.com').credential(
+      idToken: apple.identityToken,
+      rawNonce: rawNonce,
+    );
+    await user.reauthenticateWithCredential(credential);
+    return true;
+  }
+
+  /// A cryptographically-random nonce, used to bind an Apple credential to this
+  /// sign-in attempt.
+  String _generateNonce([int length = 32]) {
+    const chars =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(length, (_) => chars[random.nextInt(chars.length)])
+        .join();
+  }
 
   /// Re-authenticates a password user (required before sensitive actions like
   /// account deletion when the last sign-in is too old).
