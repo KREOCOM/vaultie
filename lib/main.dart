@@ -134,7 +134,8 @@ class VaultieApp extends StatelessWidget {
 
     // Rebuild the app when the user changes language or currency in Settings.
     return AnimatedBuilder(
-      animation: Listenable.merge([AppPrefs.locale, AppPrefs.currency]),
+      animation: Listenable.merge(
+          [AppPrefs.locale, AppPrefs.currency, AppPrefs.budget]),
       builder: (context, _) => MaterialApp(
         title: 'Vaultie',
         debugShowCheckedModeBanner: false,

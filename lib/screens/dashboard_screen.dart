@@ -221,6 +221,13 @@ class _OverviewTabState extends State<_OverviewTab> {
             showChange: showChange,
           ),
         ),
+        if (AppPrefs.budget.value != null && subs.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _BudgetCard(
+              spent: monthlyTotal,
+              budget: AppPrefs.budget.value!,
+            ),
+          ),
         if (subs.isEmpty)
           const SliverToBoxAdapter(child: _EmptyState())
         else ...[
@@ -1374,6 +1381,76 @@ class _SubscriptionTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Monthly-budget progress: bar + "spent of budget", turning orange near the
+/// limit and red when over.
+class _BudgetCard extends StatelessWidget {
+  const _BudgetCard({required this.spent, required this.budget});
+
+  final double spent;
+  final double budget;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    final ratio = budget <= 0 ? 0.0 : spent / budget;
+    final over = spent > budget;
+    final color = over
+        ? VaultieColors.danger
+        : ratio >= 0.8
+            ? const Color(0xFFE9A23B)
+            : VaultieColors.primary;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: VaultieColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE1E8E3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                isLt ? 'Mėnesio biudžetas' : 'Monthly budget',
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+              const Spacer(),
+              Text(
+                '${(ratio * 100).round()}%',
+                style: TextStyle(color: color, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: ratio.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: const Color(0xFFE1E8E3),
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            over
+                ? (isLt
+                    ? 'Viršyta ${formatMoney(spent - budget)}'
+                    : 'Over by ${formatMoney(spent - budget)}')
+                : (isLt
+                    ? '${formatMoney(spent)} iš ${formatMoney(budget)}'
+                    : '${formatMoney(spent)} of ${formatMoney(budget)}'),
+            style: const TextStyle(color: VaultieColors.subtle, fontSize: 13),
+          ),
+        ],
       ),
     );
   }

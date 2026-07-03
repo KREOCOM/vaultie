@@ -12,12 +12,16 @@ class AppPrefs {
   static const _kLocale = 'localeCode'; // '', 'lt' or 'en'
   static const _kCurrency = 'currency'; // symbol, e.g. '€'
   static const _kNotifications = 'notificationsEnabled';
+  static const _kBudget = 'monthlyBudget'; // double, or unset for no budget
 
   /// null = follow the system locale.
   static final ValueNotifier<Locale?> locale = ValueNotifier<Locale?>(null);
 
   /// Currency symbol used for all money formatting (defaults to euro).
   static final ValueNotifier<String> currency = ValueNotifier<String>('€');
+
+  /// Optional monthly spending target; null = no budget set.
+  static final ValueNotifier<double?> budget = ValueNotifier<double?>(null);
 
   static Box get _box => Hive.box(HiveBoxes.settings);
 
@@ -27,6 +31,16 @@ class AppPrefs {
     final code = _box.get(_kLocale, defaultValue: '') as String;
     locale.value = code.isEmpty ? null : Locale(code);
     currency.value = _box.get(_kCurrency, defaultValue: '€') as String;
+    budget.value = (_box.get(_kBudget) as num?)?.toDouble();
+  }
+
+  static Future<void> setBudget(double? value) async {
+    budget.value = value;
+    if (value == null) {
+      await _box.delete(_kBudget);
+    } else {
+      await _box.put(_kBudget, value);
+    }
   }
 
   static Future<void> setLocale(Locale? value) async {

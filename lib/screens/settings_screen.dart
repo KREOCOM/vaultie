@@ -127,6 +127,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await AppPrefs.setCurrency(choice);
   }
 
+  Future<void> _pickBudget() async {
+    final isLt = _isLt;
+    final controller = TextEditingController(
+      text: AppPrefs.budget.value?.toStringAsFixed(0) ?? '',
+    );
+    // Returns: null = cancel, -1 = clear, >0 = new budget.
+    final result = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isLt ? 'Mėnesio biudžetas' : 'Monthly budget'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            prefixText: '${AppPrefs.currency.value} ',
+            hintText: '0',
+          ),
+          onSubmitted: (v) => Navigator.of(ctx)
+              .pop(double.tryParse(v.trim().replaceAll(',', '.'))),
+        ),
+        actions: [
+          if (AppPrefs.budget.value != null)
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(-1.0),
+              style:
+                  TextButton.styleFrom(foregroundColor: VaultieColors.danger),
+              child: Text(isLt ? 'Pašalinti' : 'Clear'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(isLt ? 'Atšaukti' : 'Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(
+              double.tryParse(controller.text.trim().replaceAll(',', '.')),
+            ),
+            child: Text(isLt ? 'Išsaugoti' : 'Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null) return; // cancelled or invalid
+    if (result < 0) {
+      await AppPrefs.setBudget(null); // cleared
+    } else if (result > 0) {
+      await AppPrefs.setBudget(result);
+    }
+  }
+
   Future<void> _openUrl(String url) async {
     final ok =
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -317,6 +368,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             : (isLt ? 'Sistemos' : 'System');
     final currencyLabel =
         AppPrefs.currency.value == '\$' ? 'USD (\$)' : 'EUR (€)';
+    final budgetLabel = AppPrefs.budget.value == null
+        ? (isLt ? 'Nenustatyta' : 'Not set')
+        : formatMoney(AppPrefs.budget.value!);
 
     return Scaffold(
       appBar: AppBar(title: Text(isLt ? 'Nustatymai' : 'Settings')),
@@ -355,6 +409,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: Text(isLt ? 'Valiuta' : 'Currency'),
                     trailing: _trailing(currencyLabel),
                     onTap: _pickCurrency,
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.savings_outlined,
+                        color: VaultieColors.primary),
+                    title: Text(isLt ? 'Mėnesio biudžetas' : 'Monthly budget'),
+                    trailing: _trailing(budgetLabel),
+                    onTap: _pickBudget,
                   ),
                 ],
               ),
