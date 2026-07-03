@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/purchase_service.dart';
 import 'dashboard_screen.dart';
+import 'legal_screen.dart';
 
 /// Accent colours specific to the paywall.
 const Color _gold = Color(0xFFFFD24A);
@@ -101,6 +102,33 @@ class _PaywallScreenState extends State<PaywallScreen> {
   String _priceFor(PlanId id) =>
       PurchaseService.instance.priceString(id) ??
       PurchaseService.planFor(id).price;
+
+  /// Opens the in-app Terms of Use or Privacy Policy document.
+  void _openLegal({required bool terms}) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            terms ? LegalScreen.terms(_isLt) : LegalScreen.privacy(_isLt),
+      ),
+    );
+  }
+
+  /// An underlined, tappable legal link used in the paywall footer.
+  Widget _legalLink(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: _busy ? null : onTap,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.7),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          decoration: TextDecoration.underline,
+          decorationColor: Colors.white.withValues(alpha: 0.5),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,19 +237,55 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    // Auto-renewable subscription disclosure required by App
+                    // Store Guideline 3.1.2. Prices reflect the live store
+                    // price (falling back to the static plan price).
                     Text(
                       isLt
-                          ? 'Mėnesinė prenumerata atsinaujina automatiškai, kol '
-                              'neatšaukiama. „Visam laikui" — vienkartinis '
-                              'mokėjimas.'
-                          : 'The monthly plan auto-renews until cancelled. '
-                              'Lifetime is a one-time payment.',
+                          ? 'Vaultie Pro Mėnesinė (${_priceFor(PlanId.monthly)}/mėn.) '
+                              'yra automatiškai atsinaujinanti prenumerata: ji '
+                              'atsinaujina ta pačia kaina kiekvieną laikotarpį, '
+                              'nebent atšaukiama likus ne mažiau kaip 24 val. iki '
+                              'laikotarpio pabaigos. „Visam laikui" '
+                              '(${_priceFor(PlanId.lifetime)}) — vienkartinis '
+                              'pirkimas. Mokėjimas nuskaičiuojamas iš „Apple ID" '
+                              'ir valdomas „App Store" nustatymuose.'
+                          : 'Vaultie Pro Monthly (${_priceFor(PlanId.monthly)}/month) '
+                              'is an auto-renewable subscription that renews at '
+                              'the same price each period unless cancelled at '
+                              'least 24 hours before the period ends. Lifetime '
+                              '(${_priceFor(PlanId.lifetime)}) is a one-time '
+                              'purchase. Payment is charged to your Apple ID and '
+                              'can be managed in your App Store settings.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.5),
                         fontSize: 12,
                         height: 1.4,
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Functional Terms + Privacy links, required on the purchase
+                    // screen itself (Guideline 3.1.2).
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _legalLink(
+                          isLt ? 'Naudojimo sąlygos' : 'Terms of Use',
+                          () => _openLegal(terms: true),
+                        ),
+                        Text(
+                          '   •   ',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 12,
+                          ),
+                        ),
+                        _legalLink(
+                          isLt ? 'Privatumo politika' : 'Privacy Policy',
+                          () => _openLegal(terms: false),
+                        ),
+                      ],
                     ),
                   ],
                 ),

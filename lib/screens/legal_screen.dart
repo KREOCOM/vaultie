@@ -26,7 +26,7 @@ class LegalScreen extends StatelessWidget {
   factory LegalScreen.privacy(bool isLt) {
     return LegalScreen(
       title: isLt ? 'Privatumo politika' : 'Privacy Policy',
-      updated: isLt ? 'Atnaujinta: 2026-07-02' : 'Last updated: 2026-07-02',
+      updated: isLt ? 'Atnaujinta: 2026-07-03' : 'Last updated: 2026-07-03',
       intro: isLt
           ? 'Vaultie gerbia tavo privatumą. Ši politika paaiškina, kokius duomenis renkame, kaip juos naudojame ir kokias teises turi.'
           : 'Vaultie respects your privacy. This policy explains what data we collect, how we use it, and the choices you have.',
@@ -80,7 +80,7 @@ class LegalScreen extends StatelessWidget {
   factory LegalScreen.terms(bool isLt) {
     return LegalScreen(
       title: isLt ? 'Naudojimo sąlygos' : 'Terms of Use',
-      updated: isLt ? 'Atnaujinta: 2026-07-02' : 'Last updated: 2026-07-02',
+      updated: isLt ? 'Atnaujinta: 2026-07-03' : 'Last updated: 2026-07-03',
       intro: isLt
           ? 'Naudodamasis Vaultie sutinki su šiomis sąlygomis. Jei nesutinki, programos nenaudok.'
           : 'By using Vaultie you agree to these terms. If you do not agree, please do not use the app.',
@@ -104,10 +104,30 @@ class LegalScreen extends StatelessWidget {
               : 'Do not use the app for unlawful purposes or attempt to disrupt its operation or security.',
         ),
         LegalSection(
-          isLt ? 'Mokėjimai' : 'Payments',
+          isLt ? 'Prenumeratos ir mokėjimai' : 'Subscriptions & payments',
           isLt
-              ? 'Šiuo metu Vaultie nemokama. Mokamos „Pro" funkcijos gali atsirasti ateityje; sąlygos bus pateiktos prieš pirkimą.'
-              : 'Vaultie is currently free. Paid "Pro" features may be offered in the future; terms will be shown before any purchase.',
+              ? 'Vaultie nemokama iki trijų prenumeratų. Vaultie Pro atrakina '
+                  'neribotą prenumeratų skaičių kaip mėnesinę automatiškai '
+                  'atsinaujinančią prenumeratą (2,99 €/mėn.) arba vienkartinį '
+                  '„Visam laikui" pirkimą (29,99 €). Pirkimus tvarko „Apple App '
+                  'Store" ir jie nuskaičiuojami iš „Apple ID"; kainos parodomos '
+                  'prieš pirkimą ir gali skirtis pagal regioną. Mėnesinė '
+                  'prenumerata atsinaujina automatiškai, nebent atšaukiama likus '
+                  'ne mažiau kaip 24 val. iki laikotarpio pabaigos. Valdyti ar '
+                  'atšaukti galima bet kada „App Store" nustatymuose → jūsų '
+                  'vardas → Prenumeratos; programos ištrynimas jos neatšaukia. '
+                  'Grąžinimams taikomos „Apple" taisyklės ir įstatymai.'
+              : 'Vaultie is free for up to three subscriptions. Vaultie Pro '
+                  'unlocks unlimited subscriptions as a monthly auto-renewable '
+                  'subscription (€2.99/month) or a one-time Lifetime purchase '
+                  '(€29.99). Purchases are processed by the Apple App Store and '
+                  'charged to your Apple ID; prices are shown before you buy and '
+                  'may vary by region. The monthly subscription renews '
+                  'automatically unless cancelled at least 24 hours before the '
+                  'end of the current period. Manage or cancel anytime in App '
+                  'Store settings → your name → Subscriptions; deleting the app '
+                  'does not cancel it. Refunds are subject to Apple\'s policies '
+                  'and applicable law.',
         ),
         LegalSection(
           isLt ? 'Atsakomybės ribojimas' : 'Disclaimer',

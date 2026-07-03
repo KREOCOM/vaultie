@@ -199,16 +199,6 @@ class _OverviewTabState extends State<_OverviewTab> {
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
     final monthlyTotal = subs.fold<double>(0, (sum, s) => sum + s.monthlyCost);
 
-    // Show the month-over-month badge only once there is something to compare:
-    // at least one subscription, and at least one that already existed before
-    // this month started (its id is a creation-time microsecond timestamp).
-    final monthStart = DateTime(DateTime.now().year, DateTime.now().month, 1);
-    final hasHistory = subs.any((s) {
-      final micros = int.tryParse(s.id);
-      return micros != null &&
-          DateTime.fromMicrosecondsSinceEpoch(micros).isBefore(monthStart);
-    });
-    final showChange = subs.isNotEmpty && hasHistory;
     final visible = _visible();
 
     return CustomScrollView(
@@ -218,7 +208,6 @@ class _OverviewTabState extends State<_OverviewTab> {
           child: _OverviewHeader(
             monthlyTotal: monthlyTotal,
             count: subs.length,
-            showChange: showChange,
           ),
         ),
         if (AppPrefs.budget.value != null && subs.isNotEmpty)
@@ -336,14 +325,10 @@ class _OverviewHeader extends StatelessWidget {
   const _OverviewHeader({
     required this.monthlyTotal,
     required this.count,
-    required this.showChange,
   });
 
   final double monthlyTotal;
   final int count;
-
-  /// Whether to show the "vs last month" change badge (needs prior-month data).
-  final bool showChange;
 
   static const _darkGreen = Color(0xFF1B5E20);
 
@@ -453,36 +438,13 @@ class _OverviewHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(
-                  formatMoney(monthlyTotal),
-                  style: const TextStyle(
-                    color: _darkGreen,
-                    fontSize: 34,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                if (showChange) ...[
-                  const SizedBox(width: 12),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: _darkGreen.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      isLt ? '↓ 12% nei pernai mėn.' : '↓ 12% vs last month',
-                      style: const TextStyle(
-                        color: _darkGreen,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+            Text(
+              formatMoney(monthlyTotal),
+              style: const TextStyle(
+                color: _darkGreen,
+                fontSize: 34,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -602,8 +564,6 @@ class _UpcomingRenewals extends StatelessWidget {
 // Analytics tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum _Range { months, years, days }
-
 class _AnalyticsTab extends StatefulWidget {
   const _AnalyticsTab({required this.subs});
 
@@ -614,86 +574,6 @@ class _AnalyticsTab extends StatefulWidget {
 }
 
 class _AnalyticsTabState extends State<_AnalyticsTab> {
-  _Range _range = _Range.months;
-
-  static const _monthsEn = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  static const _monthsLt = [
-    'Sau',
-    'Vas',
-    'Kov',
-    'Bal',
-    'Geg',
-    'Bir',
-    'Lie',
-    'Rgp',
-    'Rgs',
-    'Spa',
-    'Lap',
-    'Grd',
-  ];
-
-  DateTime _createdAt(Subscription s) {
-    final micros = int.tryParse(s.id);
-    return micros != null
-        ? DateTime.fromMicrosecondsSinceEpoch(micros)
-        : DateTime.fromMillisecondsSinceEpoch(0);
-  }
-
-  /// The bar series for the active range. Since the app keeps no historical
-  /// spend, each bucket is reconstructed from which subscriptions existed then
-  /// (their id encodes the creation time).
-  (List<double>, List<String>) _series(bool isLt) {
-    final subs = widget.subs;
-    final now = DateTime.now();
-    final values = <double>[];
-    final labels = <String>[];
-
-    switch (_range) {
-      case _Range.months:
-        for (var i = 5; i >= 0; i--) {
-          final month = DateTime(now.year, now.month - i, 1);
-          final next = DateTime(month.year, month.month + 1, 1);
-          values.add(subs
-              .where((s) => _createdAt(s).isBefore(next))
-              .fold<double>(0, (sum, s) => sum + s.monthlyCost));
-          labels.add((isLt ? _monthsLt : _monthsEn)[month.month - 1]);
-        }
-      case _Range.years:
-        for (var i = 5; i >= 0; i--) {
-          final year = now.year - i;
-          final next = DateTime(year + 1, 1, 1);
-          values.add(subs
-              .where((s) => _createdAt(s).isBefore(next))
-              .fold<double>(0, (sum, s) => sum + s.yearlyCost));
-          labels.add("'${year % 100}");
-        }
-      case _Range.days:
-        final today = DateTime(now.year, now.month, now.day);
-        for (var i = 6; i >= 0; i--) {
-          final day = today.subtract(Duration(days: i));
-          final next = day.add(const Duration(days: 1));
-          values.add(subs
-              .where((s) => _createdAt(s).isBefore(next))
-              .fold<double>(0, (sum, s) => sum + s.yearlyCost / 365));
-          labels.add('${day.day}');
-        }
-    }
-    return (values, labels);
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -716,7 +596,6 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
     final monthly = subs.fold<double>(0, (sum, s) => sum + s.monthlyCost);
     final yearly = monthly * 12;
     final daily = yearly / 365;
-    final (values, labels) = _series(isLt);
 
     final byCategory = <String, double>{};
     for (final s in subs) {
@@ -729,14 +608,6 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
       children: [
-        _RangeToggle(
-          range: _range,
-          isLt: isLt,
-          onChanged: (r) => setState(() => _range = r),
-        ),
-        const SizedBox(height: 20),
-        _BarChart(values: values, labels: labels),
-        const SizedBox(height: 24),
         Row(
           children: [
             Expanded(
@@ -761,8 +632,6 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
             ),
           ],
         ),
-        const SizedBox(height: 20),
-        _WorldComparison(monthly: monthly, isLt: isLt),
         const SizedBox(height: 28),
         Text(
           l.byCategory,
@@ -808,249 +677,6 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
           );
         }),
       ],
-    );
-  }
-}
-
-/// Segmented Mėn / Metai / Diena toggle.
-class _RangeToggle extends StatelessWidget {
-  const _RangeToggle({
-    required this.range,
-    required this.isLt,
-    required this.onChanged,
-  });
-
-  final _Range range;
-  final bool isLt;
-  final ValueChanged<_Range> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final labels = {
-      _Range.months: isLt ? 'Mėn' : 'Months',
-      _Range.years: isLt ? 'Metai' : 'Years',
-      _Range.days: isLt ? 'Diena' : 'Days',
-    };
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE1E8E3),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          for (final r in _Range.values)
-            Expanded(
-              child: GestureDetector(
-                onTap: () => onChanged(r),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: r == range ? VaultieColors.primary : null,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    labels[r]!,
-                    style: TextStyle(
-                      color: r == range ? Colors.white : VaultieColors.subtle,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Simple vertical bar chart; the last (current) bucket is emphasised.
-class _BarChart extends StatelessWidget {
-  const _BarChart({required this.values, required this.labels});
-
-  final List<double> values;
-  final List<String> labels;
-
-  @override
-  Widget build(BuildContext context) {
-    final maxVal = values.fold<double>(0, (a, b) => b > a ? b : a);
-    const chartHeight = 120.0;
-
-    return SizedBox(
-      height: chartHeight + 24,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(values.length, (i) {
-          final isLast = i == values.length - 1;
-          final h = maxVal > 0 ? (values[i] / maxVal) * chartHeight : 0.0;
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Container(
-                    height: h < 4 ? 4 : h,
-                    decoration: BoxDecoration(
-                      color: isLast
-                          ? VaultieColors.primary
-                          : _brightGreen.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    labels[i],
-                    style: TextStyle(
-                      color: VaultieColors.subtle,
-                      fontSize: 11,
-                      fontWeight: isLast ? FontWeight.w700 : FontWeight.w400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-/// Compares the user's monthly spend against hardcoded regional averages
-/// (in €), with progress bars and a motivational badge.
-class _WorldComparison extends StatelessWidget {
-  const _WorldComparison({required this.monthly, required this.isLt});
-
-  final double monthly;
-  final bool isLt;
-
-  static const _ltAvg = 89.0;
-  static const _euAvg = 165.0;
-  static const _worldAvg = 142.0;
-
-  /// The most flattering true comparison, e.g. "You spend 61% less than
-  /// Europeans!"; falls back to an encouraging line if above every average.
-  String _badge() {
-    final groups = <(String, double)>[
-      (isLt ? 'lietuvių' : 'Lithuanians', _ltAvg),
-      (isLt ? 'europiečių' : 'Europeans', _euAvg),
-      (isLt ? 'pasaulio vidurkio' : 'the world average', _worldAvg),
-    ];
-    String? best;
-    double bestPct = 0;
-    for (final (group, avg) in groups) {
-      if (monthly > 0 && monthly < avg) {
-        final pct = (avg - monthly) / avg * 100;
-        if (pct > bestPct) {
-          bestPct = pct;
-          best = group;
-        }
-      }
-    }
-    if (best != null) {
-      final p = bestPct.round();
-      return isLt
-          ? 'Išleidžiate $p% mažiau nei $best! 🎉'
-          : 'You spend $p% less than $best! 🎉';
-    }
-    return isLt
-        ? 'Išleidžiate daugiau nei vidurkis — gal laikas apsikarpyti.'
-        : "You're above average — maybe trim a subscription.";
-  }
-
-  Widget _row(String label, double value, double maxVal, bool highlight) {
-    final frac = maxVal <= 0 ? 0.0 : (value / maxVal).clamp(0.0, 1.0);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 74,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
-                color: highlight ? VaultieColors.primary : VaultieColors.subtle,
-              ),
-            ),
-          ),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: frac,
-                minHeight: 10,
-                backgroundColor: const Color(0xFFE1E8E3),
-                color:
-                    highlight ? VaultieColors.primary : const Color(0xFFB4D2BE),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 46,
-            child: Text(
-              '€${value.round()}',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: highlight ? VaultieColors.primary : VaultieColors.ink,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final maxVal =
-        [monthly, _ltAvg, _euAvg, _worldAvg].reduce((a, b) => a > b ? a : b);
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: VaultieColors.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE1E8E3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            isLt ? 'Palyginti su vidurkiu' : 'vs Average spend',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: VaultieColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              _badge(),
-              style: const TextStyle(
-                color: VaultieColors.primary,
-                fontWeight: FontWeight.w600,
-                fontSize: 13.5,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          _row(isLt ? 'Jūs' : 'You', monthly, maxVal, true),
-          _row(isLt ? 'Lietuva' : 'Lithuania', _ltAvg, maxVal, false),
-          _row(isLt ? 'Europa' : 'Europe', _euAvg, maxVal, false),
-          _row(isLt ? 'Pasaulis' : 'World', _worldAvg, maxVal, false),
-        ],
-      ),
     );
   }
 }

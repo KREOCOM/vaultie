@@ -14,9 +14,19 @@ import 'auth_screen.dart';
 import 'legal_screen.dart';
 import 'paywall_screen.dart';
 
-// Privacy Policy & Terms are shown in-app (see LegalScreen). Rate link is a
-// placeholder App Store URL — replace the id with the real one after release.
-const _kRateUrl = 'https://apps.apple.com/app/id000000000';
+// Privacy Policy & Terms are shown in-app (see LegalScreen).
+//
+// Numeric App Store ID — found in App Store Connect → App Information →
+// "Apple ID". Set this once the app record's ID is known so "Rate the app"
+// deep-links straight to the review sheet.
+const String _kAppStoreId = ''; // TODO: set real App Store ID before release
+
+// "Rate the app" target. Deep-links to the review sheet when the App Store ID
+// is known; until then it opens an App Store search for Vaultie, so the link is
+// never dead (the previous `id000000000` opened nothing).
+String get _rateUrl => _kAppStoreId.isEmpty
+    ? 'https://apps.apple.com/search?term=vaultie'
+    : 'https://apps.apple.com/app/id$_kAppStoreId?action=write-review';
 
 const Color _gold = Color(0xFFFFD24A);
 
@@ -396,7 +406,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         color: VaultieColors.primary),
                     title: Text(isLt ? 'Įvertinti programą' : 'Rate the app'),
                     trailing: const Icon(Icons.open_in_new, size: 18),
-                    onTap: () => _openUrl(_kRateUrl),
+                    onTap: () => _openUrl(_rateUrl),
                   ),
                 ],
               ),
