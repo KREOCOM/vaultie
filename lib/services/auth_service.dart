@@ -118,9 +118,37 @@ class AuthService {
       }
       return userCred;
     } on FirebaseAuthException catch (e) {
-      debugPrint('[SIWA] Firebase sign-in FAILED: code=${e.code} '
-          'message=${e.message}');
-      rethrow;
+      // Decode the Apple token to see what Firebase is validating against —
+      // audience (should be the bundle id) and nonce (should equal the hash we
+      // sent to Apple). Surfaced in the error so it's readable on a release
+      // build without a debugger attached.
+      final claims = _decodeJwtClaims(idToken);
+      final nonceOk = claims['nonce'] == hashedNonce;
+      final exp = claims['exp'];
+      final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final expiresIn = exp is int ? exp - nowSec : null;
+      debugPrint('[SIWA] Firebase FAILED: ${e.code} ${e.message} | '
+          'aud=${claims['aud']} iss=${claims['iss']} nonceOk=$nonceOk '
+          'expiresIn=${expiresIn}s');
+      throw FirebaseAuthException(
+        code: e.code,
+        message: '${e.message ?? ''}\n'
+            'aud=${claims['aud']} nonceOk=$nonceOk\n'
+            'iss=${claims['iss']}\n'
+            'expiresIn=${expiresIn}s (now=$nowSec)',
+      );
+    }
+  }
+
+  /// Decodes a JWT's payload claims (no signature verification) for diagnostics.
+  Map<String, dynamic> _decodeJwtClaims(String jwt) {
+    try {
+      final parts = jwt.split('.');
+      if (parts.length != 3) return {};
+      final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      return jsonDecode(payload) as Map<String, dynamic>;
+    } catch (_) {
+      return {};
     }
   }
 
