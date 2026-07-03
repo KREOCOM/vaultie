@@ -85,10 +85,10 @@ class NotificationService {
     if (isLithuanian) {
       // Genitive: "po 1 dienos" but "po 2/3 dienų".
       final unit = days == 1 ? 'dienos' : 'dienų';
-      return '$name prenumerata baigiasi po $days $unit';
+      return '$name mokėjimas po $days $unit';
     }
     final unit = days == 1 ? 'day' : 'days';
-    return '$name subscription expires in $days $unit';
+    return '$name is due in $days $unit';
   }
 
   /// (Re)schedules the 3/2/1-day reminders for [sub]. Safe to call on add and

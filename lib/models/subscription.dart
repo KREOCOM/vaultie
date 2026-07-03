@@ -71,6 +71,9 @@ class Subscription {
     required this.category,
     required this.nextBillingDate,
     this.colorValue = 0xFF174E35,
+    this.isEstimated = false,
+    this.notes,
+    this.logoDomain,
   });
 
   final String id;
@@ -80,6 +83,19 @@ class Subscription {
   final String category;
   final DateTime nextBillingDate;
   final int colorValue;
+
+  /// True when [cost] is an approximation of a variable bill (e.g. utilities
+  /// that change month to month). The amount is still used in totals; the UI
+  /// just marks it as an estimate ("~€60").
+  final bool isEstimated;
+
+  /// Optional free-text note the user attached to this expense.
+  final String? notes;
+
+  /// Optional brand domain (e.g. "netflix.com") used to fetch a logo. When set,
+  /// the avatar shows that brand logo; otherwise it falls back to the category
+  /// icon. Keeps generic bills (rent, insurance) from guessing a wrong logo.
+  final String? logoDomain;
 
   /// Cost normalised to a per-month figure for analytics.
   double get monthlyCost => cost * billingCycle.monthlyFactor;
@@ -122,6 +138,9 @@ class Subscription {
     String? category,
     DateTime? nextBillingDate,
     int? colorValue,
+    bool? isEstimated,
+    String? notes,
+    String? logoDomain,
   }) {
     return Subscription(
       id: id,
@@ -131,6 +150,9 @@ class Subscription {
       category: category ?? this.category,
       nextBillingDate: nextBillingDate ?? this.nextBillingDate,
       colorValue: colorValue ?? this.colorValue,
+      isEstimated: isEstimated ?? this.isEstimated,
+      notes: notes ?? this.notes,
+      logoDomain: logoDomain ?? this.logoDomain,
     );
   }
 }
@@ -154,13 +176,17 @@ class SubscriptionAdapter extends TypeAdapter<Subscription> {
       category: fields[4] as String,
       nextBillingDate: DateTime.fromMillisecondsSinceEpoch(fields[5] as int),
       colorValue: fields[6] as int? ?? 0xFF174E35,
+      // Fields 7–9 were added later; older records default them.
+      isEstimated: fields[7] as bool? ?? false,
+      notes: fields[8] as String?,
+      logoDomain: fields[9] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Subscription obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -174,7 +200,13 @@ class SubscriptionAdapter extends TypeAdapter<Subscription> {
       ..writeByte(5)
       ..write(obj.nextBillingDate.millisecondsSinceEpoch)
       ..writeByte(6)
-      ..write(obj.colorValue);
+      ..write(obj.colorValue)
+      ..writeByte(7)
+      ..write(obj.isEstimated)
+      ..writeByte(8)
+      ..write(obj.notes)
+      ..writeByte(9)
+      ..write(obj.logoDomain);
   }
 
   @override

@@ -130,7 +130,9 @@ String? domainForName(String name) {
 /// Google-favicon icon URL for a service name, or null when no domain is known.
 String? logoUrlForName(String name) {
   final domain = domainForName(name);
-  return domain == null
-      ? null
-      : 'https://www.google.com/s2/favicons?domain=$domain&sz=128';
+  return domain == null ? null : logoUrlForDomain(domain);
 }
+
+/// Google-favicon icon URL for an explicit domain (e.g. "netflix.com").
+String logoUrlForDomain(String domain) =>
+    'https://www.google.com/s2/favicons?domain=$domain&sz=128';

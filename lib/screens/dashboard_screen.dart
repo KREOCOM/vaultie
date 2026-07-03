@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../app_prefs.dart';
+import '../expense_categories.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/localized_labels.dart';
 import '../main.dart';
@@ -169,16 +170,22 @@ class _OverviewTabState extends State<_OverviewTab> {
   String _query = '';
   _SortMode _sort = _SortMode.renewal;
 
+  /// Selected category filter (normalized key), or null for "All".
+  String? _categoryFilter;
+
   @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  /// The list to render: filtered by the search query, then sorted.
+  /// The list to render: filtered by category and search query, then sorted.
   List<Subscription> _visible() {
     final q = _query.trim().toLowerCase();
     final list = widget.subs
+        .where((s) =>
+            _categoryFilter == null ||
+            normalizeCategoryKey(s.category) == _categoryFilter)
         .where((s) => q.isEmpty || s.name.toLowerCase().contains(q))
         .toList();
     switch (_sort) {
@@ -221,6 +228,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           const SliverToBoxAdapter(child: _EmptyState())
         else ...[
           SliverToBoxAdapter(child: _UpcomingRenewals(subs: subs)),
+          SliverToBoxAdapter(child: _categoryChips(subs, isLt)),
           if (subs.length >= 2) SliverToBoxAdapter(child: _searchSortBar(isLt)),
           if (visible.isEmpty)
             SliverToBoxAdapter(
@@ -245,6 +253,75 @@ class _OverviewTabState extends State<_OverviewTab> {
             ),
         ],
       ],
+    );
+  }
+
+  /// Horizontal category filter chips. Shown only when the user tracks expenses
+  /// in more than one category, so a single-category user isn't given a
+  /// pointless filter. Chips appear in the canonical taxonomy order.
+  Widget _categoryChips(List<Subscription> subs, bool isLt) {
+    final present = <String>{for (final s in subs) normalizeCategoryKey(s.category)};
+    if (present.length < 2) return const SizedBox.shrink();
+    final ordered = [
+      for (final c in kExpenseCategories)
+        if (present.contains(c.key)) c.key,
+    ];
+
+    Widget chip({required String? key, required String label, IconData? icon, Color? color}) {
+      final selected = _categoryFilter == key;
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: GestureDetector(
+          onTap: () => setState(() => _categoryFilter = key),
+          child: Container(
+            padding: EdgeInsets.only(left: icon == null ? 14 : 10, right: 14, top: 8, bottom: 8),
+            decoration: BoxDecoration(
+              color: selected ? VaultieColors.primary : VaultieColors.card,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: selected ? VaultieColors.primary : const Color(0xFFE1E8E3),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon,
+                      size: 16,
+                      color: selected ? Colors.white : (color ?? VaultieColors.primary)),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? Colors.white : VaultieColors.ink,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 52,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+        children: [
+          chip(key: null, label: isLt ? 'Visi' : 'All'),
+          for (final key in ordered)
+            chip(
+              key: key,
+              label: categoryLabel(key, isLt),
+              icon: categoryFor(key).icon,
+              color: categoryFor(key).color,
+            ),
+        ],
+      ),
     );
   }
 
@@ -484,7 +561,11 @@ class _UpcomingRenewals extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
-    final upcoming = subs.take(3).toList();
+    // Soonest-due first, so "Upcoming" actually shows the next payments.
+    final upcoming = ([...subs]
+          ..sort((a, b) => a.daysUntilRenewal.compareTo(b.daysUntilRenewal)))
+        .take(3)
+        .toList();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
@@ -495,7 +576,7 @@ class _UpcomingRenewals extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                isLt ? 'Artimiausi mokėjimai' : 'Upcoming renewals',
+                isLt ? 'Artimiausi mokėjimai' : 'Upcoming payments',
                 style: const TextStyle(
                   color: VaultieColors.ink,
                   fontSize: 16,
@@ -523,7 +604,7 @@ class _UpcomingRenewals extends StatelessWidget {
           width: 12,
           height: 12,
           decoration: BoxDecoration(
-            color: SubscriptionAvatar.colorFor(sub.name),
+            color: categoryFor(sub.category).color,
             shape: BoxShape.circle,
           ),
         ),
@@ -671,7 +752,7 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
           final pct = monthly == 0 ? 0.0 : e.value / monthly;
           return _CategoryRow(
             color: _catPalette[i % _catPalette.length],
-            label: categoryLabel(l, e.key),
+            label: categoryLabel(e.key, isLt),
             amount: formatMoney(e.value),
             fraction: pct,
           );
@@ -909,6 +990,7 @@ class _SubscriptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
     final days = sub.daysUntilRenewal;
     final renews = days < 0
         ? l.renewOverdue
@@ -960,7 +1042,12 @@ class _SubscriptionTile extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                SubscriptionAvatar(name: sub.name, size: 48),
+                SubscriptionAvatar(
+                  name: sub.name,
+                  category: sub.category,
+                  logoDomain: sub.logoDomain,
+                  size: 48,
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -975,7 +1062,7 @@ class _SubscriptionTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${categoryLabel(l, sub.category)} · $renews',
+                        '${categoryLabel(sub.category, isLt)} · $renews',
                         style: const TextStyle(
                           color: VaultieColors.subtle,
                           fontSize: 13,
@@ -988,7 +1075,9 @@ class _SubscriptionTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      formatMoney(sub.cost),
+                      sub.isEstimated
+                          ? '~${formatMoney(sub.cost)}'
+                          : formatMoney(sub.cost),
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 16,

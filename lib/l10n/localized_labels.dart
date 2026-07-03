@@ -10,19 +10,5 @@ String billingCycleLabel(AppLocalizations l, BillingCycle cycle) =>
       BillingCycle.yearly => l.billingYearly,
     };
 
-/// Localized display label for a stored category key.
-///
-/// Categories are persisted using their canonical English value (see
-/// [SubscriptionCategory.all]); this maps that key to the user's language and
-/// falls back to the raw key for anything unrecognised.
-String categoryLabel(AppLocalizations l, String key) => switch (key) {
-      'Streaming' => l.categoryStreaming,
-      'Music' => l.categoryMusic,
-      'Software' => l.categorySoftware,
-      'Gaming' => l.categoryGaming,
-      'News' => l.categoryNews,
-      'Fitness' => l.categoryFitness,
-      'Cloud' => l.categoryCloud,
-      'Other' => l.categoryOther,
-      _ => key,
-    };
+// Category labels moved to `expense_categories.dart` (categoryLabel(key, isLt))
+// as part of the recurring-expense expansion.
