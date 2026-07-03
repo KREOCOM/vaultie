@@ -110,9 +110,6 @@ Future<void> _rescheduleReminders(
   }
 }
 
-/// Debug-only preview hook (no effect unless the dart-define is passed).
-const bool _kShowOnboarding = bool.fromEnvironment('SHOW_ONBOARDING');
-
 class VaultieApp extends StatelessWidget {
   const VaultieApp({super.key, required this.hasOnboarded});
 
@@ -217,9 +214,7 @@ class VaultieApp extends StatelessWidget {
           ),
         ),
         // Always launch into the branded splash; it decides where to go next.
-        // `--dart-define=SHOW_ONBOARDING=true` forces the intro flow even after
-        // it's been completed — handy for previewing onboarding on a device.
-        home: SplashScreen(hasOnboarded: !_kShowOnboarding && hasOnboarded),
+        home: SplashScreen(hasOnboarded: hasOnboarded),
         routes: {
           OnboardingScreen.route: (_) => const OnboardingScreen(),
           AuthScreen.route: (_) => const AuthScreen(),

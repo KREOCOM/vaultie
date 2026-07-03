@@ -45,21 +45,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _maybeShowRecap() {
     if (!mounted) return;
-    // Debug hook: `--dart-define=PREVIEW_RECAP=true` shows a sample recap.
-    if (const bool.fromEnvironment('PREVIEW_RECAP')) {
-      showMonthlyRecap(
-        context,
-        MonthlyRecap(
-          month: '2026-06',
-          total: 65,
-          count: 4,
-          topName: 'Netflix',
-          topCost: 15.99,
-          prevTotal: 78,
-        ),
-      );
-      return;
-    }
     final recap = RecapService.pendingRecap();
     if (recap == null) return;
     RecapService.markShown();
@@ -73,10 +58,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return DefaultTabController(
       length: 2,
-      // Debug hook: `--dart-define=PREVIEW_ANALYTICS=true` opens the Analytics
-      // tab on launch.
-      initialIndex:
-          const bool.fromEnvironment('PREVIEW_ANALYTICS') ? 1 : 0,
       child: Scaffold(
         floatingActionButton: FloatingActionButton.extended(
           backgroundColor: VaultieColors.primary,
