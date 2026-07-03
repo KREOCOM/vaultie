@@ -22,18 +22,6 @@ import 'paywall_screen.dart';
 import 'recap_screen.dart';
 import 'settings_screen.dart';
 
-/// Category donut colours.
-const List<Color> _catPalette = [
-  VaultieColors.primary,
-  VaultieColors.primaryLight,
-  VaultieColors.accent,
-  Color(0xFFE9A23B),
-  Color(0xFF4A6FA5),
-  Color(0xFF8E5BA6),
-  Color(0xFFD9534F),
-  Color(0xFF6B7E74),
-];
-
 const Color _brightGreen = Color(0xFF4CAF72);
 
 /// Home screen: two tabs — Overview (Apžvalga) and Analytics (Analitika).
@@ -84,6 +72,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return DefaultTabController(
       length: 2,
+      // Debug hook: `--dart-define=PREVIEW_ANALYTICS=true` opens the Analytics
+      // tab on launch.
+      initialIndex:
+          const bool.fromEnvironment('PREVIEW_ANALYTICS') ? 1 : 0,
       child: Scaffold(
         floatingActionButton: FloatingActionButton.extended(
           backgroundColor: VaultieColors.primary,
@@ -690,9 +682,28 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
     final entries = byCategory.entries.toList()
       ..sort((a, c) => c.value.compareTo(a.value));
 
+    // Top expenses by normalized monthly cost.
+    final top = ([...subs]
+          ..sort((a, b) => b.monthlyCost.compareTo(a.monthlyCost)))
+        .take(5)
+        .toList();
+
+    // Biggest single charge still due within the current calendar month.
+    final now = DateTime.now();
+    final dueThisMonth = subs.where((s) {
+      final d = s.nextBillingDate;
+      return s.daysUntilRenewal >= 0 &&
+          d.year == now.year &&
+          d.month == now.month;
+    }).toList()
+      ..sort((a, b) => b.cost.compareTo(a.cost));
+    final biggest = dueThisMonth.isEmpty ? null : dueThisMonth.first;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
       children: [
+        _AnnualForecastCard(yearly: yearly, monthly: monthly),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
@@ -704,27 +715,22 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: isLt ? 'Per metus' : 'Per year',
-                value: formatMoney(yearly),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _StatCard(
                 label: isLt ? 'Per dieną' : 'Per day',
                 value: formatMoney(daily),
               ),
             ),
           ],
         ),
+        if (biggest != null) ...[
+          const SizedBox(height: 20),
+          _BiggestPaymentCard(sub: biggest),
+        ],
         const SizedBox(height: 28),
-        Text(
-          l.byCategory,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w700),
-        ),
+        _sectionTitle(context, isLt ? 'Didžiausios išlaidos' : 'Top expenses'),
+        const SizedBox(height: 12),
+        for (final s in top) _TopExpenseRow(sub: s, monthlyTotal: monthly),
+        const SizedBox(height: 24),
+        _sectionTitle(context, l.byCategory),
         const SizedBox(height: 16),
         Center(
           child: SizedBox(
@@ -733,7 +739,7 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
             child: CustomPaint(
               painter: _DonutPainter(
                 values: [for (final e in entries) e.value],
-                colors: _catPalette,
+                colors: [for (final e in entries) categoryFor(e.key).color],
               ),
               child: Center(
                 child: Column(
@@ -751,19 +757,25 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
           ),
         ),
         const SizedBox(height: 20),
-        ...List.generate(entries.length, (i) {
-          final e = entries[i];
-          final pct = monthly == 0 ? 0.0 : e.value / monthly;
-          return _CategoryRow(
-            color: _catPalette[i % _catPalette.length],
+        for (final e in entries)
+          _CategoryRow(
+            color: categoryFor(e.key).color,
+            icon: categoryFor(e.key).icon,
             label: categoryLabel(e.key, isLt),
             amount: formatMoney(e.value),
-            fraction: pct,
-          );
-        }),
+            fraction: monthly == 0 ? 0.0 : e.value / monthly,
+          ),
       ],
     );
   }
+
+  Widget _sectionTitle(BuildContext context, String text) => Text(
+        text,
+        style: Theme.of(context)
+            .textTheme
+            .titleMedium
+            ?.copyWith(fontWeight: FontWeight.w700),
+      );
 }
 
 class _StatCard extends StatelessWidget {
@@ -799,15 +811,208 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+/// Prominent hero card: what the current expenses cost over a year.
+class _AnnualForecastCard extends StatelessWidget {
+  const _AnnualForecastCard({required this.yearly, required this.monthly});
+
+  final double yearly;
+  final double monthly;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [VaultieColors.primaryLight, VaultieColors.primary],
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.calendar_month_rounded,
+                  color: Colors.white70, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                isLt ? 'Metinė prognozė' : 'Annual forecast',
+                style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            formatMoney(yearly),
+            style: const TextStyle(
+                color: Colors.white, fontSize: 34, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isLt
+                ? '≈ ${formatMoney(monthly)}/mėn. · pagal dabartines išlaidas'
+                : '≈ ${formatMoney(monthly)}/mo · based on your current expenses',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Highlighted card for the single most expensive charge still due this month.
+class _BiggestPaymentCard extends StatelessWidget {
+  const _BiggestPaymentCard({required this.sub});
+
+  final Subscription sub;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    final days = sub.daysUntilRenewal;
+    final due = days == 0
+        ? (isLt ? 'šiandien' : 'today')
+        : days == 1
+            ? (isLt ? 'rytoj' : 'tomorrow')
+            : (isLt ? 'po $days d.' : 'in $days days');
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF6E5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFF0C674)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isLt
+                ? 'Didžiausias šio mėn. mokėjimas'
+                : 'Biggest payment this month',
+            style: const TextStyle(
+                color: Color(0xFF9A7B2E),
+                fontSize: 12,
+                fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              SubscriptionAvatar(
+                name: sub.name,
+                category: sub.category,
+                logoDomain: sub.logoDomain,
+                size: 44,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(sub.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 16)),
+                    Text(due,
+                        style: const TextStyle(
+                            color: VaultieColors.subtle, fontSize: 13)),
+                  ],
+                ),
+              ),
+              Text(
+                sub.isEstimated
+                    ? '~${formatMoney(sub.cost)}'
+                    : formatMoney(sub.cost),
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 18),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One row of the Top expenses list: avatar, name/category, monthly figure + %.
+class _TopExpenseRow extends StatelessWidget {
+  const _TopExpenseRow({required this.sub, required this.monthlyTotal});
+
+  final Subscription sub;
+  final double monthlyTotal;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    final pct = monthlyTotal == 0 ? 0.0 : sub.monthlyCost / monthlyTotal;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          SubscriptionAvatar(
+            name: sub.name,
+            category: sub.category,
+            logoDomain: sub.logoDomain,
+            size: 38,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(sub.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 15)),
+                Text(categoryLabel(sub.category, isLt),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: VaultieColors.subtle, fontSize: 12)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${sub.isEstimated ? '~' : ''}${formatMoney(sub.monthlyCost)}${isLt ? '/mėn.' : '/mo'}',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+              Text('${(pct * 100).round()}%',
+                  style: const TextStyle(
+                      color: VaultieColors.subtle, fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CategoryRow extends StatelessWidget {
   const _CategoryRow({
     required this.color,
+    required this.icon,
     required this.label,
     required this.amount,
     required this.fraction,
   });
 
   final Color color;
+  final IconData icon;
   final String label;
   final String amount;
   final double fraction;
@@ -821,9 +1026,14 @@ class _CategoryRow extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 16),
               ),
               const SizedBox(width: 10),
               Expanded(
