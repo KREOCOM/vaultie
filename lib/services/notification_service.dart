@@ -6,12 +6,13 @@ import 'package:timezone/timezone.dart' as tz;
 import '../app_prefs.dart';
 import '../models/subscription.dart';
 
-/// Schedules local "your subscription renews soon" reminders.
+/// Schedules local "payment due soon" reminders.
 ///
-/// For each subscription we fire a notification 3, 2 and 1 days before its
-/// next billing date (at 10:00 local time). Scheduling is idempotent — calling
-/// [scheduleForSubscription] again clears the old reminders first, so it
-/// doubles as the "edit" path.
+/// For each expense we fire a single reminder ~24 hours before its next
+/// billing date (at 10:00 the day before), so the user gets one clear heads-up
+/// per payment rather than a barrage. Scheduling is idempotent — calling
+/// [scheduleForSubscription] again clears the old reminder first, so it doubles
+/// as the "edit" path.
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -25,8 +26,9 @@ class NotificationService {
   static const _channelDescription =
       'Reminders before your subscriptions renew';
 
-  /// Days-before-renewal we schedule a reminder for.
-  static const List<int> _remindOffsets = [3, 2, 1];
+  /// Days-before-renewal we schedule a reminder for. A single 1-day (~24h)
+  /// heads-up per expense.
+  static const List<int> _remindOffsets = [1];
 
   /// The hour of day (local) reminders fire at.
   static const int _remindHour = 10;
@@ -81,14 +83,13 @@ class NotificationService {
   int _notifId(String subId, int daysBefore) =>
       (subId.hashCode & 0x1FFFFFFF) * 4 + daysBefore;
 
-  String _body(String name, int days, bool isLithuanian) {
+  String _body(String name, String amount, int days, bool isLithuanian) {
     if (isLithuanian) {
-      // Genitive: "po 1 dienos" but "po 2/3 dienų".
-      final unit = days == 1 ? 'dienos' : 'dienų';
-      return '$name mokėjimas po $days $unit';
+      final when = days == 1 ? 'rytoj' : 'po $days d.';
+      return '$name · $amount – mokėjimas $when';
     }
-    final unit = days == 1 ? 'day' : 'days';
-    return '$name is due in $days $unit';
+    final when = days == 1 ? 'tomorrow' : 'in $days days';
+    return '$name · $amount – due $when';
   }
 
   /// (Re)schedules the 3/2/1-day reminders for [sub]. Safe to call on add and
@@ -103,6 +104,9 @@ class NotificationService {
     // Respect the user's Settings notifications preference.
     if (!AppPrefs.notificationsEnabled) return;
 
+    final amount = sub.isEstimated
+        ? '~${formatMoney(sub.cost)}'
+        : formatMoney(sub.cost);
     final now = tz.TZDateTime.now(tz.local);
     for (final daysBefore in _remindOffsets) {
       final remindDay =
@@ -123,14 +127,16 @@ class NotificationService {
         notificationDetails: _details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         title: 'Vaultie 🔔',
-        body: _body(sub.name, daysBefore, isLithuanian),
+        body: _body(sub.name, amount, daysBefore, isLithuanian),
       );
     }
   }
 
-  /// Cancels all reminders previously scheduled for a subscription id.
+  /// Cancels all reminders previously scheduled for a subscription id. Covers
+  /// legacy offsets (older versions scheduled 3/2/1-day reminders) so upgrading
+  /// to the single 24h reminder doesn't leave stale notifications behind.
   Future<void> cancelForSubscription(String subId) async {
-    for (final daysBefore in _remindOffsets) {
+    for (final daysBefore in const [3, 2, 1]) {
       await _plugin.cancel(id: _notifId(subId, daysBefore));
     }
   }
