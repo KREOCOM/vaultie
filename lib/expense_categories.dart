@@ -173,3 +173,20 @@ List<String> categorySuggestions(String key, bool isLt) =>
           : ['Course', 'Tuition', 'Language app'],
       _ => const [],
     };
+
+/// A single, natural example name for the category's name-field placeholder
+/// (e.g. "Nuoma" for housing, "Automobilio draudimas" for insurance). Returns
+/// null for Entertainment and Other, which fall back to the default brand-style
+/// hint ("Netflix, Spotify…").
+String? categoryHintExample(String key, bool isLt) =>
+    switch (normalizeCategoryKey(key)) {
+      'housing' => isLt ? 'Nuoma' : 'Rent',
+      'utilities' => isLt ? 'Elektra' : 'Electricity',
+      'connectivity' => isLt ? 'Internetas' : 'Internet',
+      'insurance' => isLt ? 'Automobilio draudimas' : 'Car insurance',
+      'transport' => isLt ? 'Parkavimas' : 'Parking',
+      'health' => isLt ? 'Sporto klubas' : 'Gym',
+      'finance' => isLt ? 'Paskola' : 'Loan',
+      'education' => isLt ? 'Mokslai' : 'Course',
+      _ => null,
+    };

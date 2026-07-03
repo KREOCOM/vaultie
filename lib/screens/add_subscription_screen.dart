@@ -437,6 +437,13 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
   // ── Details card ─────────────────────────────────────────────────────────
 
   Widget _infoCard(AppLocalizations l) {
+    final isLt = _isLt;
+    // Name placeholder is category-aware: e.g. "pvz. Nuoma" for Housing,
+    // falling back to the brand-style hint for Entertainment/Other.
+    final example = categoryHintExample(_category, isLt);
+    final nameHint = example == null
+        ? l.nameHint
+        : (isLt ? 'pvz. $example' : 'e.g. $example');
     final dateLabel = '${_nextBilling.year}-'
         '${_nextBilling.month.toString().padLeft(2, '0')}-'
         '${_nextBilling.day.toString().padLeft(2, '0')}';
@@ -488,7 +495,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
                 decoration: InputDecoration(
                   isCollapsed: true,
                   border: InputBorder.none,
-                  hintText: l.nameHint,
+                  hintText: nameHint,
                 ),
               ),
             ),
