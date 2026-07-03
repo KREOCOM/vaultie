@@ -13,6 +13,7 @@ import '../services/notification_service.dart';
 import '../services/purchase_service.dart';
 import '../services/recap_service.dart';
 import '../widgets/subscription_avatar.dart';
+import '../widgets/subscription_icons.dart';
 import 'add_subscription_screen.dart';
 import 'auth_screen.dart';
 import 'paywall_screen.dart';
@@ -183,10 +184,7 @@ class _OverviewTab extends StatelessWidget {
           ),
         ),
         if (subs.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: _EmptyState(),
-          )
+          const SliverToBoxAdapter(child: _EmptyState())
         else ...[
           SliverToBoxAdapter(child: _UpcomingRenewals(subs: subs)),
           SliverPadding(
@@ -1264,23 +1262,24 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 110),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(24),
             child: Image.asset(
               'assets/icon/app_icon.png',
-              width: 128,
-              height: 128,
+              width: 96,
+              height: 96,
               fit: BoxFit.cover,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Text(
             l.vaultEmptyTitle,
+            textAlign: TextAlign.center,
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
@@ -1291,6 +1290,66 @@ class _EmptyState extends StatelessWidget {
             l.vaultEmptyBody,
             textAlign: TextAlign.center,
             style: const TextStyle(color: VaultieColors.subtle),
+          ),
+          const SizedBox(height: 30),
+          Text(
+            (isLt ? 'Pridėk populiarią paslaugą' : 'Add a popular service')
+                .toUpperCase(),
+            style: const TextStyle(
+              color: VaultieColors.subtle,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 18,
+            runSpacing: 18,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final b in kPopularGrid) _QuickAddTile(brand: b),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A tappable popular-service tile on the empty dashboard: opens the add form
+/// with that service preselected.
+class _QuickAddTile extends StatelessWidget {
+  const _QuickAddTile({required this.brand});
+
+  final Brand brand;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    final label = brand == Brand.other
+        ? (isLt ? 'Kita' : 'Other')
+        : brandSpec(brand).label;
+    return SizedBox(
+      width: 72,
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => AddSubscriptionScreen(initialBrand: brand),
+              ),
+            ),
+            child: BrandLogo(brand: brand, size: 54),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11, color: VaultieColors.subtle),
           ),
         ],
       ),

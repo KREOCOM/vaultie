@@ -15,12 +15,15 @@ import '../widgets/subscription_icons.dart';
 /// Passing [existing] switches the form into edit mode: fields are prefilled
 /// and saving overwrites that record (same id) instead of creating a new one.
 class AddSubscriptionScreen extends StatefulWidget {
-  const AddSubscriptionScreen({super.key, this.existing});
+  const AddSubscriptionScreen({super.key, this.existing, this.initialBrand});
 
   static const route = '/add';
 
   /// The subscription being edited, or null when creating a new one.
   final Subscription? existing;
+
+  /// Optional service to preselect on a fresh form (quick-add from empty state).
+  final Brand? initialBrand;
 
   @override
   State<AddSubscriptionScreen> createState() => _AddSubscriptionScreenState();
@@ -95,6 +98,12 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
     }
     // Live logo preview: rebuild as the name changes so the avatar updates.
     _name.addListener(_onNameChanged);
+    // Quick-add: preselect a service passed in from the empty-state grid.
+    if (e == null && widget.initialBrand != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _selectBrand(brandSpec(widget.initialBrand!));
+      });
+    }
   }
 
   void _onNameChanged() {
