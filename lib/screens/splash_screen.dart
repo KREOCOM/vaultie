@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../user_session.dart';
 import 'auth_screen.dart';
 import 'dashboard_screen.dart';
 import 'onboarding_screen.dart';
@@ -46,12 +47,18 @@ class _SplashScreenState extends State<SplashScreen>
     _timer = Timer(const Duration(seconds: 2), _goNext);
   }
 
-  void _goNext() {
+  Future<void> _goNext() async {
     if (!mounted) return;
     // New users see onboarding; a signed-in & verified user goes straight to
     // the dashboard; a signed-in but unverified user resumes at the verify
     // screen; everyone else lands on the auth screen.
     final auth = AuthService();
+    // Before showing a returning user's data, make sure the local vault belongs
+    // to them (wipes it if a different account owned this device).
+    if (widget.hasOnboarded && auth.isLoggedIn && auth.isEmailVerified) {
+      await ensureLocalDataForCurrentUser();
+      if (!mounted) return;
+    }
     final Widget next;
     if (!widget.hasOnboarded) {
       next = const OnboardingScreen();

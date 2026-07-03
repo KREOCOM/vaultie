@@ -73,6 +73,11 @@ abstract class PurchaseService {
 
   /// Restores a previous purchase, if any.
   Future<PurchaseResult> restore();
+
+  /// Associates billing with the signed-in app account [uid] (or signs out when
+  /// null) so the premium entitlement follows the *account*, not the device.
+  /// Refreshes the cached premium state to match.
+  Future<void> setUser(String? uid);
 }
 
 /// On-device mock. Grants premium after a short fake "store round-trip" and
@@ -117,6 +122,12 @@ class MockPurchaseService implements PurchaseService {
       return const PurchaseResult(PurchaseStatus.success);
     }
     return const PurchaseResult(PurchaseStatus.notFound);
+  }
+
+  @override
+  Future<void> setUser(String? uid) async {
+    // Local mock: premium is just the cached flag (cleared on account wipe).
+    _premium.value = _box.get(_premiumKey, defaultValue: false) as bool;
   }
 }
 
@@ -251,6 +262,25 @@ class RevenueCatPurchaseService implements PurchaseService {
       return const PurchaseResult(PurchaseStatus.notFound);
     } on PlatformException catch (e) {
       return PurchaseResult(PurchaseStatus.error, e.message);
+    }
+  }
+
+  @override
+  Future<void> setUser(String? uid) async {
+    // Tie RevenueCat to the app account so entitlements follow the account, not
+    // the device: logIn on sign-in, logOut on sign-out. Then refresh premium.
+    try {
+      final rc.CustomerInfo info;
+      if (uid != null) {
+        info = (await rc.Purchases.logIn(uid)).customerInfo;
+      } else {
+        info = await rc.Purchases.logOut();
+      }
+      _applyCustomerInfo(info);
+    } catch (_) {
+      // Offline, not configured, or already anonymous — fall back to the cached
+      // flag (which the account wipe clears).
+      _premium.value = _box.get(_premiumKey, defaultValue: false) as bool;
     }
   }
 }

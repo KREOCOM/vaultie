@@ -9,6 +9,7 @@ import '../models/subscription.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../services/purchase_service.dart';
+import '../user_session.dart';
 import '../widgets/budget_dialog.dart';
 import '../widgets/subscription_avatar.dart';
 import 'auth_screen.dart';
@@ -62,6 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _signOut() async {
     await _auth.signOut();
+    await onSignedOut(); // detach billing; local data kept for the same user
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthScreen()),
@@ -183,13 +185,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirmed == true) await _deleteAccount();
   }
 
-  /// Clears a Hive box, opening it first if it isn't already open.
-  Future<void> _wipeBox(String name) async {
-    final box =
-        Hive.isBoxOpen(name) ? Hive.box(name) : await Hive.openBox(name);
-    await box.clear();
-  }
-
   Future<void> _deleteAccount() async {
     final isLt = _isLt;
     setState(() => _busy = true);
@@ -226,11 +221,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Clears local data and returns to the auth screen after a successful delete.
+  /// Wipes all local data (subscriptions, stats, premium, budget) and detaches
+  /// the account, then returns to the auth screen after a successful delete.
   Future<void> _finishDeletion() async {
-    await _wipeBox(HiveBoxes.subscriptions);
-    await _wipeBox(HiveBoxes.cancellations);
-    await _wipeBox(HiveBoxes.settings);
+    await wipeLocalDataAndForget();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthScreen()),

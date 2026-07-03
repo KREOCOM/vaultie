@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
+import '../user_session.dart';
 import 'dashboard_screen.dart';
 import 'verify_email_screen.dart';
 
@@ -74,6 +75,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     try {
       if (_isLogin) {
         await _auth.signIn(email: _email.text, password: _password.text);
+        if (!mounted) return;
+        await ensureLocalDataForCurrentUser();
         if (!mounted) return;
         // Signed-in but unverified accounts are held at the verify screen.
         Navigator.of(context).pushReplacement(
@@ -152,6 +155,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       final cred = await _auth.signInWithGoogle();
       if (cred == null) return; // user cancelled the picker
       if (!mounted) return;
+      await ensureLocalDataForCurrentUser();
+      if (!mounted) return;
       // Google accounts are already verified, so this lands on the dashboard.
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -191,6 +196,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     try {
       final cred = await _auth.signInWithApple();
       if (cred == null) return; // user cancelled the Apple sheet
+      if (!mounted) return;
+      await ensureLocalDataForCurrentUser();
       if (!mounted) return;
       // Apple accounts arrive verified, so this lands on the dashboard.
       Navigator.of(context).pushReplacement(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../services/auth_service.dart';
+import '../user_session.dart';
 import 'auth_screen.dart';
 import 'dashboard_screen.dart';
 
@@ -76,6 +77,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       if (!mounted) return;
       if (_auth.isEmailVerified) {
         _poll?.cancel();
+        await ensureLocalDataForCurrentUser();
+        if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const DashboardScreen()),
           (route) => false,
