@@ -146,4 +146,18 @@ class NotificationService {
     await init();
     await _plugin.cancelAll();
   }
+
+  /// True on iOS when notification permission was requested (we do so at launch
+  /// in [init]) and the user did NOT grant it — i.e. explicitly denied. Returns
+  /// false when permission is granted, the state can't be determined, or on a
+  /// non-iOS platform. Used to decide whether to show the "reminders off"
+  /// banner (which must not appear before the user has ever been asked).
+  Future<bool> isPermissionDenied() async {
+    await init();
+    final ios = _plugin.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>();
+    if (ios == null) return false;
+    final options = await ios.checkPermissions();
+    return options != null && !options.isEnabled;
+  }
 }

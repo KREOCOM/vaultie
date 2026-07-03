@@ -6,7 +6,7 @@ import 'package:purchases_flutter/purchases_flutter.dart' as rc;
 import '../main.dart';
 
 /// Free users may track this many subscriptions before hitting the paywall.
-const int kFreeSubscriptionLimit = 3;
+const int kFreeSubscriptionLimit = 5;
 
 /// The plans offered on the paywall.
 enum PlanId { monthly, lifetime }

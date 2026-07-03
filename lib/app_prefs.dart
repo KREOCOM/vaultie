@@ -60,6 +60,17 @@ class AppPrefs {
   static Future<void> setNotificationsEnabled(bool value) async {
     await _box.put(_kNotifications, value);
   }
+
+  // Whether the user dismissed the "notifications are denied" dashboard banner.
+  static const _kNotifBannerDismissed = 'notifBannerDismissed';
+
+  static bool get notifBannerDismissed => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _box.get(_kNotifBannerDismissed, defaultValue: false) as bool
+      : false;
+
+  static Future<void> setNotifBannerDismissed(bool value) async {
+    await _box.put(_kNotifBannerDismissed, value);
+  }
 }
 
 /// Formats [value] as money using the selected currency symbol and the app's

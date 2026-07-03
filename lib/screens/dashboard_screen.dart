@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../app_prefs.dart';
 import '../expense_categories.dart';
@@ -204,6 +205,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     return CustomScrollView(
       slivers: [
         const SliverToBoxAdapter(child: _VerifyEmailBanner()),
+        const SliverToBoxAdapter(child: _NotificationBanner()),
         SliverToBoxAdapter(child: _OverviewHeader(subs: subs)),
         if (subs.isNotEmpty)
           SliverToBoxAdapter(
@@ -1171,6 +1173,110 @@ class _DonutPainter extends CustomPainter {
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared pieces (unchanged behaviour)
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Subtle, dismissible banner shown only when iOS notification permission was
+/// requested and denied — nudging the user to enable payment reminders. Never
+/// shown if permission was never asked or is granted.
+class _NotificationBanner extends StatefulWidget {
+  const _NotificationBanner();
+
+  @override
+  State<_NotificationBanner> createState() => _NotificationBannerState();
+}
+
+class _NotificationBannerState extends State<_NotificationBanner> {
+  bool _denied = false;
+  bool _dismissed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _dismissed = AppPrefs.notifBannerDismissed;
+    if (!_dismissed) _check();
+  }
+
+  Future<void> _check() async {
+    final denied = await NotificationService.instance.isPermissionDenied();
+    if (mounted) setState(() => _denied = denied);
+  }
+
+  Future<void> _openSettings() async {
+    // iOS deep-link to this app's Settings page.
+    try {
+      await launchUrl(Uri.parse('app-settings:'),
+          mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Nothing sensible to do if the platform can't open Settings.
+    }
+  }
+
+  void _dismiss() {
+    AppPrefs.setNotifBannerDismissed(true);
+    setState(() => _dismissed = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_dismissed || !_denied) return const SizedBox.shrink();
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF6E5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF0C674)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.notifications_off_outlined,
+                color: Color(0xFF9A7B2E), size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isLt ? 'Priminimai išjungti' : 'Reminders are off',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                  Text(
+                    isLt
+                        ? 'Įjunk, kad gautum mokėjimų priminimus'
+                        : 'Enable them to get payment alerts',
+                    style: const TextStyle(
+                        color: VaultieColors.subtle, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: _openSettings,
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF9A7B2E),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(isLt ? 'Įjungti' : 'Enable',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+            ),
+            InkWell(
+              onTap: _dismiss,
+              borderRadius: BorderRadius.circular(16),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.close, size: 16, color: VaultieColors.subtle),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// Slim reminder shown at the top of the Overview tab while the signed-in user
 /// hasn't verified their email. Offers a resend and a "check again" refresh.
