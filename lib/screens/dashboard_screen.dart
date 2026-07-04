@@ -237,26 +237,34 @@ class _OverviewTabState extends State<_OverviewTab> {
   /// in more than one category, so a single-category user isn't given a
   /// pointless filter. Chips appear in the canonical taxonomy order.
   Widget _categoryChips(List<Subscription> subs, bool isLt) {
-    final present = <String>{for (final s in subs) normalizeCategoryKey(s.category)};
+    final present = <String>{
+      for (final s in subs) normalizeCategoryKey(s.category)
+    };
     if (present.length < 2) return const SizedBox.shrink();
     final ordered = [
       for (final c in kExpenseCategories)
         if (present.contains(c.key)) c.key,
     ];
 
-    Widget chip({required String? key, required String label, IconData? icon, Color? color}) {
+    Widget chip(
+        {required String? key,
+        required String label,
+        IconData? icon,
+        Color? color}) {
       final selected = _categoryFilter == key;
       return Padding(
         padding: const EdgeInsets.only(right: 8),
         child: GestureDetector(
           onTap: () => setState(() => _categoryFilter = key),
           child: Container(
-            padding: EdgeInsets.only(left: icon == null ? 14 : 10, right: 14, top: 8, bottom: 8),
+            padding: EdgeInsets.only(
+                left: icon == null ? 14 : 10, right: 14, top: 8, bottom: 8),
             decoration: BoxDecoration(
               color: selected ? VaultieColors.primary : VaultieColors.card,
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: selected ? VaultieColors.primary : const Color(0xFFE1E8E3),
+                color:
+                    selected ? VaultieColors.primary : const Color(0xFFE1E8E3),
               ),
             ),
             child: Row(
@@ -265,7 +273,9 @@ class _OverviewTabState extends State<_OverviewTab> {
                 if (icon != null) ...[
                   Icon(icon,
                       size: 16,
-                      color: selected ? Colors.white : (color ?? VaultieColors.primary)),
+                      color: selected
+                          ? Colors.white
+                          : (color ?? VaultieColors.primary)),
                   const SizedBox(width: 6),
                 ],
                 Text(
@@ -382,12 +392,15 @@ class _OverviewHeader extends StatelessWidget {
 
   final List<Subscription> subs;
 
-  // Soft, deep-green gradient — lighter and gentler than a flat near-black
-  // green, while staying in the brand palette so it's easy on the eyes.
-  static const _bgTop = Color(0xFF215240);
-  static const _bgBottom = Color(0xFF163B2B);
-  // Muted accent green (deliberately not a bright neon green).
-  static const _accent = Color(0xFF2D8A5E);
+  // Soft "mint" card — a light brand tint that stands out with a gentle border
+  // instead of a heavy green block, so it sits naturally among the white cards.
+  static const _bgTop = Color(0xFFEDF6F0);
+  static const _bgBottom = Color(0xFFDFEEE6);
+  static const _border = Color(0xFFCFE3D6);
+  static const _name = Color(0xFF123024); // headings + amount
+  static const _muted = Color(0xFF5B7365); // greeting + count
+  static const _accent = Color(0xFF1F6B47); // label + icon buttons
+  static const _legend = Color(0xFF4C6357); // legend text
 
   String _userName(bool isLt) {
     final u = AuthService().currentUser;
@@ -411,7 +424,7 @@ class _OverviewHeader extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: Icon(icon, color: Colors.white.withValues(alpha: 0.75), size: 21),
+        child: Icon(icon, color: _accent, size: 21),
       ),
     );
   }
@@ -448,6 +461,7 @@ class _OverviewHeader extends StatelessWidget {
             colors: [_bgTop, _bgBottom],
           ),
           borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -462,8 +476,8 @@ class _OverviewHeader extends StatelessWidget {
                     children: [
                       Text(
                         _greeting(isLt),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
+                        style: const TextStyle(
+                          color: _muted,
                           fontSize: 14,
                         ),
                       ),
@@ -473,7 +487,7 @@ class _OverviewHeader extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: _name,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
                         ),
@@ -520,7 +534,7 @@ class _OverviewHeader extends StatelessWidget {
                       Text(
                         formatMoney(monthlyTotal),
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: _name,
                           fontSize: 34,
                           fontWeight: FontWeight.w800,
                         ),
@@ -528,8 +542,8 @@ class _OverviewHeader extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         l.activeSubscriptions(subs.length),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.55),
+                        style: const TextStyle(
+                          color: _muted,
                           fontSize: 13,
                         ),
                       ),
@@ -544,7 +558,9 @@ class _OverviewHeader extends StatelessWidget {
                     child: CustomPaint(
                       painter: _DonutPainter(
                         values: [for (final e in entries) e.value],
-                        colors: [for (final e in entries) categoryFor(e.key).color],
+                        colors: [
+                          for (final e in entries) categoryFor(e.key).color
+                        ],
                       ),
                     ),
                   ),
@@ -573,8 +589,8 @@ class _OverviewHeader extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text(
                           '${categoryLabel(e.key, isLt)}  ${(e.value / total * 100).round()}%',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.78),
+                          style: const TextStyle(
+                            color: _legend,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
@@ -735,8 +751,9 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
     for (final s in subs) {
       // Normalise so legacy category strings collapse into the same key the
       // Overview header uses; otherwise the two tabs disagree on the breakdown.
-      byCategory.update(normalizeCategoryKey(s.category),
-          (v) => v + s.monthlyCost, ifAbsent: () => s.monthlyCost);
+      byCategory.update(
+          normalizeCategoryKey(s.category), (v) => v + s.monthlyCost,
+          ifAbsent: () => s.monthlyCost);
     }
     final entries = byCategory.entries.toList()
       ..sort((a, c) => c.value.compareTo(a.value));
@@ -991,8 +1008,8 @@ class _BiggestPaymentCard extends StatelessWidget {
                 sub.isEstimated
                     ? '~${formatMoney(sub.cost)}'
                     : formatMoney(sub.cost),
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800, fontSize: 18),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
               ),
             ],
           ),
@@ -1047,8 +1064,8 @@ class _TopExpenseRow extends StatelessWidget {
             children: [
               Text(
                 '${sub.isEstimated ? '~' : ''}${formatMoney(sub.monthlyCost)}${isLt ? '/mėn.' : '/mo'}',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 14),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               ),
               Text('${(pct * 100).round()}%',
                   style: const TextStyle(
@@ -1500,56 +1517,56 @@ class _BudgetCard extends StatelessWidget {
       // Tap the card to change or remove the budget — no trip to Settings.
       onTap: () => editMonthlyBudget(context, isLt: isLt),
       child: Container(
-      margin: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: VaultieColors.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE1E8E3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                isLt ? 'Mėnesio biudžetas' : 'Monthly budget',
-                style:
-                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-              ),
-              const SizedBox(width: 6),
-              const Icon(Icons.edit_outlined,
-                  size: 14, color: VaultieColors.subtle),
-              const Spacer(),
-              Text(
-                '${(ratio * 100).round()}%',
-                style: TextStyle(color: color, fontWeight: FontWeight.w800),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: ratio.clamp(0.0, 1.0),
-              minHeight: 10,
-              backgroundColor: const Color(0xFFE1E8E3),
-              color: color,
+        margin: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: VaultieColors.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE1E8E3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  isLt ? 'Mėnesio biudžetas' : 'Monthly budget',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15),
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.edit_outlined,
+                    size: 14, color: VaultieColors.subtle),
+                const Spacer(),
+                Text(
+                  '${(ratio * 100).round()}%',
+                  style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            over
-                ? (isLt
-                    ? 'Viršyta ${formatMoney(spent - budget)}'
-                    : 'Over by ${formatMoney(spent - budget)}')
-                : (isLt
-                    ? '${formatMoney(spent)} iš ${formatMoney(budget)}'
-                    : '${formatMoney(spent)} of ${formatMoney(budget)}'),
-            style: const TextStyle(color: VaultieColors.subtle, fontSize: 13),
-          ),
-        ],
-      ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: ratio.clamp(0.0, 1.0),
+                minHeight: 10,
+                backgroundColor: const Color(0xFFE1E8E3),
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              over
+                  ? (isLt
+                      ? 'Viršyta ${formatMoney(spent - budget)}'
+                      : 'Over by ${formatMoney(spent - budget)}')
+                  : (isLt
+                      ? '${formatMoney(spent)} iš ${formatMoney(budget)}'
+                      : '${formatMoney(spent)} of ${formatMoney(budget)}'),
+              style: const TextStyle(color: VaultieColors.subtle, fontSize: 13),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1584,7 +1601,9 @@ class _SetBudgetPrompt extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isLt ? 'Nustatyti mėnesio biudžetą' : 'Set a monthly budget',
+                      isLt
+                          ? 'Nustatyti mėnesio biudžetą'
+                          : 'Set a monthly budget',
                       style: const TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 15),
                     ),
@@ -1641,7 +1660,8 @@ class _EmptyState extends StatelessWidget {
             style: const TextStyle(color: VaultieColors.subtle),
           ),
           const SizedBox(height: 30),
-          _emptyLabel(isLt ? 'Pradėk nuo kategorijos' : 'Start with a category'),
+          _emptyLabel(
+              isLt ? 'Pradėk nuo kategorijos' : 'Start with a category'),
           const SizedBox(height: 16),
           GridView.count(
             crossAxisCount: 4,
@@ -1651,11 +1671,13 @@ class _EmptyState extends StatelessWidget {
             crossAxisSpacing: 8,
             childAspectRatio: 0.82,
             children: [
-              for (final cat in kExpenseCategories) _catQuickTile(context, cat, isLt),
+              for (final cat in kExpenseCategories)
+                _catQuickTile(context, cat, isLt),
             ],
           ),
           const SizedBox(height: 26),
-          _emptyLabel(isLt ? 'Arba populiari paslauga' : 'Or a popular service'),
+          _emptyLabel(
+              isLt ? 'Arba populiari paslauga' : 'Or a popular service'),
           const SizedBox(height: 16),
           Wrap(
             spacing: 18,
