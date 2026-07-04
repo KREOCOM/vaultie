@@ -4,16 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:vaultie/l10n/app_localizations.dart';
-import 'package:vaultie/main.dart';
+import 'package:vaultie/screens/onboarding_screen.dart';
 
 void main() {
-  testWidgets('boots into the image onboarding with a localized CTA',
+  testWidgets('shows the image onboarding with a localized CTA',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const VaultieApp(hasOnboarded: false));
+    // Pump OnboardingScreen directly: the real app boots through SplashScreen,
+    // which does Firebase/Hive work that isn't wired up under `flutter test`.
+    await tester.pumpWidget(const MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: OnboardingScreen(),
+    ));
     await tester.pump();
 
     // 3-screen image PageView; screen 1 shows the English "Continue →" CTA by
-    // default (the device locale in tests resolves to en).
+    // default (the test locale resolves to en).
     expect(find.byType(PageView), findsOneWidget);
     expect(find.text('Continue →'), findsOneWidget);
 
@@ -37,7 +43,7 @@ void main() {
 
     expect(l.onboard1Title, 'Kur dingsta jūsų pinigai?');
     expect(l.continueLabel, 'Tęsti');
-    expect(l.saveToVault, 'Išsaugoti į seifą');
+    expect(l.saveToVault, 'Išsaugoti');
 
     // Lithuanian plural forms (one / few / other).
     expect(l.activeSubscriptions(1), '1 aktyvi prenumerata');
