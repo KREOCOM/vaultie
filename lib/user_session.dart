@@ -23,7 +23,9 @@ Future<void> ensureLocalDataForCurrentUser() async {
   final settings = Hive.box(HiveBoxes.settings);
   final owner = settings.get(_kDataOwner) as String?;
   if (owner != uid) {
-    if (owner != null) await _wipeLocalData(); // different account → start fresh
+    if (owner != null) {
+      await _wipeLocalData(); // different account → start fresh
+    }
     await settings.put(_kDataOwner, uid);
   }
   // Point RevenueCat at this account so premium follows the account.

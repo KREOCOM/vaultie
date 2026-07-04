@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../app_prefs.dart';
+import '../content_theme.dart';
 import '../expense_categories.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/localized_labels.dart';
@@ -89,7 +90,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
 
   bool get _isEditing => widget.existing != null;
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
-  bool get _isEntertainment => normalizeCategoryKey(_category) == 'entertainment';
+  bool get _isEntertainment =>
+      normalizeCategoryKey(_category) == 'entertainment';
 
   @override
   void initState() {
@@ -253,57 +255,69 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
     final isLt = _isLt;
     final suggestions = categorySuggestions(_category, isLt);
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: VaultieColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text(_isEditing
-            ? (isLt ? 'Redaguoti išlaidą' : 'Edit expense')
-            : (isLt ? 'Pridėti išlaidą' : 'Add expense')),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          // Dragging the form dismisses the (Done-less) numeric keyboard, so the
-          // user can reach the fields and Save button below the amount.
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          children: [
-            _sectionLabel(isLt ? 'Kategorija' : 'Category'),
-            const SizedBox(height: 12),
-            _categoryGrid(isLt),
-            const SizedBox(height: 24),
-            // Suggestions: popular brands for Entertainment, name chips elsewhere.
-            if (_isEntertainment) ...[
-              _sectionLabel(l.popularServices),
-              const SizedBox(height: 12),
-              _brandGrid(isLt),
-              const SizedBox(height: 24),
-            ] else if (suggestions.isNotEmpty) ...[
-              _sectionLabel(isLt ? 'Greitas pasirinkimas' : 'Quick pick'),
-              const SizedBox(height: 12),
-              _suggestionChips(suggestions),
-              const SizedBox(height: 24),
-            ],
-            _sectionLabel(isLt ? 'Informacija' : 'Details'),
-            const SizedBox(height: 8),
-            _infoCard(l),
-            const SizedBox(height: 24),
-            _sectionLabel(l.billingCycle),
-            const SizedBox(height: 12),
-            _cycleGrid(l),
-            const SizedBox(height: 20),
-            _moreOptions(isLt),
-            const SizedBox(height: 28),
-            ElevatedButton(
-              onPressed: _save,
-              child: Text(_isEditing
-                  ? (isLt ? 'Išsaugoti pakeitimus' : 'Save changes')
-                  : l.saveToVault),
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppPrefs.darkMode,
+      builder: (context, dark, _) {
+        applyContentTheme(dark);
+        return Theme(
+          data: contentTheme(Theme.of(context)),
+          child: Scaffold(
+            appBar: AppBar(
+              // Green header on light; on dark it blends into the graphite page
+              // instead of sitting there as a leftover green block.
+              backgroundColor: dark ? cBg : VaultieColors.primary,
+              foregroundColor: dark ? cInk : Colors.white,
+              elevation: 0,
+              title: Text(_isEditing
+                  ? (isLt ? 'Redaguoti išlaidą' : 'Edit expense')
+                  : (isLt ? 'Pridėti išlaidą' : 'Add expense')),
             ),
-          ],
-        ),
-      ),
+            body: SafeArea(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                // Dragging the form dismisses the (Done-less) numeric keyboard, so the
+                // user can reach the fields and Save button below the amount.
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                children: [
+                  _sectionLabel(isLt ? 'Kategorija' : 'Category'),
+                  const SizedBox(height: 12),
+                  _categoryGrid(isLt),
+                  const SizedBox(height: 24),
+                  // Suggestions: popular brands for Entertainment, name chips elsewhere.
+                  if (_isEntertainment) ...[
+                    _sectionLabel(l.popularServices),
+                    const SizedBox(height: 12),
+                    _brandGrid(isLt),
+                    const SizedBox(height: 24),
+                  ] else if (suggestions.isNotEmpty) ...[
+                    _sectionLabel(isLt ? 'Greitas pasirinkimas' : 'Quick pick'),
+                    const SizedBox(height: 12),
+                    _suggestionChips(suggestions),
+                    const SizedBox(height: 24),
+                  ],
+                  _sectionLabel(isLt ? 'Informacija' : 'Details'),
+                  const SizedBox(height: 8),
+                  _infoCard(l),
+                  const SizedBox(height: 24),
+                  _sectionLabel(l.billingCycle),
+                  const SizedBox(height: 12),
+                  _cycleGrid(l),
+                  const SizedBox(height: 20),
+                  _moreOptions(isLt),
+                  const SizedBox(height: 28),
+                  ElevatedButton(
+                    onPressed: _save,
+                    child: Text(_isEditing
+                        ? (isLt ? 'Išsaugoti pakeitimus' : 'Save changes')
+                        : l.saveToVault),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -352,7 +366,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
                   fontSize: 9.5,
                   height: 1.1,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: selected ? VaultieColors.ink : VaultieColors.subtle,
+                  color: selected ? cInk : cSubtle,
                 ),
               ),
             ],
@@ -375,18 +389,16 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: selected
-                  ? VaultieColors.primary
-                  : VaultieColors.card,
+              color: selected ? VaultieColors.primary : cCard,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: selected ? VaultieColors.primary : VaultieColors.line,
+                color: selected ? VaultieColors.primary : cLine,
               ),
             ),
             child: Text(
               s,
               style: TextStyle(
-                color: selected ? Colors.white : VaultieColors.ink,
+                color: selected ? Colors.white : cInk,
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
               ),
@@ -441,8 +453,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color:
-                        selected ? VaultieColors.primary : VaultieColors.subtle,
+                    color: selected ? VaultieColors.primary : cSubtle,
                   ),
                 ),
               ),
@@ -469,7 +480,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
     return Container(
       key: _infoKey,
       decoration: BoxDecoration(
-        color: VaultieColors.card,
+        color: cCard,
         borderRadius: BorderRadius.circular(18),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -564,8 +575,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
           leading ?? Text(emoji, style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 14),
           Text(label,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, color: VaultieColors.ink)),
+              style: TextStyle(fontWeight: FontWeight.w600, color: cInk)),
           const SizedBox(width: 12),
           Expanded(child: child),
         ],
@@ -588,12 +598,11 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
             Text(emoji, style: const TextStyle(fontSize: 20)),
             const SizedBox(width: 14),
             Text(label,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600, color: VaultieColors.ink)),
+                style: TextStyle(fontWeight: FontWeight.w600, color: cInk)),
             const Spacer(),
-            Text(value, style: const TextStyle(color: VaultieColors.subtle)),
+            Text(value, style: TextStyle(color: cSubtle)),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, color: VaultieColors.subtle),
+            Icon(Icons.chevron_right, color: cSubtle),
           ],
         ),
       ),
@@ -614,17 +623,16 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
             padding: const EdgeInsets.symmetric(vertical: 16),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: selected ? VaultieColors.primary : VaultieColors.card,
+              color: selected ? VaultieColors.primary : cCard,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color:
-                    selected ? VaultieColors.primary : VaultieColors.line,
+                color: selected ? VaultieColors.primary : cLine,
               ),
             ),
             child: Text(
               billingCycleLabel(l, c),
               style: TextStyle(
-                color: selected ? Colors.white : VaultieColors.ink,
+                color: selected ? Colors.white : cInk,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -665,8 +673,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
               children: [
                 Text(
                   (isLt ? 'Daugiau parinkčių' : 'More options').toUpperCase(),
-                  style: const TextStyle(
-                    color: VaultieColors.subtle,
+                  style: TextStyle(
+                    color: cSubtle,
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
                     letterSpacing: 0.5,
@@ -675,7 +683,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
                 const Spacer(),
                 Icon(
                   _showMore ? Icons.expand_less : Icons.expand_more,
-                  color: VaultieColors.subtle,
+                  color: cSubtle,
                 ),
               ],
             ),
@@ -685,7 +693,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
-              color: VaultieColors.card,
+              color: cCard,
               borderRadius: BorderRadius.circular(18),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -693,7 +701,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
               children: [
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  activeThumbColor: VaultieColors.brightGreen,
+                  activeThumbColor: cAccent,
                   title: Text(isLt ? 'Kintanti suma' : 'Variable amount'),
                   subtitle: Text(
                     isLt
@@ -715,7 +723,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
                     decoration: InputDecoration(
                       isCollapsed: true,
                       border: InputBorder.none,
-                      hintText: isLt ? 'Pastabos (nebūtina)' : 'Notes (optional)',
+                      hintText:
+                          isLt ? 'Pastabos (nebūtina)' : 'Notes (optional)',
                     ),
                   ),
                 ),
@@ -754,7 +763,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
               color: c,
               shape: BoxShape.circle,
               border: Border.all(
-                color: selected ? VaultieColors.ink : Colors.transparent,
+                color: selected ? cInk : Colors.transparent,
                 width: 3,
               ),
             ),
@@ -771,8 +780,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
         padding: const EdgeInsets.only(left: 4),
         child: Text(
           text.toUpperCase(),
-          style: const TextStyle(
-            color: VaultieColors.subtle,
+          style: TextStyle(
+            color: cSubtle,
             fontWeight: FontWeight.w700,
             fontSize: 12,
             letterSpacing: 0.5,

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_prefs.dart';
+import 'content_theme.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'models/subscription.dart';
@@ -25,13 +26,12 @@ class VaultieColors {
   static const Color primaryDark = Color(0xFF0E3322);
   static const Color primaryLight = Color(0xFF2E6B4D);
   static const Color accent = Color(0xFF8BD3A7);
-  // Graphite dark theme.
-  static const Color surface = Color(0xFF111316); // page background
-  static const Color card = Color(0xFF1C2024); // cards / sheets / dialogs
-  static const Color ink = Color(0xFFF1F3F4); // primary text
-  static const Color subtle = Color(0xFF9AA0A6); // secondary text
-  static const Color line = Color(0xFF2A2F35); // borders / dividers
-  static const Color brightGreen = Color(0xFF4CAF72); // green as foreground
+  static const Color surface = Color(0xFFF4F8F5); // page background (light)
+  static const Color card = Color(0xFFFFFFFF); // cards / sheets / dialogs
+  static const Color ink = Color(0xFF11231A); // primary text
+  static const Color subtle = Color(0xFF6B7E74); // secondary text
+  static const Color line = Color(0xFFE1E8E3); // borders / dividers
+  static const Color brightGreen = Color(0xFF4CAF72); // green accent (fixed)
   static const Color danger = Color(0xFFD9534F);
 }
 
@@ -127,112 +127,125 @@ class VaultieApp extends StatelessWidget {
         primary: VaultieColors.primary,
         secondary: VaultieColors.primaryLight,
         surface: VaultieColors.card,
-        brightness: Brightness.dark,
+        brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: VaultieColors.surface,
     );
 
-    // Rebuild the app when the user changes language or currency in Settings.
+    // Rebuild the app when the user changes language, currency or the light/dark
+    // content theme in Settings.
     return AnimatedBuilder(
-      animation: Listenable.merge(
-          [AppPrefs.locale, AppPrefs.currency, AppPrefs.budget]),
-      builder: (context, _) => MaterialApp(
-        title: 'Vaultie',
-        debugShowCheckedModeBanner: false,
-        // Localization: ships English (default) and Lithuanian. The language is
-        // the manual Settings choice if set, otherwise the device Region (LT →
-        // Lithuanian, anywhere else → English).
-        locale: effectiveLocale(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        theme: base.copyWith(
-          textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
-            bodyColor: VaultieColors.ink,
-            displayColor: VaultieColors.ink,
-          ),
-          appBarTheme: const AppBarTheme(
-            backgroundColor: VaultieColors.surface,
-            foregroundColor: VaultieColors.ink,
-            elevation: 0,
-            centerTitle: false,
-          ),
-          cardTheme: CardThemeData(
-            color: VaultieColors.card,
-            elevation: 0,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            margin: EdgeInsets.zero,
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: VaultieColors.primary,
-              foregroundColor: Colors.white,
+      animation: Listenable.merge([
+        AppPrefs.locale,
+        AppPrefs.currency,
+        AppPrefs.budget,
+        AppPrefs.darkMode
+      ]),
+      builder: (context, _) {
+        // Refresh the content palette (dashboard/analytics/settings/add) for the
+        // current choice before building; auth/splash keep their own colours.
+        applyContentTheme(AppPrefs.darkMode.value);
+        return MaterialApp(
+          title: 'Vaultie',
+          debugShowCheckedModeBanner: false,
+          // Localization: ships English (default) and Lithuanian. The language is
+          // the manual Settings choice if set, otherwise the device Region (LT →
+          // Lithuanian, anywhere else → English).
+          locale: effectiveLocale(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: base.copyWith(
+            textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
+              bodyColor: VaultieColors.ink,
+              displayColor: VaultieColors.ink,
+            ),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: VaultieColors.surface,
+              foregroundColor: VaultieColors.ink,
               elevation: 0,
-              minimumSize: const Size.fromHeight(54),
+              centerTitle: false,
+            ),
+            cardTheme: CardThemeData(
+              color: VaultieColors.card,
+              elevation: 0,
               shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              margin: EdgeInsets.zero,
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: VaultieColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                minimumSize: const Size.fromHeight(54),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: VaultieColors.card,
+              hintStyle: const TextStyle(color: VaultieColors.subtle),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: VaultieColors.line),
               ),
-              textStyle: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: VaultieColors.line),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(
+                    color: VaultieColors.brightGreen, width: 2),
               ),
             ),
+            // Date picker: dark surface, filled green OK, outlined Cancel.
+            datePickerTheme: DatePickerThemeData(
+              backgroundColor: VaultieColors.card,
+              confirmButtonStyle: TextButton.styleFrom(
+                backgroundColor: VaultieColors.primary,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              cancelButtonStyle: TextButton.styleFrom(
+                foregroundColor: VaultieColors.subtle,
+                side: const BorderSide(color: VaultieColors.line),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            dialogTheme:
+                const DialogThemeData(backgroundColor: VaultieColors.card),
+            bottomSheetTheme:
+                const BottomSheetThemeData(backgroundColor: VaultieColors.card),
           ),
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: VaultieColors.card,
-            hintStyle: const TextStyle(color: VaultieColors.subtle),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: VaultieColors.line),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: VaultieColors.line),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide:
-                  const BorderSide(color: VaultieColors.brightGreen, width: 2),
-            ),
-          ),
-          // Date picker: dark surface, filled green OK, outlined Cancel.
-          datePickerTheme: DatePickerThemeData(
-            backgroundColor: VaultieColors.card,
-            confirmButtonStyle: TextButton.styleFrom(
-              backgroundColor: VaultieColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            cancelButtonStyle: TextButton.styleFrom(
-              foregroundColor: VaultieColors.subtle,
-              side: const BorderSide(color: VaultieColors.line),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          dialogTheme: const DialogThemeData(backgroundColor: VaultieColors.card),
-          bottomSheetTheme:
-              const BottomSheetThemeData(backgroundColor: VaultieColors.card),
-        ),
-        // Always launch into the branded splash; it decides where to go next.
-        home: SplashScreen(hasOnboarded: hasOnboarded),
-        routes: {
-          OnboardingScreen.route: (_) => const OnboardingScreen(),
-          AuthScreen.route: (_) => const AuthScreen(),
-          VerifyEmailScreen.route: (_) => const VerifyEmailScreen(),
-          DashboardScreen.route: (_) => const DashboardScreen(),
-          PaywallScreen.route: (_) => const PaywallScreen(),
-          SettingsScreen.route: (_) => const SettingsScreen(),
-        },
-      ),
+          // Always launch into the branded splash; it decides where to go next.
+          home: SplashScreen(hasOnboarded: hasOnboarded),
+          routes: {
+            OnboardingScreen.route: (_) => const OnboardingScreen(),
+            AuthScreen.route: (_) => const AuthScreen(),
+            VerifyEmailScreen.route: (_) => const VerifyEmailScreen(),
+            DashboardScreen.route: (_) => const DashboardScreen(),
+            PaywallScreen.route: (_) => const PaywallScreen(),
+            SettingsScreen.route: (_) => const SettingsScreen(),
+          },
+        );
+      },
     );
   }
 }

@@ -194,9 +194,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF241F12),
+                  color: const Color(0xFFFFF6E5),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF6B5424)),
+                  border: Border.all(color: const Color(0xFFF0C674)),
                 ),
                 child: Row(
                   children: [
@@ -209,7 +209,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                             ? 'Nerandi laiško? Patikrink šlamšto (Spam) aplanką ir pažymėk „Ne šlamštas".'
                             : "Can't find it? Check your Spam folder and mark it \"Not spam\".",
                         style: const TextStyle(
-                            color: Color(0xFF6B5A20), fontSize: 12.5, height: 1.3),
+                            color: Color(0xFF6B5A20),
+                            fontSize: 12.5,
+                            height: 1.3),
                       ),
                     ),
                   ],

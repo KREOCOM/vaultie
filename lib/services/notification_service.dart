@@ -104,9 +104,8 @@ class NotificationService {
     // Respect the user's Settings notifications preference.
     if (!AppPrefs.notificationsEnabled) return;
 
-    final amount = sub.isEstimated
-        ? '~${formatMoney(sub.cost)}'
-        : formatMoney(sub.cost);
+    final amount =
+        sub.isEstimated ? '~${formatMoney(sub.cost)}' : formatMoney(sub.cost);
     final now = tz.TZDateTime.now(tz.local);
     for (final daysBefore in _remindOffsets) {
       final remindDay =

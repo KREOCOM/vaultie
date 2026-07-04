@@ -234,8 +234,7 @@ class RevenueCatPurchaseService implements PurchaseService {
     try {
       final result =
           await rc.Purchases.purchase(rc.PurchaseParams.package(pkg));
-      if (result.customerInfo.entitlements.active
-          .containsKey(_entitlementId)) {
+      if (result.customerInfo.entitlements.active.containsKey(_entitlementId)) {
         _premium.value = true;
         await _box.put(_premiumKey, true);
         return const PurchaseResult(PurchaseStatus.success);

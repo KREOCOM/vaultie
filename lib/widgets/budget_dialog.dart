@@ -7,7 +7,8 @@ import '../main.dart';
 ///
 /// The budget is entirely manual and optional: the user types an amount to set
 /// it, taps Clear to remove it, or cancels to leave it unchanged.
-Future<void> editMonthlyBudget(BuildContext context, {required bool isLt}) async {
+Future<void> editMonthlyBudget(BuildContext context,
+    {required bool isLt}) async {
   // Returns: null = cancel, -1 = clear, > 0 = new budget.
   final result = await showDialog<double>(
     context: context,

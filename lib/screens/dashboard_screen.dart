@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app_prefs.dart';
+import '../content_theme.dart';
 import '../expense_categories.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/localized_labels.dart';
@@ -21,17 +22,6 @@ import 'add_subscription_screen.dart';
 import 'paywall_screen.dart';
 import 'recap_screen.dart';
 import 'settings_screen.dart';
-
-const Color _brightGreen = Color(0xFF4CAF72);
-
-// ── Black (graphite) theme (dashboard) ──────────────────────────────────────
-const Color _dBg = Color(0xFF111316); // graphite page background
-const Color _dCard = Color(0xFF1C2024); // charcoal card / chip surface
-const Color _dInk = Color(0xFFF1F3F4); // primary text / icons
-const Color _dSubtle = Color(0xFF9AA0A6); // secondary text
-const Color _dLine = Color(0xFF2A2F35); // borders / dividers / progress tracks
-const Color _dHiBg = Color(0xFF241F12); // highlight / warning card background
-const Color _dHiBorder = Color(0xFF6B5424); // highlight / warning card border
 
 /// Home screen: two tabs — Overview (Apžvalga) and Analytics (Analitika).
 class DashboardScreen extends StatefulWidget {
@@ -76,85 +66,70 @@ class _DashboardScreenState extends State<DashboardScreen>
     final box = Hive.box<Subscription>(HiveBoxes.subscriptions);
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
 
-    final base = Theme.of(context);
-    // One dark override for the whole dashboard subtree so every default-
-    // coloured Text/icon/input flips to light — no per-widget hunting.
-    final darkTheme = base.copyWith(
-      scaffoldBackgroundColor: _dBg,
-      // Material Card widgets (upcoming-payments card, each subscription row)
-      // read their colour from here — without this they'd stay white on black.
-      cardTheme: base.cardTheme.copyWith(color: _dCard),
-      textTheme: base.textTheme.apply(bodyColor: _dInk, displayColor: _dInk),
-      iconTheme: const IconThemeData(color: _dInk),
-      popupMenuTheme: base.popupMenuTheme.copyWith(color: _dCard),
-      inputDecorationTheme: base.inputDecorationTheme.copyWith(
-        fillColor: _dCard,
-        hintStyle: const TextStyle(color: _dSubtle),
-        prefixIconColor: _dSubtle,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: _dLine),
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: _dLine),
-        ),
-      ),
-    );
-    return Theme(
-      data: darkTheme,
-      child: Scaffold(
-        backgroundColor: _dBg,
-        // No add button on the Settings tab.
-        floatingActionButton: _tab.index == 2
-            ? null
-            : FloatingActionButton.extended(
-                backgroundColor: VaultieColors.primary,
-                foregroundColor: Colors.white,
-                onPressed: () => _onAddPressed(context, box),
-                icon: const Icon(Icons.add),
-                label: Text(AppLocalizations.of(context).addButton),
-              ),
-        body: SafeArea(
-          child: Column(
-            children: [
-              TabBar(
-                controller: _tab,
-                labelColor: _brightGreen,
-                unselectedLabelColor: _dSubtle,
-                indicatorColor: _brightGreen,
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                labelStyle:
-                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                tabs: [
-                  Tab(text: isLt ? 'Apžvalga' : 'Overview'),
-                  Tab(text: isLt ? 'Analitika' : 'Analytics'),
-                  Tab(text: isLt ? 'Nustatymai' : 'Settings'),
+    // Listen to the light/dark toggle so the whole dashboard subtree (including
+    // the embedded Settings tab) rebuilds instantly when it changes.
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppPrefs.darkMode,
+      builder: (context, dark, _) {
+        applyContentTheme(dark);
+        return Theme(
+          data: contentTheme(Theme.of(context)),
+          child: Scaffold(
+            backgroundColor: cBg,
+            // No add button on the Settings tab.
+            floatingActionButton: _tab.index == 2
+                ? null
+                : FloatingActionButton.extended(
+                    backgroundColor: VaultieColors.primary,
+                    foregroundColor: Colors.white,
+                    onPressed: () => _onAddPressed(context, box),
+                    icon: const Icon(Icons.add),
+                    label: Text(AppLocalizations.of(context).addButton),
+                  ),
+            body: SafeArea(
+              child: Column(
+                children: [
+                  TabBar(
+                    controller: _tab,
+                    labelColor: cAccent,
+                    unselectedLabelColor: cSubtle,
+                    indicatorColor: cAccent,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    labelStyle: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 15),
+                    tabs: [
+                      Tab(text: isLt ? 'Apžvalga' : 'Overview'),
+                      Tab(text: isLt ? 'Analitika' : 'Analytics'),
+                      Tab(text: isLt ? 'Nustatymai' : 'Settings'),
+                    ],
+                  ),
+                  Expanded(
+                    child: ValueListenableBuilder(
+                      valueListenable: box.listenable(),
+                      builder: (context, Box<Subscription> b, _) {
+                        final subs = b.values.toList()
+                          ..sort((a, c) =>
+                              a.daysUntilRenewal.compareTo(c.daysUntilRenewal));
+                        return TabBarView(
+                          controller: _tab,
+                          children: [
+                            _OverviewTab(subs: subs),
+                            _AnalyticsTab(subs: subs),
+                            // Not const: must rebuild when the theme toggles.
+                            // ignore: prefer_const_constructors
+                            SettingsScreen(embedded: true),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ),
-              Expanded(
-                child: ValueListenableBuilder(
-                  valueListenable: box.listenable(),
-                  builder: (context, Box<Subscription> b, _) {
-                    final subs = b.values.toList()
-                      ..sort((a, c) =>
-                          a.daysUntilRenewal.compareTo(c.daysUntilRenewal));
-                    return TabBarView(
-                      controller: _tab,
-                      children: [
-                        _OverviewTab(subs: subs),
-                        _AnalyticsTab(subs: subs),
-                        const SettingsScreen(embedded: true),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -266,7 +241,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                 child: Center(
                   child: Text(
                     isLt ? 'Nieko nerasta' : 'No matches',
-                    style: const TextStyle(color: _dSubtle),
+                    style: TextStyle(color: cSubtle),
                   ),
                 ),
               ),
@@ -312,10 +287,10 @@ class _OverviewTabState extends State<_OverviewTab> {
             padding: EdgeInsets.only(
                 left: icon == null ? 14 : 10, right: 14, top: 8, bottom: 8),
             decoration: BoxDecoration(
-              color: selected ? VaultieColors.primary : _dCard,
+              color: selected ? VaultieColors.primary : cCard,
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: selected ? VaultieColors.primary : _dLine,
+                color: selected ? VaultieColors.primary : cLine,
               ),
             ),
             child: Row(
@@ -324,13 +299,13 @@ class _OverviewTabState extends State<_OverviewTab> {
                 if (icon != null) ...[
                   Icon(icon,
                       size: 16,
-                      color: selected ? Colors.white : (color ?? _brightGreen)),
+                      color: selected ? Colors.white : (color ?? cAccent)),
                   const SizedBox(width: 6),
                 ],
                 Text(
                   label,
                   style: TextStyle(
-                    color: selected ? Colors.white : _dInk,
+                    color: selected ? Colors.white : cInk,
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),
@@ -391,12 +366,12 @@ class _OverviewTabState extends State<_OverviewTab> {
           const SizedBox(width: 10),
           Container(
             decoration: BoxDecoration(
-              color: _dCard,
+              color: cCard,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _dLine),
+              border: Border.all(color: cLine),
             ),
             child: PopupMenuButton<_SortMode>(
-              icon: const Icon(Icons.sort, color: _dInk),
+              icon: Icon(Icons.sort, color: cInk),
               tooltip: isLt ? 'Rūšiuoti' : 'Sort',
               onSelected: (m) => setState(() => _sort = m),
               itemBuilder: (_) => [
@@ -422,7 +397,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           SizedBox(
             width: 24,
             child: _sort == mode
-                ? const Icon(Icons.check, size: 18, color: _brightGreen)
+                ? Icon(Icons.check, size: 18, color: cAccent)
                 : null,
           ),
           Text(label),
@@ -439,17 +414,6 @@ class _OverviewHeader extends StatelessWidget {
   const _OverviewHeader({required this.subs});
 
   final List<Subscription> subs;
-
-  // "Featured" dark card — a subtle dark-green gradient, a hair lighter/greener
-  // than the page, so the hero stands out on the graphite theme without being a
-  // bright block. Green label, light text, colourful ring.
-  static const _bgTop = Color(0xFF1E2A22);
-  static const _bgBottom = Color(0xFF151C17);
-  static const _border = Color(0xFF2C3A31);
-  static const _name = Color(0xFFF1F3F4); // headings + amount
-  static const _muted = Color(0xFF9AA0A6); // greeting + count
-  static const _accent = Color(0xFF4CAF72); // label + icon buttons
-  static const _legend = Color(0xFFB4C0B8); // legend text
 
   String _userName(bool isLt) {
     final u = AuthService().currentUser;
@@ -493,13 +457,13 @@ class _OverviewHeader extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(22, 20, 20, 20),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [_bgTop, _bgBottom],
+            colors: [cFeatTop, cFeatBottom],
           ),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: _border),
+          border: Border.all(color: cFeatBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,8 +478,8 @@ class _OverviewHeader extends StatelessWidget {
                     children: [
                       Text(
                         _greeting(isLt),
-                        style: const TextStyle(
-                          color: _muted,
+                        style: TextStyle(
+                          color: cFeatSubtle,
                           fontSize: 14,
                         ),
                       ),
@@ -524,8 +488,8 @@ class _OverviewHeader extends StatelessWidget {
                         name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _name,
+                        style: TextStyle(
+                          color: cFeatInk,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
                         ),
@@ -545,8 +509,8 @@ class _OverviewHeader extends StatelessWidget {
                     children: [
                       Text(
                         l.monthlySpend.toUpperCase(),
-                        style: const TextStyle(
-                          color: _accent,
+                        style: TextStyle(
+                          color: cAccent,
                           fontSize: 11,
                           letterSpacing: 1.2,
                           fontWeight: FontWeight.w700,
@@ -555,8 +519,8 @@ class _OverviewHeader extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         formatMoney(monthlyTotal),
-                        style: const TextStyle(
-                          color: _name,
+                        style: TextStyle(
+                          color: cFeatInk,
                           fontSize: 34,
                           fontWeight: FontWeight.w800,
                         ),
@@ -564,8 +528,8 @@ class _OverviewHeader extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         l.activeSubscriptions(subs.length),
-                        style: const TextStyle(
-                          color: _muted,
+                        style: TextStyle(
+                          color: cFeatSubtle,
                           fontSize: 13,
                         ),
                       ),
@@ -611,8 +575,8 @@ class _OverviewHeader extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text(
                           '${categoryLabel(e.key, isLt)}  ${(e.value / total * 100).round()}%',
-                          style: const TextStyle(
-                            color: _legend,
+                          style: TextStyle(
+                            color: cFeatSubtle,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
@@ -639,7 +603,7 @@ class _UpcomingRenewals extends StatelessWidget {
   Color _badgeColor(int days) {
     if (days < 7) return VaultieColors.danger; // red
     if (days < 14) return const Color(0xFFE9A23B); // orange
-    return _brightGreen; // green
+    return cAccent; // green
   }
 
   String _daysText(int days, bool isLt) {
@@ -668,8 +632,8 @@ class _UpcomingRenewals extends StatelessWidget {
             children: [
               Text(
                 isLt ? 'Artimiausi mokėjimai' : 'Upcoming payments',
-                style: const TextStyle(
-                  color: _dInk,
+                style: TextStyle(
+                  color: cInk,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -705,8 +669,8 @@ class _UpcomingRenewals extends StatelessWidget {
             sub.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: _dInk,
+            style: TextStyle(
+              color: cInk,
               fontSize: 15,
               fontWeight: FontWeight.w600,
             ),
@@ -759,7 +723,7 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
           child: Text(
             l.analyticsEmpty,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: _dSubtle),
+            style: TextStyle(color: cSubtle),
           ),
         ),
       );
@@ -846,7 +810,7 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
                     Text(formatMoney(monthly),
                         style: const TextStyle(
                             fontWeight: FontWeight.w800, fontSize: 20)),
-                    Text(l.slashMonth, style: const TextStyle(color: _dSubtle)),
+                    Text(l.slashMonth, style: TextStyle(color: cSubtle)),
                   ],
                 ),
               ),
@@ -885,14 +849,14 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _dCard,
+        color: cCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _dLine),
+        border: Border.all(color: cLine),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: _dSubtle, fontSize: 12)),
+          Text(label, style: TextStyle(color: cSubtle, fontSize: 12)),
           const SizedBox(height: 6),
           Text(
             value,
@@ -920,26 +884,26 @@ class _AnnualForecastCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1E2A22), Color(0xFF151C17)],
+          colors: [cFeatTop, cFeatBottom],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF2C3A31)),
+        border: Border.all(color: cFeatBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.calendar_month_rounded,
-                  color: Colors.white70, size: 18),
+              Icon(Icons.calendar_month_rounded,
+                  color: cFeatSubtle, size: 18),
               const SizedBox(width: 8),
               Text(
                 isLt ? 'Metinė prognozė' : 'Annual forecast',
-                style: const TextStyle(
-                    color: Colors.white70,
+                style: TextStyle(
+                    color: cFeatSubtle,
                     fontSize: 13,
                     fontWeight: FontWeight.w600),
               ),
@@ -948,16 +912,15 @@ class _AnnualForecastCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             formatMoney(yearly),
-            style: const TextStyle(
-                color: Colors.white, fontSize: 34, fontWeight: FontWeight.w800),
+            style: TextStyle(
+                color: cFeatInk, fontSize: 34, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           Text(
             isLt
                 ? '≈ ${formatMoney(monthly)}/mėn. · pagal dabartines išlaidas'
                 : '≈ ${formatMoney(monthly)}/mo · based on your current expenses',
-            style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+            style: TextStyle(color: cFeatSubtle, fontSize: 13),
           ),
         ],
       ),
@@ -983,9 +946,9 @@ class _BiggestPaymentCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _dHiBg,
+        color: cHiBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _dHiBorder),
+        border: Border.all(color: cHiBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1018,8 +981,7 @@ class _BiggestPaymentCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 16)),
-                    Text(due,
-                        style: const TextStyle(color: _dSubtle, fontSize: 13)),
+                    Text(due, style: TextStyle(color: cSubtle, fontSize: 13)),
                   ],
                 ),
               ),
@@ -1072,7 +1034,7 @@ class _TopExpenseRow extends StatelessWidget {
                 Text(categoryLabel(sub.category, isLt),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _dSubtle, fontSize: 12)),
+                    style: TextStyle(color: cSubtle, fontSize: 12)),
               ],
             ),
           ),
@@ -1086,7 +1048,7 @@ class _TopExpenseRow extends StatelessWidget {
                     const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               ),
               Text('${(pct * 100).round()}%',
-                  style: const TextStyle(color: _dSubtle, fontSize: 12)),
+                  style: TextStyle(color: cSubtle, fontSize: 12)),
             ],
           ),
         ],
@@ -1134,7 +1096,7 @@ class _CategoryRow extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600)),
               ),
               Text('${(fraction * 100).round()}%  ',
-                  style: const TextStyle(color: _dSubtle)),
+                  style: TextStyle(color: cSubtle)),
               Text(amount, style: const TextStyle(fontWeight: FontWeight.w700)),
             ],
           ),
@@ -1144,7 +1106,7 @@ class _CategoryRow extends StatelessWidget {
             child: LinearProgressIndicator(
               value: fraction,
               minHeight: 8,
-              backgroundColor: _dLine,
+              backgroundColor: cLine,
               valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
@@ -1245,9 +1207,9 @@ class _NotificationBannerState extends State<_NotificationBanner> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
         decoration: BoxDecoration(
-          color: _dHiBg,
+          color: cHiBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _dHiBorder),
+          border: Border.all(color: cHiBorder),
         ),
         child: Row(
           children: [
@@ -1267,7 +1229,7 @@ class _NotificationBannerState extends State<_NotificationBanner> {
                     isLt
                         ? 'Įjunk, kad gautum mokėjimų priminimus'
                         : 'Enable them to get payment alerts',
-                    style: const TextStyle(color: _dSubtle, fontSize: 12),
+                    style: TextStyle(color: cSubtle, fontSize: 12),
                   ),
                 ],
               ),
@@ -1286,9 +1248,9 @@ class _NotificationBannerState extends State<_NotificationBanner> {
             InkWell(
               onTap: _dismiss,
               borderRadius: BorderRadius.circular(16),
-              child: const Padding(
-                padding: EdgeInsets.all(6),
-                child: Icon(Icons.close, size: 16, color: _dSubtle),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(Icons.close, size: 16, color: cSubtle),
               ),
             ),
           ],
@@ -1342,9 +1304,9 @@ class _VerifyEmailBannerState extends State<_VerifyEmailBanner> {
       margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _dHiBg,
+        color: cHiBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _dHiBorder),
+        border: Border.all(color: cHiBorder),
       ),
       child: Row(
         children: [
@@ -1473,8 +1435,8 @@ class _SubscriptionTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         '${categoryLabel(sub.category, isLt)} · $renews',
-                        style: const TextStyle(
-                          color: _dSubtle,
+                        style: TextStyle(
+                          color: cSubtle,
                           fontSize: 13,
                         ),
                       ),
@@ -1495,8 +1457,8 @@ class _SubscriptionTile extends StatelessWidget {
                     ),
                     Text(
                       billingCycleLabel(l, sub.billingCycle),
-                      style: const TextStyle(
-                        color: _dSubtle,
+                      style: TextStyle(
+                        color: cSubtle,
                         fontSize: 12,
                       ),
                     ),
@@ -1528,7 +1490,7 @@ class _BudgetCard extends StatelessWidget {
         ? VaultieColors.danger
         : ratio >= 0.8
             ? const Color(0xFFE9A23B)
-            : _brightGreen;
+            : cAccent;
     return GestureDetector(
       // Tap the card to change or remove the budget — no trip to Settings.
       onTap: () => editMonthlyBudget(context, isLt: isLt),
@@ -1536,9 +1498,9 @@ class _BudgetCard extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(20, 4, 20, 4),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: _dCard,
+          color: cCard,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _dLine),
+          border: Border.all(color: cLine),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1551,7 +1513,7 @@ class _BudgetCard extends StatelessWidget {
                       fontWeight: FontWeight.w700, fontSize: 15),
                 ),
                 const SizedBox(width: 6),
-                const Icon(Icons.edit_outlined, size: 14, color: _dSubtle),
+                Icon(Icons.edit_outlined, size: 14, color: cSubtle),
                 const Spacer(),
                 Text(
                   '${(ratio * 100).round()}%',
@@ -1565,7 +1527,7 @@ class _BudgetCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: ratio.clamp(0.0, 1.0),
                 minHeight: 10,
-                backgroundColor: _dLine,
+                backgroundColor: cLine,
                 color: color,
               ),
             ),
@@ -1578,7 +1540,7 @@ class _BudgetCard extends StatelessWidget {
                   : (isLt
                       ? '${formatMoney(spent)} iš ${formatMoney(budget)}'
                       : '${formatMoney(spent)} of ${formatMoney(budget)}'),
-              style: const TextStyle(color: _dSubtle, fontSize: 13),
+              style: TextStyle(color: cSubtle, fontSize: 13),
             ),
           ],
         ),
@@ -1602,13 +1564,13 @@ class _SetBudgetPrompt extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: _dCard,
+            color: cCard,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _dLine),
+            border: Border.all(color: cLine),
           ),
           child: Row(
             children: [
-              const Icon(Icons.savings_outlined, color: _brightGreen, size: 22),
+              Icon(Icons.savings_outlined, color: cAccent, size: 22),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1623,12 +1585,12 @@ class _SetBudgetPrompt extends StatelessWidget {
                     ),
                     Text(
                       isLt ? 'Neprivaloma' : 'Optional',
-                      style: const TextStyle(color: _dSubtle, fontSize: 12),
+                      style: TextStyle(color: cSubtle, fontSize: 12),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.add, color: _brightGreen),
+              Icon(Icons.add, color: cAccent),
             ],
           ),
         ),
@@ -1670,7 +1632,7 @@ class _EmptyState extends StatelessWidget {
           Text(
             l.vaultEmptyBody,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: _dSubtle),
+            style: TextStyle(color: cSubtle),
           ),
           const SizedBox(height: 30),
           _emptyLabel(
@@ -1707,8 +1669,8 @@ class _EmptyState extends StatelessWidget {
 
   Widget _emptyLabel(String text) => Text(
         text.toUpperCase(),
-        style: const TextStyle(
-          color: _dSubtle,
+        style: TextStyle(
+          color: cSubtle,
           fontWeight: FontWeight.w700,
           fontSize: 12,
           letterSpacing: 0.5,
@@ -1743,11 +1705,11 @@ class _EmptyState extends StatelessWidget {
             maxLines: 2,
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 9.5,
               height: 1.1,
               fontWeight: FontWeight.w500,
-              color: _dSubtle,
+              color: cSubtle,
             ),
           ),
         ],
@@ -1788,7 +1750,7 @@ class _QuickAddTile extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, color: _dSubtle),
+            style: TextStyle(fontSize: 11, color: cSubtle),
           ),
         ],
       ),

@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app_prefs.dart';
+import '../content_theme.dart';
 import '../main.dart';
 import '../models/subscription.dart';
 import '../services/auth_service.dart';
@@ -84,8 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.picture_as_pdf_outlined,
-                  color: VaultieColors.brightGreen),
+              leading: Icon(Icons.picture_as_pdf_outlined, color: cAccent),
               title: Text(isLt ? 'PDF ataskaita' : 'PDF report'),
               subtitle: Text(isLt
                   ? 'Tvarkingas dokumentas su logotipu'
@@ -93,8 +93,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => Navigator.of(ctx).pop(true),
             ),
             ListTile(
-              leading: const Icon(Icons.table_chart_outlined,
-                  color: VaultieColors.brightGreen),
+              leading: Icon(Icons.table_chart_outlined, color: cAccent),
               title: const Text('CSV'),
               subtitle: Text(isLt
                   ? 'Duomenys skaičiuoklėms (Excel, Numbers)'
@@ -180,7 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ListTile(
                 title: Text(opt.$2),
                 trailing: (current ?? '') == opt.$1
-                    ? const Icon(Icons.check, color: VaultieColors.brightGreen)
+                    ? Icon(Icons.check, color: cAccent)
                     : null,
                 onTap: () => Navigator.of(ctx).pop(opt.$1),
               ),
@@ -203,7 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ListTile(
                 title: Text(opt.$2),
                 trailing: AppPrefs.currency.value == opt.$1
-                    ? const Icon(Icons.check, color: VaultieColors.brightGreen)
+                    ? Icon(Icons.check, color: cAccent)
                     : null,
                 onTap: () => Navigator.of(ctx).pop(opt.$1),
               ),
@@ -405,48 +404,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 children: [
                   SwitchListTile(
-                    secondary: const Icon(Icons.notifications_outlined,
-                        color: VaultieColors.brightGreen),
+                    secondary:
+                        Icon(Icons.notifications_outlined, color: cAccent),
                     title: Text(isLt ? 'Pranešimai' : 'Notifications'),
                     value: _notifications,
-                    activeThumbColor: VaultieColors.brightGreen,
+                    activeThumbColor: cAccent,
                     onChanged: _busy ? null : _onNotificationsChanged,
                   ),
                   const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: Icon(Icons.dark_mode_outlined, color: cAccent),
+                    title: Text(isLt ? 'Tamsi tema' : 'Dark theme'),
+                    value: AppPrefs.darkMode.value,
+                    activeThumbColor: cAccent,
+                    onChanged: _busy ? null : (v) => AppPrefs.setDarkMode(v),
+                  ),
+                  const Divider(height: 1),
                   ListTile(
-                    leading: const Icon(Icons.language,
-                        color: VaultieColors.brightGreen),
+                    leading: Icon(Icons.language, color: cAccent),
                     title: Text(isLt ? 'Kalba' : 'Language'),
                     trailing: _trailing(langLabel),
                     onTap: _pickLanguage,
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const Icon(Icons.euro,
-                        color: VaultieColors.brightGreen),
+                    leading: Icon(Icons.euro, color: cAccent),
                     title: Text(isLt ? 'Valiuta' : 'Currency'),
                     trailing: _trailing(currencyLabel),
                     onTap: _pickCurrency,
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const Icon(Icons.savings_outlined,
-                        color: VaultieColors.brightGreen),
+                    leading: Icon(Icons.savings_outlined, color: cAccent),
                     title: Text(isLt ? 'Mėnesio biudžetas' : 'Monthly budget'),
                     trailing: _trailing(budgetLabel),
                     onTap: _pickBudget,
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const Icon(Icons.ios_share,
-                        color: VaultieColors.brightGreen),
+                    leading: Icon(Icons.ios_share, color: cAccent),
                     title: Text(isLt ? 'Eksportuoti duomenis' : 'Export data'),
                     trailing: isPro
                         ? const Icon(Icons.chevron_right, size: 20)
-                        : const Text('Pro',
+                        : Text('Pro',
                             style: TextStyle(
-                                color: VaultieColors.primary,
-                                fontWeight: FontWeight.w700)),
+                                color: cAccent, fontWeight: FontWeight.w700)),
                     onTap: _busy ? null : _onExport,
                   ),
                 ],
@@ -458,8 +460,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.privacy_tip_outlined,
-                        color: VaultieColors.brightGreen),
+                    leading: Icon(Icons.privacy_tip_outlined, color: cAccent),
                     title: Text(isLt ? 'Privatumo politika' : 'Privacy Policy'),
                     trailing: const Icon(Icons.chevron_right, size: 20),
                     onTap: () => Navigator.of(context).push(
@@ -470,8 +471,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const Icon(Icons.description_outlined,
-                        color: VaultieColors.brightGreen),
+                    leading: Icon(Icons.description_outlined, color: cAccent),
                     title: Text(isLt ? 'Naudojimo sąlygos' : 'Terms of Use'),
                     trailing: const Icon(Icons.chevron_right, size: 20),
                     onTap: () => Navigator.of(context).push(
@@ -482,8 +482,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const Icon(Icons.star_outline,
-                        color: VaultieColors.brightGreen),
+                    leading: Icon(Icons.star_outline, color: cAccent),
                     title: Text(isLt ? 'Įvertinti programą' : 'Rate the app'),
                     trailing: const Icon(Icons.open_in_new, size: 18),
                     onTap: () => _openUrl(_rateUrl),
@@ -518,10 +517,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: Text(isLt ? 'Ištrinti paskyrą' : 'Delete account'),
             ),
             const SizedBox(height: 20),
-            const Center(
+            Center(
               child: Text(
                 'Vaultie v1.0.0',
-                style: TextStyle(color: VaultieColors.subtle, fontSize: 13),
+                style: TextStyle(color: cSubtle, fontSize: 13),
               ),
             ),
           ],
@@ -533,9 +532,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _trailing(String value) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: const TextStyle(color: VaultieColors.subtle)),
+          Text(value, style: TextStyle(color: cSubtle)),
           const SizedBox(width: 4),
-          const Icon(Icons.chevron_right, color: VaultieColors.subtle),
+          Icon(Icons.chevron_right, color: cSubtle),
         ],
       );
 
@@ -543,8 +542,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.only(left: 4, bottom: 8),
         child: Text(
           text.toUpperCase(),
-          style: const TextStyle(
-            color: VaultieColors.subtle,
+          style: TextStyle(
+            color: cSubtle,
             fontWeight: FontWeight.w700,
             fontSize: 12,
             letterSpacing: 0.5,
@@ -556,13 +555,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1E2A22), Color(0xFF151C17)],
+          colors: [cFeatTop, cFeatBottom],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF2C3A31)),
+        border: Border.all(color: cFeatBorder),
       ),
       child: Row(
         children: [
@@ -576,8 +575,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: cFeatInk,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
@@ -587,7 +586,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   email,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  style: TextStyle(color: cFeatSubtle, fontSize: 13),
                 ),
               ],
             ),
@@ -602,7 +601,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text(
               isPro ? 'Pro' : (isLt ? 'Nemokama' : 'Free'),
               style: TextStyle(
-                color: isPro ? VaultieColors.primaryDark : Colors.white,
+                color: isPro ? VaultieColors.primaryDark : cFeatInk,
                 fontWeight: FontWeight.w800,
                 fontSize: 12,
               ),
@@ -617,20 +616,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1E2A22), Color(0xFF151C17)],
+          colors: [cFeatTop, cFeatBottom],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF2C3A31)),
+        border: Border.all(color: cFeatBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('💎 Vaultie Pro',
+          Text('💎 Vaultie Pro',
               style: TextStyle(
-                color: Colors.white,
+                color: cFeatInk,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
               )),
@@ -640,7 +639,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ? 'Neribotos prenumeratos, išplėstinė analitika ir daugiau.'
                 : 'Unlimited subscriptions, advanced analytics and more.',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.8),
+              color: cFeatSubtle,
               fontSize: 14,
               height: 1.35,
             ),
@@ -650,8 +649,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: VaultieColors.primary,
+                backgroundColor: VaultieColors.primary,
+                foregroundColor: Colors.white,
                 elevation: 0,
                 minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(

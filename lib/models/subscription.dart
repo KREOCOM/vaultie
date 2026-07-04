@@ -140,7 +140,8 @@ class Subscription {
     // Guard against pathological loops; 1000 weekly cycles is ~19 years.
     var d = anchor;
     var cycles = 0;
-    while (DateTime(d.year, d.month, d.day).isBefore(today) && cycles++ < 1000) {
+    while (
+        DateTime(d.year, d.month, d.day).isBefore(today) && cycles++ < 1000) {
       d = billingCycle.advanceFrom(anchor, cycles);
     }
     return d;

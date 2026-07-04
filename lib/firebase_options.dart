@@ -62,7 +62,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '747647617629',
     projectId: 'vaultie-1a2c4',
     storageBucket: 'vaultie-1a2c4.firebasestorage.app',
-    iosClientId: '747647617629-cdo51ad7bmgca85329000ebd8ipsjrmj.apps.googleusercontent.com',
+    iosClientId:
+        '747647617629-cdo51ad7bmgca85329000ebd8ipsjrmj.apps.googleusercontent.com',
     iosBundleId: 'com.kreocom.vaultie',
   );
 }

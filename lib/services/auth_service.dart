@@ -153,8 +153,7 @@ class AuthService {
 
   /// True when the signed-in user authenticated via Apple.
   bool get isAppleUser =>
-      _auth.currentUser?.providerData
-          .any((p) => p.providerId == 'apple.com') ??
+      _auth.currentUser?.providerData.any((p) => p.providerId == 'apple.com') ??
       false;
 
   /// Re-authenticates an Apple user (required before sensitive actions like

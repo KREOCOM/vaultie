@@ -87,8 +87,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           isLt ? 'kas mėnesį' : 'monthly', '€45'),
       _payRow(isLt ? 'Sporto klubas' : 'Gym', 'health',
           isLt ? 'kas mėnesį' : 'monthly', '€30'),
-      _payRow('Netflix', 'entertainment',
-          isLt ? 'po 12 d.' : 'in 12 days', '€15.99'),
+      _payRow('Netflix', 'entertainment', isLt ? 'po 12 d.' : 'in 12 days',
+          '€15.99'),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,7 +349,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         const SizedBox(height: 20),
         _reminderCard(
-          isLt ? 'Nuoma · €650 – mokėjimas rytoj' : 'Rent · €650 – due tomorrow',
+          isLt
+              ? 'Nuoma · €650 – mokėjimas rytoj'
+              : 'Rent · €650 – due tomorrow',
           isLt ? 'dabar' : 'now',
         ),
         const SizedBox(height: 12),

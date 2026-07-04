@@ -129,7 +129,8 @@ ExpenseCategory categoryFor(String key) {
 }
 
 /// Localized category name for a stored key (new or legacy).
-String categoryLabel(String key, bool isLt) => switch (normalizeCategoryKey(key)) {
+String categoryLabel(String key, bool isLt) =>
+    switch (normalizeCategoryKey(key)) {
       'housing' => isLt ? 'Būstas' : 'Housing',
       'utilities' => isLt ? 'Komunaliniai' : 'Utilities',
       'connectivity' => isLt ? 'Internetas ir telefonas' : 'Internet & phone',
@@ -160,7 +161,12 @@ List<String> categorySuggestions(String key, bool isLt) =>
           ? ['Automobilio', 'Būsto', 'Sveikatos', 'Gyvybės']
           : ['Car', 'Home', 'Health', 'Life'],
       'transport' => isLt
-          ? ['Parkavimas', 'Viešasis transportas', 'Kuras', 'Automobilio paskola']
+          ? [
+              'Parkavimas',
+              'Viešasis transportas',
+              'Kuras',
+              'Automobilio paskola'
+            ]
           : ['Parking', 'Transit pass', 'Fuel', 'Car loan'],
       'health' => isLt
           ? ['Sporto klubas', 'Odontologas', 'Terapija']

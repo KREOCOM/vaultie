@@ -51,7 +51,8 @@ class SubscriptionAvatar extends StatelessWidget {
     if (domain != null && domain.isNotEmpty) return logoUrlForDomain(domain);
     // No explicit domain: only guess a brand logo from the name when this is a
     // brand-style expense (or a category-less avatar, preserving old behaviour).
-    if (category == null || normalizeCategoryKey(category!) == 'entertainment') {
+    if (category == null ||
+        normalizeCategoryKey(category!) == 'entertainment') {
       return logoUrlForName(name);
     }
     return null;
