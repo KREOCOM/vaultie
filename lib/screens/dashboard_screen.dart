@@ -115,7 +115,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         !PurchaseService.instance.isPremium;
     if (atLimit) {
       final unlocked = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => const PaywallScreen()),
+        MaterialPageRoute(
+          builder: (_) => const PaywallScreen(reachedFreeLimit: true),
+        ),
       );
       if (unlocked != true || !context.mounted) return;
     }
