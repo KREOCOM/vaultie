@@ -34,11 +34,22 @@ extension BillingCycleX on BillingCycle {
   /// clamped to the last day of the target month, so a charge on the 29th–31st
   /// never overflows into the next month (Jan 31 + 1 month → Feb 28/29, not
   /// early March).
-  DateTime advance(DateTime from) => switch (this) {
-        BillingCycle.weekly => from.add(const Duration(days: 7)),
-        BillingCycle.monthly => _addMonths(from, 1),
-        BillingCycle.quarterly => _addMonths(from, 3),
-        BillingCycle.yearly => _addMonths(from, 12),
+  DateTime advance(DateTime from) => advanceFrom(from, 1);
+
+  /// [anchor] advanced by [cycles] whole billing cycles, always measured from
+  /// the original [anchor] rather than the previous result.
+  ///
+  /// This matters for the 29th–31st: advancing one month at a time and
+  /// re-reading the (clamped) result turns a Jan 31 charge into Feb 28 → Mar 28
+  /// → the 28th forever. Measuring every step from the anchor keeps it on the
+  /// 31st, clamping only for genuinely short months (Jan 31 +1 → Feb 28,
+  /// +2 → Mar 31). Weekly uses calendar-day arithmetic so it is DST-safe.
+  DateTime advanceFrom(DateTime anchor, int cycles) => switch (this) {
+        BillingCycle.weekly =>
+          DateTime(anchor.year, anchor.month, anchor.day + 7 * cycles),
+        BillingCycle.monthly => _addMonths(anchor, cycles),
+        BillingCycle.quarterly => _addMonths(anchor, 3 * cycles),
+        BillingCycle.yearly => _addMonths(anchor, 12 * cycles),
       };
 }
 
@@ -122,11 +133,15 @@ class Subscription {
   DateTime rolledForwardBillingDate([DateTime? now]) {
     final ref = now ?? DateTime.now();
     final today = DateTime(ref.year, ref.month, ref.day);
-    var d = nextBillingDate;
+    final anchor = nextBillingDate;
+    // Measure every candidate from the original anchor (not the previously
+    // clamped result) so a charge on the 29th–31st keeps its day instead of
+    // permanently drifting to the 28th. See [BillingCycle.advanceFrom].
     // Guard against pathological loops; 1000 weekly cycles is ~19 years.
-    var guard = 0;
-    while (DateTime(d.year, d.month, d.day).isBefore(today) && guard++ < 1000) {
-      d = billingCycle.advance(d);
+    var d = anchor;
+    var cycles = 0;
+    while (DateTime(d.year, d.month, d.day).isBefore(today) && cycles++ < 1000) {
+      d = billingCycle.advanceFrom(anchor, cycles);
     }
     return d;
   }

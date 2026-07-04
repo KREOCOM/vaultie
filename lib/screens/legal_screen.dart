@@ -128,7 +128,7 @@ class LegalScreen extends StatelessWidget {
         LegalSection(
           isLt ? 'Prenumeratos ir mokėjimai' : 'Subscriptions & payments',
           isLt
-              ? 'Vaultie nemokama iki trijų prenumeratų. Vaultie Pro atrakina '
+              ? 'Vaultie nemokama iki penkių prenumeratų. Vaultie Pro atrakina '
                   'neribotą prenumeratų skaičių kaip mėnesinę automatiškai '
                   'atsinaujinančią prenumeratą (2,99 €/mėn.) arba vienkartinį '
                   '„Visam laikui" pirkimą (29,99 €). Pirkimus tvarko „Apple App '
@@ -139,7 +139,7 @@ class LegalScreen extends StatelessWidget {
                   'atšaukti galima bet kada „App Store" nustatymuose → jūsų '
                   'vardas → Prenumeratos; programos ištrynimas jos neatšaukia. '
                   'Grąžinimams taikomos „Apple" taisyklės ir įstatymai.'
-              : 'Vaultie is free for up to three subscriptions. Vaultie Pro '
+              : 'Vaultie is free for up to five subscriptions. Vaultie Pro '
                   'unlocks unlimited subscriptions as a monthly auto-renewable '
                   'subscription (€2.99/month) or a one-time Lifetime purchase '
                   '(€29.99). Purchases are processed by the Apple App Store and '

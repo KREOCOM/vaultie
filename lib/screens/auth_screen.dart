@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -157,13 +158,12 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       await ensureLocalDataForCurrentUser();
       if (!mounted) return;
-      // Google accounts are already verified, so this lands on the dashboard.
+      // Social accounts (Google/Apple) are provider-verified — never route them
+      // through the email-verification gate. An Apple private-relay address can
+      // report emailVerified=false and would otherwise trap the user on the
+      // verify screen with no working way out.
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => _auth.isEmailVerified
-              ? const DashboardScreen()
-              : const VerifyEmailScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -199,13 +199,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       await ensureLocalDataForCurrentUser();
       if (!mounted) return;
-      // Apple accounts arrive verified, so this lands on the dashboard.
+      // Social accounts (Google/Apple) are provider-verified — go straight to
+      // the dashboard, never the email-verification gate (see signInWithGoogle).
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => _auth.isEmailVerified
-              ? const DashboardScreen()
-              : const VerifyEmailScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );
     } on FirebaseAuthException catch (e) {
       // Surface the exact code so real-device failures are diagnosable
@@ -236,7 +233,9 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_isLt ? 'Apple prisijungimas' : 'Apple sign-in'),
-        content: SingleChildScrollView(child: Text('$message\n\n$detail')),
+        content: SingleChildScrollView(
+          child: Text(kDebugMode ? '$message\n\n$detail' : message),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),

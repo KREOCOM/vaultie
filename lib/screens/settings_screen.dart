@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -241,7 +242,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (ctx) => AlertDialog(
         title: Text(isLt ? 'Klaida' : 'Error'),
         content: SingleChildScrollView(
-          child: Text('$message\n\n$detail'),
+          child: Text(kDebugMode ? '$message\n\n$detail' : message),
         ),
         actions: [
           TextButton(

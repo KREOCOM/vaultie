@@ -49,10 +49,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
   /// Buys the selected plan. On success, pops with `true` so the caller can
   /// resume the blocked action. Cancellations are silent; other failures show
   /// a message.
-  ///
-  /// NOTE: [PurchaseService.instance] is still the on-device mock — this grants
-  /// premium without a real transaction. Swap in the RevenueCat implementation
-  /// before shipping; the UI here needs no changes.
   Future<void> _purchase() async {
     final isLt = _isLt;
     setState(() => _busy = true);

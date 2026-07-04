@@ -14,6 +14,7 @@ import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../services/purchase_service.dart';
 import '../services/recap_service.dart';
+import '../user_session.dart';
 import '../widgets/budget_dialog.dart';
 import '../widgets/subscription_avatar.dart';
 import '../widgets/subscription_icons.dart';
@@ -487,6 +488,7 @@ class _OverviewHeader extends StatelessWidget {
                 const SizedBox(width: 10),
                 _iconBtn(Icons.logout, () async {
                   await AuthService().signOut();
+                  await onSignedOut(); // detach billing, matching Settings logout
                   if (!context.mounted) return;
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const AuthScreen()),
@@ -729,8 +731,10 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
 
     final byCategory = <String, double>{};
     for (final s in subs) {
-      byCategory.update(s.category, (v) => v + s.monthlyCost,
-          ifAbsent: () => s.monthlyCost);
+      // Normalise so legacy category strings collapse into the same key the
+      // Overview header uses; otherwise the two tabs disagree on the breakdown.
+      byCategory.update(normalizeCategoryKey(s.category),
+          (v) => v + s.monthlyCost, ifAbsent: () => s.monthlyCost);
     }
     final entries = byCategory.entries.toList()
       ..sort((a, c) => c.value.compareTo(a.value));
