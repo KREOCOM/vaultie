@@ -89,15 +89,15 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A), // dark charcoal
+      // Deep green base + green radial glow, matching the auth screen.
+      backgroundColor: const Color(0xFF050F08),
       body: Container(
-        // Subtle green radial glow behind the logo.
         decoration: const BoxDecoration(
           gradient: RadialGradient(
-            center: Alignment(0, -0.1),
-            radius: 0.9,
-            colors: [Color(0x662E6B4D), Color(0x001A1A1A)],
-            stops: [0.0, 0.75],
+            center: Alignment(0, -0.35),
+            radius: 0.95,
+            colors: [Color(0x59206B41), Color(0x00050F08)],
+            stops: [0.0, 0.72],
           ),
         ),
         child: Center(
