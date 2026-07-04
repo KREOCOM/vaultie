@@ -8,6 +8,7 @@ import '../app_prefs.dart';
 import '../main.dart';
 import '../models/subscription.dart';
 import '../services/auth_service.dart';
+import '../services/export_service.dart';
 import '../services/notification_service.dart';
 import '../services/purchase_service.dart';
 import '../user_session.dart';
@@ -61,6 +62,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ── Actions ────────────────────────────────────────────────────────────
+
+  /// Export flow. Premium-only: a free user hits the paywall first, then picks
+  /// a format (PDF report or CSV data) from a sheet.
+  Future<void> _onExport() async {
+    if (!PurchaseService.instance.isPremium) {
+      final unlocked = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const PaywallScreen()),
+      );
+      if (unlocked != true || !mounted) return;
+    }
+    final isLt = _isLt;
+    final asPdf = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined,
+                  color: VaultieColors.primary),
+              title: Text(isLt ? 'PDF ataskaita' : 'PDF report'),
+              subtitle: Text(isLt
+                  ? 'Tvarkingas dokumentas su logotipu'
+                  : 'A formatted document with your logo'),
+              onTap: () => Navigator.of(ctx).pop(true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.table_chart_outlined,
+                  color: VaultieColors.primary),
+              title: const Text('CSV'),
+              subtitle: Text(isLt
+                  ? 'Duomenys skaičiuoklėms (Excel, Numbers)'
+                  : 'Raw data for spreadsheets (Excel, Numbers)'),
+              onTap: () => Navigator.of(ctx).pop(false),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (asPdf == null || !mounted) return;
+    await _doExport(asPdf: asPdf);
+  }
+
+  Future<void> _doExport({required bool asPdf}) async {
+    final isLt = _isLt;
+    final subs =
+        Hive.box<Subscription>(HiveBoxes.subscriptions).values.toList();
+    if (subs.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(isLt ? 'Nėra ką eksportuoti.' : 'Nothing to export.'),
+      ));
+      return;
+    }
+    try {
+      if (asPdf) {
+        await ExportService.sharePdf(subs, isLithuanian: isLt);
+      } else {
+        await ExportService.shareCsv(subs, isLithuanian: isLt);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(isLt ? 'Nepavyko eksportuoti.' : 'Export failed.'),
+        backgroundColor: VaultieColors.danger,
+      ));
+    }
+  }
 
   Future<void> _signOut() async {
     await _auth.signOut();
@@ -358,6 +428,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: Text(isLt ? 'Mėnesio biudžetas' : 'Monthly budget'),
                     trailing: _trailing(budgetLabel),
                     onTap: _pickBudget,
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.ios_share,
+                        color: VaultieColors.primary),
+                    title: Text(isLt ? 'Eksportuoti duomenis' : 'Export data'),
+                    trailing: isPro
+                        ? const Icon(Icons.chevron_right, size: 20)
+                        : const Text('Pro',
+                            style: TextStyle(
+                                color: VaultieColors.primary,
+                                fontWeight: FontWeight.w700)),
+                    onTap: _busy ? null : _onExport,
                   ),
                 ],
               ),

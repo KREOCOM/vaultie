@@ -237,6 +237,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ? 'Biudžeto sekimas ir mėnesio apžvalga'
                         : 'Budget tracking & monthly recap'),
                     _feature(isLt
+                        ? 'Duomenų eksportas (CSV)'
+                        : 'Export your data (CSV)'),
+                    _feature(isLt
                         ? 'Visos būsimos funkcijos — įtrauktos'
                         : 'Every future feature included'),
                     _feature(isLt

@@ -34,6 +34,9 @@ dependencies:
   purchases_flutter: ^10.4.0
   sign_in_with_apple: ^8.1.0
   crypto: ^3.0.7
+  share_plus: ^13.2.0
+  path_provider: ^2.1.6
+  pdf: ^3.13.0
 
 dev_dependencies:
   flutter_test:
@@ -63,3 +66,4 @@ flutter:
   assets:
     - assets/images/
     - assets/icon/
+    - assets/fonts/
