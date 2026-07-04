@@ -37,7 +37,11 @@ const Color _gold = Color(0xFFFFD24A);
 /// Account & app settings. Includes in-app account deletion (App Store
 /// guideline 5.1.1(v)).
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.embedded = false});
+
+  /// When true, renders without its own Scaffold/AppBar so it can sit inside the
+  /// dashboard's "Nustatymai" tab.
+  final bool embedded;
 
   static const route = '/settings';
 
@@ -81,7 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.picture_as_pdf_outlined,
-                  color: VaultieColors.primary),
+                  color: VaultieColors.brightGreen),
               title: Text(isLt ? 'PDF ataskaita' : 'PDF report'),
               subtitle: Text(isLt
                   ? 'Tvarkingas dokumentas su logotipu'
@@ -90,7 +94,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.table_chart_outlined,
-                  color: VaultieColors.primary),
+                  color: VaultieColors.brightGreen),
               title: const Text('CSV'),
               subtitle: Text(isLt
                   ? 'Duomenys skaičiuoklėms (Excel, Numbers)'
@@ -176,7 +180,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ListTile(
                 title: Text(opt.$2),
                 trailing: (current ?? '') == opt.$1
-                    ? const Icon(Icons.check, color: VaultieColors.primary)
+                    ? const Icon(Icons.check, color: VaultieColors.brightGreen)
                     : null,
                 onTap: () => Navigator.of(ctx).pop(opt.$1),
               ),
@@ -199,7 +203,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ListTile(
                 title: Text(opt.$2),
                 trailing: AppPrefs.currency.value == opt.$1
-                    ? const Icon(Icons.check, color: VaultieColors.primary)
+                    ? const Icon(Icons.check, color: VaultieColors.brightGreen)
                     : null,
                 onTap: () => Navigator.of(ctx).pop(opt.$1),
               ),
@@ -384,7 +388,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         : formatMoney(AppPrefs.budget.value!);
 
     return Scaffold(
-      appBar: AppBar(title: Text(isLt ? 'Nustatymai' : 'Settings')),
+      appBar: widget.embedded
+          ? null
+          : AppBar(title: Text(isLt ? 'Nustatymai' : 'Settings')),
+      backgroundColor: widget.embedded ? Colors.transparent : null,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -399,24 +406,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   SwitchListTile(
                     secondary: const Icon(Icons.notifications_outlined,
-                        color: VaultieColors.primary),
+                        color: VaultieColors.brightGreen),
                     title: Text(isLt ? 'Pranešimai' : 'Notifications'),
                     value: _notifications,
-                    activeThumbColor: VaultieColors.primary,
+                    activeThumbColor: VaultieColors.brightGreen,
                     onChanged: _busy ? null : _onNotificationsChanged,
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.language,
-                        color: VaultieColors.primary),
+                        color: VaultieColors.brightGreen),
                     title: Text(isLt ? 'Kalba' : 'Language'),
                     trailing: _trailing(langLabel),
                     onTap: _pickLanguage,
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading:
-                        const Icon(Icons.euro, color: VaultieColors.primary),
+                    leading: const Icon(Icons.euro,
+                        color: VaultieColors.brightGreen),
                     title: Text(isLt ? 'Valiuta' : 'Currency'),
                     trailing: _trailing(currencyLabel),
                     onTap: _pickCurrency,
@@ -424,7 +431,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.savings_outlined,
-                        color: VaultieColors.primary),
+                        color: VaultieColors.brightGreen),
                     title: Text(isLt ? 'Mėnesio biudžetas' : 'Monthly budget'),
                     trailing: _trailing(budgetLabel),
                     onTap: _pickBudget,
@@ -432,7 +439,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.ios_share,
-                        color: VaultieColors.primary),
+                        color: VaultieColors.brightGreen),
                     title: Text(isLt ? 'Eksportuoti duomenis' : 'Export data'),
                     trailing: isPro
                         ? const Icon(Icons.chevron_right, size: 20)
@@ -452,7 +459,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   ListTile(
                     leading: const Icon(Icons.privacy_tip_outlined,
-                        color: VaultieColors.primary),
+                        color: VaultieColors.brightGreen),
                     title: Text(isLt ? 'Privatumo politika' : 'Privacy Policy'),
                     trailing: const Icon(Icons.chevron_right, size: 20),
                     onTap: () => Navigator.of(context).push(
@@ -464,7 +471,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.description_outlined,
-                        color: VaultieColors.primary),
+                        color: VaultieColors.brightGreen),
                     title: Text(isLt ? 'Naudojimo sąlygos' : 'Terms of Use'),
                     trailing: const Icon(Icons.chevron_right, size: 20),
                     onTap: () => Navigator.of(context).push(
@@ -476,7 +483,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.star_outline,
-                        color: VaultieColors.primary),
+                        color: VaultieColors.brightGreen),
                     title: Text(isLt ? 'Įvertinti programą' : 'Rate the app'),
                     trailing: const Icon(Icons.open_in_new, size: 18),
                     onTap: () => _openUrl(_rateUrl),
@@ -549,8 +556,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: VaultieColors.primary, // #174E35
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E2A22), Color(0xFF151C17)],
+        ),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF2C3A31)),
       ),
       child: Row(
         children: [
@@ -608,9 +620,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [VaultieColors.primaryLight, VaultieColors.primary],
+          colors: [Color(0xFF1E2A22), Color(0xFF151C17)],
         ),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF2C3A31)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

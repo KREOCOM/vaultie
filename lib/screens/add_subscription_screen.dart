@@ -380,7 +380,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
                   : VaultieColors.card,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: selected ? VaultieColors.primary : const Color(0xFFE1E8E3),
+                color: selected ? VaultieColors.primary : VaultieColors.line,
               ),
             ),
             child: Text(
@@ -618,7 +618,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color:
-                    selected ? VaultieColors.primary : const Color(0xFFE1E8E3),
+                    selected ? VaultieColors.primary : VaultieColors.line,
               ),
             ),
             child: Text(
@@ -693,7 +693,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen>
               children: [
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  activeThumbColor: VaultieColors.primary,
+                  activeThumbColor: VaultieColors.brightGreen,
                   title: Text(isLt ? 'Kintanti suma' : 'Variable amount'),
                   subtitle: Text(
                     isLt

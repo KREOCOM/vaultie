@@ -25,10 +25,13 @@ class VaultieColors {
   static const Color primaryDark = Color(0xFF0E3322);
   static const Color primaryLight = Color(0xFF2E6B4D);
   static const Color accent = Color(0xFF8BD3A7);
-  static const Color surface = Color(0xFFF4F8F5);
-  static const Color card = Color(0xFFFFFFFF);
-  static const Color ink = Color(0xFF11231A);
-  static const Color subtle = Color(0xFF6B7E74);
+  // Graphite dark theme.
+  static const Color surface = Color(0xFF111316); // page background
+  static const Color card = Color(0xFF1C2024); // cards / sheets / dialogs
+  static const Color ink = Color(0xFFF1F3F4); // primary text
+  static const Color subtle = Color(0xFF9AA0A6); // secondary text
+  static const Color line = Color(0xFF2A2F35); // borders / dividers
+  static const Color brightGreen = Color(0xFF4CAF72); // green as foreground
   static const Color danger = Color(0xFFD9534F);
 }
 
@@ -124,7 +127,7 @@ class VaultieApp extends StatelessWidget {
         primary: VaultieColors.primary,
         secondary: VaultieColors.primaryLight,
         surface: VaultieColors.card,
-        brightness: Brightness.light,
+        brightness: Brightness.dark,
       ),
       scaffoldBackgroundColor: VaultieColors.surface,
     );
@@ -177,25 +180,27 @@ class VaultieApp extends StatelessWidget {
           ),
           inputDecorationTheme: InputDecorationTheme(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: VaultieColors.card,
+            hintStyle: const TextStyle(color: VaultieColors.subtle),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFE1E8E3)),
+              borderSide: const BorderSide(color: VaultieColors.line),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFE1E8E3)),
+              borderSide: const BorderSide(color: VaultieColors.line),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide:
-                  const BorderSide(color: VaultieColors.primary, width: 2),
+                  const BorderSide(color: VaultieColors.brightGreen, width: 2),
             ),
           ),
-          // Date picker: filled green OK, grey outlined Cancel.
+          // Date picker: dark surface, filled green OK, outlined Cancel.
           datePickerTheme: DatePickerThemeData(
+            backgroundColor: VaultieColors.card,
             confirmButtonStyle: TextButton.styleFrom(
               backgroundColor: VaultieColors.primary,
               foregroundColor: Colors.white,
@@ -206,13 +211,16 @@ class VaultieApp extends StatelessWidget {
             ),
             cancelButtonStyle: TextButton.styleFrom(
               foregroundColor: VaultieColors.subtle,
-              side: const BorderSide(color: Color(0xFFCBD6CF)),
+              side: const BorderSide(color: VaultieColors.line),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
+          dialogTheme: const DialogThemeData(backgroundColor: VaultieColors.card),
+          bottomSheetTheme:
+              const BottomSheetThemeData(backgroundColor: VaultieColors.card),
         ),
         // Always launch into the branded splash; it decides where to go next.
         home: SplashScreen(hasOnboarded: hasOnboarded),
