@@ -74,8 +74,8 @@ Future<void> main() async {
   // Roll any lapsed renewal dates forward to their next cycle and (re)schedule
   // every subscription's reminders. Runs on each launch so reminders survive
   // past renewals, app reinstalls, and OS-cleared notifications.
-  final isLithuanian =
-      WidgetsBinding.instance.platformDispatcher.locale.languageCode == 'lt';
+  // Same language rule as the UI: manual choice, else device Region.
+  final isLithuanian = effectiveLocale().languageCode == 'lt';
   await _rescheduleReminders(subsBox, isLithuanian: isLithuanian);
 
   // Snapshot this month's spend so the Monthly Recap has data to show later.
@@ -136,9 +136,10 @@ class VaultieApp extends StatelessWidget {
       builder: (context, _) => MaterialApp(
         title: 'Vaultie',
         debugShowCheckedModeBanner: false,
-        // Localization: ships English (default) and Lithuanian. `locale` is
-        // null to follow the system, or forced from the Settings language row.
-        locale: AppPrefs.locale.value,
+        // Localization: ships English (default) and Lithuanian. The language is
+        // the manual Settings choice if set, otherwise the device Region (LT →
+        // Lithuanian, anywhere else → English).
+        locale: effectiveLocale(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         theme: base.copyWith(

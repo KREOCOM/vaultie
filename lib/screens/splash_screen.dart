@@ -88,6 +88,9 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    // "Vaultie" is a brand name and stays untranslated; only the tagline below
+    // follows the app's language.
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
     return Scaffold(
       // Deep green base + green radial glow, matching the auth screen.
       backgroundColor: const Color(0xFF050F08),
@@ -127,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Smarter money habits',
+                  isLt ? 'Išmanesni pinigų įpročiai' : 'Smarter money habits',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.6),
                     fontSize: 16,

@@ -73,13 +73,26 @@ class AppPrefs {
   }
 }
 
+/// The default UI locale when the user hasn't chosen a language in Settings:
+/// Lithuanian only when the device *Region* (iOS Settings → Language & Region →
+/// Region) is Lithuania, English everywhere else. iOS reports the region as the
+/// locale's country subtag (e.g. `en-LT`), so we key off the country — not the
+/// phone's display language — to match "in Lithuania → Lithuanian".
+Locale localeForRegion() {
+  final region = WidgetsBinding.instance.platformDispatcher.locale.countryCode;
+  return region == 'LT' ? const Locale('lt') : const Locale('en');
+}
+
+/// The locale the app should actually use: an explicit Settings choice wins,
+/// otherwise the region-based default.
+Locale effectiveLocale() => AppPrefs.locale.value ?? localeForRegion();
+
 /// Formats [value] as money using the selected currency symbol and the app's
 /// active language for grouping/decimal separators and symbol placement — e.g.
 /// "€1,234.56" in English but "1 234,56 €" in Lithuanian. Without a locale,
 /// intl would always use en_US-style formatting regardless of the UI language.
 String formatMoney(num value) {
-  final code = AppPrefs.locale.value?.languageCode ??
-      WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+  final code = effectiveLocale().languageCode;
   // The app only ships English and Lithuanian; map anything else to English so
   // an unrelated device locale can't produce a surprising format.
   final localeTag = code == 'lt' ? 'lt' : 'en';
