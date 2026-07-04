@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -63,13 +62,13 @@ class AuthService {
   /// name on the very first authorization, so we persist it as the displayName
   /// when present.
   Future<UserCredential?> signInWithApple() async {
-    debugPrint('[SIWA] 1. start; generating nonce');
+    // Bind this attempt to a nonce: Apple receives the SHA-256 hash, Firebase
+    // receives the raw value and re-hashes it to confirm they match.
     final rawNonce = _generateNonce();
     final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
 
     final AuthorizationCredentialAppleID apple;
     try {
-      debugPrint('[SIWA] 2. requesting Apple ID credential');
       apple = await SignInWithApple.getAppleIDCredential(
         scopes: [
           AppleIDAuthorizationScopes.email,
@@ -77,14 +76,7 @@ class AuthService {
         ],
         nonce: hashedNonce,
       );
-      debugPrint('[SIWA] 3. Apple returned credential: '
-          'user=${apple.userIdentifier != null}, '
-          'hasIdentityToken=${apple.identityToken != null}, '
-          'hasAuthCode=${apple.authorizationCode.isNotEmpty}, '
-          'email=${apple.email}');
     } on SignInWithAppleAuthorizationException catch (e) {
-      debugPrint('[SIWA] Apple authorization FAILED: code=${e.code} '
-          'message=${e.message}');
       if (e.code == AuthorizationErrorCode.canceled) return null;
       rethrow;
     }
@@ -92,64 +84,33 @@ class AuthService {
     // identityToken is nullable; without it the Firebase credential is invalid.
     final idToken = apple.identityToken;
     if (idToken == null) {
-      debugPrint('[SIWA] identityToken is NULL — aborting');
       throw FirebaseAuthException(
         code: 'apple-no-identity-token',
         message: 'Apple did not return an identity token.',
       );
     }
+    // Pass authorizationCode as accessToken. Without it the iOS firebase_auth
+    // plugin serialises a null accessToken as NSNull, which corrupts the request
+    // and makes Firebase reject it with "Invalid OAuth response from apple.com"
+    // (flutterfire issue #3674). This is an iOS-only bug; the field must be set.
     final credential = OAuthProvider('apple.com').credential(
       idToken: idToken,
       rawNonce: rawNonce,
+      accessToken: apple.authorizationCode,
     );
-    try {
-      debugPrint('[SIWA] 4. exchanging with Firebase (signInWithCredential)');
-      final userCred = await _auth.signInWithCredential(credential);
-      debugPrint('[SIWA] 5. SUCCESS: uid=${userCred.user?.uid} '
-          'newUser=${userCred.additionalUserInfo?.isNewUser}');
+    final userCred = await _auth.signInWithCredential(credential);
 
-      final name = [apple.givenName, apple.familyName]
-          .where((s) => s != null && s.isNotEmpty)
-          .join(' ')
-          .trim();
-      final current = userCred.user?.displayName;
-      if (name.isNotEmpty && (current == null || current.isEmpty)) {
-        await userCred.user?.updateDisplayName(name);
-      }
-      return userCred;
-    } on FirebaseAuthException catch (e) {
-      // Decode the Apple token to see what Firebase is validating against —
-      // audience (should be the bundle id) and nonce (should equal the hash we
-      // sent to Apple). Surfaced in the error so it's readable on a release
-      // build without a debugger attached.
-      final claims = _decodeJwtClaims(idToken);
-      final nonceOk = claims['nonce'] == hashedNonce;
-      final exp = claims['exp'];
-      final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final expiresIn = exp is int ? exp - nowSec : null;
-      debugPrint('[SIWA] Firebase FAILED: ${e.code} ${e.message} | '
-          'aud=${claims['aud']} iss=${claims['iss']} nonceOk=$nonceOk '
-          'expiresIn=${expiresIn}s');
-      throw FirebaseAuthException(
-        code: e.code,
-        message: '${e.message ?? ''}\n'
-            'aud=${claims['aud']} nonceOk=$nonceOk\n'
-            'iss=${claims['iss']}\n'
-            'expiresIn=${expiresIn}s (now=$nowSec)',
-      );
+    // Apple only returns the name on the very first authorization; persist it
+    // as the displayName when we have one and Firebase doesn't already.
+    final name = [apple.givenName, apple.familyName]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' ')
+        .trim();
+    final current = userCred.user?.displayName;
+    if (name.isNotEmpty && (current == null || current.isEmpty)) {
+      await userCred.user?.updateDisplayName(name);
     }
-  }
-
-  /// Decodes a JWT's payload claims (no signature verification) for diagnostics.
-  Map<String, dynamic> _decodeJwtClaims(String jwt) {
-    try {
-      final parts = jwt.split('.');
-      if (parts.length != 3) return {};
-      final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
-      return jsonDecode(payload) as Map<String, dynamic>;
-    } catch (_) {
-      return {};
-    }
+    return userCred;
   }
 
   Future<void> sendEmailVerification() async {
@@ -217,9 +178,11 @@ class AuthService {
       if (e.code == AuthorizationErrorCode.canceled) return false;
       rethrow;
     }
+    // accessToken (authorizationCode) is required — see signInWithApple above.
     final credential = OAuthProvider('apple.com').credential(
       idToken: apple.identityToken,
       rawNonce: rawNonce,
+      accessToken: apple.authorizationCode,
     );
     await user.reauthenticateWithCredential(credential);
     return true;
