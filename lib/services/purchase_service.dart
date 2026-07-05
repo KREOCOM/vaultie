@@ -49,7 +49,7 @@ abstract class PurchaseService {
   /// (and if offerings can't be fetched). The live, localized prices from
   /// [priceString] take precedence when available.
   static const List<PurchasePlan> plans = [
-    PurchasePlan(id: PlanId.monthly, price: '€2.99'),
+    PurchasePlan(id: PlanId.monthly, price: '€3.99'),
     PurchasePlan(id: PlanId.lifetime, price: '€29.99'),
   ];
 
