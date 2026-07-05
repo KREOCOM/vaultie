@@ -21,6 +21,7 @@ import '../widgets/subscription_icons.dart';
 import 'add_subscription_screen.dart';
 import 'paywall_screen.dart';
 import 'recap_screen.dart';
+import 'savings_screen.dart';
 import 'settings_screen.dart';
 
 /// Home screen: two tabs — Overview (Apžvalga) and Analytics (Analitika).
@@ -787,6 +788,8 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
           const SizedBox(height: 20),
           _BiggestPaymentCard(sub: biggest),
         ],
+        const SizedBox(height: 20),
+        _WaysToSaveCard(subs: subs, isLt: isLt),
         const SizedBox(height: 28),
         _sectionTitle(context, isLt ? 'Didžiausios išlaidos' : 'Top expenses'),
         const SizedBox(height: 12),
@@ -995,6 +998,107 @@ class _BiggestPaymentCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Premium entry card for the "Ways to save" screen. Free users tapping it hit
+/// the paywall; Pro users open their personalised savings tips.
+class _WaysToSaveCard extends StatelessWidget {
+  const _WaysToSaveCard({required this.subs, required this.isLt});
+
+  final List<Subscription> subs;
+  final bool isLt;
+
+  void _open(BuildContext context) {
+    if (PurchaseService.instance.isPremium) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => SavingsScreen(subscriptions: subs)),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PaywallScreen()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _open(context),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [VaultieColors.primary, VaultieColors.primaryDark],
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.savings_rounded,
+                    color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(isLt ? 'Kaip sutaupyti' : 'Ways to save',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16)),
+                        const SizedBox(width: 8),
+                        if (!PurchaseService.instance.isPremium)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: VaultieColors.accent,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text('PRO',
+                                style: TextStyle(
+                                    color: VaultieColors.primaryDark,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 11,
+                                    letterSpacing: 0.5)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      isLt
+                          ? 'Patarimai, kaip sumažinti sąskaitas'
+                          : 'Personalised tips to cut your bills',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded,
+                  color: Colors.white.withValues(alpha: 0.7), size: 16),
+            ],
+          ),
+        ),
       ),
     );
   }
