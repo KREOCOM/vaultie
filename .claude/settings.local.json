@@ -49,7 +49,11 @@
       "Bash(sed -i '' 's#- assets/icon/app_icon.png#- assets/icon/app_icon_splash.png#' pubspec.yaml)",
       "Bash(sed -i '' 's/#FF175135/#FF174E35/' android/app/src/main/res/values/colors.xml)",
       "Bash(git restore *)",
-      "Bash(grep -nA6 \"TargetPlatform.iOS\\\\|static const FirebaseOptions ios\\\\|static const FirebaseOptions macos\" lib/firebase_options.dart)"
+      "Bash(grep -nA6 \"TargetPlatform.iOS\\\\|static const FirebaseOptions ios\\\\|static const FirebaseOptions macos\" lib/firebase_options.dart)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:firebase.google.com)",
+      "Artifact"
     ]
   }
 }
