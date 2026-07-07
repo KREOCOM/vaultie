@@ -87,11 +87,11 @@ def start_bank_auth(req: https_fn.CallableRequest) -> dict:
                 code=https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
                 message="No redirect URL is registered for this Enable Banking app.",
             )
-        # Prefer the app's custom-scheme deep link so the bank redirects straight
-        # back into Vaultie; fall back to the first registered URL otherwise.
-        redirect_url = next(
-            (r for r in redirects if r.startswith("vaultie://")), redirects[0]
-        )
+        # Use the client's requested redirect only if it is actually registered
+        # for this app (Enable Banking rejects unregistered URLs); otherwise fall
+        # back to the first registered one.
+        requested = data.get("redirectUrl")
+        redirect_url = requested if requested in redirects else redirects[0]
         url, state = client.start_auth(name, country, redirect_url)
     except EnableBankingError as e:
         raise https_fn.HttpsError(

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="lt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Vaultie — grįžtama į programėlę…</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; background: #F4F8F5; color: #11231A;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      text-align: center; padding: 24px;
+    }
+    .card { max-width: 380px; }
+    .dot {
+      width: 56px; height: 56px; margin: 0 auto 20px; border-radius: 16px;
+      background: #174E35; display: flex; align-items: center; justify-content: center;
+      color: #8BD3A7; font-size: 28px; font-weight: 800;
+    }
+    h1 { font-size: 20px; font-weight: 800; margin: 0 0 8px; }
+    p { font-size: 15px; line-height: 1.5; color: #6B7E74; margin: 0 0 24px; }
+    .spinner {
+      width: 26px; height: 26px; margin: 0 auto 20px; border-radius: 50%;
+      border: 3px solid #E1E8E3; border-top-color: #174E35;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    a.btn {
+      display: inline-block; background: #174E35; color: #fff; text-decoration: none;
+      font-weight: 700; font-size: 15px; padding: 14px 22px; border-radius: 14px;
+    }
+    .hidden { display: none; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0E1A14; color: #EAF2EC; }
+      p { color: #9BB0A4; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="dot">V</div>
+    <div id="loading">
+      <div class="spinner"></div>
+      <h1>Grįžtama į Vaultie…</h1>
+      <p>Baigiame prijungti tavo banką. Jei programėlė neatsidaro automatiškai,
+         paspausk mygtuką žemiau.</p>
+      <a id="open" class="btn" href="#">Atidaryti Vaultie</a>
+    </div>
+    <div id="error" class="hidden">
+      <h1>Trūksta duomenų</h1>
+      <p>Nepavyko rasti prisijungimo kodo. Grįžk į Vaultie ir bandyk dar kartą.</p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var code = params.get('code');
+      var state = params.get('state');
+
+      if (!code) {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('error').classList.remove('hidden');
+        return;
+      }
+
+      var deepLink = 'vaultie://banking/callback?code=' + encodeURIComponent(code);
+      if (state) {
+        deepLink += '&state=' + encodeURIComponent(state);
+      }
+
+      // Wire up the manual fallback button, then try to open the app.
+      document.getElementById('open').setAttribute('href', deepLink);
+      window.location.replace(deepLink);
+    })();
+  </script>
+</body>
+</html>

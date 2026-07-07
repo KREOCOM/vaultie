@@ -2,12 +2,18 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/subscription.dart';
 
-/// Custom-scheme URL the bank redirects back to after consent.
-/// Registered in iOS Info.plist and AndroidManifest, and (to be) registered in
-/// the Enable Banking control panel.
+/// Custom-scheme deep link the app itself listens for. The bank redirects to
+/// [kBankingRedirectUrl] (an https bridge page), which then forwards to this.
+/// Registered in iOS Info.plist and AndroidManifest.
 const String kBankingCallbackScheme = 'vaultie';
 const String kBankingCallbackHost = 'banking';
 const String kBankingCallbackUrl = 'vaultie://banking/callback';
+
+/// The https redirect URL registered with Enable Banking. Custom app schemes
+/// aren't accepted as redirect URLs, so the bank returns here; the hosted page
+/// at public/banking/callback/index.html forwards to [kBankingCallbackUrl].
+const String kBankingRedirectUrl =
+    'https://vaultie-1a2c4.web.app/banking/callback';
 
 /// A bank the user can connect (from the `list_banks` endpoint).
 class Bank {
@@ -130,7 +136,13 @@ class BankingService {
 
   /// Begins consent for [bankName]; returns the bank's authorization URL to open.
   Future<String> startBankAuth(String bankName, {String country = 'LT'}) {
-    return _call('start_bank_auth', {'aspspName': bankName, 'country': country},
+    return _call(
+        'start_bank_auth',
+        {
+          'aspspName': bankName,
+          'country': country,
+          'redirectUrl': kBankingRedirectUrl,
+        },
         (m) => (m['url'] ?? '') as String);
   }
 

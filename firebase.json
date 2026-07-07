@@ -13,6 +13,15 @@
       ]
     }
   ],
+  "hosting": {
+    "public": "public",
+    "trailingSlash": false,
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  },
   "flutter": {
     "platforms": {
       "android": {

@@ -103,13 +103,17 @@ venv sukurtas su `python3.12 -m venv --without-pip venv` + `get-pip.py` (nes
 - [x] `BankingService` (`lib/services/banking_service.dart`) — 3 callable + kandidatų mapinimas į `Subscription`, region `europe-west1`
 - [x] „Prijungti banką" kortelė Dashboard Overview (Pro gating: premium → flow, kitaip → paywall)
 - [x] Bankų pasirinkimo ekranas `bank_connect_screen.dart` (iš `list_banks`)
-- [x] Deep-link callback `vaultie://banking/callback`:
+- [x] Deep-link callback per **https tiltą** (custom scheme kaip redirect nepriimamas):
+  - [x] EB redirect = `https://vaultie-1a2c4.web.app/banking/callback` (Firebase Hosting)
+  - [x] tilto puslapis `public/banking/callback/index.html` → `vaultie://banking/callback?code=&state=`
   - [x] custom scheme registruotas (iOS `CFBundleURLTypes`, Android intent-filter)
   - [x] Flutter `app_links` gaudymas connect ekrane
-  - [x] backend renkasi `vaultie://` redirect (`start_bank_auth`)
+  - [x] `BankingService` siunčia `redirectUrl`; backend validuoja prieš registruotus
 - [x] Importo ekranas `bank_import_screen.dart`: kandidatai su checkbox'ais → „Pridėti pažymėtus"
 - [x] Pridėti → `Subscription` Hive box'e + suplanuotos notifikacijos
-- [ ] **← LIEKA (Faza 6 prereq):** užregistruoti `vaultie://banking/callback` Enable Banking skydelyje; end-to-end sandbox testas
+- [ ] **← LIEKA (Faza 6 prereq):** sukurti NAUJĄ Enable Banking app su redirect
+  `https://vaultie-1a2c4.web.app/banking/callback` (seno redirect keisti negalima),
+  atnaujinti `APP_ID`/raktą backend'e; tada end-to-end sandbox testas
 
 ### Faza 4 — Pro gating
 - [ ] „Prijungti banką" už `PurchaseService.isPremium` (kaip 4-tos sub paywall)
