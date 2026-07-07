@@ -234,6 +234,8 @@ class _OverviewTabState extends State<_OverviewTab> {
         if (subs.isEmpty)
           const SliverToBoxAdapter(child: _EmptyState())
         else ...[
+          SliverToBoxAdapter(child: _ThisMonthCard(subs: subs)),
+          const SliverToBoxAdapter(child: _SavingsCard()),
           SliverToBoxAdapter(child: _UpcomingRenewals(subs: subs)),
           SliverToBoxAdapter(child: _categoryChips(subs, isLt)),
           if (subs.length >= 2) SliverToBoxAdapter(child: _searchSortBar(isLt)),
@@ -596,6 +598,183 @@ class _OverviewHeader extends StatelessWidget {
   }
 }
 
+/// Compact "this month" recurring summary (Bilance-inspired). Vaultie has no
+/// income/balance data — that needs a bank — so instead of a true "balance
+/// after recurrings" we show what is honestly derivable from the subscriptions
+/// alone: how much of this month's recurring bills is still to be paid.
+class _ThisMonthCard extends StatelessWidget {
+  const _ThisMonthCard({required this.subs});
+
+  final List<Subscription> subs;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Split this calendar month's recurring charges into already-paid and still
+    // upcoming. Vaultie stores no payment history, so "paid" is derived: a
+    // charge one cycle before the next one that falls earlier this month has
+    // already happened. (Approximate for weekly cycles with several charges a
+    // month; exact for the common monthly/quarterly/yearly cases.)
+    double paid = 0;
+    double upcoming = 0;
+    var n = 0;
+    for (final s in subs) {
+      if (s.daysUntilRenewal >= 0 &&
+          s.nextBillingDate.year == now.year &&
+          s.nextBillingDate.month == now.month) {
+        upcoming += s.cost;
+        n++;
+      }
+      final prev = s.billingCycle.advanceFrom(s.nextBillingDate, -1);
+      if (prev.year == now.year &&
+          prev.month == now.month &&
+          !prev.isAfter(today)) {
+        paid += s.cost;
+      }
+    }
+    final total = paid + upcoming;
+    final fraction = total <= 0 ? 1.0 : (paid / total).clamp(0.0, 1.0);
+    final pct = (fraction * 100).round();
+
+    final subtitle = n == 0
+        ? (isLt ? 'Šį mėnesį daugiau mokėjimų nėra 🎉' : 'No more payments this month 🎉')
+        : isLt
+            // "laukia" takes the genitive: 1 mokėjimo / N mokėjimų.
+            ? (n == 1 ? 'Dar laukia 1 mokėjimo' : 'Dar laukia $n mokėjimų')
+            : (n == 1 ? '1 payment still due' : '$n payments still due');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: cCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: cLine),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.event_repeat_rounded, size: 18, color: cAccent),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          isLt
+                              ? 'Liko sumokėti šį mėnesį'
+                              : 'Left to pay this month',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 15),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    formatMoney(upcoming),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 28),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(subtitle, style: TextStyle(color: cSubtle, fontSize: 13)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            // Radial gauge: share of this month's recurring already paid.
+            SizedBox(
+              width: 74,
+              height: 74,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CustomPaint(
+                    size: const Size(74, 74),
+                    painter: _MonthRingPainter(
+                      fraction: fraction,
+                      color: cAccent,
+                      track: cLine,
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('$pct%',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 17)),
+                      Text(isLt ? 'sumokėta' : 'paid',
+                          style: TextStyle(color: cSubtle, fontSize: 10)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Radial gauge for [_ThisMonthCard]: a muted full-circle track with an accent
+/// arc for the paid fraction, drawn from the top clockwise. Rounded caps.
+class _MonthRingPainter extends CustomPainter {
+  _MonthRingPainter({
+    required this.fraction,
+    required this.color,
+    required this.track,
+  });
+
+  final double fraction;
+  final Color color;
+  final Color track;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = size.width * 0.14;
+    final rect = Rect.fromCircle(
+      center: size.center(Offset.zero),
+      radius: (size.width - stroke) / 2,
+    );
+    canvas.drawArc(
+      rect,
+      0,
+      2 * math.pi,
+      false,
+      Paint()
+        ..color = track
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke,
+    );
+    if (fraction > 0) {
+      canvas.drawArc(
+        rect,
+        -math.pi / 2,
+        fraction * 2 * math.pi,
+        false,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = stroke
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MonthRingPainter old) =>
+      old.fraction != fraction;
+}
+
 /// "Artimiausi mokėjimai" — next three renewals with a colour dot and a
 /// days-remaining badge (red < 7 days, orange < 14, green otherwise).
 class _UpcomingRenewals extends StatelessWidget {
@@ -786,6 +965,8 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
             ),
           ],
         ),
+        const SizedBox(height: 20),
+        const _RecurringTrendCard(),
         if (biggest != null) ...[
           const SizedBox(height: 20),
           _BiggestPaymentCard(sub: biggest),
@@ -807,6 +988,7 @@ class _AnalyticsTabState extends State<_AnalyticsTab> {
               painter: _DonutPainter(
                 values: [for (final e in entries) e.value],
                 colors: [for (final e in entries) categoryFor(e.key).color],
+                showLabels: true,
               ),
               child: Center(
                 child: Column(
@@ -1331,12 +1513,399 @@ class _CategoryRow extends StatelessWidget {
   }
 }
 
+/// Gamified savings card (Overview). Surfaces the cancellation history — which
+/// the app records but never showed — as motivation: total money saved since
+/// cancelling, a per-month figure, and a sparkline of savings accruing. Hidden
+/// entirely until the user has cancelled at least one subscription.
+class _SavingsCard extends StatelessWidget {
+  const _SavingsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    final box = Hive.box(HiveBoxes.cancellations);
+    final entries = box.values
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    final now = DateTime.now();
+    double monthlySaved = 0;
+    double cumulative = 0;
+    for (final e in entries) {
+      final m = (e['monthly'] as num?)?.toDouble() ?? 0;
+      final d = DateTime.fromMillisecondsSinceEpoch(
+          (e['date'] as num?)?.toInt() ?? now.millisecondsSinceEpoch);
+      monthlySaved += m;
+      final months = now.difference(d).inDays / 30.44;
+      cumulative += m * (months < 0 ? 0 : months);
+    }
+    final count = entries.length;
+
+    // Cumulative saved at the end of each of the last 6 months → sparkline.
+    final spark = <double>[];
+    for (var i = 5; i >= 0; i--) {
+      final end = DateTime(now.year, now.month - i + 1, 0);
+      double c = 0;
+      for (final e in entries) {
+        final m = (e['monthly'] as num?)?.toDouble() ?? 0;
+        final d = DateTime.fromMillisecondsSinceEpoch(
+            (e['date'] as num?)?.toInt() ?? now.millisecondsSinceEpoch);
+        if (!d.isAfter(end)) {
+          final months = end.difference(d).inDays / 30.44;
+          c += m * (months < 0 ? 0 : months);
+        }
+      }
+      spark.add(c);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [VaultieColors.primary, VaultieColors.primaryDark],
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.savings_rounded,
+                    color: VaultieColors.accent, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  isLt ? 'Sutaupei atšaukdamas' : 'Saved by cancelling',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        formatMoney(cumulative),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 30),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isLt
+                            ? 'iki šiol · ${formatMoney(monthlySaved)}/mėn. · $count atšaukta'
+                            : 'so far · ${formatMoney(monthlySaved)}/mo · $count cancelled',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 84,
+                  height: 40,
+                  child: CustomPaint(
+                    size: const Size(84, 40),
+                    painter: _SparklinePainter(
+                        values: spark, color: VaultieColors.accent),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Minimal sparkline (line + soft area + endpoint dot) for [_SavingsCard]. No
+/// axes — the number beside it carries the value; this shows the shape.
+class _SparklinePainter extends CustomPainter {
+  _SparklinePainter({required this.values, required this.color});
+
+  final List<double> values;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2) return;
+    final maxV = values.reduce((a, b) => a > b ? a : b);
+    final minV = values.reduce((a, b) => a < b ? a : b);
+    final range = (maxV - minV).abs() < 1e-6 ? 1.0 : (maxV - minV);
+    final dx = size.width / (values.length - 1);
+    Offset pt(int i) =>
+        Offset(dx * i, size.height - ((values[i] - minV) / range) * size.height);
+
+    final line = Path()..moveTo(pt(0).dx, pt(0).dy);
+    for (var i = 1; i < values.length; i++) {
+      line.lineTo(pt(i).dx, pt(i).dy);
+    }
+    final area = Path.from(line)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+        area, Paint()..color = color.withValues(alpha: 0.18));
+    canvas.drawPath(
+      line,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawCircle(pt(values.length - 1), 3, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparklinePainter old) => old.values != values;
+}
+
+/// Recurring-spend trend over recent months (Analytics). The data's job is
+/// change-over-time, so one bar per month; a single series needs no legend (the
+/// title names it). Values come from the monthlyStats snapshots taken on each
+/// launch, so the chart fills in over a few months.
+class _RecurringTrendCard extends StatelessWidget {
+  const _RecurringTrendCard();
+
+  static const _ltMonths = [
+    '', 'Sau', 'Vas', 'Kov', 'Bal', 'Geg', 'Bir',
+    'Lie', 'Rgp', 'Rgs', 'Spa', 'Lap', 'Grd'
+  ];
+  static const _enMonths = [
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    final box = Hive.box(HiveBoxes.monthlyStats);
+    final keys = box.keys
+        .whereType<String>()
+        .where((k) => RegExp(r'^\d{4}-\d{2}$').hasMatch(k))
+        .toList()
+      ..sort();
+    final recent = keys.length <= 6 ? keys : keys.sublist(keys.length - 6);
+    final months = isLt ? _ltMonths : _enMonths;
+    final points = <_TrendPoint>[
+      for (final k in recent)
+        _TrendPoint(
+          months[int.parse(k.split('-').last)],
+          ((Map.from(box.get(k) as Map)['total'] as num?)?.toDouble() ?? 0.0),
+        ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+      decoration: BoxDecoration(
+        color: cCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cLine),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                isLt ? 'Pasikartojančių tendencija' : 'Recurring trend',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              ),
+              const Spacer(),
+              if (points.length >= 2)
+                _changeBadge(points.first.value, points.last.value),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (points.length < 2)
+            _lowData(isLt)
+          else
+            SizedBox(
+              height: 150,
+              width: double.infinity,
+              child: CustomPaint(
+                size: const Size(double.infinity, 150),
+                painter: _TrendBarPainter(
+                  points: points,
+                  barColor: cAccent,
+                  labelColor: cSubtle,
+                  valueColor: cInk,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// % change from the first shown month to the latest. Rising recurring spend
+  /// is a caution (orange); falling is a win (green). Icon + label, not colour
+  /// alone.
+  Widget _changeBadge(double first, double last) {
+    if (first <= 0) return const SizedBox.shrink();
+    final pct = ((last - first) / first * 100).round();
+    if (pct == 0) return const SizedBox.shrink();
+    final up = pct > 0;
+    final color = up ? const Color(0xFFE9A23B) : cAccent;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(up ? Icons.trending_up : Icons.trending_down,
+              size: 14, color: color),
+          const SizedBox(width: 4),
+          Text('${up ? '+' : ''}$pct%',
+              style: TextStyle(
+                  color: color, fontWeight: FontWeight.w800, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _lowData(bool isLt) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 22),
+      child: Row(
+        children: [
+          Icon(Icons.insights_rounded, color: cSubtle, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              isLt
+                  ? 'Tendencija atsiras po kelių mėnesių — kaupiame kas mėnesį.'
+                  : 'Your trend appears after a couple of months — we snapshot monthly.',
+              style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendPoint {
+  const _TrendPoint(this.label, this.value);
+  final String label;
+  final double value;
+}
+
+/// Bars for [_RecurringTrendCard]: thin marks, 4px-rounded tops anchored to a
+/// faint baseline, the current month emphasised, values in a text token above
+/// each bar and month labels below. Recessive axis (baseline only, no grid).
+class _TrendBarPainter extends CustomPainter {
+  _TrendBarPainter({
+    required this.points,
+    required this.barColor,
+    required this.labelColor,
+    required this.valueColor,
+  });
+
+  final List<_TrendPoint> points;
+  final Color barColor;
+  final Color labelColor;
+  final Color valueColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = points.length;
+    if (n == 0) return;
+    final maxV =
+        points.map((p) => p.value).fold<double>(0, (a, b) => a > b ? a : b);
+    final safeMax = maxV <= 0 ? 1.0 : maxV;
+
+    const labelH = 18.0; // month labels below the baseline
+    const valueH = 15.0; // value labels above the tallest bar
+    final chartBottom = size.height - labelH;
+    final chartH = chartBottom - valueH;
+
+    final slot = size.width / n;
+    final barW = (slot * 0.5).clamp(8.0, 34.0);
+
+    final baseline = Paint()
+      ..color = labelColor.withValues(alpha: 0.18)
+      ..strokeWidth = 1;
+    canvas.drawLine(
+        Offset(0, chartBottom), Offset(size.width, chartBottom), baseline);
+
+    for (var i = 0; i < n; i++) {
+      final p = points[i];
+      final cx = slot * i + slot / 2;
+      final h = (p.value / safeMax) * chartH;
+      final top = chartBottom - h;
+      final isLast = i == n - 1;
+
+      final paint = Paint()
+        ..color = isLast ? barColor : barColor.withValues(alpha: 0.42);
+      canvas.drawRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(cx - barW / 2, top, barW, h),
+          topLeft: const Radius.circular(4),
+          topRight: const Radius.circular(4),
+        ),
+        paint,
+      );
+
+      _text(canvas, formatMoney(p.value), cx, top - 13.5, valueColor,
+          isLast ? FontWeight.w800 : FontWeight.w600, 9.5);
+      _text(canvas, p.label, cx, chartBottom + 3, labelColor,
+          isLast ? FontWeight.w700 : FontWeight.w500, 11);
+    }
+  }
+
+  void _text(Canvas canvas, String s, double cx, double top, Color color,
+      FontWeight fw, double fontSize) {
+    final tp = TextPainter(
+      text: TextSpan(
+          text: s, style: TextStyle(color: color, fontSize: fontSize, fontWeight: fw)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(cx - tp.width / 2, top));
+  }
+
+  @override
+  bool shouldRepaint(covariant _TrendBarPainter old) => old.points != points;
+}
+
 /// Lightweight donut chart so we don't need a charting dependency.
 class _DonutPainter extends CustomPainter {
-  _DonutPainter({required this.values, required this.colors});
+  _DonutPainter({
+    required this.values,
+    required this.colors,
+    this.showLabels = false,
+  });
 
   final List<double> values;
   final List<Color> colors;
+
+  /// When true, each segment ≥ 10% gets a direct "%" label on the ring band
+  /// (white with a soft shadow so it reads on any category colour), so identity
+  /// isn't left to the legend alone.
+  final bool showLabels;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1344,21 +1913,48 @@ class _DonutPainter extends CustomPainter {
     if (total <= 0) return;
 
     final stroke = size.width * 0.16;
-    final rect = Rect.fromCircle(
-      center: size.center(Offset.zero),
-      radius: (size.width - stroke) / 2,
-    );
+    final radius = (size.width - stroke) / 2;
+    final center = size.center(Offset.zero);
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
     var start = -math.pi / 2;
     const gap = 0.04;
     for (var i = 0; i < values.length; i++) {
-      final sweep = (values[i] / total) * (2 * math.pi);
-      final paint = Paint()
-        ..color = colors[i % colors.length]
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = stroke
-        ..strokeCap = StrokeCap.round;
-      canvas.drawArc(rect, start + gap / 2, sweep - gap, false, paint);
+      final frac = values[i] / total;
+      final sweep = frac * (2 * math.pi);
+      canvas.drawArc(
+        rect,
+        start + gap / 2,
+        sweep - gap,
+        false,
+        Paint()
+          ..color = colors[i % colors.length]
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = stroke
+          ..strokeCap = StrokeCap.round,
+      );
+
+      if (showLabels && frac >= 0.10) {
+        final mid = start + sweep / 2;
+        final pos = Offset(
+          center.dx + radius * math.cos(mid),
+          center.dy + radius * math.sin(mid),
+        );
+        final tp = TextPainter(
+          text: TextSpan(
+            text: '${(frac * 100).round()}%',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              shadows: [Shadow(color: Colors.black54, blurRadius: 2)],
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
+      }
+
       start += sweep;
     }
   }
