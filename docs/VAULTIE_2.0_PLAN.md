@@ -115,21 +115,27 @@ venv sukurtas su `python3.12 -m venv --without-pip venv` + `get-pip.py` (nes
   `https://vaultie-1a2c4.web.app/banking/callback` (seno redirect keisti negalima),
   atnaujinti `APP_ID`/raktą backend'e; tada end-to-end sandbox testas
 
-### Faza 4 — Pro gating
-- [ ] „Prijungti banką" už `PurchaseService.isPremium` (kaip 4-tos sub paywall)
-- [ ] Paywall tekstas paminti banko funkciją
+### Faza 4 — Pro gating ✅
+- [x] „Prijungti banką" už `PurchaseService.isPremium` (Pro gate atstatytas po test bypass)
+- [x] Paywall tekstas: banko funkcija kaip pirma (flagship) 2.0 savybė
 
 ### Faza 5 — Privacy / Legal / Apple review
-- [ ] Atnaujinti `docs/privacy.html`: banko duomenų tvarkymas, Enable Banking kaip procesorius, ką saugom (nieko žalio), kiek laikom
-- [ ] App Privacy „nutrition label" App Store Connect: Financial Info
-- [ ] `APP_REVIEW_NOTES.md`: kaip reviewer'iui pasiekti banko srautą (sandbox „Mock ASPSP" auto-approve)
+- [x] Atnaujinta in-app `legal_screen.dart`: dedikuota „Bank connection (Open Banking)" sekcija (LT/EN), Enable Banking kaip PSD2 procesorius, žalios operacijos nesaugomos, sutikimas atšaukiamas; Terms atnaujinti
+- [x] Atnaujinta hostinama `docs/privacy.html` (LT/EN): nauja 6 sekcija Open Banking, Enable Banking trečiosiose šalyse, ištrynimo skiltis
+- [ ] App Privacy „nutrition label" App Store Connect: **Financial Info** (tavo žingsnis skydelyje)
+- [ ] `APP_REVIEW_NOTES.md`: kaip reviewer'iui pasiekti banko srautą
 - [ ] Patikrinti Apple 3.1.1 / finansų kategorijos reikalavimus
+- [ ] Įsitikinti, kad App Store Privacy URL rodo į atnaujintą puslapį (GitHub Pages iš `main/docs`)
 
 ### Faza 6 — Testai
-- [ ] Sandbox „Mock ASPSP" end-to-end (auth → import)
-- [ ] Recurring aptikimas ant demo duomenų (unit)
-- [ ] Realus LT bankas (Swedbank/SEB) — vienas tikras prisijungimas
+- [x] Recurring aptikimas ant demo duomenų (unit — `test_recurring.py`)
+- [x] Sandbox end-to-end iki consent: `list_banks` + `start_bank_auth` per app'ą veikia (Mock ASPSP consent friction — magic-link sesija sim'e)
+- [ ] Pilnas Mock ASPSP import (reikia test duomenų skydelyje) — arba realus bankas produkcijoje
+- [ ] Realus LT bankas (SEB/Swedbank) — **reikia Enable Banking PRODUKCIJOS** (verslo onboarding)
 - [ ] Edge case'ai: 0 transakcijų, rate limit (429), kelios sąskaitos, kintama suma
+
+### ⚠️ Blokuoja gyvą paleidimą
+- **Enable Banking PRODUKCIJA** (`environment: SANDBOX` → production): verslo/KYC verifikacija + sutartis. Tik tada atsiranda visi realūs bankai (SEB ir kt.). App scoped 29 EU šalims.
 
 ---
 

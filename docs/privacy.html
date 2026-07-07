@@ -21,7 +21,7 @@
     <!-- ENGLISH -->
     <div data-lang="en">
       <h1>Privacy Policy</h1>
-      <p class="updated">Last updated: 3 July 2026</p>
+      <p class="updated">Last updated: 7 July 2026</p>
       <p class="intro">Vaultie ("we", "our", the "app") is a subscription
         tracker that helps you monitor recurring costs. This policy explains
         what data we collect, how it is used, and the choices you have.</p>
@@ -43,6 +43,11 @@
           app-user identifier) so we can unlock and restore your Pro entitlement.
           Apple handles the payment itself; we never receive your card
           details.</li>
+        <li><strong>Bank account information (optional)</strong> — if you connect
+          a bank through our Pro feature, we access your account details,
+          balances and transaction history via Enable Banking to detect your
+          recurring payments. This is optional and requires your explicit
+          consent. See section 6 for full details.</li>
       </ul>
 
       <h2>2. How we use your data</h2>
@@ -76,6 +81,11 @@
           App Store transaction and receipt data and assigns an anonymous
           app-user identifier to manage your entitlement. See RevenueCat's
           Privacy Policy.</li>
+        <li><strong>Enable Banking</strong> — if you connect a bank, Enable
+          Banking Oy (a licensed open-banking provider operating under PSD2)
+          securely retrieves your account information on our behalf after you
+          authenticate on your bank's page. See Enable Banking's Privacy
+          Policy.</li>
         <li><strong>Google favicon service</strong> — to show a logo next to each
           subscription, we request an icon from Google using a domain guessed
           from the subscription's name (e.g. "netflix.com"). No account
@@ -85,26 +95,52 @@
       </ul>
       <p>We do not sell your personal data or share it with advertisers.</p>
 
-      <h2>6. Data retention &amp; deletion</h2>
+      <h2>6. Bank connection (Open Banking)</h2>
+      <p>Connecting a bank is an <strong>optional Vaultie Pro feature</strong>.
+        If you use it:</p>
+      <ul>
+        <li>We access your <strong>account details, balances and transaction
+          history</strong> through <strong>Enable Banking</strong>, a licensed
+          Account Information Service Provider (AISP) operating under PSD2, with
+          your <strong>explicit consent</strong>.</li>
+        <li>We use this data <strong>solely to detect recurring payments</strong>
+          so you can import them as subscriptions.</li>
+        <li>You sign in and approve access on your <strong>bank's own
+          page</strong> — <strong>we never see your bank login or
+          password</strong>.</li>
+        <li>Your transactions are processed <strong>transiently on our server</strong>
+          (Firebase Cloud Functions) and are <strong>not stored</strong>. Only the
+          recurring payments <strong>you choose to import</strong> are saved,
+          locally on your device.</li>
+        <li>This is <strong>read-only</strong> access — Vaultie cannot move money
+          or initiate payments.</li>
+        <li>Consent is <strong>time-limited</strong> and can be <strong>revoked at
+          any time</strong> through your bank, or by no longer using the
+          feature.</li>
+      </ul>
+
+      <h2>7. Data retention &amp; deletion</h2>
       <p>You can delete your account at any time in
         <strong>Settings → Delete account</strong>, which removes your Firebase
         account and email. Subscription data is removed when you uninstall the
-        app. To request deletion by email, contact us below.</p>
+        app. We do not store your bank transactions, and you can revoke bank
+        access at any time through your bank. To request deletion by email,
+        contact us below.</p>
 
-      <h2>7. Children</h2>
+      <h2>8. Children</h2>
       <p>Vaultie is not directed to children under 13, and we do not knowingly
         collect their data.</p>
 
-      <h2>8. Your rights</h2>
+      <h2>9. Your rights</h2>
       <p>You may request access to, correction of, or deletion of your personal
         data. Under the GDPR you also have the right to lodge a complaint with
         your local data protection authority.</p>
 
-      <h2>9. Changes to this policy</h2>
+      <h2>10. Changes to this policy</h2>
       <p>We may update this policy from time to time. Material changes will be
         reflected by the "Last updated" date above.</p>
 
-      <h2>10. Contact</h2>
+      <h2>11. Contact</h2>
       <p>Questions about privacy? Email
         <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>.</p>
     </div>
@@ -112,7 +148,7 @@
     <!-- LITHUANIAN -->
     <div data-lang="lt" hidden>
       <h1>Privatumo politika</h1>
-      <p class="updated">Atnaujinta: 2026 m. liepos 3 d.</p>
+      <p class="updated">Atnaujinta: 2026 m. liepos 7 d.</p>
       <p class="intro">Vaultie („mes", „mūsų", „programa") – prenumeratų sekimo
         programa, padedanti stebėti pasikartojančias išlaidas. Ši politika
         paaiškina, kokius duomenis renkame, kaip juos naudojame ir kokias teises
@@ -136,6 +172,11 @@
           „RevenueCat" sugeneruotą naudotojo identifikatorių), kad galėtume
           atrakinti ir atkurti jūsų „Pro" prieigą. Mokėjimą tvarko „Apple"; jūsų
           kortelės duomenų niekada negauname.</li>
+        <li><strong>Banko sąskaitos informacija (neprivaloma)</strong> – jei
+          prijungiate banką per „Pro" funkciją, per „Enable Banking" gauname jūsų
+          sąskaitų duomenis, likučius ir operacijų istoriją pasikartojantiems
+          mokėjimams aptikti. Tai neprivaloma ir reikalauja jūsų aiškaus sutikimo.
+          Išsamiau – 6 skyriuje.</li>
       </ul>
 
       <h2>2. Kaip naudojame duomenis</h2>
@@ -170,6 +211,11 @@
           „RevenueCat" gauna jūsų „App Store" operacijos ir kvito duomenis bei
           priskiria anoniminį naudotojo identifikatorių prieigai valdyti. Žr.
           „RevenueCat" privatumo politiką.</li>
+        <li><strong>Enable Banking</strong> – jei prijungiate banką, „Enable
+          Banking Oy" (licencijuotas atviros bankininkystės teikėjas pagal PSD2)
+          saugiai gauna jūsų sąskaitos informaciją mūsų vardu po to, kai
+          autentifikuojatės savo banko puslapyje. Žr. „Enable Banking" privatumo
+          politiką.</li>
         <li><strong>Google favicon paslauga</strong> – kad prie kiekvienos
           prenumeratos parodytume logotipą, užklausiame ikonos iš „Google" pagal
           iš pavadinimo atspėtą domeną (pvz., „netflix.com"). Jokia paskyros
@@ -178,26 +224,52 @@
       </ul>
       <p>Neparduodame jūsų asmens duomenų ir nedaliname jų reklamuotojams.</p>
 
-      <h2>6. Duomenų saugojimas ir ištrynimas</h2>
+      <h2>6. Banko prijungimas (atviroji bankininkystė)</h2>
+      <p>Banko prijungimas yra <strong>neprivaloma „Vaultie Pro" funkcija</strong>.
+        Jei ja naudojatės:</p>
+      <ul>
+        <li>Per <strong>„Enable Banking"</strong> – licencijuotą sąskaitos
+          informacijos paslaugos teikėją (AISP) pagal PSD2 – su jūsų
+          <strong>aiškiu sutikimu</strong> gauname jūsų <strong>sąskaitų duomenis,
+          likučius ir operacijų istoriją</strong>.</li>
+        <li>Šiuos duomenis naudojame <strong>tik pasikartojantiems mokėjimams
+          aptikti</strong>, kad galėtumėte juos importuoti kaip prenumeratas.</li>
+        <li>Prisijungiate ir patvirtinate prieigą <strong>savo banko
+          puslapyje</strong> – <strong>mes niekada nematome jūsų banko prisijungimo
+          ar slaptažodžio</strong>.</li>
+        <li>Jūsų operacijos apdorojamos <strong>laikinai mūsų serveryje</strong>
+          („Firebase Cloud Functions") ir <strong>nėra saugomos</strong>. Įrenginyje
+          išsaugomi tik tie pasikartojantys mokėjimai, kuriuos <strong>patys
+          pasirenkate importuoti</strong>.</li>
+        <li>Prieiga yra <strong>tik skaitymui</strong> – Vaultie negali perkelti
+          pinigų ar inicijuoti mokėjimų.</li>
+        <li>Sutikimas <strong>galioja ribotą laiką</strong> ir gali būti
+          <strong>bet kada atšauktas</strong> per jūsų banką arba nustojus naudotis
+          funkcija.</li>
+      </ul>
+
+      <h2>7. Duomenų saugojimas ir ištrynimas</h2>
       <p>Paskyrą galite ištrinti bet kada:
         <strong>Nustatymai → Ištrinti paskyrą</strong> – tai pašalina jūsų
         Firebase paskyrą ir el. paštą. Prenumeratų duomenys pašalinami išdiegus
-        programą. Norėdami ištrinti duomenis el. paštu, susisiekite žemiau.</p>
+        programą. Jūsų banko operacijų nesaugome, o banko prieigą galite atšaukti
+        bet kada per savo banką. Norėdami ištrinti duomenis el. paštu, susisiekite
+        žemiau.</p>
 
-      <h2>7. Vaikai</h2>
+      <h2>8. Vaikai</h2>
       <p>Vaultie neskirta jaunesniems nei 13 metų vartotojams ir sąmoningai
         nerenkame jų duomenų.</p>
 
-      <h2>8. Jūsų teisės</h2>
+      <h2>9. Jūsų teisės</h2>
       <p>Galite prašyti prieigos prie savo asmens duomenų, jų ištaisymo ar
         ištrynimo. Pagal BDAR taip pat turite teisę pateikti skundą vietinei
         duomenų apsaugos institucijai.</p>
 
-      <h2>9. Politikos pakeitimai</h2>
+      <h2>10. Politikos pakeitimai</h2>
       <p>Šią politiką galime kartkartėmis atnaujinti. Esminiai pakeitimai bus
         pažymėti aukščiau esančia „Atnaujinta" data.</p>
 
-      <h2>10. Kontaktai</h2>
+      <h2>11. Kontaktai</h2>
       <p>Klausimai dėl privatumo? Rašykite
         <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>.</p>
     </div>

@@ -26,7 +26,7 @@ class LegalScreen extends StatelessWidget {
   factory LegalScreen.privacy(bool isLt) {
     return LegalScreen(
       title: isLt ? 'Privatumo politika' : 'Privacy Policy',
-      updated: isLt ? 'Atnaujinta: 2026-07-03' : 'Last updated: 2026-07-03',
+      updated: isLt ? 'Atnaujinta: 2026-07-07' : 'Last updated: 2026-07-07',
       intro: isLt
           ? 'Vaultie gerbia tavo privatumą. Ši politika paaiškina, kokius duomenis renkame, kaip juos naudojame ir kokias teises turi.'
           : 'Vaultie respects your privacy. This policy explains what data we collect, how we use it, and the choices you have.',
@@ -45,7 +45,37 @@ class LegalScreen extends StatelessWidget {
                   'Your subscription data (names, prices, dates) is stored '
                   'locally on your device only. When you buy Vaultie Pro, our '
                   'provider RevenueCat processes your App Store purchase to '
-                  'unlock your entitlement.',
+                  'unlock your entitlement. If you choose to connect a bank '
+                  '(an optional Pro feature), we access your account information — '
+                  'see "Bank connection" below.',
+        ),
+        LegalSection(
+          isLt ? 'Banko prijungimas (atviroji bankininkystė)' : 'Bank connection (Open Banking)',
+          isLt
+              ? 'Banko prijungimas yra neprivaloma „Vaultie Pro" funkcija. Jei ją '
+                  'naudoji, per licencijuotą atviros bankininkystės teikėją '
+                  '„Enable Banking" (veikiantį pagal PSD2) su tavo aiškiu sutikimu '
+                  'gauname tavo sąskaitos informaciją: sąskaitų duomenis, likučius '
+                  'ir operacijų istoriją. Tai naudojame tik pasikartojantiems '
+                  'mokėjimams aptikti. Prisijungi ir patvirtini prieigą savo banko '
+                  'puslapyje — mes niekada nematome tavo banko slaptažodžio. '
+                  'Operacijos apdorojamos laikinai mūsų serveryje (Firebase Cloud '
+                  'Functions) ir NĖRA saugomos; įrenginyje išsaugomi tik tie '
+                  'pasikartojantys mokėjimai, kuriuos pats pasirenki importuoti. '
+                  'Sutikimas galioja ribotą laiką ir gali būti bet kada atšauktas '
+                  'per savo banką arba nustojus naudotis funkcija.'
+              : 'Connecting a bank is an optional Vaultie Pro feature. If you use '
+                  'it, we access your account information through Enable Banking, a '
+                  'licensed open-banking provider operating under PSD2, with your '
+                  'explicit consent: account details, balances, and transaction '
+                  'history. We use this solely to detect your recurring payments. '
+                  'You sign in and approve access on your bank\'s own page — we '
+                  'never see your bank password. Transactions are processed '
+                  'transiently on our server (Firebase Cloud Functions) and are '
+                  'NOT stored; only the recurring payments you choose to import are '
+                  'saved on your device. Consent is time-limited and can be '
+                  'revoked at any time through your bank or by no longer using the '
+                  'feature.',
         ),
         LegalSection(
           isLt ? 'Kaip naudojame duomenis' : 'How we use your data',
@@ -59,6 +89,8 @@ class LegalScreen extends StatelessWidget {
               ? 'Autentifikacijai naudojame Google Firebase ir „Sign in with '
                   'Apple" (jei pasirenki). Programinius pirkimus tvarko '
                   '„RevenueCat", gaunantis tavo „App Store" operacijų duomenis. '
+                  'Jei prijungi banką, „Enable Banking" (licencijuotas PSD2 '
+                  'teikėjas) saugiai gauna tavo sąskaitos duomenis mūsų vardu. '
                   'Prekių ženklų logotipai užkraunami iš Google favicon paslaugos '
                   'pagal iš pavadinimo atspėtą domeną, todėl tavo sekamos '
                   'paslaugos matomos „Google" šiose užklausose. Neparduodame tavo '
@@ -66,10 +98,12 @@ class LegalScreen extends StatelessWidget {
               : 'We use Google Firebase for authentication, plus Sign in with '
                   'Apple if you choose it. In-app purchases are handled by '
                   'RevenueCat, which receives your App Store transaction data. '
-                  'Brand logos are fetched from Google\'s favicon service using a '
-                  'domain guessed from each subscription\'s name, so the services '
-                  'you track are visible to Google in those requests. We do not '
-                  'sell your data.',
+                  'If you connect a bank, Enable Banking (a licensed PSD2 provider) '
+                  'securely retrieves your account data on our behalf. Brand logos '
+                  'are fetched from Google\'s favicon service using a domain '
+                  'guessed from each subscription\'s name, so the services you '
+                  'track are visible to Google in those requests. We do not sell '
+                  'your data.',
         ),
         LegalSection(
           isLt ? 'Pranešimai' : 'Notifications',
@@ -80,8 +114,8 @@ class LegalScreen extends StatelessWidget {
         LegalSection(
           isLt ? 'Duomenų ištrynimas' : 'Data deletion',
           isLt
-              ? 'Paskyrą ir su ja susietą el. paštą gali ištrinti bet kada per Nustatymai → Ištrinti paskyrą. Prenumeratų duomenys pašalinami išdiegus programą.'
-              : 'You can delete your account and its email at any time via Settings → Delete account. Subscription data is removed when you uninstall the app.',
+              ? 'Paskyrą ir su ja susietą el. paštą gali ištrinti bet kada per Nustatymai → Ištrinti paskyrą. Prenumeratų duomenys pašalinami išdiegus programą. Banko prieigą gali atšaukti bet kada savo banke; mes nesaugome tavo banko operacijų.'
+              : 'You can delete your account and its email at any time via Settings → Delete account. Subscription data is removed when you uninstall the app. You can revoke bank access at any time through your bank; we do not store your bank transactions.',
         ),
         LegalSection(
           isLt ? 'Vaikai' : 'Children',
@@ -102,7 +136,7 @@ class LegalScreen extends StatelessWidget {
   factory LegalScreen.terms(bool isLt) {
     return LegalScreen(
       title: isLt ? 'Naudojimo sąlygos' : 'Terms of Use',
-      updated: isLt ? 'Atnaujinta: 2026-07-03' : 'Last updated: 2026-07-03',
+      updated: isLt ? 'Atnaujinta: 2026-07-07' : 'Last updated: 2026-07-07',
       intro: isLt
           ? 'Naudodamasis Vaultie sutinki su šiomis sąlygomis. Jei nesutinki, programos nenaudok.'
           : 'By using Vaultie you agree to these terms. If you do not agree, please do not use the app.',
@@ -110,8 +144,8 @@ class LegalScreen extends StatelessWidget {
         LegalSection(
           isLt ? 'Paslauga' : 'The service',
           isLt
-              ? 'Vaultie – prenumeratų sekimo programa, padedanti stebėti pasikartojančias išlaidas ir gauti priminimus. Ji teikia informaciją, o ne finansines konsultacijas.'
-              : 'Vaultie is a subscription tracker that helps you monitor recurring costs and get reminders. It provides information, not financial advice.',
+              ? 'Vaultie – prenumeratų sekimo programa, padedanti stebėti pasikartojančias išlaidas ir gauti priminimus. Neprivaloma „Vaultie Pro" funkcija leidžia prijungti banką per licencijuotą PSD2 teikėją „Enable Banking" ir automatiškai aptikti pasikartojančius mokėjimus (tik skaitymui — mokėjimų neinicijuojame). Vaultie teikia informaciją, o ne finansines konsultacijas.'
+              : 'Vaultie is a subscription tracker that helps you monitor recurring costs and get reminders. An optional Vaultie Pro feature lets you connect a bank via Enable Banking, a licensed PSD2 provider, to automatically detect recurring payments (read-only — we do not initiate payments). Vaultie provides information, not financial advice.',
         ),
         LegalSection(
           isLt ? 'Paskyra' : 'Your account',

@@ -225,6 +225,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     ),
                     const SizedBox(height: 32),
                     _feature(isLt
+                        ? 'Prijunkite banką — automatiškai raskite pasikartojančius mokėjimus'
+                        : 'Connect your bank — auto-detect recurring payments'),
+                    _feature(isLt
                         ? 'Neribotas prenumeratų ir sąskaitų skaičius'
                         : 'Unlimited subscriptions & bills'),
                     _feature(isLt
