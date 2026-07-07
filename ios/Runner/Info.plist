@@ -34,6 +34,16 @@
 				<string>com.googleusercontent.apps.747647617629-cdo51ad7bmgca85329000ebd8ipsjrmj</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.vaultie.banking</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vaultie</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>

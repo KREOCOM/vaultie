@@ -19,6 +19,7 @@ import '../widgets/budget_dialog.dart';
 import '../widgets/subscription_avatar.dart';
 import '../widgets/subscription_icons.dart';
 import 'add_subscription_screen.dart';
+import 'bank_connect_screen.dart';
 import 'paywall_screen.dart';
 import 'recap_screen.dart';
 import 'savings_screen.dart';
@@ -219,6 +220,7 @@ class _OverviewTabState extends State<_OverviewTab> {
         const SliverToBoxAdapter(child: _VerifyEmailBanner()),
         const SliverToBoxAdapter(child: _NotificationBanner()),
         SliverToBoxAdapter(child: _OverviewHeader(subs: subs)),
+        const SliverToBoxAdapter(child: _ConnectBankCard()),
         if (subs.isNotEmpty)
           SliverToBoxAdapter(
             // Reactive so setting/clearing the budget updates immediately.
@@ -1100,6 +1102,115 @@ class _WaysToSaveCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Overview entry point for the bank import (Vaultie 2.0). Free users tapping it
+/// hit the paywall; Pro users open the bank-connect flow. Rebuilds when the
+/// premium entitlement changes so the PRO badge appears/disappears live.
+class _ConnectBankCard extends StatelessWidget {
+  const _ConnectBankCard();
+
+  void _open(BuildContext context) {
+    if (PurchaseService.instance.isPremium) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const BankConnectScreen()),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PaywallScreen()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    return ValueListenableBuilder<bool>(
+      valueListenable: PurchaseService.instance.isPremiumListenable,
+      builder: (context, isPremium, _) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => _open(context),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: cCard,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: cLine),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: VaultieColors.primary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.account_balance_rounded,
+                          color: VaultieColors.primary, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  isLt ? 'Prijungti banką' : 'Connect your bank',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      color: cInk,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (!isPremium)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: VaultieColors.accent,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text('PRO',
+                                      style: TextStyle(
+                                          color: VaultieColors.primaryDark,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 11,
+                                          letterSpacing: 0.5)),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            isLt
+                                ? 'Automatiškai rask pasikartojančius mokėjimus'
+                                : 'Auto-detect your recurring payments',
+                            style: TextStyle(color: cSubtle, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_ios_rounded,
+                        color: cSubtle, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

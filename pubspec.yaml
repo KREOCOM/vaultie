@@ -37,6 +37,8 @@ dependencies:
   share_plus: ^13.2.0
   path_provider: ^2.1.6
   pdf: ^3.13.0
+  cloud_functions: ^6.3.3
+  app_links: ^7.2.0
 
 dev_dependencies:
   flutter_test:

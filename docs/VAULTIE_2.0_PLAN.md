@@ -98,15 +98,18 @@ venv sukurtas su `python3.12 -m venv --without-pip venv` + `get-pip.py` (nes
 - [ ] Mapinti į `Subscription` (name, cost, billingCycle, category, nextBillingDate, logoDomain spėjimas iš gavėjo)
 - [ ] Unit testai su `DEMO_TRANSACTIONS` iš PoC
 
-### Faza 3 — App UI (Flutter)
-- [ ] „Prijungti banką" mygtukas (Dashboard/Settings, už Pro)
-- [ ] Bankų pasirinkimo ekranas (iš `listBanks`)
-- [ ] Deep-link callback:
-  - [ ] hosted https callback puslapis → redirect į `vaultie://bank-callback?code=…`
-  - [ ] registruoti custom scheme (iOS `CFBundleURLTypes`, Android intent-filter)
-  - [ ] Flutter `app_links`/`uni_links` gaudymas
-- [ ] Importo ekranas: kandidatų sąrašas su checkbox'ais → „Pridėti pažymėtus"
-- [ ] Pridėti → sukurti `Subscription` Hive box'e (esama logika), suplanuoti notifikacijas
+### Faza 3 — App UI (Flutter) — parašyta
+- [x] `cloud_functions` + `app_links` paketai pridėti
+- [x] `BankingService` (`lib/services/banking_service.dart`) — 3 callable + kandidatų mapinimas į `Subscription`, region `europe-west1`
+- [x] „Prijungti banką" kortelė Dashboard Overview (Pro gating: premium → flow, kitaip → paywall)
+- [x] Bankų pasirinkimo ekranas `bank_connect_screen.dart` (iš `list_banks`)
+- [x] Deep-link callback `vaultie://banking/callback`:
+  - [x] custom scheme registruotas (iOS `CFBundleURLTypes`, Android intent-filter)
+  - [x] Flutter `app_links` gaudymas connect ekrane
+  - [x] backend renkasi `vaultie://` redirect (`start_bank_auth`)
+- [x] Importo ekranas `bank_import_screen.dart`: kandidatai su checkbox'ais → „Pridėti pažymėtus"
+- [x] Pridėti → `Subscription` Hive box'e + suplanuotos notifikacijos
+- [ ] **← LIEKA (Faza 6 prereq):** užregistruoti `vaultie://banking/callback` Enable Banking skydelyje; end-to-end sandbox testas
 
 ### Faza 4 — Pro gating
 - [ ] „Prijungti banką" už `PurchaseService.isPremium` (kaip 4-tos sub paywall)
