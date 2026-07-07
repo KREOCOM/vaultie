@@ -16,11 +16,18 @@ Deploy region is ``europe-west1`` (close to LT users).
 
 import datetime as dt
 
+import firebase_admin
 from firebase_functions import https_fn
 from firebase_functions.params import SecretParam
 
 from enable_banking import DEFAULT_COUNTRY, EnableBankingClient, EnableBankingError
 from recurring import detect_recurring
+
+# Initialize the Admin SDK so the callable framework can verify the caller's
+# Firebase Auth ID token. Without this the token is rejected and every call
+# fails as UNAUTHENTICATED ("default Firebase app does not exist").
+if not firebase_admin._apps:
+    firebase_admin.initialize_app()
 
 # Set once with:  firebase functions:secrets:set ENABLE_BANKING_PRIVATE_KEY < key.pem
 ENABLE_BANKING_PRIVATE_KEY = SecretParam("ENABLE_BANKING_PRIVATE_KEY")
