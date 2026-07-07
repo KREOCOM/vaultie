@@ -1,0 +1,11 @@
+# Local Python virtualenv the Firebase CLI creates for packaging/emulation.
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Never commit secrets or exported keys.
+*.pem
+.env
+.env.*
+.runtimeconfig.json

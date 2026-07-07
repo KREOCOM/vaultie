@@ -1,0 +1,7 @@
+# Firebase Cloud Functions (Python) — Vaultie 2.0 Enable Banking backend.
+firebase-functions>=0.4.2
+firebase-admin>=6.5.0
+
+# Enable Banking auth + HTTP (same libs the proven PoC used).
+PyJWT[crypto]>=2.8.0
+requests>=2.31.0
