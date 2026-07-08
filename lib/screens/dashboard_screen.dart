@@ -2518,30 +2518,41 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 30),
           _emptyLabel(
               isLt ? 'Pradėk nuo kategorijos' : 'Start with a category'),
-          const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: 4,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 8,
-            childAspectRatio: 0.82,
-            children: [
-              for (final cat in kExpenseCategories)
-                _catQuickTile(context, cat, isLt),
-            ],
+          const SizedBox(height: 14),
+          // Single horizontal row (scrollable) instead of a tall grid, so the
+          // first run reads as calm and inviting, not a wall of tiles.
+          SizedBox(
+            height: 82,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              children: [
+                for (final cat in kExpenseCategories)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: SizedBox(
+                        width: 62, child: _catQuickTile(context, cat, isLt)),
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 22),
           _emptyLabel(
               isLt ? 'Arba populiari paslauga' : 'Or a popular service'),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 18,
-            runSpacing: 18,
-            alignment: WrapAlignment.center,
-            children: [
-              for (final b in kPopularGrid) _QuickAddTile(brand: b),
-            ],
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 92,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              children: [
+                for (final b in kPopularGrid)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: _QuickAddTile(brand: b),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
