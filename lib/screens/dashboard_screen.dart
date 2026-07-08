@@ -559,9 +559,20 @@ class _OverviewHeader extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            // Amount on the left, category ring on the right.
-            Row(
+            const SizedBox(height: 18),
+            // Empty vault: a warm welcome instead of a bare "€0.00" so the
+            // first-run header feels inviting, not empty. The add options live
+            // in the empty state below.
+            if (subs.isEmpty)
+              Text(
+                isLt
+                    ? 'Sveikas atvykęs į Vaultie — susirinkim visas tavo pasikartojančias išlaidas vienoje vietoje.'
+                    : 'Welcome to Vaultie — let\'s get all your recurring spend in one place.',
+                style: TextStyle(color: cFeatSubtle, fontSize: 15, height: 1.4),
+              )
+            else ...[
+              // Amount on the left, category ring on the right.
+              Row(
               children: [
                 Expanded(
                   child: Column(
@@ -648,6 +659,7 @@ class _OverviewHeader extends StatelessWidget {
                     ),
                 ],
               ),
+            ],
             ],
           ],
         ),
