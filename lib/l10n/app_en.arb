@@ -44,8 +44,8 @@
   "@removedFromVault": {
     "placeholders": { "name": { "type": "String" } }
   },
-  "vaultEmptyTitle": "No expenses yet",
-  "vaultEmptyBody": "Track rent, bills, insurance, subscriptions and more — tap “Add” to start.",
+  "vaultEmptyTitle": "Add your first payment",
+  "vaultEmptyBody": "Rent, insurance, subscriptions — add what you pay for regularly, and we’ll remind you before every one.",
 
   "addSubscriptionTitle": "Add subscription",
   "popularServices": "Popular services",

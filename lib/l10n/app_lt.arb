@@ -35,8 +35,8 @@
   "renewTomorrow": "Atsinaujina rytoj",
   "renewInDays": "Atsinaujina po {days} d.",
   "removedFromVault": "{name} pašalinta",
-  "vaultEmptyTitle": "Kol kas nėra išlaidų",
-  "vaultEmptyBody": "Sek nuomą, mokesčius, draudimą, prenumeratas ir daugiau — palieskite „Pridėti“.",
+  "vaultEmptyTitle": "Pridėk pirmą mokėjimą",
+  "vaultEmptyBody": "Nuoma, draudimas, prenumeratos — pridėk, už ką moki reguliariai, ir priminsime prieš kiekvieną.",
 
   "addSubscriptionTitle": "Pridėti prenumeratą",
   "popularServices": "Populiarios paslaugos",

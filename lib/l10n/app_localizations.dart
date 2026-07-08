@@ -287,13 +287,13 @@ abstract class AppLocalizations {
   /// No description provided for @vaultEmptyTitle.
   ///
   /// In en, this message translates to:
-  /// **'No expenses yet'**
+  /// **'Add your first payment'**
   String get vaultEmptyTitle;
 
   /// No description provided for @vaultEmptyBody.
   ///
   /// In en, this message translates to:
-  /// **'Track rent, bills, insurance, subscriptions and more — tap “Add” to start.'**
+  /// **'Rent, insurance, subscriptions — add what you pay for regularly, and we’ll remind you before every one.'**
   String get vaultEmptyBody;
 
   /// No description provided for @addSubscriptionTitle.
