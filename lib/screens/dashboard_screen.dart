@@ -436,12 +436,65 @@ class _OverviewHeader extends StatelessWidget {
     return isLt ? 'Labas vakaras' : 'Good evening';
   }
 
+  /// Last calendar month's recurring total from the monthlyStats snapshots, or
+  /// null if there's no prior month to compare against yet.
+  double? _lastMonthTotal() {
+    if (!Hive.isBoxOpen(HiveBoxes.monthlyStats)) return null;
+    final now = DateTime.now();
+    final prev = DateTime(now.year, now.month - 1, 1);
+    final key = '${prev.year}-${prev.month.toString().padLeft(2, '0')}';
+    final raw = Hive.box(HiveBoxes.monthlyStats).get(key);
+    if (raw == null) return null;
+    return (Map.from(raw as Map)['total'] as num?)?.toDouble();
+  }
+
+  /// A small pill that turns the monthly figure into meaning: down vs last
+  /// month reads as a win (green), up as a heads-up (amber). Icon + label, so
+  /// it isn't colour-alone. Hidden when nothing changed.
+  Widget _monthTrendChip(bool isLt, double monthlyTotal, double lastMonth) {
+    final diff = monthlyTotal - lastMonth;
+    if (diff.abs() < 0.5) return const SizedBox.shrink();
+    final down = diff < 0;
+    final color = down ? cAccent : const Color(0xFFE9A23B);
+    final amount = formatMoney(diff.abs());
+    final label = down
+        ? (isLt ? '$amount mažiau nei praeitą mėn.' : '$amount less than last month')
+        : (isLt ? '$amount daugiau nei praeitą mėn.' : '$amount more than last month');
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(down ? Icons.trending_down_rounded : Icons.trending_up_rounded,
+                size: 16, color: color),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: color, fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
     final name = _userName(isLt);
     final monthlyTotal = subs.fold<double>(0, (s, e) => s + e.monthlyCost);
+    final lastMonth = _lastMonthTotal();
 
     // Category breakdown for the ring + legend (legacy keys normalized).
     final byCategory = <String, double>{};
@@ -558,6 +611,9 @@ class _OverviewHeader extends StatelessWidget {
                 ],
               ],
             ),
+            // At-a-glance insight: is recurring spend up or down vs last month?
+            if (lastMonth != null)
+              _monthTrendChip(isLt, monthlyTotal, lastMonth),
             // Legend: category dot + percentage.
             if (hasBreakdown) ...[
               const SizedBox(height: 18),
