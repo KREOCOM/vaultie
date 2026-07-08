@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../expense_categories.dart';
 import '../main.dart';
+import '../services/notification_service.dart';
 import '../widgets/subscription_icons.dart';
 import 'auth_screen.dart';
 
@@ -79,11 +80,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  /// Asks for notification permission from the contextual onboarding step (with
+  /// the mock-push preview shown), then finishes. If the user declines the OS
+  /// prompt it's fine — the dashboard still nudges them later.
+  Future<void> _enableReminders() async {
+    await NotificationService.instance.requestPermission();
+    await _finish();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
     final continueLabel = isLt ? 'Toliau →' : 'Continue →';
-    final getStartedLabel = isLt ? 'Pradėti →' : 'Get Started →';
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -108,9 +116,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           _OnboardPage(
             index: 2,
             pal: _Pal.light,
-            label: getStartedLabel,
-            onPressed: _finish,
+            label: continueLabel,
+            onPressed: _next,
             content: _screen3(isLt, _Pal.light),
+          ),
+          _OnboardPage(
+            index: 3,
+            pal: _Pal.dark,
+            label: isLt ? 'Įjungti priminimus' : 'Enable reminders',
+            onPressed: _enableReminders,
+            secondaryLabel: isLt ? 'Gal vėliau' : 'Maybe later',
+            onSecondary: _finish,
+            content: _screen4(isLt, _Pal.dark),
           ),
         ],
       ),
@@ -562,6 +579,82 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
       );
 
+  // ── Screen 4 (dark): reminders opt-in with a mock-push preview ────────────
+
+  Widget _screen4(bool isLt, _Pal pal) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Title(
+            isLt
+                ? 'Nepraleisk nė vieno\nmokėjimo.'
+                : 'Never miss a\npayment.',
+            pal),
+        const SizedBox(height: 12),
+        _Subtitle(
+            isLt
+                ? 'Įjunk priminimus ir gauk draugišką žinutę ~24 val. prieš kiekvieną mokėjimą — jokių netikėtų nurašymų.'
+                : 'Turn on reminders and get a friendly heads-up ~24h before each payment — no surprise charges.',
+            pal),
+        const SizedBox(height: 28),
+        _mockPush('Netflix', '€12.99',
+            isLt ? 'mokėjimas rytoj' : 'due tomorrow', isLt ? 'dabar' : 'now'),
+        const SizedBox(height: 12),
+        _mockPush(isLt ? 'Nuoma' : 'Rent', '€650',
+            isLt ? 'mokėjimas po 3 d.' : 'due in 3 days',
+            isLt ? 'vakar' : '1d ago'),
+      ],
+    );
+  }
+
+  /// An iOS-style notification card previewing a reminder, so the user sees the
+  /// value before the OS permission prompt. Rendered light so it reads clearly
+  /// on the dark onboarding page.
+  Widget _mockPush(String name, String amount, String when, String time) {
+    const cardBg = Color(0xFFF2F3F5);
+    const cardInk = Color(0xFF11231A);
+    const cardSub = Color(0xFF6B7E74);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(9),
+            child: Image.asset('assets/icon/app_icon.png',
+                width: 38, height: 38, fit: BoxFit.cover),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('Vaultie',
+                        style: TextStyle(
+                            color: cardInk,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14)),
+                    const Spacer(),
+                    Text(time,
+                        style: const TextStyle(color: cardSub, fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text('$name · $amount — $when',
+                    style: const TextStyle(
+                        color: cardInk, fontSize: 13.5, height: 1.3)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Donut chart ────────────────────────────────────────────────────────────
@@ -699,6 +792,8 @@ class _OnboardPage extends StatelessWidget {
     required this.content,
     required this.label,
     required this.onPressed,
+    this.secondaryLabel,
+    this.onSecondary,
   });
 
   final int index;
@@ -706,6 +801,11 @@ class _OnboardPage extends StatelessWidget {
   final Widget content;
   final String label;
   final VoidCallback onPressed;
+
+  /// Optional secondary action shown as a muted text link under the CTA (e.g.
+  /// "Maybe later" on the reminders step).
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
 
   @override
   Widget build(BuildContext context) {
@@ -743,7 +843,7 @@ class _OnboardPage extends StatelessWidget {
             // Page indicator.
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(3, (i) {
+              children: List.generate(4, (i) {
                 final active = i == index;
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -760,9 +860,24 @@ class _OnboardPage extends StatelessWidget {
               }),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              padding: EdgeInsets.fromLTRB(
+                  24, 16, 24, secondaryLabel == null ? 24 : 6),
               child: _CtaButton(label: label, onPressed: onPressed),
             ),
+            if (secondaryLabel != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: TextButton(
+                  onPressed: onSecondary,
+                  child: Text(
+                    secondaryLabel!,
+                    style: TextStyle(
+                        color: pal.subtle,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

@@ -45,27 +45,36 @@ class NotificationService {
     }
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    // iOS/macOS: request alert/badge/sound authorisation on init.
+    // Initialise WITHOUT prompting for permission — the prompt is asked at a
+    // contextual moment (the onboarding reminders step) via [requestPermission],
+    // not blindly at cold launch, which improves opt-in.
     const darwin = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
     await _plugin.initialize(
       settings: const InitializationSettings(android: android, iOS: darwin),
     );
 
+    _initialized = true;
+  }
+
+  /// Explicitly asks the OS for notification permission. Call this from a
+  /// contextual moment (e.g. the onboarding reminders step) rather than at
+  /// launch. Returns true if granted. Safe to call more than once — the OS only
+  /// shows the system prompt the first time.
+  Future<bool> requestPermission() async {
+    await init();
+    final iosImpl = _plugin.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>();
+    final ios =
+        await iosImpl?.requestPermissions(alert: true, badge: true, sound: true);
     // Android 13+ requires a runtime prompt to post notifications.
     final androidImpl = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    await androidImpl?.requestNotificationsPermission();
-
-    // iOS requires an explicit authorisation request too.
-    final iosImpl = _plugin.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
-    await iosImpl?.requestPermissions(alert: true, badge: true, sound: true);
-
-    _initialized = true;
+    final android = await androidImpl?.requestNotificationsPermission();
+    return ios ?? android ?? false;
   }
 
   NotificationDetails get _details => const NotificationDetails(
