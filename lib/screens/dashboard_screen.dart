@@ -220,7 +220,6 @@ class _OverviewTabState extends State<_OverviewTab> {
         const SliverToBoxAdapter(child: _VerifyEmailBanner()),
         const SliverToBoxAdapter(child: _NotificationBanner()),
         SliverToBoxAdapter(child: _OverviewHeader(subs: subs)),
-        const SliverToBoxAdapter(child: _ConnectBankCard()),
         if (subs.isNotEmpty)
           SliverToBoxAdapter(
             // Reactive so setting/clearing the budget updates immediately.
@@ -237,6 +236,9 @@ class _OverviewTabState extends State<_OverviewTab> {
           SliverToBoxAdapter(child: _ThisMonthCard(subs: subs)),
           const SliverToBoxAdapter(child: _SavingsCard()),
           SliverToBoxAdapter(child: _UpcomingRenewals(subs: subs)),
+          // Pro / feature discovery sits below the money summary, not above it,
+          // so the dashboard leads with what the user came for.
+          const SliverToBoxAdapter(child: _ConnectBankCard()),
           SliverToBoxAdapter(child: _categoryChips(subs, isLt)),
           if (subs.length >= 2) SliverToBoxAdapter(child: _searchSortBar(isLt)),
           if (visible.isEmpty)
