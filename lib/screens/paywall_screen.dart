@@ -236,7 +236,24 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 22),
+                    // Plans + CTA up top so the price is reachable without
+                    // scrolling past the whole value section (the features and
+                    // trial timeline read as supporting detail below).
+                    Row(
+                      children: [
+                        _planPill(PlanId.lifetime, isLt),
+                        const SizedBox(width: 10),
+                        _planPill(PlanId.monthly, isLt),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _CtaButton(
+                      label: ctaLabel,
+                      busy: _busy,
+                      onPressed: _busy ? null : _purchase,
+                    ),
+                    const SizedBox(height: 30),
                     _feature(isLt
                         ? 'Prijunkite banką — automatiškai raskite pasikartojančius mokėjimus'
                         : 'Connect your bank — auto-detect recurring payments'),
@@ -262,17 +279,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ? 'Palaikote nepriklausomą kūrėją'
                         : 'Support an indie developer'),
                     if (kShowTrialTimeline) _trialTimeline(isLt),
-                    const SizedBox(height: 32),
-                    _planCard(PlanId.lifetime, isLt),
-                    const SizedBox(height: 14),
-                    _planCard(PlanId.monthly, isLt),
-                    const SizedBox(height: 32),
-                    _CtaButton(
-                      label: ctaLabel,
-                      busy: _busy,
-                      onPressed: _busy ? null : _purchase,
-                    ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 24),
                     // Restore purchases — required for App Store approval so
                     // users can re-entitle on a new device.
                     TextButton(
@@ -486,133 +493,111 @@ class _PaywallScreenState extends State<PaywallScreen> {
     );
   }
 
-  Widget _planCard(PlanId id, bool isLt) {
+  /// A compact, tappable plan card sized to sit two-up in a Row, so the price
+  /// is visible high on the paywall instead of buried below the value section.
+  Widget _planPill(PlanId id, bool isLt) {
     final selected = _selected == id;
     final lifetime = id == PlanId.lifetime;
+    final accent = lifetime ? _gold : _brightGreen;
     final title = lifetime
         ? (isLt ? 'Visam laikui' : 'Lifetime')
         : (isLt ? 'Mėnesinis' : 'Monthly');
     final period = lifetime
-        ? (isLt ? 'vienkartinis mokėjimas' : 'one-time payment')
-        : (isLt ? 'per mėnesį' : 'per month');
-    final price = _priceFor(id);
+        ? (isLt ? 'vienkart.' : 'one-time')
+        : (isLt ? '/mėn.' : '/mo');
+    final tag = lifetime
+        ? (isLt ? 'Geriausia' : 'Best value')
+        : (isLt ? 'Populiaru' : 'Popular');
 
-    return GestureDetector(
-      onTap: _busy ? null : () => setState(() => _selected = id),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-        decoration: BoxDecoration(
-          // The selected plan pops: a green→dark gradient, an accent border and
-          // a coloured glow. Unselected plans stay muted so the eye is drawn to
-          // the recommended choice.
-          gradient: selected
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF1C5E3A), Color(0xFF0E3322)],
-                )
-              : null,
-          color: selected ? null : const Color(0xFF0C1F15),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected
-                ? (lifetime ? _gold : _brightGreen)
-                : Colors.white.withValues(alpha: 0.14),
-            width: selected ? 2.5 : 1.5,
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: (lifetime ? _gold : _brightGreen)
-                        .withValues(alpha: 0.35),
-                    blurRadius: 22,
-                    spreadRadius: -2,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              selected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color:
-                  selected ? (lifetime ? _gold : _brightGreen) : Colors.white38,
-              size: 26,
+    return Expanded(
+      child: GestureDetector(
+        onTap: _busy ? null : () => setState(() => _selected = id),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          decoration: BoxDecoration(
+            gradient: selected
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF1C5E3A), Color(0xFF0E3322)],
+                  )
+                : null,
+            color: selected ? null : const Color(0xFF0C1F15),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? accent : Colors.white.withValues(alpha: 0.14),
+              width: selected ? 2 : 1.5,
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      lifetime
-                          ? _badge(
-                              isLt ? 'Geriausia vertė' : 'Best Value',
-                              background: _gold,
-                              foreground: VaultieColors.primaryDark,
-                            )
-                          : _badge(
-                              isLt ? 'Populiariausias' : 'Most Popular',
-                              background: _brightGreen,
-                              foreground: Colors.white,
-                            ),
-                    ],
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.30),
+                      blurRadius: 18,
+                      spreadRadius: -3,
+                      offset: const Offset(0, 5),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  tag.toUpperCase(),
+                  style: TextStyle(
+                    color: lifetime ? VaultieColors.primaryDark : Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
                   ),
-                  const SizedBox(height: 4),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Flexible(
+                    child: Text(
+                      _priceFor(id),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 3),
                   Text(
                     period,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.65),
-                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              price,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _badge(String text,
-      {required Color background, required Color foreground}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Text(
-        text.toUpperCase(),
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
+            ],
+          ),
         ),
       ),
     );
