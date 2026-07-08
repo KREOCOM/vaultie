@@ -142,14 +142,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       children: [
         _Title(
             isLt
-                ? 'Visi mokėjimai\nvienoje vietoje.'
-                : 'All your payments,\nin one place.',
+                ? 'Nebešvaistyk pinigų\npamirštiems mokėjimams.'
+                : 'Stop losing money\nto forgotten payments.',
             pal),
         const SizedBox(height: 12),
         _Subtitle(
             isLt
-                ? 'Nuoma, komunaliniai, draudimas, sporto salė, prenumeratos — sek viską, už ką moki reguliariai, ne tik programėles.'
-                : 'Rent, utilities, insurance, gym, subscriptions — track everything you pay for regularly, not just apps.',
+                ? 'Nuoma, draudimas, sporto salė, prenumeratos — pasikartojantys mokėjimai tyliai kaupiasi. Vaultie parodo visus vienoje vietoje, kad nieko nepraleistum.'
+                : 'Rent, insurance, gym, subscriptions — recurring payments quietly pile up. Vaultie brings them all into one place, so nothing slips by.',
             pal),
         const SizedBox(height: 24),
         Container(

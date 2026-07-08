@@ -9,6 +9,15 @@ import 'legal_screen.dart';
 const Color _gold = Color(0xFFFFD24A);
 const Color _brightGreen = Color(0xFF4CAF72);
 
+/// UI-ONLY: shows the Bilance-style "How your free trial works" timeline.
+///
+/// ⚠️ This advertises a 7-day free trial. The current RevenueCat products do
+/// NOT include a trial yet. Before shipping to the App Store you MUST either
+/// (a) configure a real 7-day introductory (free-trial) offer on the monthly
+/// subscription, or (b) set this to `false`. Advertising a trial that doesn't
+/// exist risks App Store rejection (Guideline 3.1.2) and breaks user trust.
+const bool kShowTrialTimeline = true;
+
 /// Paywall shown when a free user hits [kFreeSubscriptionLimit].
 ///
 /// Pops with `true` once premium has been granted, so the caller can resume the
@@ -134,9 +143,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final isLt = _isLt;
     // CTA reflects the selected plan and its price.
     final price = _priceFor(_selected);
-    final ctaLabel = _selected == PlanId.lifetime
-        ? (isLt ? 'Pirkti — $price' : 'Unlock — $price')
-        : (isLt ? 'Prenumeruoti — $price/mėn.' : 'Subscribe — $price/mo');
+    // With the trial timeline on, the monthly plan leads with the free-trial CTA
+    // (the trial only applies to the auto-renewing subscription, not Lifetime).
+    final ctaLabel = kShowTrialTimeline && _selected == PlanId.monthly
+        ? (isLt ? 'Pradėti 7 d. nemokamą bandymą' : 'Start my 7-day free trial')
+        : _selected == PlanId.lifetime
+            ? (isLt ? 'Pirkti — $price' : 'Unlock — $price')
+            : (isLt ? 'Prenumeruoti — $price/mėn.' : 'Subscribe — $price/mo');
 
     return PopScope(
       // Intercept the system back button/gesture so it routes through _dismiss
@@ -248,6 +261,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     _feature(isLt
                         ? 'Palaikote nepriklausomą kūrėją'
                         : 'Support an indie developer'),
+                    if (kShowTrialTimeline) _trialTimeline(isLt),
                     const SizedBox(height: 32),
                     _planCard(PlanId.lifetime, isLt),
                     const SizedBox(height: 14),
@@ -353,6 +367,118 @@ class _PaywallScreenState extends State<PaywallScreen> {
             child: Text(
               text,
               style: const TextStyle(color: Colors.white, fontSize: 17),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "How your free trial works" — a Bilance-style vertical timeline that makes
+  /// the auto-renew moment transparent (Today → reminder → billing), which is
+  /// what turns a card-committed trial into trust instead of a nasty surprise.
+  Widget _trialTimeline(bool isLt) {
+    return Container(
+      margin: const EdgeInsets.only(top: 30),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C1F15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isLt ? 'Kaip veikia nemokamas bandymas' : 'How your free trial works',
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17),
+          ),
+          const SizedBox(height: 18),
+          _trialStep(
+            icon: Icons.lock_open_rounded,
+            title: isLt ? 'Šiandien' : 'Today',
+            sub: isLt
+                ? 'Pilna prieiga prie visų Vaultie Pro funkcijų.'
+                : 'Full access to everything in Vaultie Pro.',
+          ),
+          _trialStep(
+            icon: Icons.notifications_active_rounded,
+            title: isLt ? '5 diena' : 'Day 5',
+            sub: isLt
+                ? 'Priminsime, kad nemokamas bandymas netrukus baigsis.'
+                : 'We\'ll remind you your free trial is ending soon.',
+          ),
+          _trialStep(
+            icon: Icons.star_rounded,
+            title: isLt ? '7 diena' : 'Day 7',
+            sub: isLt
+                ? 'Prasideda prenumerata. Atšauk bet kada iki tol.'
+                : 'Your subscription starts. Cancel anytime before.',
+            isLast: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _trialStep({
+    required IconData icon,
+    required String title,
+    required String sub,
+    bool isLast = false,
+  }) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _brightGreen.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _brightGreen, width: 1.5),
+                ),
+                child: Icon(icon, color: _brightGreen, size: 18),
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 3),
+                    color: _brightGreen.withValues(alpha: 0.30),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 6 : 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    sub,
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 13,
+                        height: 1.35),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
