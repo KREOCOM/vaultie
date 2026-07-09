@@ -48,6 +48,11 @@ DEMO_TRANSACTIONS = [
     _txn("2026-06-09", 21.80, "Maxima LT"),
     _txn("2026-06-20", 8.40, "Maxima LT"),
     _txn("2026-06-22", 199.00, "Apple Store"),
+    # Same merchant, but the name carries a different reference each month —
+    # must still collapse into ONE recurring candidate (the normalisation fix).
+    _txn("2026-04-08", 11.99, "PVM SF 2026/04 UAB Telia 8842"),
+    _txn("2026-05-08", 11.99, "PVM SF 2026/05 UAB Telia 9137"),
+    _txn("2026-06-08", 11.99, "PVM SF 2026/06 UAB Telia 9455"),
 ]
 
 
@@ -65,6 +70,13 @@ def main() -> int:
     check("Netflix" in by_name, "Netflix not detected")
     check("UAB Namu Valda" in by_name, "Rent (UAB Namu Valda) not detected")
     check("Gym" in by_name or "Lemon Gym" in by_name, "Gym not detected")
+
+    # Reference-number variants of the same merchant collapse into one.
+    telia = [c for c in cands if "telia" in c["name"].lower()]
+    check(len(telia) == 1, f"Telia variants not merged (got {len(telia)})")
+    if telia:
+        check(telia[0]["occurrences"] == 3,
+              f"Telia occurrences {telia[0]['occurrences']} != 3")
 
     # Must NOT be flagged.
     check("Employer UAB" not in by_name, "Incoming salary wrongly flagged")

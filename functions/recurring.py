@@ -7,6 +7,8 @@ fixture (see ``test_recurring.py``). Output maps 1:1 onto the app's
 """
 
 import datetime as dt
+import logging
+import re
 from collections import defaultdict
 
 # Minimal merchant enrichment so imported items look polished in the app.
@@ -27,15 +29,30 @@ _MERCHANT_HINTS = [
 
 
 def counterparty_name(t: dict):
-    for key in ("creditor", "debtor"):
+    """Best-effort merchant/counterparty name across ASPSP shapes.
+
+    Card payments frequently omit creditor/debtor and carry the merchant only
+    in the remittance info or a proprietary field, so we widen the search well
+    beyond the SEPA creditor name to avoid dropping those recurring payments.
+    """
+    for key in ("creditor", "debtor", "ultimate_creditor", "ultimate_debtor"):
         party = t.get(key)
         if isinstance(party, dict) and party.get("name"):
             return party["name"]
     rti = t.get("remittance_information")
     if isinstance(rti, list) and rti:
-        return rti[0]
-    if isinstance(rti, str) and rti:
+        joined = " ".join(str(x) for x in rti if x).strip()
+        if joined:
+            return joined
+    if isinstance(rti, str) and rti.strip():
         return rti
+    # Card / proprietary fields some ASPSPs use for the merchant name.
+    for key in ("merchant", "creditor_agent", "additional_information"):
+        party = t.get(key)
+        if isinstance(party, dict) and party.get("name"):
+            return party["name"]
+        if isinstance(party, str) and party.strip():
+            return party
     return None
 
 
@@ -83,6 +100,30 @@ def _enrich(raw_name: str):
     return raw_name.strip(), "Other", None
 
 
+# Legal-form / payment-plumbing tokens that carry no merchant identity, dropped
+# from the grouping key so "UAB X" and "X" collapse together.
+_KEY_STOPWORDS = {
+    "uab", "ab", "mb", "vsi", "vši", "iį", "as", "oy", "ltd", "inc", "llc",
+    "payment", "purchase", "card", "pos", "pirkimas", "mokejimas", "mokėjimas",
+    "sepa", "transfer", "pavedimas", "sąskaita", "saskaita", "ref", "no",
+}
+
+
+def _merchant_key(name: str) -> str:
+    """Canonical merchant key that collapses per-transaction variants.
+
+    Real bank statements append reference numbers, dates and card-auth codes to
+    the counterparty name, so grouping on the exact string splits one merchant
+    into many singletons. We lowercase, strip digits and punctuation, drop
+    legal-form / plumbing stopwords, and keep the first few identifying words.
+    """
+    low = name.lower()
+    low = re.sub(r"\d+", " ", low)  # reference numbers, dates, auth codes
+    low = re.sub(r"[^a-z0-9ąčęėįšųūž]+", " ", low)
+    tokens = [t for t in low.split() if len(t) > 1 and t not in _KEY_STOPWORDS]
+    return " ".join(tokens[:4]).strip()
+
+
 def _add_months(d: dt.date, months: int) -> dt.date:
     zero = d.month - 1 + months
     year = d.year + zero // 12
@@ -113,14 +154,24 @@ def detect_recurring(transactions: list, *, min_occurrences: int = 2) -> list:
     seen ``min_occurrences`` times or more is treated as recurring.
     """
     groups = defaultdict(list)
+    n_dbit = 0
+    n_skipped = 0
     for t in transactions:
         if t.get("credit_debit_indicator") != "DBIT":
             continue  # only outgoing payments
+        n_dbit += 1
         name = counterparty_name(t)
         amount = amount_value(t)
         if name is None or amount is None:
+            n_skipped += 1
             continue
-        key = (name.lower().strip(), round(amount, 0))
+        # Group on a normalised merchant key (collapses reference-number
+        # variants) plus the rounded amount, keeping the raw name for display.
+        mkey = _merchant_key(name)
+        if not mkey:
+            n_skipped += 1
+            continue
+        key = (mkey, round(amount, 0))
         groups[key].append((booking_date(t), amount, name))
 
     candidates = []
@@ -169,4 +220,17 @@ def detect_recurring(transactions: list, *, min_occurrences: int = 2) -> list:
 
     # Most-frequent, then most-expensive first — best candidates on top.
     candidates.sort(key=lambda c: (-c["occurrences"], -c["cost"]))
+
+    # Diagnostic funnel — counts only, no personal data — so we can see WHERE
+    # payments drop out (fetched → outgoing → named → grouped → recurring).
+    logging.info(
+        "detect_recurring funnel: txns=%d dbit=%d skipped_no_name=%d "
+        "groups=%d recurring=%d min_occ=%d",
+        len(transactions),
+        n_dbit,
+        n_skipped,
+        len(groups),
+        len(candidates),
+        min_occurrences,
+    )
     return candidates

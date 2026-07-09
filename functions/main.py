@@ -15,6 +15,7 @@ Deploy region is ``europe-west1`` (close to LT users).
 """
 
 import datetime as dt
+import logging
 
 import firebase_admin
 from firebase_functions import https_fn
@@ -143,6 +144,13 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
         )
 
     candidates = detect_recurring(all_txns)
+    logging.info(
+        "finish_bank_auth: accounts=%d txns=%d candidates=%d history_days=%d",
+        len(accounts),
+        len(all_txns),
+        len(candidates),
+        history_days,
+    )
     # Raw transactions are intentionally not returned or stored.
     return {
         "accountCount": len(accounts),
