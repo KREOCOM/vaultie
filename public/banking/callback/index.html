@@ -55,6 +55,12 @@
   </div>
 
   <script>
+    // Universal Links do the real work: when Vaultie is installed, iOS opens
+    // the app directly from the https redirect URL and this page never renders
+    // (no "Open in Vaultie?" prompt). This page therefore only runs as a
+    // FALLBACK — the app isn't installed, or the Universal Link didn't fire
+    // (e.g. an in-app browser). In that case we fall back to the custom
+    // scheme, which may prompt, and always offer a manual button.
     (function () {
       var params = new URLSearchParams(window.location.search);
       var code = params.get('code');
@@ -71,9 +77,14 @@
         deepLink += '&state=' + encodeURIComponent(state);
       }
 
-      // Wire up the manual fallback button, then try to open the app.
+      // Wire up the manual fallback button first (always works on a tap).
       document.getElementById('open').setAttribute('href', deepLink);
-      window.location.replace(deepLink);
+
+      // Then attempt the custom-scheme fallback. Deferred a beat so that if a
+      // Universal Link is mid-flight it wins and we never fire the scheme.
+      setTimeout(function () {
+        window.location.replace(deepLink);
+      }, 400);
     })();
   </script>
 </body>

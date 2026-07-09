@@ -159,10 +159,23 @@ class BankingService {
 
   /// Extracts the `code` query parameter from an incoming callback [uri], or
   /// null if this isn't our banking callback.
+  ///
+  /// Accepts two forms:
+  ///  * the Universal Link — `https://vaultie-1a2c4.web.app/banking/callback?code=…`
+  ///    — which opens the app directly with no "Open in Vaultie?" prompt (the
+  ///    happy path once Associated Domains + AASA are live), and
+  ///  * the custom-scheme fallback — `vaultie://banking/callback?code=…` — used
+  ///    when the app isn't installed or the Universal Link doesn't fire.
   static String? codeFromCallback(Uri uri) {
-    final isCallback = uri.scheme == kBankingCallbackScheme &&
+    final isCustomScheme = uri.scheme == kBankingCallbackScheme &&
         uri.host == kBankingCallbackHost;
-    if (!isCallback) return null;
+    // Recognise the Universal Link off the same source of truth as the
+    // registered redirect, so host/path can't drift out of sync.
+    final redirect = Uri.parse(kBankingRedirectUrl);
+    final isUniversalLink = uri.scheme == redirect.scheme &&
+        uri.host == redirect.host &&
+        uri.path.startsWith(redirect.path);
+    if (!isCustomScheme && !isUniversalLink) return null;
     return uri.queryParameters['code'];
   }
 }

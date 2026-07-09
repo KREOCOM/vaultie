@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["W5Z6765SQ9.com.kreocom.vaultie"],
+        "components": [
+          { "/": "/banking/callback*" }
+        ]
+      }
+    ]
+  }
+}
