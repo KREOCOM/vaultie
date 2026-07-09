@@ -53,16 +53,24 @@ class _BankImportScreenState extends State<BankImportScreen> {
         .toSet();
     _items = [
       for (var i = 0; i < widget.candidates.length; i++)
-        _Item(
-          i,
-          widget.candidates[i],
-          RecurringClassifier.classify(
+        // Drop never-recurring merchants (fast food, groceries) entirely — they
+        // shouldn't appear as recurring payments even if they repeat.
+        if (!RecurringClassifier.isNeverRecurring(widget.candidates[i].name))
+          _Item(
+            i,
             widget.candidates[i],
-            existingNormalizedNames: existing,
+            RecurringClassifier.classify(
+              widget.candidates[i],
+              existingNormalizedNames: existing,
+            ),
           ),
-        ),
     ];
-    _selected = [for (final it in _items) it.cls.selectedByDefault];
+    // Indexed by ORIGINAL candidate position (filtered-out items stay false and
+    // are never shown or imported).
+    _selected = List<bool>.filled(widget.candidates.length, false);
+    for (final it in _items) {
+      _selected[it.index] = it.cls.selectedByDefault;
+    }
   }
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';

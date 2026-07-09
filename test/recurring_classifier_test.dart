@@ -99,6 +99,27 @@ void main() {
     });
   });
 
+  group('never-recurring blacklist', () {
+    test('fast food and groceries are blacklisted', () {
+      for (final n in [
+        'Hesburger Vilnius',
+        'McDonalds',
+        'MAXIMA LT 4231',
+        'Rimi Lietuva',
+        'Lidl',
+        'Norfa',
+        'IKI, Vilnius',
+      ]) {
+        expect(RecurringClassifier.isNeverRecurring(n), isTrue, reason: n);
+      }
+    });
+
+    test('"iki" only matches as a whole word, not inside other words', () {
+      expect(RecurringClassifier.isNeverRecurring('Vaikiškas pasaulis'), isFalse);
+      expect(RecurringClassifier.isNeverRecurring('Netflix'), isFalse);
+    });
+  });
+
   group('confidence', () {
     test('classified, frequent, stable amount → high', () {
       final cls = classify(candidate('Spotify', occurrences: 5));

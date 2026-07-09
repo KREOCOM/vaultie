@@ -229,6 +229,31 @@ class RecurringClassifier {
         _ => ImportGroup.other,
       };
 
+  /// Merchants that are one-off spend (fast food, groceries) and must NEVER be
+  /// surfaced as recurring, even if they happen to repeat at the same amount.
+  static const List<String> _neverRecurring = [
+    'hesburger', 'mcdonald', 'burger', 'kebab', 'pizza', 'cafe', 'café',
+    'maxima', 'rimi', 'lidl', 'iki', 'norfa',
+  ];
+
+  /// True when [name] matches the never-recurring blacklist. Short, ambiguous
+  /// terms (e.g. "iki") match only as a standalone word to avoid catching
+  /// unrelated names ("Vaikiškas"); longer brands match as a substring.
+  static bool isNeverRecurring(String name) {
+    final low = name.toLowerCase();
+    for (final term in _neverRecurring) {
+      if (term.length <= 3) {
+        if (RegExp('(^|[^a-ząčęėįšųūž])$term([^a-ząčęėįšųūž]|\$)')
+            .hasMatch(low)) {
+          return true;
+        }
+      } else if (low.contains(term)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// Normalised form used for duplicate matching: lowercase, letters/digits only
   /// (keeps LT diacritics), so "Netflix" == "netflix.com" == "NETFLIX*".
   static String normalizeName(String s) =>
