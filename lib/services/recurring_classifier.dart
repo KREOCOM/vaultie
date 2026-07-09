@@ -11,7 +11,10 @@ enum ImportGroup {
   /// Rent, utilities, home internet — anything tied to the home.
   housing,
 
-  /// Loans, leasing, insurance.
+  /// Car / home / life insurance.
+  insurance,
+
+  /// Loans and leasing.
   finance,
 
   /// Unknown merchants and person-to-person transfers. The only group left
@@ -23,6 +26,7 @@ enum ImportGroup {
 const List<ImportGroup> kImportGroupOrder = [
   ImportGroup.services,
   ImportGroup.housing,
+  ImportGroup.insurance,
   ImportGroup.finance,
   ImportGroup.other,
 ];
@@ -30,6 +34,7 @@ const List<ImportGroup> kImportGroupOrder = [
 String importGroupLabel(ImportGroup g, bool isLt) => switch (g) {
       ImportGroup.services => isLt ? 'Paslaugos' : 'Services',
       ImportGroup.housing => isLt ? 'Būstas' : 'Housing',
+      ImportGroup.insurance => isLt ? 'Draudimas' : 'Insurance',
       ImportGroup.finance => isLt ? 'Finansai' : 'Finance',
       ImportGroup.other => isLt ? 'Kita' : 'Other',
     };
@@ -206,21 +211,25 @@ class RecurringClassifier {
     return tokens.every(_personWord.hasMatch);
   }
 
-  /// Refined category key for [c]: a keyword match, else the (normalised)
-  /// backend category, else "other". Person-like names go straight to "other".
+  /// Refined category key for [c]. The backend now assigns a category from its
+  /// whitelist / rent detection, so trust a specific one first; only fall back
+  /// to name keywords (and the person heuristic) when the backend said "other".
   static String categoryKeyFor(RecurringCandidate c) {
+    final backend = normalizeCategoryKey(c.category);
+    if (backend != 'other') return backend;
     if (isLikelyPerson(c.name, logoDomain: c.logoDomain)) return 'other';
     final hay = c.name.toLowerCase();
     for (final (needle, key) in _keywordCategory) {
       if (hay.contains(needle)) return key;
     }
-    return normalizeCategoryKey(c.category);
+    return 'other';
   }
 
   static ImportGroup groupForCategory(String key) =>
       switch (normalizeCategoryKey(key)) {
         'housing' || 'utilities' || 'connectivity' => ImportGroup.housing,
-        'finance' || 'insurance' => ImportGroup.finance,
+        'insurance' => ImportGroup.insurance,
+        'finance' => ImportGroup.finance,
         'entertainment' ||
         'health' ||
         'education' ||

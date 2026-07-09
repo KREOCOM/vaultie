@@ -245,7 +245,9 @@ class _BankImportScreenState extends State<BankImportScreen> {
     // person-to-person match the user should double-check.
     final showCheck = cls.isDuplicate;
     final showCaution = !cls.isDuplicate &&
-        (cls.confidence == ImportConfidence.low || cls.likelyPerson);
+        (c.needsReview ||
+            cls.confidence == ImportConfidence.low ||
+            cls.likelyPerson);
 
     return Material(
       color: Colors.transparent,

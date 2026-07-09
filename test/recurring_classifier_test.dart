@@ -49,11 +49,22 @@ void main() {
       expect(cls.categoryKey, 'housing');
     });
 
-    test('loans and insurance land in Finance', () {
+    test('loans land in Finance, insurance in its own group', () {
       expect(classify(candidate('Būsto paskola')).group, ImportGroup.finance);
       expect(classify(candidate('SB lizingas')).group, ImportGroup.finance);
       expect(classify(candidate('Gjensidige draudimas')).group,
-          ImportGroup.finance);
+          ImportGroup.insurance);
+    });
+
+    test('a specific backend category is trusted over the person heuristic', () {
+      // Rent to a person: backend says housing → keep housing (and selected),
+      // don't let the person-name heuristic drop it to Other.
+      final rent = classify(candidate('Jonas Jonaitis', category: 'housing'));
+      expect(rent.group, ImportGroup.housing);
+      expect(rent.selectedByDefault, isTrue);
+      // Backend insurance → the new Insurance group.
+      expect(classify(candidate('Vienas Asmuo', category: 'insurance')).group,
+          ImportGroup.insurance);
     });
   });
 

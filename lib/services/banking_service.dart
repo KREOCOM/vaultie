@@ -44,6 +44,7 @@ class RecurringCandidate {
     required this.occurrences,
     required this.cadenceLabel,
     required this.amountVaries,
+    this.needsReview = false,
     this.logoDomain,
   });
 
@@ -55,6 +56,10 @@ class RecurringCandidate {
   final int occurrences;
   final String cadenceLabel;
   final bool amountVaries;
+
+  /// True when the pattern algorithm (not the whitelist) inferred this, so the
+  /// UI should flag it for a second look.
+  final bool needsReview;
   final String? logoDomain;
 
   factory RecurringCandidate.fromMap(Map<Object?, Object?> m) {
@@ -68,6 +73,7 @@ class RecurringCandidate {
       occurrences: ((m['occurrences'] ?? 0) as num).toInt(),
       cadenceLabel: (m['cadenceLabel'] ?? '') as String,
       amountVaries: (m['amountVaries'] ?? false) as bool,
+      needsReview: (m['needsReview'] ?? false) as bool,
       logoDomain: m['logoDomain'] as String?,
     );
   }
