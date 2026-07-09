@@ -9,6 +9,7 @@ import 'content_theme.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'models/subscription.dart';
+import 'services/feature_flags.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
 import 'services/recap_service.dart';
@@ -73,6 +74,11 @@ Future<void> main() async {
   // Configures RevenueCat and resolves the "Vaultie Pro" entitlement so premium
   // gating is correct from the first frame.
   await PurchaseService.instance.init();
+
+  // Fetch remote feature flags (e.g. the banking kill-switch) in the background
+  // — not awaited so a slow network can't delay the first frame; the UI updates
+  // reactively when the flags arrive.
+  FeatureFlags.instance.init();
 
   // Roll any lapsed renewal dates forward to their next cycle and (re)schedule
   // every subscription's reminders. Runs on each launch so reminders survive

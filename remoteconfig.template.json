@@ -1,0 +1,16 @@
+{
+  "parameters": {
+    "banking_enabled": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "valueType": "BOOLEAN",
+      "description": "Vaultie 2.0 bank-connection kill-switch. true = show the 'Connect your bank' feature; false = hide it everywhere without an app update."
+    }
+  },
+  "parameterGroups": {},
+  "conditions": [],
+  "version": {
+    "description": "Enable Vaultie 2.0 banking feature"
+  }
+}

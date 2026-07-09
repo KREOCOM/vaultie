@@ -13,6 +13,9 @@
       ]
     }
   ],
+  "remoteconfig": {
+    "template": "remoteconfig.template.json"
+  },
   "hosting": {
     "public": "public",
     "trailingSlash": false,

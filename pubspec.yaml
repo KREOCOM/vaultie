@@ -24,6 +24,8 @@ dependencies:
   google_fonts: ^6.2.1
   firebase_core: ^4.11.0
   firebase_auth: ^6.5.4
+  # Remote feature flags / kill-switch (e.g. banking on/off without an update)
+  firebase_remote_config: ^6.0.0
   google_sign_in: ^6.2.1
   flutter_local_notifications: ^22.0.1
   timezone: ^0.11.1

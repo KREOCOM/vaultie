@@ -12,6 +12,7 @@ import '../l10n/localized_labels.dart';
 import '../main.dart';
 import '../models/subscription.dart';
 import '../services/auth_service.dart';
+import '../services/feature_flags.dart';
 import '../services/notification_service.dart';
 import '../services/purchase_service.dart';
 import '../services/recap_service.dart';
@@ -237,8 +238,16 @@ class _OverviewTabState extends State<_OverviewTab> {
           const SliverToBoxAdapter(child: _SavingsCard()),
           SliverToBoxAdapter(child: _UpcomingRenewals(subs: subs)),
           // Pro / feature discovery sits below the money summary, not above it,
-          // so the dashboard leads with what the user came for.
-          const SliverToBoxAdapter(child: _ConnectBankCard()),
+          // so the dashboard leads with what the user came for. The bank card
+          // only appears when the remote `banking_enabled` flag is on, so the
+          // feature can be flipped on/off from Firebase without an app update.
+          SliverToBoxAdapter(
+            child: ValueListenableBuilder<bool>(
+              valueListenable: FeatureFlags.instance.bankingEnabled,
+              builder: (context, bankingOn, _) =>
+                  bankingOn ? const _ConnectBankCard() : const SizedBox.shrink(),
+            ),
+          ),
           SliverToBoxAdapter(child: _categoryChips(subs, isLt)),
           if (subs.length >= 2) SliverToBoxAdapter(child: _searchSortBar(isLt)),
           if (visible.isEmpty)
