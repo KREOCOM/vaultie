@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import '../services/purchase_service.dart';
@@ -11,12 +12,17 @@ const Color _brightGreen = Color(0xFF4CAF72);
 
 /// UI-ONLY: shows the Bilance-style "How your free trial works" timeline.
 ///
-/// ⚠️ This advertises a 7-day free trial. The current RevenueCat products do
-/// NOT include a trial yet. Before shipping to the App Store you MUST either
-/// (a) configure a real 7-day introductory (free-trial) offer on the monthly
-/// subscription, or (b) set this to `false`. Advertising a trial that doesn't
-/// exist risks App Store rejection (Guideline 3.1.2) and breaks user trust.
-const bool kShowTrialTimeline = true;
+/// ⚠️ Off by default: the current RevenueCat products do NOT include a trial.
+/// Only flip this to `true` after a real 7-day introductory (free-trial) offer
+/// is configured on the monthly subscription in App Store Connect + RevenueCat.
+/// Advertising a trial that doesn't exist risks App Store rejection
+/// (Guideline 3.1.2) and breaks user trust.
+const bool kShowTrialTimeline = false;
+
+/// Apple's standard End User License Agreement, required as a functional link
+/// on the purchase screen when using Apple's default EULA (Guideline 3.1.2).
+const String kAppleStandardEulaUrl =
+    'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
 /// Paywall shown when a free user hits [kFreeSubscriptionLimit].
 ///
@@ -121,6 +127,26 @@ class _PaywallScreenState extends State<PaywallScreen> {
     );
   }
 
+  /// Opens Apple's standard EULA in the browser. Required as a functional link
+  /// on the purchase screen (Guideline 3.1.2). Falls back to a snackbar if no
+  /// browser can handle the URL.
+  Future<void> _openEula() async {
+    final isLt = _isLt;
+    final ok = await launchUrl(
+      Uri.parse(kAppleStandardEulaUrl),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isLt
+              ? 'Nepavyko atidaryti nuorodos.'
+              : "Couldn't open the link."),
+        ),
+      );
+    }
+  }
+
   /// An underlined, tappable legal link used in the paywall footer.
   Widget _legalLink(String label, VoidCallback onTap) {
     return GestureDetector(
@@ -134,6 +160,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
           decoration: TextDecoration.underline,
           decorationColor: Colors.white.withValues(alpha: 0.5),
         ),
+      ),
+    );
+  }
+
+  /// The "•" separator between footer legal links.
+  Widget _legalDot() {
+    return Text(
+      '   •   ',
+      style: TextStyle(
+        color: Colors.white.withValues(alpha: 0.4),
+        fontSize: 12,
       ),
     );
   }
@@ -322,22 +359,20 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Functional Terms + Privacy links, required on the purchase
-                    // screen itself (Guideline 3.1.2).
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    // Functional Terms, EULA + Privacy links, required on the
+                    // purchase screen itself (Guideline 3.1.2). Wrap keeps all
+                    // three from overflowing on narrow screens.
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         _legalLink(
                           isLt ? 'Naudojimo sąlygos' : 'Terms of Use',
                           () => _openLegal(terms: true),
                         ),
-                        Text(
-                          '   •   ',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.4),
-                            fontSize: 12,
-                          ),
-                        ),
+                        _legalDot(),
+                        _legalLink('EULA', _openEula),
+                        _legalDot(),
                         _legalLink(
                           isLt ? 'Privatumo politika' : 'Privacy Policy',
                           () => _openLegal(terms: false),
