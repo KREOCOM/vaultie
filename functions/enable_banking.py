@@ -14,9 +14,11 @@ import jwt
 import requests
 
 # Public identifier — it is the ``.pem`` filename and the JWT ``kid`` header, so
-# it is NOT a secret. Only the private key itself is sensitive. This app is
-# registered with the https redirect https://vaultie-1a2c4.web.app/banking/callback.
-APP_ID = "c070330a-2b2d-4cc8-843b-cde49c3dd881"
+# it is NOT a secret. Only the private key itself is sensitive. This is the
+# PRODUCTION application, registered with the https redirect
+# https://vaultie-1a2c4.web.app/banking/callback. (Sandbox app was
+# c070330a-2b2d-4cc8-843b-cde49c3dd881.)
+APP_ID = "5f8b2d4c-e3db-4c88-9e66-7898e1df023d"
 BASE_URL = "https://api.enablebanking.com"
 DEFAULT_COUNTRY = "LT"
 
