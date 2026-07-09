@@ -1,16 +1,15 @@
-import 'dart:async';
-
-import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
 import '../content_theme.dart';
 import '../main.dart';
 import '../services/banking_service.dart';
 import 'bank_import_screen.dart';
 
-/// Pro-only flow: pick a bank → approve on the bank's site → land back here via
-/// the `vaultie://banking/callback` deep link → detect recurring payments.
+/// Pro-only flow: pick a bank → approve inside an ASWebAuthenticationSession →
+/// the session intercepts the `vaultie://banking/callback` return (no "Open in
+/// Vaultie?" prompt) → detect recurring payments.
 class BankConnectScreen extends StatefulWidget {
   const BankConnectScreen({super.key});
 
@@ -23,9 +22,6 @@ class BankConnectScreen extends StatefulWidget {
 enum _Phase { loading, list, connecting, analysing, error }
 
 class _BankConnectScreenState extends State<BankConnectScreen> {
-  final _appLinks = AppLinks();
-  StreamSubscription<Uri>? _linkSub;
-
   _Phase _phase = _Phase.loading;
   List<Bank> _banks = const [];
   String? _error;
@@ -34,15 +30,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   @override
   void initState() {
     super.initState();
-    // Listen for the bank's redirect the whole time this screen is open.
-    _linkSub = _appLinks.uriLinkStream.listen(_onLink, onError: (_) {});
     _loadBanks();
-  }
-
-  @override
-  void dispose() {
-    _linkSub?.cancel();
-    super.dispose();
   }
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
@@ -76,30 +64,22 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     });
     try {
       final url = await BankingService.instance.startBankAuth(bank.name);
-      final uri = Uri.parse(url);
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok) {
+      // Open the bank's page in an ASWebAuthenticationSession (iOS) / Custom
+      // Tab (Android). The session itself intercepts the vaultie:// callback and
+      // hands it straight back here — no "Open in Vaultie?" prompt, no bounce
+      // out to Safari.
+      final result = await FlutterWebAuth2.authenticate(
+        url: url,
+        callbackUrlScheme: kBankingCallbackScheme,
+      );
+      final code = BankingService.codeFromCallback(Uri.parse(result));
+      if (code == null) {
         throw BankingException(_isLt
-            ? 'Nepavyko atidaryti banko puslapio.'
-            : 'Could not open the bank page.');
+            ? 'Negavome prisijungimo kodo iš banko.'
+            : 'The bank didn\'t return a sign-in code.');
       }
-      // Now we wait for _onLink to fire with the callback code.
-    } on BankingException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _phase = _Phase.error;
-      });
-    }
-  }
-
-  /// Handles the bank's redirect back into the app.
-  Future<void> _onLink(Uri uri) async {
-    final code = BankingService.codeFromCallback(uri);
-    if (code == null) return; // not our callback
-    if (_phase == _Phase.analysing) return; // already processing
-    setState(() => _phase = _Phase.analysing);
-    try {
+      setState(() => _phase = _Phase.analysing);
       final candidates = await BankingService.instance.finishBankAuth(code);
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
@@ -107,6 +87,19 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
           builder: (_) => BankImportScreen(candidates: candidates),
         ),
       );
+    } on PlatformException catch (e) {
+      // The user dismissed the bank sheet — quietly return to the bank list.
+      if (!mounted) return;
+      if (e.code == 'CANCELED') {
+        setState(() => _phase = _Phase.list);
+      } else {
+        setState(() {
+          _error = _isLt
+              ? 'Nepavyko prijungti banko.'
+              : 'Could not connect the bank.';
+          _phase = _Phase.error;
+        });
+      }
     } on BankingException catch (e) {
       if (!mounted) return;
       setState(() {

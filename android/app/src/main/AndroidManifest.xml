@@ -30,13 +30,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Enable Banking OAuth callback: vaultie://banking/callback?code=...
-                 Delivered to app_links via onNewIntent (activity is singleTop). -->
-            <intent-filter android:autoVerify="false">
+        </activity>
+        <!-- flutter_web_auth_2: catches the vaultie:// bank OAuth callback inside
+             the Custom Tab session and returns it to the app. -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true">
+            <intent-filter android:label="flutter_web_auth_2">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="vaultie" android:host="banking"/>
+                <data android:scheme="vaultie"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

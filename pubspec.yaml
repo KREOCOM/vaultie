@@ -41,6 +41,9 @@ dependencies:
   pdf: ^3.13.0
   cloud_functions: ^6.3.3
   app_links: ^7.2.0
+  # Bank OAuth return via ASWebAuthenticationSession (iOS) / Custom Tabs
+  # (Android) — intercepts the vaultie:// callback with no "Open in app?" prompt
+  flutter_web_auth_2: ^4.1.0
 
 dev_dependencies:
   flutter_test:
