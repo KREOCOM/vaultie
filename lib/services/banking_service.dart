@@ -73,12 +73,15 @@ class RecurringCandidate {
   }
 
   /// Turns this candidate into a persisted [Subscription]. [id] must be unique.
-  Subscription toSubscription(String id) => Subscription(
+  /// [categoryOverride] lets the importer store the classifier's refined
+  /// category instead of the thin backend guess.
+  Subscription toSubscription(String id, {String? categoryOverride}) =>
+      Subscription(
         id: id,
         name: name,
         cost: cost,
         billingCycle: billingCycle,
-        category: category,
+        category: categoryOverride ?? category,
         nextBillingDate: nextBillingDate,
         // Variable-amount bills (utilities etc.) are marked as estimates.
         isEstimated: amountVaries,

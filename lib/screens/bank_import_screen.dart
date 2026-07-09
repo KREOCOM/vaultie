@@ -3,17 +3,22 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../app_prefs.dart';
 import '../content_theme.dart';
-import '../expense_categories.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/localized_labels.dart';
 import '../main.dart';
 import '../models/subscription.dart';
 import '../services/banking_service.dart';
 import '../services/notification_service.dart';
+import '../services/recurring_classifier.dart';
 import '../widgets/subscription_avatar.dart';
 
-/// Review screen after a bank connect: the detected recurring payments, each
-/// with a checkbox, so the user confirms which to import as subscriptions.
+/// Amber used to flag candidates that deserve a second look.
+const Color _caution = Color(0xFFE9A23B);
+
+/// Review screen after a bank connect: the detected recurring payments, grouped
+/// (Services / Housing / Finance / Other) with a checkbox each, so the user
+/// confirms which to import. Everything except the "Other" group — and any
+/// duplicate of something already tracked — is pre-selected.
 class BankImportScreen extends StatefulWidget {
   const BankImportScreen({super.key, required this.candidates});
 
@@ -23,24 +28,61 @@ class BankImportScreen extends StatefulWidget {
   State<BankImportScreen> createState() => _BankImportScreenState();
 }
 
+/// One candidate paired with its classifier verdict, kept in original order so
+/// [_selected] can stay indexed by the candidate's position.
+class _Item {
+  _Item(this.index, this.candidate, this.cls);
+  final int index;
+  final RecurringCandidate candidate;
+  final RecurringClassification cls;
+}
+
 class _BankImportScreenState extends State<BankImportScreen> {
-  late final List<bool> _selected =
-      List<bool>.filled(widget.candidates.length, true);
+  late final List<_Item> _items;
+  late final List<bool> _selected;
   int _importedCount = 0;
   bool _done = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Names already in the vault, so we can flag duplicates and leave them off.
+    final box = Hive.box<Subscription>(HiveBoxes.subscriptions);
+    final existing = box.values
+        .map((s) => RecurringClassifier.normalizeName(s.name))
+        .toSet();
+    _items = [
+      for (var i = 0; i < widget.candidates.length; i++)
+        _Item(
+          i,
+          widget.candidates[i],
+          RecurringClassifier.classify(
+            widget.candidates[i],
+            existingNormalizedNames: existing,
+          ),
+        ),
+    ];
+    _selected = [for (final it in _items) it.cls.selectedByDefault];
+  }
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
 
   int get _selectedCount => _selected.where((s) => s).length;
 
+  /// Items for [g], in the group's display slice, preserving original order.
+  List<_Item> _groupItems(ImportGroup g) =>
+      _items.where((it) => it.cls.group == g).toList();
+
   Future<void> _import() async {
     final box = Hive.box<Subscription>(HiveBoxes.subscriptions);
     final base = DateTime.now().microsecondsSinceEpoch;
     var count = 0;
-    for (var i = 0; i < widget.candidates.length; i++) {
-      if (!_selected[i]) continue;
-      final id = '${base + i}';
-      final sub = widget.candidates[i].toSubscription(id);
+    for (final it in _items) {
+      if (!_selected[it.index]) continue;
+      final id = '${base + it.index}';
+      // Store the classifier's refined category, not the thin backend guess.
+      final sub =
+          it.candidate.toSubscription(id, categoryOverride: it.cls.categoryKey);
       await box.put(id, sub);
       await NotificationService.instance
           .scheduleForSubscription(sub, isLithuanian: _isLt);
@@ -69,7 +111,7 @@ class _BankImportScreenState extends State<BankImportScreen> {
   }
 
   Widget _reviewView() {
-    if (widget.candidates.isEmpty) {
+    if (_items.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -95,23 +137,28 @@ class _BankImportScreenState extends State<BankImportScreen> {
         ),
       );
     }
+
+    final groups = kImportGroupOrder
+        .where((g) => _groupItems(g).isNotEmpty)
+        .toList(growable: false);
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           child: Text(
             _isLt
-                ? 'Radome ${widget.candidates.length} galimų pasikartojančių mokėjimų. Pažymėk, kuriuos pridėti į vaultą.'
-                : 'We found ${widget.candidates.length} likely recurring payments. Choose which to add to your vault.',
+                ? 'Radome ${_items.length} galimų pasikartojančių mokėjimų. Peržiūrėk grupes ir pažymėk, kuriuos pridėti į vaultą.'
+                : 'We found ${_items.length} likely recurring payments. Review the groups and choose which to add to your vault.',
             style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
           ),
         ),
         Expanded(
-          child: ListView.separated(
+          child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            itemCount: widget.candidates.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, i) => _candidateTile(i),
+            children: [
+              for (final g in groups) ..._section(g),
+            ],
           ),
         ),
         _bottomBar(),
@@ -119,15 +166,84 @@ class _BankImportScreenState extends State<BankImportScreen> {
     );
   }
 
-  Widget _candidateTile(int i) {
-    final c = widget.candidates[i];
+  /// A group header (with a select-all toggle) followed by its candidate tiles.
+  List<Widget> _section(ImportGroup g) {
+    final items = _groupItems(g);
+    final selectedInGroup =
+        items.where((it) => _selected[it.index]).length;
+    final allSelected = selectedInGroup == items.length;
+
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Text(
+                    importGroupLabel(g, _isLt),
+                    style: TextStyle(
+                        color: cInk,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$selectedInGroup/${items.length}',
+                    style: TextStyle(color: cSubtle, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            // Select-all / none for the whole group.
+            TextButton(
+              onPressed: () => setState(() {
+                final target = !allSelected;
+                for (final it in items) {
+                  _selected[it.index] = target;
+                }
+              }),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                allSelected
+                    ? (_isLt ? 'Nė vieno' : 'None')
+                    : (_isLt ? 'Visus' : 'All'),
+                style: TextStyle(
+                    color: cAccent, fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      ),
+      for (final it in items) ...[
+        _candidateTile(it),
+        const SizedBox(height: 10),
+      ],
+      const SizedBox(height: 6),
+    ];
+  }
+
+  Widget _candidateTile(_Item it) {
+    final c = it.candidate;
+    final cls = it.cls;
     final l = AppLocalizations.of(context);
-    final selected = _selected[i];
+    final selected = _selected[it.index];
+    // Flag the risky ones: an already-tracked duplicate, or a low-confidence /
+    // person-to-person match the user should double-check.
+    final showCheck = cls.isDuplicate;
+    final showCaution = !cls.isDuplicate &&
+        (cls.confidence == ImportConfidence.low || cls.likelyPerson);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => setState(() => _selected[i] = !selected),
+        onTap: () => setState(() => _selected[it.index] = !selected),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -139,7 +255,7 @@ class _BankImportScreenState extends State<BankImportScreen> {
             children: [
               SubscriptionAvatar(
                 name: c.name,
-                category: c.category,
+                category: cls.categoryKey,
                 logoDomain: c.logoDomain,
                 size: 44,
               ),
@@ -148,16 +264,33 @@ class _BankImportScreenState extends State<BankImportScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(c.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: cInk,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15)),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(c.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: cInk,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15)),
+                        ),
+                        if (showCheck) ...[
+                          const SizedBox(width: 8),
+                          _pill(
+                            _isLt ? 'Jau seki' : 'Already tracked',
+                            cSubtle,
+                          ),
+                        ] else if (showCaution) ...[
+                          const SizedBox(width: 8),
+                          _pill(_isLt ? 'Patikrink' : 'Check', _caution),
+                        ],
+                      ],
+                    ),
                     const SizedBox(height: 2),
                     Text(
-                      '${categoryLabel(c.category, _isLt)} · ${billingCycleLabel(l, c.billingCycle)} · ${_isLt ? '${c.occurrences} kartai' : '${c.occurrences}×'}',
+                      // "Why": cadence + how many times we saw it.
+                      '${billingCycleLabel(l, c.billingCycle)} · ${_isLt ? 'matyta ${c.occurrences}×' : 'seen ${c.occurrences}×'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: cSubtle, fontSize: 12),
@@ -167,9 +300,7 @@ class _BankImportScreenState extends State<BankImportScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                c.amountVaries
-                    ? '~${formatMoney(c.cost)}'
-                    : formatMoney(c.cost),
+                c.amountVaries ? '~${formatMoney(c.cost)}' : formatMoney(c.cost),
                 style: TextStyle(
                     color: cInk, fontWeight: FontWeight.w800, fontSize: 16),
               ),
@@ -188,6 +319,22 @@ class _BankImportScreenState extends State<BankImportScreen> {
     );
   }
 
+  /// A small rounded status label (e.g. "Already tracked", "Check").
+  Widget _pill(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+            color: color, fontWeight: FontWeight.w700, fontSize: 10),
+      ),
+    );
+  }
+
   Widget _bottomBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -202,9 +349,7 @@ class _BankImportScreenState extends State<BankImportScreen> {
           child: Text(
             _selectedCount == 0
                 ? (_isLt ? 'Pažymėk bent vieną' : 'Select at least one')
-                : (_isLt
-                    ? 'Pridėti $_selectedCount'
-                    : 'Add $_selectedCount'),
+                : (_isLt ? 'Pridėti $_selectedCount' : 'Add $_selectedCount'),
           ),
         ),
       ),
