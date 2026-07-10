@@ -196,6 +196,15 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     detection = detect_recurring(all_txns)
     candidates = detection["candidates"]
     frequent = detection["frequent"]
+    # Persist the detection funnel to the debug doc (read via get_debug). Not
+    # returned to the client. Debug-only; remove before production.
+    try:
+        from firebase_admin import firestore
+        firestore.client().collection("debug").document("last_scan").set(
+            {"funnel": detection.get("debug", {})}, merge=True
+        )
+    except Exception:  # noqa: BLE001
+        pass
     logging.info(
         "finish_bank_auth: accounts=%d txns=%d candidates=%d frequent=%d "
         "history_days=%d",

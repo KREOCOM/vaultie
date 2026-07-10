@@ -264,19 +264,21 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
 
     candidates = []
     frequent = []
+    debug_groups = []
     n_known = 0
     n_algo = 0
     for items in by_merchant.values():
         raw_name = items[0][2]
         dates = _dates(items)
+        amounts = [a for _, a, _ in items]
         hit = merchant_db.match(raw_name)
+        outcome = "rejected"
 
         if hit is not None:
             display, mtype, category, logo = hit
             if mtype == "frequent":
                 # Never recurring — surface as frequent spending only.
                 if len(items) >= FREQUENT_MIN:
-                    amounts = [a for _, a, _ in items]
                     frequent.append({
                         "name": display,
                         "category": category,
@@ -284,22 +286,36 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
                         "occurrences": len(items),
                         "totalSpent": round(sum(amounts), 2),
                     })
-                continue
-            # Known subscription / bill / possible → recurring on sight.
-            typ = "bill" if mtype == "bill" else "subscription"
-            needs = mtype == "possible"
-            candidates.append(
-                _build_candidate(display, typ, category, logo, items, dates,
-                                 needs_review=needs)
-            )
-            n_known += 1
-            continue
+                outcome = "frequent"
+            else:
+                # Known subscription / bill / possible → recurring on sight.
+                typ = "bill" if mtype == "bill" else "subscription"
+                needs = mtype == "possible"
+                candidates.append(
+                    _build_candidate(display, typ, category, logo, items, dates,
+                                     needs_review=needs)
+                )
+                n_known += 1
+                outcome = f"known-{typ}"
+        else:
+            # Unknown merchant — pattern algorithm (+ large-payment / rent path).
+            cand = _detect_unknown(items, min_occurrences)
+            if cand is not None:
+                candidates.append(cand)
+                n_algo += 1
+                outcome = f"algo-{cand['type']}"
 
-        # Unknown merchant — pattern algorithm (+ large-payment / rent path).
-        cand = _detect_unknown(items, min_occurrences)
-        if cand is not None:
-            candidates.append(cand)
-            n_algo += 1
+        # Capture a debug row for groups worth inspecting (repeated, or large).
+        if len(items) >= 2 or (amounts and max(amounts) > RENT_MIN):
+            gap = _avg_gap(dates)
+            debug_groups.append({
+                "key": _merchant_key(raw_name),
+                "occ": len(items),
+                "min": round(min(amounts), 2) if amounts else None,
+                "max": round(max(amounts), 2) if amounts else None,
+                "gapDays": round(gap, 1) if gap is not None else None,
+                "outcome": outcome,
+            })
 
     candidates.sort(key=lambda c: (-c["occurrences"], -c["cost"]))
     logging.info(
@@ -308,4 +324,15 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
         n_dbit, n_skipped, len(by_merchant), n_known, n_algo,
         len(candidates), len(frequent),
     )
-    return {"candidates": candidates, "frequent": frequent}
+    debug = {
+        "txns": len(transactions),
+        "dbit": n_dbit,
+        "skippedNoName": n_skipped,
+        "merchants": len(by_merchant),
+        "known": n_known,
+        "algorithm": n_algo,
+        "candidates": len(candidates),
+        "frequent": len(frequent),
+        "groups": sorted(debug_groups, key=lambda g: -(g["max"] or 0))[:40],
+    }
+    return {"candidates": candidates, "frequent": frequent, "debug": debug}
