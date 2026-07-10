@@ -81,7 +81,12 @@ class _BankImportScreenState extends State<BankImportScreen> {
     for (final it in _items) {
       if (!_selected[it.index]) continue;
       final id = '${base + it.index}';
-      final sub = it.candidate.toSubscription(id);
+      final imported = it.candidate.toSubscription(id);
+      // Roll the next date to today-or-later so a just-paid recurring never
+      // lands in the vault already showing as "Overdue".
+      final sub = imported.copyWith(
+        nextBillingDate: imported.rolledForwardBillingDate(),
+      );
       await box.put(id, sub);
       await NotificationService.instance
           .scheduleForSubscription(sub, isLithuanian: _isLt);

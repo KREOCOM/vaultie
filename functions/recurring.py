@@ -79,10 +79,14 @@ def booking_date(t: dict):
     return t.get("booking_date") or t.get("value_date") or t.get("transaction_date")
 
 
+# Fold LT diacritics so "Artusgrupė" and "Artusgrupe" collapse to one key.
+_FOLD = str.maketrans("ąčęėįšųūž", "aceeisuuz")
+
+
 def _merchant_key(name: str) -> str:
-    low = name.lower()
+    low = name.lower().translate(_FOLD)
     low = re.sub(r"\d+", " ", low)
-    low = re.sub(r"[^a-z0-9ąčęėįšųūž]+", " ", low)
+    low = re.sub(r"[^a-z0-9]+", " ", low)
     tokens = [t for t in low.split() if len(t) > 1 and t not in _KEY_STOPWORDS]
     return " ".join(tokens[:4]).strip()
 
@@ -194,6 +198,45 @@ def _category_for_unknown(raw_name: str, avg: float) -> str:
     return "other"
 
 
+def _detect_unknown(items, min_occurrences):
+    """Detect a recurring payment from an unknown merchant, or return None.
+
+    Two rules, in order:
+      1. Similar-amount recurring — >=2 charges within +/-15% at a recognised
+         cadence (weekly/monthly/quarterly/yearly).
+      2. Large regular payment (rent / įmoka) — >=2 charges of >200 EUR that are
+         roughly monthly (20-45 days apart) or simply fall in >=2 distinct
+         months. Tolerant of amount variance and a missed month, because rent
+         to an "MB"/"UAB" or a person often varies and can skip a month.
+    """
+    raw_name = items[0][2]
+
+    cluster = _amount_cluster(items)
+    if len(cluster) >= min_occurrences:
+        cdates = _dates(cluster)
+        gap = _avg_gap(cdates)
+        if gap is not None:
+            _, label = _classify_cadence(gap)
+            if not label.startswith("~"):
+                avg = round(sum(a for _, a, _ in cluster) / len(cluster), 2)
+                category = _category_for_unknown(raw_name, avg)
+                typ = "bill" if category in ("housing", "finance") else "subscription"
+                return _build_candidate(_clean_name(raw_name), typ, category,
+                                        None, cluster, cdates, needs_review=True)
+
+    large = [it for it in items if it[1] >= RENT_MIN]
+    if len(large) >= 2:
+        ldates = _dates(large)
+        gap = _avg_gap(ldates)
+        months = {(d.year, d.month) for d in ldates}
+        if (gap is not None and 20 <= gap <= 45) or len(months) >= 2:
+            avg = round(sum(a for _, a, _ in large) / len(large), 2)
+            category = _category_for_unknown(raw_name, avg)  # >200 → housing
+            return _build_candidate(_clean_name(raw_name), "bill", category,
+                                    None, large, ldates, needs_review=True)
+    return None
+
+
 def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNOWN):
     """Return ``{"candidates": [...], "frequent": [...]}``.
 
@@ -252,26 +295,11 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             n_known += 1
             continue
 
-        # Unknown merchant — pattern algorithm.
-        cluster = _amount_cluster(items)
-        if len(cluster) < min_occurrences:
-            continue
-        cdates = _dates(cluster)
-        gap = _avg_gap(cdates)
-        if gap is None:
-            continue
-        _, label = _classify_cadence(gap)
-        if label.startswith("~"):
-            continue  # irregular — not convincingly recurring
-        avg = round(sum(a for _, a, _ in cluster) / len(cluster), 2)
-        category = _category_for_unknown(raw_name, avg)
-        # Rent-like (large, housing) reads as a bill; otherwise a subscription.
-        typ = "bill" if category in ("housing", "finance") else "subscription"
-        candidates.append(
-            _build_candidate(_clean_name(raw_name), typ, category, None, cluster,
-                             cdates, needs_review=True)
-        )
-        n_algo += 1
+        # Unknown merchant — pattern algorithm (+ large-payment / rent path).
+        cand = _detect_unknown(items, min_occurrences)
+        if cand is not None:
+            candidates.append(cand)
+            n_algo += 1
 
     candidates.sort(key=lambda c: (-c["occurrences"], -c["cost"]))
     logging.info(

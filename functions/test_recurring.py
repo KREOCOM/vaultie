@@ -75,6 +75,10 @@ DEMO = [
     _txn("2026-06-03", 43.17, "Maxima LT"),
     _txn("2026-06-09", 21.80, "Maxima LT"),
     _txn("2026-06-20", 8.40, "Maxima LT"),
+    # Rent to an MB with inconsistent diacritics + varying amount — must merge
+    # into ONE housing bill (diacritic fold + large-payment path).
+    _txn("2026-05-03", 1203.00, "MB Artusgrupė"),
+    _txn("2026-05-31", 1043.00, "MB Artusgrupe"),
     # Salary (CRDT) + single unknown — must NOT be flagged.
     _txn("2026-05-01", 2100.00, "Employer UAB", indicator="CRDT"),
     _txn("2026-06-22", 45.00, "Kuro Pavilnys UAB"),
@@ -124,6 +128,14 @@ def main() -> int:
     # Frequent — never a candidate, surfaced separately.
     check("Maxima" in freq_names, "Maxima not surfaced as frequent")
     check("Maxima" not in by_name, "Maxima wrongly imported as recurring")
+
+    # MB rent — diacritic variants merge into one housing bill.
+    artus = [c for c in cands if "artusgrup" in c["name"].lower()]
+    check(len(artus) == 1, f"MB Artusgrupe not merged/detected (got {len(artus)})")
+    if artus:
+        check(artus[0]["type"] == "bill", "MB rent not a bill")
+        check(artus[0]["category"] == "housing", "MB rent not housing")
+        check(artus[0]["occurrences"] == 2, "MB rent occurrences != 2")
 
     # Must NOT be flagged at all.
     check("Employer UAB" not in by_name, "Salary wrongly flagged")
