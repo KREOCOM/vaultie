@@ -7,7 +7,7 @@ import '../main.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'auth_screen.dart';
-import 'dashboard_screen.dart';
+import 'onboarding_choice_screen.dart';
 
 /// Gate shown to a signed-in-but-unverified user.
 ///
@@ -63,7 +63,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         await ensureLocalDataForCurrentUser();
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          MaterialPageRoute(builder: (_) => landingAfterAuth()),
           (route) => false,
         );
       } else if (showFeedback) {

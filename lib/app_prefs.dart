@@ -82,6 +82,19 @@ class AppPrefs {
   static Future<void> setNotifBannerDismissed(bool value) async {
     await _box.put(_kNotifBannerDismissed, value);
   }
+
+  static const _kOnboardingComplete = 'onboardingComplete';
+
+  /// Whether the post-login "How would you like to start?" choice has been made.
+  /// Read synchronously so navigation can gate on it. Once true the choice
+  /// screen is skipped and the user goes straight to the dashboard.
+  static bool get onboardingComplete => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _box.get(_kOnboardingComplete, defaultValue: false) as bool
+      : false;
+
+  static Future<void> setOnboardingComplete(bool value) async {
+    await _box.put(_kOnboardingComplete, value);
+  }
 }
 
 /// The default UI locale when the user hasn't chosen a language in Settings:

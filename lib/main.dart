@@ -70,6 +70,12 @@ Future<void> main() async {
   // Load persisted language/currency preferences into their notifiers.
   AppPrefs.load();
 
+  // Existing users (who already have tracked payments) skip the first-run
+  // "How would you like to start?" choice screen — it's for fresh installs.
+  if (!AppPrefs.onboardingComplete && subsBox.isNotEmpty) {
+    await AppPrefs.setOnboardingComplete(true);
+  }
+
   await NotificationService.instance.init();
   // Configures RevenueCat and resolves the "Vaultie Pro" entitlement so premium
   // gating is correct from the first frame.

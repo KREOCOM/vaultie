@@ -20,7 +20,7 @@ import '../widgets/budget_dialog.dart';
 import '../widgets/subscription_avatar.dart';
 import '../widgets/subscription_icons.dart';
 import 'add_subscription_screen.dart';
-import 'bank_connect_screen.dart';
+import 'bank_info_screen.dart';
 import 'paywall_screen.dart';
 import 'recap_screen.dart';
 import 'savings_screen.dart';
@@ -1375,8 +1375,9 @@ class _ConnectBankCard extends StatelessWidget {
 
   void _open(BuildContext context) {
     if (PurchaseService.instance.isPremium) {
+      // Show the "how it works" info screen before the bank list.
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const BankConnectScreen()),
+        MaterialPageRoute(builder: (_) => const BankInfoScreen()),
       );
     } else {
       Navigator.of(context).push(

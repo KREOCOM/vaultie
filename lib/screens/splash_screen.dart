@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'auth_screen.dart';
-import 'dashboard_screen.dart';
+import 'onboarding_choice_screen.dart';
 import 'onboarding_screen.dart';
 import 'verify_email_screen.dart';
 
@@ -64,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen>
       next = const OnboardingScreen();
     } else if (auth.isLoggedIn) {
       next = auth.isEmailVerified
-          ? const DashboardScreen()
+          ? landingAfterAuth()
           : const VerifyEmailScreen();
     } else {
       next = const AuthScreen();

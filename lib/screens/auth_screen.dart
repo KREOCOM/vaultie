@@ -7,7 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
-import 'dashboard_screen.dart';
+import 'onboarding_choice_screen.dart';
 import 'verify_email_screen.dart';
 
 /// Email/password sign-in & registration backed by Firebase Auth.
@@ -83,7 +83,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => _auth.isEmailVerified
-                ? const DashboardScreen()
+                ? landingAfterAuth()
                 : const VerifyEmailScreen(),
           ),
         );
@@ -163,7 +163,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       // report emailVerified=false and would otherwise trap the user on the
       // verify screen with no working way out.
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        MaterialPageRoute(builder: (_) => landingAfterAuth()),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -202,7 +202,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       // Social accounts (Google/Apple) are provider-verified — go straight to
       // the dashboard, never the email-verification gate (see signInWithGoogle).
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        MaterialPageRoute(builder: (_) => landingAfterAuth()),
       );
     } on FirebaseAuthException catch (e) {
       // Surface the exact code so real-device failures are diagnosable
