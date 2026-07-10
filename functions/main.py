@@ -79,8 +79,22 @@ def _log_mcc_diagnostics(txns: list) -> None:
     logging.info(
         "mcc_diag: txns=%d with_mcc=%d with_bank_txn_code=%d", len(txns), n_mcc, n_btc,
     )
-    logging.info("mcc_diag top MCC: %s", dict(mcc.most_common(20)))
-    logging.info("mcc_diag top bank_txn_code: %s", dict(btc.most_common(20)))
+    summary = {
+        "txns": len(txns),
+        "withMcc": n_mcc,
+        "withBankTxnCode": n_btc,
+        "topMcc": dict(mcc.most_common(25)),
+        "topBankTxnCode": dict(btc.most_common(25)),
+    }
+    # Persist so it can be read back via get_debug (gen2 Python stdout isn't
+    # visible through `firebase functions:log`). Codes/counts only — no PII.
+    try:
+        from firebase_admin import firestore
+        firestore.client().collection("debug").document("last_scan").set(
+            {**summary, "at": firestore.SERVER_TIMESTAMP}
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])
@@ -216,5 +230,21 @@ def seed_merchants(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response(f"error: {e}", status=500)
     return https_fn.Response(
         json.dumps(result), status=200,
+        headers={"Content-Type": "application/json"},
+    )
+
+
+@https_fn.on_request(region=_REGION, secrets=[SEED_TOKEN])
+def get_debug(req: https_fn.Request) -> https_fn.Response:
+    """Return the last scan's MCC diagnostics (written by finish_bank_auth).
+    Guarded by SEED_TOKEN. Lets us read gen2 diagnostics that don't surface in
+    `firebase functions:log`."""
+    if req.args.get("key") != SEED_TOKEN.value:
+        return https_fn.Response("forbidden", status=403)
+    from firebase_admin import firestore
+    doc = firestore.client().collection("debug").document("last_scan").get()
+    data = doc.to_dict() if doc.exists else {}
+    return https_fn.Response(
+        json.dumps(data, default=str), status=200,
         headers={"Content-Type": "application/json"},
     )
