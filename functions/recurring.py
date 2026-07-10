@@ -1,18 +1,17 @@
 """Recurring-payment detection (Vaultie 3.0).
 
-Two paths, driven by the Firestore merchant DB (see merchant_db.py) and the
-rules in functions/merchants_seed.json:
+The user picks what's recurring — so we return EVERY outgoing merchant grouped
+(even seen once), tagged ``autoDetected`` when the Firestore merchant DB knows
+it. Income (credit) and known frequent-spending merchants (groceries, fast
+food, fuel…) are never returned as candidates; the latter go into a separate
+``frequent`` list for context.
 
-  1. Known merchant (DB hit) — recurring on sight (min 1 occurrence). Its ``type``
-     comes from the DB: ``subscription`` / ``bill`` are imported; ``frequent``
-     is NEVER recurring (surfaced separately if seen >=2× in the window);
-     ``possible`` is treated as a subscription needing review.
-  2. Unknown merchant — needs >=2 payments of a similar amount (+/-15%) at a
-     recognised cadence. A large regular payment (>200 EUR, possibly to a
-     person) is treated as rent → a housing bill.
+Merchant variants collapse via two mechanisms:
+  * card-processor prefixes are stripped ("PAYPAL*APPMYWEB" → "APPMYWEB"),
+  * known merchants group by their canonical DB name, so "DRIBBBLE*",
+    "DRIBBBLE PRO STANDARD" and "DRIBBBLE" become one.
 
-Each candidate carries ``type`` and ``needsReview``. Raw transactions are never
-returned or stored.
+Raw transactions are never returned or stored.
 """
 
 import datetime as dt
@@ -22,13 +21,9 @@ from collections import defaultdict
 
 import merchant_db
 
-# Detection rules — mirror functions/merchants_seed.json "rules".
-MIN_OCC_UNKNOWN = 2
-INTERVAL_MIN = 25
-INTERVAL_MAX = 35
-AMOUNT_VARIANCE = 0.15
+MIN_OCC_UNKNOWN = 2  # kept for signature compatibility; no longer gates output
 RENT_MIN = 200.0
-FREQUENT_MIN = 2
+FREQUENT_MIN = 1
 
 _FINANCE_HINTS = ("paskol", "lizing", "kredit", "loan", "leasing", "financing")
 
@@ -36,8 +31,11 @@ _KEY_STOPWORDS = {
     "uab", "ab", "mb", "vsi", "vši", "iį", "as", "oy", "ltd", "inc", "llc",
     "payment", "purchase", "card", "pos", "pirkimas", "mokejimas", "mokėjimas",
     "sepa", "transfer", "pavedimas", "sąskaita", "saskaita", "ref", "no",
-    "pvm", "sf",
+    "pvm", "sf", "www", "com", "lt", "lv", "ee",
 }
+
+# Fold LT diacritics so "Artusgrupė" and "Artusgrupe" collapse to one key.
+_FOLD = str.maketrans("ąčęėįšųūž", "aceeisuuz")
 
 
 def counterparty_name(t: dict):
@@ -79,11 +77,21 @@ def booking_date(t: dict):
     return t.get("booking_date") or t.get("value_date") or t.get("transaction_date")
 
 
-# Fold LT diacritics so "Artusgrupė" and "Artusgrupe" collapse to one key.
-_FOLD = str.maketrans("ąčęėįšųūž", "aceeisuuz")
+def _clean_merchant(name: str) -> str:
+    """The real merchant behind a card-processor prefix.
+
+    "PAYPAL*APPMYWEB", "SUMUP *Coffee", "IZ *Shop" → the part after the "*".
+    """
+    if "*" in name:
+        after = name.split("*", 1)[1].strip()
+        if len(after) >= 2:
+            return after
+    return name.strip()
 
 
 def _merchant_key(name: str) -> str:
+    """Canonical key for an UNKNOWN merchant: fold diacritics, drop digits and
+    special characters, drop legal-form / plumbing stopwords."""
     low = name.lower().translate(_FOLD)
     low = re.sub(r"\d+", " ", low)
     low = re.sub(r"[^a-z0-9]+", " ", low)
@@ -92,8 +100,9 @@ def _merchant_key(name: str) -> str:
 
 
 def _clean_name(raw: str) -> str:
+    """A tidy display name for an unknown merchant (trim long ref numbers)."""
     s = re.sub(r"\b\d{3,}\b", " ", raw)
-    s = re.sub(r"\s{2,}", " ", s).strip(" -/,")
+    s = re.sub(r"\s{2,}", " ", s).strip(" -/,*")
     return s or raw.strip()
 
 
@@ -102,7 +111,7 @@ def _classify_cadence(gap_days: float):
         return "weekly", "weekly"
     if 12 <= gap_days <= 16:
         return "monthly", "biweekly"
-    if INTERVAL_MIN <= gap_days <= INTERVAL_MAX:
+    if 25 <= gap_days <= 35:
         return "monthly", "monthly"
     if 85 <= gap_days <= 95:
         return "quarterly", "quarterly"
@@ -115,10 +124,8 @@ def _add_months(d: dt.date, months: int) -> dt.date:
     zero = d.month - 1 + months
     year = d.year + zero // 12
     month = zero % 12 + 1
-    if month == 12:
-        last_day = 31
-    else:
-        last_day = (dt.date(year, month + 1, 1) - dt.timedelta(days=1)).day
+    last_day = 31 if month == 12 else (
+        dt.date(year, month + 1, 1) - dt.timedelta(days=1)).day
     return dt.date(year, month, min(d.day, last_day))
 
 
@@ -153,17 +160,17 @@ def _avg_gap(dates):
     return sum(gaps) / len(gaps) if gaps else None
 
 
-def _amount_cluster(items):
-    best = []
-    for _, center, _ in items:
-        lo, hi = center * (1 - AMOUNT_VARIANCE), center * (1 + AMOUNT_VARIANCE)
-        grp = [it for it in items if lo <= it[1] <= hi]
-        if len(grp) > len(best):
-            best = grp
-    return best or items
+def _category_for_unknown(raw_name: str, avg: float) -> str:
+    low = raw_name.lower()
+    if any(k in low for k in _FINANCE_HINTS):
+        return "finance"
+    if avg > RENT_MIN:
+        return "housing"
+    return "other"
 
 
-def _build_candidate(display, mtype, category, logo, items, dates, *, needs_review):
+def _build_candidate(display, mtype, category, logo, items, dates, *,
+                     needs_review, auto_detected):
     amounts = [a for _, a, _ in items]
     avg = round(sum(amounts) / len(amounts), 2)
     gap = _avg_gap(dates)
@@ -175,6 +182,7 @@ def _build_candidate(display, mtype, category, logo, items, dates, *, needs_revi
     return {
         "name": display,
         "type": mtype,                      # subscription | bill
+        "autoDetected": auto_detected,      # known merchant vs user-review
         "cost": avg,
         "currency": "EUR",
         "billingCycle": cycle,
@@ -189,150 +197,114 @@ def _build_candidate(display, mtype, category, logo, items, dates, *, needs_revi
     }
 
 
-def _category_for_unknown(raw_name: str, avg: float) -> str:
-    low = raw_name.lower()
-    if any(k in low for k in _FINANCE_HINTS):
-        return "finance"
-    if avg > RENT_MIN:
-        return "housing"
-    return "other"
-
-
-def _detect_unknown(items, min_occurrences):
-    """Detect a recurring payment from an unknown merchant, or return None.
-
-    Two rules, in order:
-      1. Similar-amount recurring — >=2 charges within +/-15% at a recognised
-         cadence (weekly/monthly/quarterly/yearly).
-      2. Large regular payment (rent / įmoka) — >=2 charges of >200 EUR that are
-         roughly monthly (20-45 days apart) or simply fall in >=2 distinct
-         months. Tolerant of amount variance and a missed month, because rent
-         to an "MB"/"UAB" or a person often varies and can skip a month.
-    """
-    raw_name = items[0][2]
-
-    cluster = _amount_cluster(items)
-    if len(cluster) >= min_occurrences:
-        cdates = _dates(cluster)
-        gap = _avg_gap(cdates)
-        if gap is not None:
-            _, label = _classify_cadence(gap)
-            if not label.startswith("~"):
-                avg = round(sum(a for _, a, _ in cluster) / len(cluster), 2)
-                category = _category_for_unknown(raw_name, avg)
-                typ = "bill" if category in ("housing", "finance") else "subscription"
-                return _build_candidate(_clean_name(raw_name), typ, category,
-                                        None, cluster, cdates, needs_review=True)
-
-    large = [it for it in items if it[1] >= RENT_MIN]
-    if len(large) >= 2:
-        ldates = _dates(large)
-        gap = _avg_gap(ldates)
-        months = {(d.year, d.month) for d in ldates}
-        if (gap is not None and 20 <= gap <= 45) or len(months) >= 2:
-            avg = round(sum(a for _, a, _ in large) / len(large), 2)
-            category = _category_for_unknown(raw_name, avg)  # >200 → housing
-            return _build_candidate(_clean_name(raw_name), "bill", category,
-                                    None, large, ldates, needs_review=True)
-    return None
-
-
 def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNOWN):
-    """Return ``{"candidates": [...], "frequent": [...]}``.
+    """Return ``{"candidates": [...], "frequent": [...], "debug": {...}}``.
 
-    ``candidates`` are importable recurring payments (type subscription/bill);
-    ``frequent`` are frequent-spending merchants (never recurring) surfaced for
-    the feed only.
+    Every outgoing merchant becomes a candidate (even seen once), tagged
+    ``autoDetected``. Frequent-spending merchants go to ``frequent`` only.
     """
-    by_merchant = defaultdict(list)
+    groups = defaultdict(list)
+    group_hit = {}
+    freq_amounts = defaultdict(list)
+    freq_meta = {}
     n_dbit = 0
     n_skipped = 0
     for t in transactions:
         if t.get("credit_debit_indicator") != "DBIT":
-            continue
+            continue  # never surface income / incoming credits
         n_dbit += 1
-        name = counterparty_name(t)
+        raw = counterparty_name(t)
         amount = amount_value(t)
-        if not name or amount is None:
+        if not raw or amount is None:
             n_skipped += 1
             continue
-        mkey = _merchant_key(name)
-        if not mkey:
-            n_skipped += 1
-            continue
-        by_merchant[mkey].append((booking_date(t), amount, name))
+        merchant = _clean_merchant(raw)
+        hit = merchant_db.match(merchant)
 
-    candidates = []
-    frequent = []
-    debug_groups = []
-    n_known = 0
-    n_algo = 0
-    for items in by_merchant.values():
-        raw_name = items[0][2]
-        dates = _dates(items)
-        amounts = [a for _, a, _ in items]
-        hit = merchant_db.match(raw_name)
-        outcome = "rejected"
+        if hit is not None and hit[1] == "frequent":
+            fk = hit[0].lower()
+            freq_amounts[fk].append(amount)
+            freq_meta[fk] = hit
+            continue
 
         if hit is not None:
-            display, mtype, category, logo = hit
-            if mtype == "frequent":
-                # Never recurring — surface as frequent spending only.
-                if len(items) >= FREQUENT_MIN:
-                    frequent.append({
-                        "name": display,
-                        "category": category,
-                        "logoDomain": logo,
-                        "occurrences": len(items),
-                        "totalSpent": round(sum(amounts), 2),
-                    })
-                outcome = "frequent"
-            else:
-                # Known subscription / bill / possible → recurring on sight.
-                typ = "bill" if mtype == "bill" else "subscription"
-                needs = mtype == "possible"
-                candidates.append(
-                    _build_candidate(display, typ, category, logo, items, dates,
-                                     needs_review=needs)
-                )
-                n_known += 1
-                outcome = f"known-{typ}"
+            key = "k:" + hit[0].lower()          # canonical → collapses variants
         else:
-            # Unknown merchant — pattern algorithm (+ large-payment / rent path).
-            cand = _detect_unknown(items, min_occurrences)
-            if cand is not None:
-                candidates.append(cand)
-                n_algo += 1
-                outcome = f"algo-{cand['type']}"
+            mk = _merchant_key(merchant)
+            if not mk:
+                n_skipped += 1
+                continue
+            key = "u:" + mk
+        groups[key].append((booking_date(t), amount, merchant))
+        group_hit[key] = hit
 
-        # Capture a debug row for groups worth inspecting (repeated, or large).
-        if len(items) >= 2 or (amounts and max(amounts) > RENT_MIN):
-            gap = _avg_gap(dates)
-            debug_groups.append({
-                "key": _merchant_key(raw_name),
-                "occ": len(items),
-                "min": round(min(amounts), 2) if amounts else None,
-                "max": round(max(amounts), 2) if amounts else None,
-                "gapDays": round(gap, 1) if gap is not None else None,
-                "outcome": outcome,
-            })
+    candidates = []
+    for key, items in groups.items():
+        hit = group_hit[key]
+        dates = _dates(items)
+        amounts = [a for _, a, _ in items]
+        if hit is not None:
+            display, mtype, category, logo = hit
+            typ = "bill" if mtype == "bill" else "subscription"
+            candidates.append(
+                _build_candidate(display, typ, category, logo, items, dates,
+                                 needs_review=(mtype == "possible"),
+                                 auto_detected=True)
+            )
+        else:
+            avg = round(sum(amounts) / len(amounts), 2)
+            category = _category_for_unknown(items[0][2], avg)
+            typ = "bill" if category in ("housing", "finance") else "subscription"
+            candidates.append(
+                _build_candidate(_clean_name(items[0][2]), typ, category, None,
+                                 items, dates, needs_review=True,
+                                 auto_detected=False)
+            )
 
-    candidates.sort(key=lambda c: (-c["occurrences"], -c["cost"]))
+    frequent = [
+        {
+            "name": freq_meta[fk][0],
+            "category": freq_meta[fk][2],
+            "logoDomain": freq_meta[fk][3],
+            "occurrences": len(amts),
+            "totalSpent": round(sum(amts), 2),
+        }
+        for fk, amts in freq_amounts.items()
+        if len(amts) >= FREQUENT_MIN
+    ]
+
+    # Auto-detected first, then by frequency and cost.
+    candidates.sort(
+        key=lambda c: (not c["autoDetected"], -c["occurrences"], -c["cost"]))
+
+    n_auto = sum(1 for c in candidates if c["autoDetected"])
     logging.info(
-        "detect_recurring: dbit=%d skipped_no_name=%d merchants=%d "
-        "known=%d algorithm=%d candidates=%d frequent=%d",
-        n_dbit, n_skipped, len(by_merchant), n_known, n_algo,
+        "detect_recurring: dbit=%d skipped=%d merchants=%d auto=%d manual=%d "
+        "candidates=%d frequent=%d",
+        n_dbit, n_skipped, len(groups), n_auto, len(candidates) - n_auto,
         len(candidates), len(frequent),
     )
     debug = {
         "txns": len(transactions),
         "dbit": n_dbit,
         "skippedNoName": n_skipped,
-        "merchants": len(by_merchant),
-        "known": n_known,
-        "algorithm": n_algo,
+        "merchants": len(groups),
+        "auto": n_auto,
+        "manual": len(candidates) - n_auto,
         "candidates": len(candidates),
         "frequent": len(frequent),
-        "groups": sorted(debug_groups, key=lambda g: -(g["max"] or 0))[:40],
+        "groups": sorted(
+            (
+                {
+                    "key": key,
+                    "occ": len(items),
+                    "min": round(min(a for _, a, _ in items), 2),
+                    "max": round(max(a for _, a, _ in items), 2),
+                    "auto": group_hit[key] is not None,
+                }
+                for key, items in groups.items()
+            ),
+            key=lambda g: -g["max"],
+        )[:50],
     }
     return {"candidates": candidates, "frequent": frequent, "debug": debug}

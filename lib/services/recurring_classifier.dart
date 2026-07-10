@@ -1,49 +1,45 @@
 import 'banking_service.dart';
 
-/// The two importable groups on the bank-import review screen. Detection now
-/// assigns each candidate a `type` (from the Firestore merchant DB), so grouping
-/// is by type, not category. Frequent-spending merchants are NOT candidates —
-/// they arrive in a separate list and are shown for information only.
-enum ImportGroup { subscriptions, bills }
+/// The two sections on the bank-import review screen. Detection returns EVERY
+/// outgoing merchant tagged `autoDetected`, so the screen splits them into the
+/// known ones (pre-selected) and everything else (the user picks).
+enum ImportGroup { autoDetected, others }
 
-/// Display order (Subscriptions first).
 const List<ImportGroup> kImportGroupOrder = [
-  ImportGroup.subscriptions,
-  ImportGroup.bills,
+  ImportGroup.autoDetected,
+  ImportGroup.others,
 ];
 
 String importGroupLabel(ImportGroup g, bool isLt) => switch (g) {
-      ImportGroup.subscriptions => isLt ? 'Prenumeratos' : 'Subscriptions',
-      ImportGroup.bills => isLt ? 'Sąskaitos' : 'Bills',
+      ImportGroup.autoDetected => isLt ? 'Auto-aptikti' : 'Auto-detected',
+      ImportGroup.others => isLt ? 'Kiti merchant\'ai' : 'Other merchants',
     };
 
-/// The classifier's verdict for one candidate: which group it belongs to,
-/// whether it duplicates something already tracked, whether detection flagged it
-/// for review, and the resulting default checkbox state.
+/// Verdict for one candidate: its section, whether it duplicates something
+/// already tracked, whether detection flagged it, and the default checkbox.
 class RecurringClassification {
   const RecurringClassification({
     required this.group,
     required this.isDuplicate,
     required this.needsReview,
+    required this.autoDetected,
   });
 
   final ImportGroup group;
-
-  /// A payment with the same (normalised) name is already in the vault.
   final bool isDuplicate;
-
-  /// Detection (the algorithm or a "possible" merchant) flagged it for a look.
   final bool needsReview;
+  final bool autoDetected;
 
-  /// Checked on first render — everything except a duplicate.
-  bool get selectedByDefault => !isDuplicate;
+  /// Pre-checked only for auto-detected merchants (and never a duplicate); the
+  /// user opts other merchants in themselves.
+  bool get selectedByDefault => autoDetected && !isDuplicate;
 }
 
-/// Groups bank-import candidates by their detected type and flags duplicates
-/// of payments already in the vault.
+/// Sorts bank-import candidates into the auto-detected / others sections and
+/// flags duplicates of payments already in the vault.
 class RecurringClassifier {
-  static ImportGroup groupForType(String type) =>
-      type == 'bill' ? ImportGroup.bills : ImportGroup.subscriptions;
+  static ImportGroup groupFor(bool autoDetected) =>
+      autoDetected ? ImportGroup.autoDetected : ImportGroup.others;
 
   /// Normalised form for duplicate matching: lowercase, letters/digits only
   /// (keeps LT diacritics), so "Netflix" == "netflix.com" == "NETFLIX*".
@@ -67,9 +63,10 @@ class RecurringClassifier {
     required Set<String> existingNormalizedNames,
   }) {
     return RecurringClassification(
-      group: groupForType(c.type),
+      group: groupFor(c.autoDetected),
       isDuplicate: _isDuplicate(c.name, existingNormalizedNames),
       needsReview: c.needsReview,
+      autoDetected: c.autoDetected,
     );
   }
 }

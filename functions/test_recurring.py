@@ -1,8 +1,9 @@
 """Unit tests for recurring detection — no network/Firestore, runs anywhere.
 
-The merchant DB is mocked by seeding merchant_db._cache directly, so we exercise
-both paths: known merchants (recurring on sight, incl. type + frequent) and the
-pattern algorithm (>=2 similar amounts at a recognised cadence, incl. rent).
+New model: EVERY outgoing merchant is returned (even seen once), tagged
+autoDetected when the merchant DB knows it. Income and frequent-spending
+merchants are never candidates. Variants collapse (processor prefixes stripped,
+known merchants grouped by canonical name).
 
 Run:  python3 functions/test_recurring.py
 """
@@ -15,26 +16,22 @@ sys.path.insert(0, os.path.dirname(__file__))
 import merchant_db  # noqa: E402
 from recurring import detect_recurring  # noqa: E402
 
-# Mock merchant DB (bypasses Firestore).
 merchant_db._cache = [
-    {"_key": "netflix", "displayName": "Netflix", "type": "subscription",
-     "category": "entertainment", "logoDomain": "netflix.com",
-     "aliases": ["netflix"], "matchMode": "substring", "status": "active"},
     {"_key": "spotify", "displayName": "Spotify", "type": "subscription",
      "category": "entertainment", "logoDomain": "spotify.com",
-     "aliases": ["spotify"], "matchMode": "substring", "status": "active"},
-    {"_key": "adobe", "displayName": "Adobe", "type": "subscription",
-     "category": "entertainment", "logoDomain": "adobe.com",
-     "aliases": ["adobe"], "matchMode": "substring", "status": "active"},
+     "aliases": ["spotify"], "status": "active"},
+    {"_key": "dribbble", "displayName": "Dribbble", "type": "subscription",
+     "category": "entertainment", "logoDomain": "dribbble.com",
+     "aliases": ["dribbble"], "status": "active"},
     {"_key": "telia", "displayName": "Telia", "type": "bill",
      "category": "connectivity", "logoDomain": None,
-     "aliases": ["telia"], "matchMode": "substring", "status": "active"},
+     "aliases": ["telia"], "status": "active"},
     {"_key": "maxima", "displayName": "Maxima", "type": "frequent",
      "category": "other", "logoDomain": None,
-     "aliases": ["maxima"], "matchMode": "substring", "status": "active"},
+     "aliases": ["maxima"], "status": "active"},
     {"_key": "applecombill", "displayName": "Apple", "type": "possible",
      "category": "entertainment", "logoDomain": "apple.com",
-     "aliases": ["apple.com"], "matchMode": "substring", "status": "active"},
+     "aliases": ["apple.com", "apple"], "status": "active"},
 ]
 
 
@@ -50,104 +47,83 @@ def _txn(date, amount, name, indicator="DBIT"):
 
 
 DEMO = [
-    _txn("2026-04-05", 9.99, "Spotify AB"),
     _txn("2026-05-05", 9.99, "Spotify AB"),
     _txn("2026-06-05", 9.99, "Spotify AB"),
-    _txn("2026-04-12", 12.99, "Netflix International"),
-    _txn("2026-05-12", 12.99, "Netflix International"),
-    _txn("2026-06-12", 12.99, "Netflix International"),
-    # Known subscription seen ONCE — still detected.
-    _txn("2026-06-19", 19.99, "Adobe Systems Software"),
-    # Known bill, reference-number variants collapse into one.
-    _txn("2026-04-08", 11.99, "PVM SF 2026/04 UAB Telia 8842"),
-    _txn("2026-05-08", 11.99, "PVM SF 2026/05 UAB Telia 9137"),
-    _txn("2026-06-08", 11.99, "PVM SF 2026/06 UAB Telia 9455"),
-    # Possible (apple.com) — subscription needing review.
-    _txn("2026-05-20", 2.99, "APPLE.COM/BILL"),
-    # Rent: large regular payment → bill / housing.
-    _txn("2026-04-01", 650.00, "UAB Namu Valda"),
-    _txn("2026-05-01", 650.00, "UAB Namu Valda"),
-    _txn("2026-06-01", 650.00, "UAB Namu Valda"),
-    # Unknown monthly → algorithm subscription.
-    _txn("2026-05-15", 29.90, "Sporto klubas XYZ"),
-    _txn("2026-06-15", 29.90, "Sporto klubas XYZ"),
-    # Frequent (blacklist) — variable groceries, never recurring.
-    _txn("2026-06-03", 43.17, "Maxima LT"),
-    _txn("2026-06-09", 21.80, "Maxima LT"),
-    _txn("2026-06-20", 8.40, "Maxima LT"),
-    # Rent to an MB with inconsistent diacritics + varying amount — must merge
-    # into ONE housing bill (diacritic fold + large-payment path).
+    # Dribbble variants — must collapse into ONE auto-detected candidate.
+    _txn("2026-05-28", 14.62, "DRIBBBLE PRO STANDARD"),
+    _txn("2026-06-29", 9.04, "DRIBBBLE*"),
+    # apple.com variants (possible) → one auto candidate, needs review.
+    _txn("2026-05-20", 22.99, "APPLE.COM/BILL"),
+    _txn("2026-06-25", 117.46, "APPLE.COM/US"),
+    _txn("2026-06-08", 11.99, "UAB Telia 8842"),
+    # Unknown, single occurrence — now returned (manual, unchecked).
+    _txn("2026-06-22", 45.00, "Kuro Pavilnys UAB"),
+    # Card-processor prefix — real merchant is APPMYWEB (unknown).
+    _txn("2026-06-11", 61.88, "PAYPAL*APPMYWEB"),
+    # Rent (unknown, large) — a manual candidate.
     _txn("2026-05-03", 1203.00, "MB Artusgrupė"),
     _txn("2026-05-31", 1043.00, "MB Artusgrupe"),
-    # Salary (CRDT) + single unknown — must NOT be flagged.
-    _txn("2026-05-01", 2100.00, "Employer UAB", indicator="CRDT"),
-    _txn("2026-06-22", 45.00, "Kuro Pavilnys UAB"),
+    # Frequent + income — never candidates.
+    _txn("2026-06-03", 43.17, "Maxima LT"),
+    _txn("2026-06-09", 21.80, "Maxima LT"),
+    _txn("2026-06-01", 2100.00, "Employer UAB", indicator="CRDT"),
 ]
 
 
 def main() -> int:
     result = detect_recurring(DEMO)
     cands = result["candidates"]
-    frequent = result["frequent"]
     by_name = {c["name"]: c for c in cands}
-    freq_names = {f["name"] for f in frequent}
+    freq_names = {f["name"] for f in result["frequent"]}
     failures = []
 
     def check(cond, msg):
         if not cond:
             failures.append(msg)
 
-    # Known merchants.
-    check(by_name.get("Spotify", {}).get("type") == "subscription",
-          "Spotify not a subscription")
-    check(by_name.get("Spotify", {}).get("needsReview") is False,
-          "Known merchant should not need review")
-    check("Adobe" in by_name, "Adobe (single known charge) not detected")
-    check(by_name.get("Telia", {}).get("type") == "bill", "Telia not a bill")
-    check(by_name.get("Telia", {}).get("occurrences") == 3,
-          "Telia variants not merged")
+    # Auto-detected known merchants.
+    check(by_name.get("Spotify", {}).get("autoDetected") is True, "Spotify not auto")
+    check(by_name.get("Spotify", {}).get("needsReview") is False, "Spotify needsReview")
+    check(by_name.get("Telia", {}).get("type") == "bill", "Telia not bill")
 
-    # Possible → subscription + review.
-    check(by_name.get("Apple", {}).get("type") == "subscription",
-          "Apple (possible) not a subscription")
-    check(by_name.get("Apple", {}).get("needsReview") is True,
-          "Possible merchant should need review")
+    # Dribbble variants collapse into one.
+    dribbble = [c for c in cands if c["name"] == "Dribbble"]
+    check(len(dribbble) == 1, f"Dribbble not collapsed (got {len(dribbble)})")
+    check(dribbble and dribbble[0]["autoDetected"] is True, "Dribbble not auto")
+    check(dribbble and dribbble[0]["occurrences"] == 2, "Dribbble occ != 2")
 
-    # Rent via algorithm → bill / housing / review.
-    check(by_name.get("UAB Namu Valda", {}).get("type") == "bill",
-          "Rent not a bill")
-    check(by_name.get("UAB Namu Valda", {}).get("category") == "housing",
-          "Rent category != housing")
-    check(by_name.get("UAB Namu Valda", {}).get("needsReview") is True,
-          "Rent should need review")
+    # apple.com variants collapse; possible → auto + review.
+    apple = [c for c in cands if c["name"] == "Apple"]
+    check(len(apple) == 1, f"Apple not collapsed (got {len(apple)})")
+    check(apple and apple[0]["autoDetected"] is True, "Apple not auto")
+    check(apple and apple[0]["needsReview"] is True, "Apple (possible) not review")
 
-    # Unknown monthly → subscription + review.
-    check(by_name.get("Sporto klubas XYZ", {}).get("needsReview") is True,
-          "Algorithm hit should need review")
+    # Unknown merchants are returned as MANUAL candidates (autoDetected False).
+    for nm in ("Kuro Pavilnys UAB", "MB Artusgrupė"):
+        check(nm in by_name, f"{nm} not returned")
+        check(by_name.get(nm, {}).get("autoDetected") is False, f"{nm} should be manual")
 
-    # Frequent — never a candidate, surfaced separately.
-    check("Maxima" in freq_names, "Maxima not surfaced as frequent")
-    check("Maxima" not in by_name, "Maxima wrongly imported as recurring")
+    # Card-processor prefix stripped → APPMYWEB, not PayPal.
+    check(any("appmyweb" in c["name"].lower() for c in cands),
+          "PAYPAL*APPMYWEB not resolved to APPMYWEB")
+    check(all("paypal" not in c["name"].lower() for c in cands),
+          "processor prefix leaked into a candidate")
 
-    # MB rent — diacritic variants merge into one housing bill.
-    artus = [c for c in cands if "artusgrup" in c["name"].lower()]
-    check(len(artus) == 1, f"MB Artusgrupe not merged/detected (got {len(artus)})")
-    if artus:
-        check(artus[0]["type"] == "bill", "MB rent not a bill")
-        check(artus[0]["category"] == "housing", "MB rent not housing")
-        check(artus[0]["occurrences"] == 2, "MB rent occurrences != 2")
+    # Never candidates: frequent + income.
+    check("Maxima" in freq_names, "Maxima not frequent")
+    check("Maxima" not in by_name, "Maxima wrongly a candidate")
+    check("Employer UAB" not in by_name, "Income wrongly a candidate")
 
-    # Must NOT be flagged at all.
-    check("Employer UAB" not in by_name, "Salary wrongly flagged")
-    check("Kuro Pavilnys UAB" not in by_name, "Single unknown wrongly flagged")
+    # Every candidate carries the autoDetected flag.
+    check(all("autoDetected" in c for c in cands), "candidate missing autoDetected")
 
-    print(f"Detected {len(cands)} candidate(s), {len(frequent)} frequent:")
+    auto = sum(1 for c in cands if c["autoDetected"])
+    print(f"{len(cands)} candidates ({auto} auto, {len(cands) - auto} manual), "
+          f"{len(result['frequent'])} frequent:")
     for c in cands:
-        flag = " (review)" if c["needsReview"] else ""
-        print(f"  • {c['name']:<20} {c['type']:<12} {c['cost']:>7.2f} "
-              f"{c['category']:<13} ×{c['occurrences']}{flag}")
-    for f in frequent:
-        print(f"  ~ {f['name']:<20} frequent     ×{f['occurrences']}")
+        tag = "AUTO" if c["autoDetected"] else "manual"
+        print(f"  • [{tag:6}] {c['name']:<20} {c['type']:<12} {c['cost']:>7.2f} "
+              f"{c['category']:<13} ×{c['occurrences']}")
 
     if failures:
         print("\nFAILURES:")

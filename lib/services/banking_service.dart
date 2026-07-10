@@ -38,6 +38,7 @@ class RecurringCandidate {
   const RecurringCandidate({
     required this.name,
     required this.type,
+    this.autoDetected = false,
     required this.cost,
     required this.billingCycle,
     required this.category,
@@ -53,6 +54,10 @@ class RecurringCandidate {
 
   /// Recurring type from detection: `subscription` or `bill`.
   final String type;
+
+  /// True when a known merchant from the DB — pre-selected on the import screen.
+  /// False for merchants the user reviews and picks themselves.
+  final bool autoDetected;
   final double cost;
   final BillingCycle billingCycle;
   final String category;
@@ -70,6 +75,7 @@ class RecurringCandidate {
     return RecurringCandidate(
       name: (m['name'] ?? '') as String,
       type: (m['type'] ?? 'subscription') as String,
+      autoDetected: (m['autoDetected'] ?? false) as bool,
       cost: ((m['cost'] ?? 0) as num).toDouble(),
       billingCycle: _cycleFromString((m['billingCycle'] ?? 'monthly') as String),
       category: (m['category'] ?? 'Other') as String,
