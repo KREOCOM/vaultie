@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global merchant database. Readable by signed-in users (for the
+    // "label this merchant" UI); written ONLY by Cloud Functions, which use the
+    // Admin SDK and bypass these rules. No direct client writes.
+    match /merchants/{merchantKey} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Crowdsourced submissions are handled entirely by the submit_merchant
+    // callable (Admin SDK). No direct client access.
+    match /merchant_submissions/{key} {
+      allow read, write: if false;
+    }
+  }
+}
