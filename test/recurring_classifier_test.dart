@@ -5,22 +5,21 @@ import 'package:vaultie/services/recurring_classifier.dart';
 
 RecurringCandidate candidate(
   String name, {
-  double cost = 9.99,
-  int occurrences = 3,
-  bool amountVaries = false,
-  String category = 'Other',
-  String? logoDomain,
+  String type = 'subscription',
+  bool needsReview = false,
+  String category = 'other',
 }) {
   return RecurringCandidate(
     name: name,
-    cost: cost,
+    type: type,
+    cost: 9.99,
     billingCycle: BillingCycle.monthly,
     category: category,
     nextBillingDate: DateTime(2026, 8, 1),
-    occurrences: occurrences,
+    occurrences: 3,
     cadenceLabel: 'monthly',
-    amountVaries: amountVaries,
-    logoDomain: logoDomain,
+    amountVaries: false,
+    needsReview: needsReview,
   );
 }
 
@@ -29,76 +28,36 @@ RecurringClassification classify(RecurringCandidate c, {Set<String>? existing}) 
         existingNormalizedNames: existing ?? <String>{});
 
 void main() {
-  group('grouping', () {
-    test('streaming brands land in Services and are selected', () {
-      final cls = classify(candidate('NETFLIX.COM', logoDomain: 'netflix.com'));
-      expect(cls.group, ImportGroup.services);
-      expect(cls.categoryKey, 'entertainment');
-      expect(cls.selectedByDefault, isTrue);
+  group('grouping by type', () {
+    test('subscriptions and bills land in their groups', () {
+      expect(classify(candidate('Netflix', type: 'subscription')).group,
+          ImportGroup.subscriptions);
+      expect(classify(candidate('Ignitis', type: 'bill')).group,
+          ImportGroup.bills);
     });
 
-    test('utilities land in Housing', () {
-      expect(classify(candidate('UAB Ignitis')).group, ImportGroup.housing);
-      expect(classify(candidate('Vilniaus vandenys')).group, ImportGroup.housing);
-      expect(classify(candidate('Telia Lietuva, AB')).group, ImportGroup.housing);
-    });
-
-    test('rent lands in Housing', () {
-      final cls = classify(candidate('Buto nuoma'));
-      expect(cls.group, ImportGroup.housing);
-      expect(cls.categoryKey, 'housing');
-    });
-
-    test('loans land in Finance, insurance in its own group', () {
-      expect(classify(candidate('Būsto paskola')).group, ImportGroup.finance);
-      expect(classify(candidate('SB lizingas')).group, ImportGroup.finance);
-      expect(classify(candidate('Gjensidige draudimas')).group,
-          ImportGroup.insurance);
-    });
-
-    test('a specific backend category is trusted over the person heuristic', () {
-      // Rent to a person: backend says housing → keep housing (and selected),
-      // don't let the person-name heuristic drop it to Other.
-      final rent = classify(candidate('Jonas Jonaitis', category: 'housing'));
-      expect(rent.group, ImportGroup.housing);
-      expect(rent.selectedByDefault, isTrue);
-      // Backend insurance → the new Insurance group.
-      expect(classify(candidate('Vienas Asmuo', category: 'insurance')).group,
-          ImportGroup.insurance);
+    test('unknown type defaults to subscriptions', () {
+      expect(RecurringClassifier.groupForType('whatever'),
+          ImportGroup.subscriptions);
     });
   });
 
-  group('person / peer-to-peer detection', () {
-    test('a bare two-word name is treated as a person → Other, unselected', () {
-      final cls = classify(candidate('Milda Dirsiene'));
-      expect(cls.likelyPerson, isTrue);
-      expect(cls.group, ImportGroup.other);
-      expect(cls.confidence, ImportConfidence.low);
-      expect(cls.selectedByDefault, isFalse);
+  group('defaults + flags', () {
+    test('non-duplicates are selected by default', () {
+      expect(classify(candidate('Spotify')).selectedByDefault, isTrue);
     });
 
-    test('company legal form is not a person', () {
-      expect(RecurringClassifier.isLikelyPerson('UAB Maxima'), isFalse);
-    });
-
-    test('a known logo domain is never a person', () {
-      expect(
-        RecurringClassifier.isLikelyPerson('Apple Music', logoDomain: 'apple.com'),
-        isFalse,
-      );
-    });
-
-    test('names with digits/domains/refs are not persons', () {
-      expect(RecurringClassifier.isLikelyPerson('pildyk.lt'), isFalse);
-      expect(RecurringClassifier.isLikelyPerson('Ref 12345'), isFalse);
+    test('needsReview passes through from the candidate', () {
+      expect(classify(candidate('UAB Xyz', needsReview: true)).needsReview,
+          isTrue);
+      expect(classify(candidate('Netflix')).needsReview, isFalse);
     });
   });
 
   group('duplicate detection', () {
     test('flags a candidate already in the vault, unselected', () {
       final existing = {RecurringClassifier.normalizeName('Netflix')};
-      final cls = classify(candidate('NETFLIX.COM', logoDomain: 'netflix.com'),
-          existing: existing);
+      final cls = classify(candidate('NETFLIX.COM'), existing: existing);
       expect(cls.isDuplicate, isTrue);
       expect(cls.selectedByDefault, isFalse);
     });
@@ -107,41 +66,6 @@ void main() {
       final existing = {RecurringClassifier.normalizeName('Spotify')};
       expect(classify(candidate('Ignitis'), existing: existing).isDuplicate,
           isFalse);
-    });
-  });
-
-  group('never-recurring blacklist', () {
-    test('fast food and groceries are blacklisted', () {
-      for (final n in [
-        'Hesburger Vilnius',
-        'McDonalds',
-        'MAXIMA LT 4231',
-        'Rimi Lietuva',
-        'Lidl',
-        'Norfa',
-        'IKI, Vilnius',
-      ]) {
-        expect(RecurringClassifier.isNeverRecurring(n), isTrue, reason: n);
-      }
-    });
-
-    test('"iki" only matches as a whole word, not inside other words', () {
-      expect(RecurringClassifier.isNeverRecurring('Vaikiškas pasaulis'), isFalse);
-      expect(RecurringClassifier.isNeverRecurring('Netflix'), isFalse);
-    });
-  });
-
-  group('confidence', () {
-    test('classified, frequent, stable amount → high', () {
-      final cls = classify(candidate('Spotify', occurrences: 5));
-      expect(cls.confidence, ImportConfidence.high);
-    });
-
-    test('unknown merchant seen twice → low', () {
-      final cls = classify(candidate('Zzz Xyz Ltd', occurrences: 2));
-      // Has a company token so not a person, but unclassified + infrequent.
-      expect(cls.group, ImportGroup.other);
-      expect(cls.confidence, ImportConfidence.low);
     });
   });
 }

@@ -15,14 +15,14 @@ import '../widgets/subscription_avatar.dart';
 /// Amber used to flag candidates that deserve a second look.
 const Color _caution = Color(0xFFE9A23B);
 
-/// Review screen after a bank connect: the detected recurring payments, grouped
-/// (Services / Housing / Finance / Other) with a checkbox each, so the user
-/// confirms which to import. Everything except the "Other" group — and any
-/// duplicate of something already tracked — is pre-selected.
+/// Review screen after a bank connect: detected recurring payments grouped by
+/// type (Subscriptions / Bills), each with a checkbox, plus a read-only
+/// "frequent spending" section (never recurring). Duplicates of payments
+/// already in the vault are pre-unchecked; everything else is pre-checked.
 class BankImportScreen extends StatefulWidget {
-  const BankImportScreen({super.key, required this.candidates});
+  const BankImportScreen({super.key, required this.result});
 
-  final List<RecurringCandidate> candidates;
+  final BankScanResult result;
 
   @override
   State<BankImportScreen> createState() => _BankImportScreenState();
@@ -43,41 +43,34 @@ class _BankImportScreenState extends State<BankImportScreen> {
   int _importedCount = 0;
   bool _done = false;
 
+  List<RecurringCandidate> get _candidates => widget.result.candidates;
+  List<FrequentMerchant> get _frequent => widget.result.frequent;
+
   @override
   void initState() {
     super.initState();
-    // Names already in the vault, so we can flag duplicates and leave them off.
     final box = Hive.box<Subscription>(HiveBoxes.subscriptions);
     final existing = box.values
         .map((s) => RecurringClassifier.normalizeName(s.name))
         .toSet();
     _items = [
-      for (var i = 0; i < widget.candidates.length; i++)
-        // Drop never-recurring merchants (fast food, groceries) entirely — they
-        // shouldn't appear as recurring payments even if they repeat.
-        if (!RecurringClassifier.isNeverRecurring(widget.candidates[i].name))
-          _Item(
-            i,
-            widget.candidates[i],
-            RecurringClassifier.classify(
-              widget.candidates[i],
-              existingNormalizedNames: existing,
-            ),
+      for (var i = 0; i < _candidates.length; i++)
+        _Item(
+          i,
+          _candidates[i],
+          RecurringClassifier.classify(
+            _candidates[i],
+            existingNormalizedNames: existing,
           ),
+        ),
     ];
-    // Indexed by ORIGINAL candidate position (filtered-out items stay false and
-    // are never shown or imported).
-    _selected = List<bool>.filled(widget.candidates.length, false);
-    for (final it in _items) {
-      _selected[it.index] = it.cls.selectedByDefault;
-    }
+    _selected = [for (final it in _items) it.cls.selectedByDefault];
   }
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
 
   int get _selectedCount => _selected.where((s) => s).length;
 
-  /// Items for [g], in the group's display slice, preserving original order.
   List<_Item> _groupItems(ImportGroup g) =>
       _items.where((it) => it.cls.group == g).toList();
 
@@ -88,9 +81,7 @@ class _BankImportScreenState extends State<BankImportScreen> {
     for (final it in _items) {
       if (!_selected[it.index]) continue;
       final id = '${base + it.index}';
-      // Store the classifier's refined category, not the thin backend guess.
-      final sub =
-          it.candidate.toSubscription(id, categoryOverride: it.cls.categoryKey);
+      final sub = it.candidate.toSubscription(id);
       await box.put(id, sub);
       await NotificationService.instance
           .scheduleForSubscription(sub, isLithuanian: _isLt);
@@ -119,31 +110,8 @@ class _BankImportScreenState extends State<BankImportScreen> {
   }
 
   Widget _reviewView() {
-    if (_items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.search_off, color: cSubtle, size: 40),
-              const SizedBox(height: 16),
-              Text(
-                _isLt
-                    ? 'Neradome aiškių pasikartojančių mokėjimų šioje sąskaitoje.'
-                    : 'We didn\'t find any clear recurring payments in this account.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: cInk, fontSize: 15, height: 1.4),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(_isLt ? 'Grįžti' : 'Back'),
-              ),
-            ],
-          ),
-        ),
-      );
+    if (_items.isEmpty && _frequent.isEmpty) {
+      return _emptyState();
     }
 
     final groups = kImportGroupOrder
@@ -152,33 +120,61 @@ class _BankImportScreenState extends State<BankImportScreen> {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-          child: Text(
-            _isLt
-                ? 'Radome ${_items.length} galimų pasikartojančių mokėjimų. Peržiūrėk grupes ir pažymėk, kuriuos pridėti į vaultą.'
-                : 'We found ${_items.length} likely recurring payments. Review the groups and choose which to add to your vault.',
-            style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+        if (_items.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+            child: Text(
+              _isLt
+                  ? 'Radome ${_items.length} pasikartojančių mokėjimų. Pažymėk, kuriuos pridėti į vaultą.'
+                  : 'We found ${_items.length} recurring payments. Choose which to add to your vault.',
+              style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+            ),
           ),
-        ),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             children: [
               for (final g in groups) ..._section(g),
+              if (_frequent.isNotEmpty) ..._frequentSection(),
             ],
           ),
         ),
-        _bottomBar(),
+        if (_items.isNotEmpty) _bottomBar(),
       ],
+    );
+  }
+
+  Widget _emptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off, color: cSubtle, size: 40),
+            const SizedBox(height: 16),
+            Text(
+              _isLt
+                  ? 'Neradome aiškių pasikartojančių mokėjimų šioje sąskaitoje.'
+                  : 'We didn\'t find any clear recurring payments in this account.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: cInk, fontSize: 15, height: 1.4),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(_isLt ? 'Grįžti' : 'Back'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   /// A group header (with a select-all toggle) followed by its candidate tiles.
   List<Widget> _section(ImportGroup g) {
     final items = _groupItems(g);
-    final selectedInGroup =
-        items.where((it) => _selected[it.index]).length;
+    final selectedInGroup = items.where((it) => _selected[it.index]).length;
     final allSelected = selectedInGroup == items.length;
 
     return [
@@ -197,14 +193,11 @@ class _BankImportScreenState extends State<BankImportScreen> {
                         fontSize: 15),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    '$selectedInGroup/${items.length}',
-                    style: TextStyle(color: cSubtle, fontSize: 13),
-                  ),
+                  Text('$selectedInGroup/${items.length}',
+                      style: TextStyle(color: cSubtle, fontSize: 13)),
                 ],
               ),
             ),
-            // Select-all / none for the whole group.
             TextButton(
               onPressed: () => setState(() {
                 final target = !allSelected;
@@ -241,13 +234,6 @@ class _BankImportScreenState extends State<BankImportScreen> {
     final cls = it.cls;
     final l = AppLocalizations.of(context);
     final selected = _selected[it.index];
-    // Flag the risky ones: an already-tracked duplicate, or a low-confidence /
-    // person-to-person match the user should double-check.
-    final showCheck = cls.isDuplicate;
-    final showCaution = !cls.isDuplicate &&
-        (c.needsReview ||
-            cls.confidence == ImportConfidence.low ||
-            cls.likelyPerson);
 
     return Material(
       color: Colors.transparent,
@@ -265,7 +251,7 @@ class _BankImportScreenState extends State<BankImportScreen> {
             children: [
               SubscriptionAvatar(
                 name: c.name,
-                category: cls.categoryKey,
+                category: c.category,
                 logoDomain: c.logoDomain,
                 size: 44,
               ),
@@ -285,13 +271,10 @@ class _BankImportScreenState extends State<BankImportScreen> {
                                   fontWeight: FontWeight.w700,
                                   fontSize: 15)),
                         ),
-                        if (showCheck) ...[
+                        if (cls.isDuplicate) ...[
                           const SizedBox(width: 8),
-                          _pill(
-                            _isLt ? 'Jau seki' : 'Already tracked',
-                            cSubtle,
-                          ),
-                        ] else if (showCaution) ...[
+                          _pill(_isLt ? 'Jau seki' : 'Already tracked', cSubtle),
+                        ] else if (cls.needsReview) ...[
                           const SizedBox(width: 8),
                           _pill(_isLt ? 'Patikrink' : 'Check', _caution),
                         ],
@@ -299,7 +282,6 @@ class _BankImportScreenState extends State<BankImportScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      // "Why": cadence + how many times we saw it.
                       '${billingCycleLabel(l, c.billingCycle)} · ${_isLt ? 'matyta ${c.occurrences}×' : 'seen ${c.occurrences}×'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -329,6 +311,66 @@ class _BankImportScreenState extends State<BankImportScreen> {
     );
   }
 
+  /// Read-only "frequent spending" section — merchants we see often but never
+  /// treat as recurring (fast food, groceries…).
+  List<Widget> _frequentSection() {
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(2, 14, 2, 4),
+        child: Text(
+          _isLt ? 'Dažni pirkimai' : 'Frequent spending',
+          style:
+              TextStyle(color: cInk, fontWeight: FontWeight.w800, fontSize: 15),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(2, 0, 2, 10),
+        child: Text(
+          _isLt
+              ? 'Šie nesekami kaip pasikartojantys — tik informacijai.'
+              : 'These aren\'t tracked as recurring — shown for context only.',
+          style: TextStyle(color: cSubtle, fontSize: 12, height: 1.4),
+        ),
+      ),
+      for (final f in _frequent) ...[
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: cCard.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cLine),
+          ),
+          child: Row(
+            children: [
+              SubscriptionAvatar(
+                  name: f.name,
+                  category: f.category,
+                  logoDomain: f.logoDomain,
+                  size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(f.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: cInk,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14)),
+              ),
+              Text(
+                _isLt
+                    ? '${f.occurrences}× · ${formatMoney(f.totalSpent)}'
+                    : '${f.occurrences}× · ${formatMoney(f.totalSpent)}',
+                style: TextStyle(color: cSubtle, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    ];
+  }
+
   /// A small rounded status label (e.g. "Already tracked", "Check").
   Widget _pill(String text, Color color) {
     return Container(
@@ -337,11 +379,9 @@ class _BankImportScreenState extends State<BankImportScreen> {
         color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-            color: color, fontWeight: FontWeight.w700, fontSize: 10),
-      ),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontWeight: FontWeight.w700, fontSize: 10)),
     );
   }
 

@@ -80,11 +80,11 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       }
       if (!mounted) return;
       setState(() => _phase = _Phase.analysing);
-      final candidates = await BankingService.instance.finishBankAuth(code);
+      final scan = await BankingService.instance.finishBankAuth(code);
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => BankImportScreen(candidates: candidates),
+          builder: (_) => BankImportScreen(result: scan),
         ),
       );
     } on PlatformException catch (e) {

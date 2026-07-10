@@ -37,6 +37,7 @@ class Bank {
 class RecurringCandidate {
   const RecurringCandidate({
     required this.name,
+    required this.type,
     required this.cost,
     required this.billingCycle,
     required this.category,
@@ -49,6 +50,9 @@ class RecurringCandidate {
   });
 
   final String name;
+
+  /// Recurring type from detection: `subscription` or `bill`.
+  final String type;
   final double cost;
   final BillingCycle billingCycle;
   final String category;
@@ -65,6 +69,7 @@ class RecurringCandidate {
   factory RecurringCandidate.fromMap(Map<Object?, Object?> m) {
     return RecurringCandidate(
       name: (m['name'] ?? '') as String,
+      type: (m['type'] ?? 'subscription') as String,
       cost: ((m['cost'] ?? 0) as num).toDouble(),
       billingCycle: _cycleFromString((m['billingCycle'] ?? 'monthly') as String),
       category: (m['category'] ?? 'Other') as String,
@@ -93,6 +98,40 @@ class RecurringCandidate {
         isEstimated: amountVaries,
         logoDomain: logoDomain,
       );
+}
+
+/// A frequent-spending merchant (fast food, groceries…). Never recurring — the
+/// bank scan surfaces these for the feed only, not as importable subscriptions.
+class FrequentMerchant {
+  const FrequentMerchant({
+    required this.name,
+    required this.category,
+    required this.occurrences,
+    required this.totalSpent,
+    this.logoDomain,
+  });
+
+  final String name;
+  final String category;
+  final int occurrences;
+  final double totalSpent;
+  final String? logoDomain;
+
+  factory FrequentMerchant.fromMap(Map<Object?, Object?> m) => FrequentMerchant(
+        name: (m['name'] ?? '') as String,
+        category: (m['category'] ?? 'other') as String,
+        occurrences: ((m['occurrences'] ?? 0) as num).toInt(),
+        totalSpent: ((m['totalSpent'] ?? 0) as num).toDouble(),
+        logoDomain: m['logoDomain'] as String?,
+      );
+}
+
+/// Result of a bank scan: importable recurring candidates + frequent-spending
+/// merchants surfaced for information only.
+class BankScanResult {
+  const BankScanResult({required this.candidates, required this.frequent});
+  final List<RecurringCandidate> candidates;
+  final List<FrequentMerchant> frequent;
 }
 
 BillingCycle _cycleFromString(String s) => switch (s) {
@@ -155,14 +194,22 @@ class BankingService {
         (m) => (m['url'] ?? '') as String);
   }
 
-  /// Exchanges the redirect [code] for detected recurring-payment candidates.
-  Future<List<RecurringCandidate>> finishBankAuth(String code) {
+  /// Exchanges the redirect [code] for the scan result: importable recurring
+  /// candidates plus frequent-spending merchants (never recurring, feed-only).
+  Future<BankScanResult> finishBankAuth(String code) {
     return _call('finish_bank_auth', {'code': code}, (m) {
-      final list = (m['candidates'] as List?) ?? const [];
-      return [
-        for (final c in list)
-          RecurringCandidate.fromMap((c as Map).cast<Object?, Object?>()),
-      ];
+      final cands = (m['candidates'] as List?) ?? const [];
+      final freq = (m['frequent'] as List?) ?? const [];
+      return BankScanResult(
+        candidates: [
+          for (final c in cands)
+            RecurringCandidate.fromMap((c as Map).cast<Object?, Object?>()),
+        ],
+        frequent: [
+          for (final f in freq)
+            FrequentMerchant.fromMap((f as Map).cast<Object?, Object?>()),
+        ],
+      );
     });
   }
 
