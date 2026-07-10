@@ -17,6 +17,7 @@ Deploy region is ``europe-west1`` (close to LT users).
 import datetime as dt
 import json
 import logging
+from collections import Counter
 
 import firebase_admin
 from firebase_functions import https_fn
@@ -52,6 +53,34 @@ def _require_auth(req: https_fn.CallableRequest) -> None:
 
 def _client() -> EnableBankingClient:
     return EnableBankingClient(ENABLE_BANKING_PRIVATE_KEY.value)
+
+
+def _log_mcc_diagnostics(txns: list) -> None:
+    """Log presence + histograms of merchant_category_code and
+    bank_transaction_code across the fetched transactions. Codes only — no
+    amounts, names or other personal data — so we can see whether SEB populates
+    MCC (and direct-debit / standing-order codes) before building on it.
+    """
+    mcc = Counter()
+    btc = Counter()
+    n_mcc = 0
+    n_btc = 0
+    for t in txns:
+        code = t.get("merchant_category_code")
+        if code:
+            n_mcc += 1
+            mcc[str(code)] += 1
+        b = t.get("bank_transaction_code")
+        if isinstance(b, dict):
+            c, sc = b.get("code"), b.get("sub_code")
+            if c or sc:
+                n_btc += 1
+                btc[f"{c}/{sc}"] += 1
+    logging.info(
+        "mcc_diag: txns=%d with_mcc=%d with_bank_txn_code=%d", len(txns), n_mcc, n_btc,
+    )
+    logging.info("mcc_diag top MCC: %s", dict(mcc.most_common(20)))
+    logging.info("mcc_diag top bank_txn_code: %s", dict(btc.most_common(20)))
 
 
 @https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])
@@ -149,6 +178,7 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             details=str(e),
         )
 
+    _log_mcc_diagnostics(all_txns)
     detection = detect_recurring(all_txns)
     candidates = detection["candidates"]
     frequent = detection["frequent"]
