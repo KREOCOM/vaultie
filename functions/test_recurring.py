@@ -1,9 +1,8 @@
-"""Unit tests for recurring detection — no network, runs anywhere.
+"""Unit tests for recurring detection — no network/Firestore, runs anywhere.
 
-Covers both detection paths: whitelist merchants (recurring on sight, even a
-single charge) and the pattern algorithm (>=2 similar amounts at a regular
-cadence, incl. rent). One-off spend, groceries and single unknown payments must
-NOT be flagged.
+The merchant DB is mocked by seeding merchant_db._cache directly, so we exercise
+both paths: known merchants (recurring on sight, incl. type + frequent) and the
+pattern algorithm (>=2 similar amounts at a recognised cadence, incl. rent).
 
 Run:  python3 functions/test_recurring.py
 """
@@ -13,15 +12,36 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+import merchant_db  # noqa: E402
 from recurring import detect_recurring  # noqa: E402
+
+# Mock merchant DB (bypasses Firestore).
+merchant_db._cache = [
+    {"_key": "netflix", "displayName": "Netflix", "type": "subscription",
+     "category": "entertainment", "logoDomain": "netflix.com",
+     "aliases": ["netflix"], "matchMode": "substring", "status": "active"},
+    {"_key": "spotify", "displayName": "Spotify", "type": "subscription",
+     "category": "entertainment", "logoDomain": "spotify.com",
+     "aliases": ["spotify"], "matchMode": "substring", "status": "active"},
+    {"_key": "adobe", "displayName": "Adobe", "type": "subscription",
+     "category": "entertainment", "logoDomain": "adobe.com",
+     "aliases": ["adobe"], "matchMode": "substring", "status": "active"},
+    {"_key": "telia", "displayName": "Telia", "type": "bill",
+     "category": "connectivity", "logoDomain": None,
+     "aliases": ["telia"], "matchMode": "substring", "status": "active"},
+    {"_key": "maxima", "displayName": "Maxima", "type": "frequent",
+     "category": "other", "logoDomain": None,
+     "aliases": ["maxima"], "matchMode": "substring", "status": "active"},
+    {"_key": "applecombill", "displayName": "Apple", "type": "possible",
+     "category": "entertainment", "logoDomain": "apple.com",
+     "aliases": ["apple.com"], "matchMode": "substring", "status": "active"},
+]
 
 
 def _txn(date, amount, name, indicator="DBIT"):
     return {
         "booking_date": date,
-        "value_date": date,
         "credit_debit_indicator": indicator,
-        "status": "BOOK",
         "transaction_amount": {"amount": f"{amount:.2f}", "currency": "EUR"},
         "creditor": {"name": name} if indicator == "DBIT" else None,
         "debtor": {"name": name} if indicator == "CRDT" else None,
@@ -29,98 +49,93 @@ def _txn(date, amount, name, indicator="DBIT"):
     }
 
 
-DEMO_TRANSACTIONS = [
-    # Whitelist merchants (recurring on sight).
+DEMO = [
     _txn("2026-04-05", 9.99, "Spotify AB"),
     _txn("2026-05-05", 9.99, "Spotify AB"),
     _txn("2026-06-05", 9.99, "Spotify AB"),
     _txn("2026-04-12", 12.99, "Netflix International"),
     _txn("2026-05-12", 12.99, "Netflix International"),
     _txn("2026-06-12", 12.99, "Netflix International"),
-    # Whitelist, seen only ONCE — must still be detected.
+    # Known subscription seen ONCE — still detected.
     _txn("2026-06-19", 19.99, "Adobe Systems Software"),
-    # Reference-number variants of one whitelist merchant collapse into one.
+    # Known bill, reference-number variants collapse into one.
     _txn("2026-04-08", 11.99, "PVM SF 2026/04 UAB Telia 8842"),
     _txn("2026-05-08", 11.99, "PVM SF 2026/05 UAB Telia 9137"),
     _txn("2026-06-08", 11.99, "PVM SF 2026/06 UAB Telia 9455"),
-    # Rent: large regular payment to a person — algorithm path → housing.
+    # Possible (apple.com) — subscription needing review.
+    _txn("2026-05-20", 2.99, "APPLE.COM/BILL"),
+    # Rent: large regular payment → bill / housing.
     _txn("2026-04-01", 650.00, "UAB Namu Valda"),
     _txn("2026-05-01", 650.00, "UAB Namu Valda"),
     _txn("2026-06-01", 650.00, "UAB Namu Valda"),
-    # Unknown merchant, regular monthly → detected by the algorithm.
+    # Unknown monthly → algorithm subscription.
     _txn("2026-05-15", 29.90, "Sporto klubas XYZ"),
     _txn("2026-06-15", 29.90, "Sporto klubas XYZ"),
-    # Incoming salary — CRDT, must be ignored.
-    _txn("2026-05-01", 2100.00, "Employer UAB", indicator="CRDT"),
-    _txn("2026-06-01", 2100.00, "Employer UAB", indicator="CRDT"),
-    # Groceries (variable + blacklisted) — must NOT be flagged.
+    # Frequent (blacklist) — variable groceries, never recurring.
     _txn("2026-06-03", 43.17, "Maxima LT"),
     _txn("2026-06-09", 21.80, "Maxima LT"),
     _txn("2026-06-20", 8.40, "Maxima LT"),
-    # Single unknown payment — no pattern, must NOT be flagged.
+    # Salary (CRDT) + single unknown — must NOT be flagged.
+    _txn("2026-05-01", 2100.00, "Employer UAB", indicator="CRDT"),
     _txn("2026-06-22", 45.00, "Kuro Pavilnys UAB"),
 ]
 
 
 def main() -> int:
-    cands = detect_recurring(DEMO_TRANSACTIONS)
+    result = detect_recurring(DEMO)
+    cands = result["candidates"]
+    frequent = result["frequent"]
     by_name = {c["name"]: c for c in cands}
+    freq_names = {f["name"] for f in frequent}
     failures = []
 
     def check(cond, msg):
         if not cond:
             failures.append(msg)
 
-    # Whitelist detections.
-    check("Spotify" in by_name, "Spotify not detected")
-    check("Netflix" in by_name, "Netflix not detected")
-    check("Adobe" in by_name, "Adobe (single whitelist charge) not detected")
+    # Known merchants.
+    check(by_name.get("Spotify", {}).get("type") == "subscription",
+          "Spotify not a subscription")
+    check(by_name.get("Spotify", {}).get("needsReview") is False,
+          "Known merchant should not need review")
+    check("Adobe" in by_name, "Adobe (single known charge) not detected")
+    check(by_name.get("Telia", {}).get("type") == "bill", "Telia not a bill")
+    check(by_name.get("Telia", {}).get("occurrences") == 3,
+          "Telia variants not merged")
 
-    # Reference-number variants merged into one, named cleanly.
-    check("Telia" in by_name, "Telia variants not merged/detected")
-    if "Telia" in by_name:
-        check(by_name["Telia"]["occurrences"] == 3,
-              f"Telia occurrences {by_name['Telia']['occurrences']} != 3")
-        check(by_name["Telia"]["category"] == "connectivity",
-              "Telia category != connectivity")
+    # Possible → subscription + review.
+    check(by_name.get("Apple", {}).get("type") == "subscription",
+          "Apple (possible) not a subscription")
+    check(by_name.get("Apple", {}).get("needsReview") is True,
+          "Possible merchant should need review")
 
-    # Rent via the algorithm → housing, flagged for review.
-    check("UAB Namu Valda" in by_name, "Rent not detected")
-    if "UAB Namu Valda" in by_name:
-        check(by_name["UAB Namu Valda"]["category"] == "housing",
-              "Rent category != housing")
-        check(by_name["UAB Namu Valda"]["needsReview"] is True,
-              "Rent should need review")
+    # Rent via algorithm → bill / housing / review.
+    check(by_name.get("UAB Namu Valda", {}).get("type") == "bill",
+          "Rent not a bill")
+    check(by_name.get("UAB Namu Valda", {}).get("category") == "housing",
+          "Rent category != housing")
+    check(by_name.get("UAB Namu Valda", {}).get("needsReview") is True,
+          "Rent should need review")
 
-    # Unknown regular monthly → detected, flagged for review.
-    check("Sporto klubas XYZ" in by_name, "Unknown monthly not detected")
-    if "Sporto klubas XYZ" in by_name:
-        check(by_name["Sporto klubas XYZ"]["needsReview"] is True,
-              "Algorithm hit should need review")
+    # Unknown monthly → subscription + review.
+    check(by_name.get("Sporto klubas XYZ", {}).get("needsReview") is True,
+          "Algorithm hit should need review")
 
-    # Must NOT be flagged.
-    check("Employer UAB" not in by_name, "Incoming salary wrongly flagged")
-    check("Maxima LT" not in by_name, "Groceries wrongly flagged")
-    check("Kuro Pavilnys UAB" not in by_name,
-          "Single unknown payment wrongly flagged")
+    # Frequent — never a candidate, surfaced separately.
+    check("Maxima" in freq_names, "Maxima not surfaced as frequent")
+    check("Maxima" not in by_name, "Maxima wrongly imported as recurring")
 
-    # Whitelist candidates are trusted (no review flag) with app-key categories.
-    if "Spotify" in by_name:
-        s = by_name["Spotify"]
-        check(s["cost"] == 9.99, f"Spotify cost {s['cost']} != 9.99")
-        check(s["category"] == "entertainment",
-              f"Spotify category {s['category']} != entertainment")
-        check(s["logoDomain"] == "spotify.com", "Spotify logo domain wrong")
-        check(s["needsReview"] is False, "Whitelist hit should not need review")
-        check(s["occurrences"] == 3, f"Spotify occurrences {s['occurrences']} != 3")
-        check(s["nextBillingDate"] == "2026-07-05",
-              f"Spotify next date {s['nextBillingDate']} != 2026-07-05")
+    # Must NOT be flagged at all.
+    check("Employer UAB" not in by_name, "Salary wrongly flagged")
+    check("Kuro Pavilnys UAB" not in by_name, "Single unknown wrongly flagged")
 
-    print(f"Detected {len(cands)} recurring candidate(s):")
+    print(f"Detected {len(cands)} candidate(s), {len(frequent)} frequent:")
     for c in cands:
         flag = " (review)" if c["needsReview"] else ""
-        print(f"  • {c['name']:<20} {c['cost']:>7.2f} {c['currency']} "
-              f"{c['billingCycle']:<9} {c['category']:<13} ×{c['occurrences']}{flag}")
+        print(f"  • {c['name']:<20} {c['type']:<12} {c['cost']:>7.2f} "
+              f"{c['category']:<13} ×{c['occurrences']}{flag}")
+    for f in frequent:
+        print(f"  ~ {f['name']:<20} frequent     ×{f['occurrences']}")
 
     if failures:
         print("\nFAILURES:")

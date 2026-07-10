@@ -1,18 +1,18 @@
-"""Recurring-payment detection.
+"""Recurring-payment detection (Vaultie 3.0).
 
-Two detection paths:
+Two paths, driven by the Firestore merchant DB (see merchant_db.py) and the
+rules in functions/merchants_seed.json:
 
-  1. Whitelist — known recurring merchants (streaming, SaaS, insurance,
-     telecom, utilities, LT media…) are recurring on sight, even from a single
-     charge.
-  2. Algorithm — unknown merchants qualify when >=2 payments share a similar
-     amount (+/-20%) at a regular cadence. A large regular payment (>200 EUR)
-     is treated as rent/housing (may go to a person).
+  1. Known merchant (DB hit) — recurring on sight (min 1 occurrence). Its ``type``
+     comes from the DB: ``subscription`` / ``bill`` are imported; ``frequent``
+     is NEVER recurring (surfaced separately if seen >=2× in the window);
+     ``possible`` is treated as a subscription needing review.
+  2. Unknown merchant — needs >=2 payments of a similar amount (+/-15%) at a
+     recognised cadence. A large regular payment (>200 EUR, possibly to a
+     person) is treated as rent → a housing bill.
 
-Never surfaces one-off spend (fast food, shops) or one-off person transfers.
-Output maps onto the app's ``Subscription`` model; each candidate also carries
-``needsReview`` so the UI can flag anything the algorithm (not the whitelist)
-inferred. Raw transactions are never returned or stored.
+Each candidate carries ``type`` and ``needsReview``. Raw transactions are never
+returned or stored.
 """
 
 import datetime as dt
@@ -20,94 +20,16 @@ import logging
 import re
 from collections import defaultdict
 
-# Known recurring merchants: (name substring, (display, category_key, logo)).
-# category_key is an app ExpenseCategory key. Short terms (<=4 chars) match only
-# as a whole word (see _term_match) to avoid false hits.
-_WHITELIST = [
-    # -- Streaming & media --
-    ("netflix", ("Netflix", "entertainment", "netflix.com")),
-    ("spotify", ("Spotify", "entertainment", "spotify.com")),
-    ("youtube", ("YouTube", "entertainment", "youtube.com")),
-    ("disney", ("Disney+", "entertainment", "disneyplus.com")),
-    ("hbo", ("HBO Max", "entertainment", "hbomax.com")),
-    ("tidal", ("Tidal", "entertainment", "tidal.com")),
-    ("deezer", ("Deezer", "entertainment", "deezer.com")),
-    ("icloud", ("iCloud+", "entertainment", "icloud.com")),
-    ("itunes", ("Apple", "entertainment", "apple.com")),
-    ("apple.com", ("Apple", "entertainment", "apple.com")),
-    ("apple", ("Apple", "entertainment", "apple.com")),
-    ("google", ("Google", "entertainment", "google.com")),
-    ("amazon", ("Amazon", "entertainment", "amazon.com")),
-    # -- Software / SaaS --
-    ("adobe", ("Adobe", "entertainment", "adobe.com")),
-    ("microsoft", ("Microsoft", "entertainment", "microsoft.com")),
-    ("dropbox", ("Dropbox", "entertainment", "dropbox.com")),
-    ("notion", ("Notion", "entertainment", "notion.so")),
-    ("figma", ("Figma", "entertainment", "figma.com")),
-    ("github", ("GitHub", "entertainment", "github.com")),
-    ("openai", ("OpenAI", "entertainment", "openai.com")),
-    ("chatgpt", ("OpenAI", "entertainment", "openai.com")),
-    ("replit", ("Replit", "entertainment", "replit.com")),
-    ("base44", ("Base44", "entertainment", None)),
-    ("dribbble", ("Dribbble", "entertainment", "dribbble.com")),
-    ("canva", ("Canva", "entertainment", "canva.com")),
-    ("slack", ("Slack", "entertainment", "slack.com")),
-    ("zoom", ("Zoom", "entertainment", "zoom.us")),
-    ("linkedin", ("LinkedIn", "entertainment", "linkedin.com")),
-    # -- Insurance --
-    ("lietuvos draudimas", ("Lietuvos draudimas", "insurance", None)),
-    ("seb draudimas", ("SEB draudimas", "insurance", None)),
-    ("swed draudimas", ("Swedbank draudimas", "insurance", None)),
-    ("gjensidige", ("Gjensidige", "insurance", None)),
-    ("compensa", ("Compensa", "insurance", None)),
-    ("seesam", ("Seesam", "insurance", None)),
-    ("balcia", ("Balcia", "insurance", None)),
-    ("ergo", ("ERGO", "insurance", None)),
-    ("bta", ("BTA", "insurance", None)),
-    ("draudimas", ("Draudimas", "insurance", None)),
-    # -- Telecom / internet --
-    ("telia", ("Telia", "connectivity", None)),
-    ("tele2", ("Tele2", "connectivity", None)),
-    ("pildyk", ("Pildyk", "connectivity", None)),
-    ("cgates", ("Cgates", "connectivity", None)),
-    ("bite", ("Bitė", "connectivity", None)),
-    ("bitė", ("Bitė", "connectivity", None)),
-    ("init", ("Init", "connectivity", None)),
-    ("delta", ("Delta", "connectivity", None)),
-    # -- Utilities --
-    ("ignitis", ("Ignitis", "utilities", None)),
-    ("vilniaus vandenys", ("Vilniaus vandenys", "utilities", None)),
-    ("kauno vandenys", ("Kauno vandenys", "utilities", None)),
-    ("energijos taupymo", ("Energijos taupymas", "utilities", None)),
-    ("lesto", ("ESO", "utilities", None)),
-    ("eso", ("ESO", "utilities", None)),
-    # -- LT media / news --
-    ("žinių radijas", ("Žinių radijas", "entertainment", None)),
-    ("delfi", ("Delfi", "entertainment", "delfi.lt")),
-    ("go3", ("Go3", "entertainment", "go3.lt")),
-    ("tv3", ("TV3", "entertainment", "tv3.lt")),
-    ("lnk", ("LNK", "entertainment", None)),
-    ("ltv", ("LRT", "entertainment", None)),
-    ("lrt", ("LRT", "entertainment", None)),
-    # -- LT retail / delivery (user-listed known recurring) --
-    ("barbora", ("Barbora", "other", "barbora.lt")),
-    ("pigu", ("Pigu", "other", "pigu.lt")),
-    # -- International misc --
-    ("paypal", ("PayPal", "other", "paypal.com")),
-    ("linkedin", ("LinkedIn", "entertainment", "linkedin.com")),
-    ("meta", ("Meta", "entertainment", None)),
-    ("twitter", ("X", "entertainment", "x.com")),
-]
+import merchant_db
 
-# One-off spend that must NEVER surface as recurring (fast food, shops).
-_NEVER = [
-    "hesburger", "mcdonald", "burger", "kebab", "pizza", "cafe", "café",
-    "restoranas", "kavine", "kavinė", "užeiga", "uzeiga",
-    "maxima", "rimi", "lidl", "iki", "norfa", "aibe", "kaufland",
-    "senukai", "ikea", "lastmile",
-]
+# Detection rules — mirror functions/merchants_seed.json "rules".
+MIN_OCC_UNKNOWN = 2
+INTERVAL_MIN = 25
+INTERVAL_MAX = 35
+AMOUNT_VARIANCE = 0.15
+RENT_MIN = 200.0
+FREQUENT_MIN = 2
 
-# Loan / leasing keywords for the algorithm path → Finance.
 _FINANCE_HINTS = ("paskol", "lizing", "kredit", "loan", "leasing", "financing")
 
 _KEY_STOPWORDS = {
@@ -119,12 +41,7 @@ _KEY_STOPWORDS = {
 
 
 def counterparty_name(t: dict):
-    """Best-effort merchant/counterparty name across ASPSP shapes.
-
-    Card payments frequently omit creditor/debtor and carry the merchant only
-    in the remittance info or a proprietary field, so we widen the search well
-    beyond the SEPA creditor name to avoid dropping those recurring payments.
-    """
+    """Best-effort merchant/counterparty name across ASPSP shapes."""
     for key in ("creditor", "debtor", "ultimate_creditor", "ultimate_debtor"):
         party = t.get(key)
         if isinstance(party, dict) and party.get("name"):
@@ -162,30 +79,7 @@ def booking_date(t: dict):
     return t.get("booking_date") or t.get("value_date") or t.get("transaction_date")
 
 
-def _term_match(low: str, term: str) -> bool:
-    """Substring match, but whole-word for short (<=4) ambiguous terms."""
-    if len(term) <= 4:
-        return re.search(
-            r"(^|[^a-z0-9ąčęėįšųūž])" + re.escape(term) +
-            r"([^a-z0-9ąčęėįšųūž]|$)",
-            low,
-        ) is not None
-    return term in low
-
-
-def _whitelist_match(low: str):
-    for term, hint in _WHITELIST:
-        if _term_match(low, term):
-            return hint
-    return None
-
-
-def _is_never_recurring(low: str) -> bool:
-    return any(_term_match(low, t) for t in _NEVER)
-
-
 def _merchant_key(name: str) -> str:
-    """Canonical merchant key that collapses per-transaction variants."""
     low = name.lower()
     low = re.sub(r"\d+", " ", low)
     low = re.sub(r"[^a-z0-9ąčęėįšųūž]+", " ", low)
@@ -194,7 +88,6 @@ def _merchant_key(name: str) -> str:
 
 
 def _clean_name(raw: str) -> str:
-    """Trim long reference numbers from a raw merchant name for display."""
     s = re.sub(r"\b\d{3,}\b", " ", raw)
     s = re.sub(r"\s{2,}", " ", s).strip(" -/,")
     return s or raw.strip()
@@ -205,7 +98,7 @@ def _classify_cadence(gap_days: float):
         return "weekly", "weekly"
     if 12 <= gap_days <= 16:
         return "monthly", "biweekly"
-    if 25 <= gap_days <= 35:
+    if INTERVAL_MIN <= gap_days <= INTERVAL_MAX:
         return "monthly", "monthly"
     if 85 <= gap_days <= 95:
         return "quarterly", "quarterly"
@@ -257,17 +150,16 @@ def _avg_gap(dates):
 
 
 def _amount_cluster(items):
-    """Largest subset of items whose amounts sit within +/-20% of a centre."""
     best = []
     for _, center, _ in items:
-        lo, hi = center * 0.8, center * 1.2
+        lo, hi = center * (1 - AMOUNT_VARIANCE), center * (1 + AMOUNT_VARIANCE)
         grp = [it for it in items if lo <= it[1] <= hi]
         if len(grp) > len(best):
             best = grp
     return best or items
 
 
-def _build_candidate(display, category, logo, items, dates, *, needs_review):
+def _build_candidate(display, mtype, category, logo, items, dates, *, needs_review):
     amounts = [a for _, a, _ in items]
     avg = round(sum(amounts) / len(amounts), 2)
     gap = _avg_gap(dates)
@@ -278,6 +170,7 @@ def _build_candidate(display, category, logo, items, dates, *, needs_review):
     last = dates[-1] if dates else dt.date.today()
     return {
         "name": display,
+        "type": mtype,                      # subscription | bill
         "cost": avg,
         "currency": "EUR",
         "billingCycle": cycle,
@@ -296,20 +189,24 @@ def _category_for_unknown(raw_name: str, avg: float) -> str:
     low = raw_name.lower()
     if any(k in low for k in _FINANCE_HINTS):
         return "finance"
-    # A large regular payment (possibly to a person) is most likely rent.
-    if avg > 200:
+    if avg > RENT_MIN:
         return "housing"
     return "other"
 
 
-def detect_recurring(transactions: list, *, min_occurrences: int = 2) -> list:
-    """Return recurring-payment candidates via whitelist + pattern detection."""
+def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNOWN):
+    """Return ``{"candidates": [...], "frequent": [...]}``.
+
+    ``candidates`` are importable recurring payments (type subscription/bill);
+    ``frequent`` are frequent-spending merchants (never recurring) surfaced for
+    the feed only.
+    """
     by_merchant = defaultdict(list)
     n_dbit = 0
     n_skipped = 0
     for t in transactions:
         if t.get("credit_debit_indicator") != "DBIT":
-            continue  # only outgoing payments
+            continue
         n_dbit += 1
         name = counterparty_name(t)
         amount = amount_value(t)
@@ -323,27 +220,39 @@ def detect_recurring(transactions: list, *, min_occurrences: int = 2) -> list:
         by_merchant[mkey].append((booking_date(t), amount, name))
 
     candidates = []
-    n_whitelist = 0
+    frequent = []
+    n_known = 0
     n_algo = 0
     for items in by_merchant.values():
         raw_name = items[0][2]
-        low = raw_name.lower()
-        if _is_never_recurring(low):
-            continue
+        dates = _dates(items)
+        hit = merchant_db.match(raw_name)
 
-        # Path 1 — known merchant: recurring on sight, even a single charge.
-        wl = _whitelist_match(low)
-        if wl is not None:
-            display, category, logo = wl
+        if hit is not None:
+            display, mtype, category, logo = hit
+            if mtype == "frequent":
+                # Never recurring — surface as frequent spending only.
+                if len(items) >= FREQUENT_MIN:
+                    amounts = [a for _, a, _ in items]
+                    frequent.append({
+                        "name": display,
+                        "category": category,
+                        "logoDomain": logo,
+                        "occurrences": len(items),
+                        "totalSpent": round(sum(amounts), 2),
+                    })
+                continue
+            # Known subscription / bill / possible → recurring on sight.
+            typ = "bill" if mtype == "bill" else "subscription"
+            needs = mtype == "possible"
             candidates.append(
-                _build_candidate(display, category, logo, items, _dates(items),
-                                 needs_review=False)
+                _build_candidate(display, typ, category, logo, items, dates,
+                                 needs_review=needs)
             )
-            n_whitelist += 1
+            n_known += 1
             continue
 
-        # Path 2 — unknown merchant: needs a similar-amount cluster at a
-        # recognised cadence (rent = large regular payment, possibly to a person).
+        # Unknown merchant — pattern algorithm.
         cluster = _amount_cluster(items)
         if len(cluster) < min_occurrences:
             continue
@@ -353,21 +262,22 @@ def detect_recurring(transactions: list, *, min_occurrences: int = 2) -> list:
             continue
         _, label = _classify_cadence(gap)
         if label.startswith("~"):
-            continue  # irregular interval — not convincingly recurring
+            continue  # irregular — not convincingly recurring
         avg = round(sum(a for _, a, _ in cluster) / len(cluster), 2)
         category = _category_for_unknown(raw_name, avg)
+        # Rent-like (large, housing) reads as a bill; otherwise a subscription.
+        typ = "bill" if category in ("housing", "finance") else "subscription"
         candidates.append(
-            _build_candidate(_clean_name(raw_name), category, None, cluster,
-                             cdates, needs_review=avg > 5)
+            _build_candidate(_clean_name(raw_name), typ, category, None, cluster,
+                             cdates, needs_review=True)
         )
         n_algo += 1
 
-    # Most-frequent, then most-expensive first — best candidates on top.
     candidates.sort(key=lambda c: (-c["occurrences"], -c["cost"]))
     logging.info(
         "detect_recurring: dbit=%d skipped_no_name=%d merchants=%d "
-        "whitelist=%d algorithm=%d total=%d",
-        n_dbit, n_skipped, len(by_merchant), n_whitelist, n_algo,
-        len(candidates),
+        "known=%d algorithm=%d candidates=%d frequent=%d",
+        n_dbit, n_skipped, len(by_merchant), n_known, n_algo,
+        len(candidates), len(frequent),
     )
-    return candidates
+    return {"candidates": candidates, "frequent": frequent}

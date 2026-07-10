@@ -1,0 +1,209 @@
+{
+  "version": "1.1",
+  "description": "Vaultie merchant classification rules - LT/LV/EE + International",
+
+  "merchants": {
+
+    "subscription": [
+
+      "NETFLIX", "SPOTIFY", "YOUTUBE", "YOUTUBE PREMIUM",
+      "GOOGLE ONE", "GOOGLE STORAGE",
+      "ICLOUD", "APPLE.COM/BILL", "APPLE ICLOUD",
+      "CHATGPT", "OPENAI", "CLAUDE", "ANTHROPIC",
+      "ADOBE", "ADOBE CREATIVE", "ADOBE SYSTEMS",
+      "CANVA", "FIGMA", "NOTION", "DROPBOX",
+      "MICROSOFT 365", "OFFICE 365", "XBOX GAME PASS", "MICROSOFT",
+      "DISNEY+", "DISNEY PLUS", "VIAPLAY", "HBO", "HBO MAX", "MAX",
+      "PARAMOUNT+", "APPLE TV+", "AMAZON PRIME", "AMAZON VIDEO",
+      "DEEZER", "TIDAL", "APPLE MUSIC",
+      "GITHUB", "GITHUB COPILOT",
+      "SLACK", "ZOOM", "LOOM",
+      "DRIBBBLE", "BEHANCE",
+      "REPLIT", "BASE44", "CURSOR", "VERCEL", "NETLIFY",
+      "DIGITALOCEAN", "LINODE", "VULTR",
+      "GRAMMARLY", "SEMRUSH", "AHREFS", "MAILCHIMP",
+      "PATREON", "SUBSTACK",
+      "DUOLINGO", "BABBEL",
+      "HEADSPACE", "CALM",
+      "NORDVPN", "EXPRESSVPN", "SURFSHARK",
+      "1PASSWORD", "LASTPASS",
+      "LINKEDIN PREMIUM",
+      "DISCORD NITRO",
+      "TWITCH",
+      "COURSERA", "SKILLSHARE", "MASTERCLASS",
+
+      "GO3", "GO 3", "GO3.LT", "GO3.LV", "GO3.TV",
+      "TV3 PLAY", "TV3PLAY",
+      "TELIA PLAY",
+      "VIASAT",
+      "BITĖ TV", "BITE TV",
+      "BALTICUM TV", "BALTICUM",
+      "SHORTCUT", "SHORTCUT.LV",
+      "TET TV", "TET TV+", "LATTELECOM TV",
+      "ELISA ELAMUSED", "ELISA TV",
+      "TELEVÕRK",
+
+      "15MIN", "DELFI", "LRYTAS", "ŽMONĖS", "ZMONES",
+      "BERNARDINAI", "VERSLO ŽINIOS",
+      "DIENA.LV", "TVNet", "LA.LV",
+      "POSTIMEES", "ERR",
+      "THE GUARDIAN", "ECONOMIST", "NYT",
+      "MEDIUM", "WALL STREET JOURNAL",
+      "AUDIBLE", "SCRIBD", "STORYTEL",
+
+      "APPLE ARCADE", "NINTENDO", "PLAYSTATION", "XBOX",
+
+      "GYM+", "GYM PLUS",
+      "LEMON GYM", "LEMON",
+      "IMPULS", "IMPULS GYM",
+      "APOLLO KINO KLUBI",
+      "STRAVA", "GARMIN",
+      "MYFITNESSPAL", "FREELETICS",
+
+      "SAVASILD", "SAVASLD",
+      "REVOLUT PREMIUM", "REVOLUT METAL",
+      "PAYSERA PREMIUM",
+
+      "WIX", "SQUARESPACE", "SHOPIFY",
+      "HUBSPOT", "ZENDESK",
+      "ASANA", "MONDAY.COM", "JIRA", "CLICKUP",
+      "MIRO", "WEBFLOW", "FRAMER",
+      "ZAPIER", "MAKE", "TYPEFORM",
+      "AIRTABLE", "TODOIST",
+      "QUICKBOOKS", "XERO",
+      "DOCUSIGN",
+      "CALAMARI", "TOGGL",
+      "HOSTINGER", "GODADDY", "NAMECHEAP",
+      "GOOGLE WORKSPACE", "G SUITE",
+      "SETAPP"
+    ],
+
+    "bill": [
+      "TELIA", "TELE2", "BITĖ", "BITE", "INIT",
+      "PILDYK", "PILDYK.LT",
+      "CGATES", "DELTA", "HOME3",
+      "LMT", "LATTELECOM", "TET", "TET.LV",
+      "ELISA", "ELISA EESTI", "TELE2 EESTI",
+      "TELIA EESTI", "EMT",
+      "LMT LATVIA",
+
+      "IGNITIS", "ESO", "LESTO",
+      "VILNIAUS VANDENYS", "KAUNO VANDENYS",
+      "ŠIAULIŲ VANDENYS", "KLAIPĖDOS VANDENYS",
+      "LATVENERGO", "SADALES TIKLS",
+      "AUGSTSPRIEGUMA TIKLS",
+      "EESTI ENERGIA", "ELERING",
+      "TALLINNA VESI",
+
+      "LIETUVOS DRAUDIMAS", "LIETUVOSDRAUDIMAS",
+      "ERGO", "GJENSIDIGE", "COMPENSA", "BTA",
+      "SEESAM", "BALCIA", "IF DRAUDIMAS",
+      "AAS BTA", "BALTA", "LAMIE",
+      "PZU", "INGES",
+
+      "LUMINOR PASKOLA", "SEB PASKOLA", "SWEDBANK PASKOLA",
+      "LIZINGAS", "LEASING", "MOKILIZINGAS",
+      "MOGO", "MOGO.LT", "MOGO.LV",
+      "BIGBANK", "FERRATUM", "CREDIT24", "SALDO",
+      "INBANK", "MEDICINOS BANKAS",
+      "CITADELE", "SIGNET BANK",
+      "COOP PANK", "LHV",
+
+      "DAUGIABUČIŲ", "NAMO ADMINISTRATORIUS", "BENDRIJA",
+      "ŠILUMOS", "CENTRINIS ŠILDYMAS",
+      "RĪGAS SILTUMS", "TALLINNA SOOJUS",
+
+      "SODRA", "VMI",
+      "REGOS", "REGITRA",
+
+      "CITYBEE MONTHLY", "BOLT MONTHLY",
+      "PARKING SUBSCRIPTION",
+
+      "GOOGLE BUSINESS", "MICROSOFT BUSINESS",
+      "AWS", "GOOGLE CLOUD", "AZURE",
+      "STRIPE", "MONTONIO", "KEVIN."
+    ],
+
+    "never_subscription": [
+      "HESBURGER", "MCDONALD", "MCDONALDS", "KFC",
+      "BURGER KING", "SUBWAY", "PIZZA HUT", "DOMINO",
+      "ČILI PICA", "CILI PICA",
+      "SUSHI", "KEBAB", "SHAWARMA",
+      "COFFEE INN", "MOON COFFEE", "BLACK COFFEE",
+      "STARBUCKS", "COSTA COFFEE",
+      "RESTORANAS", "RESTAURANT", "BISTRO", "BARAS",
+      "WOLT", "BOLT FOOD", "GLOVO", "UBER EATS",
+
+      "MAXIMA", "RIMI", "IKI", "LIDL", "NORFA", "ALDI",
+      "PRISMA", "SELVER", "COOP", "MAKS&MORIS",
+      "BARBORA", "PIGU",
+
+      "CIRCLE K", "NESTE", "LUKOIL", "VIADA", "STATOIL",
+      "ALEXELA", "OLEREX",
+
+      "VINTED", "OLX", "SKELBIU",
+      "BOLT", "UBER", "TAXIFY",
+      "CITYBEE", "SPARK",
+
+      "LIETUVOS GELEŽINKELIAI", "PASAŽIERU VILCIENS",
+      "ELRON", "LUX EXPRESS", "EUROLINES",
+      "RYANAIR", "WIZZ AIR", "AIRBALTIC", "LOT",
+
+      "BOOKING", "AIRBNB", "HOTELS.COM",
+      "CINAMON", "MULTIKINO", "FORUM CINEMAS", "APOLLO KINO",
+
+      "DROGAS", "EUROVAISTINĖ", "CAMELIA", "APOTHEKA",
+      "BENU", "AZETA",
+
+      "H&M", "ZARA", "MANGO", "RESERVED",
+      "ADIDAS", "NIKE", "PUMA",
+      "APRANGA", "MARKS & SPENCER",
+      "IKEA", "JYSK",
+
+      "ROYAL SMOKE", "VAPE", "TABAK",
+      "LOTERIA", "OLIFEJA",
+      "DECATHLON", "TOP SPORT",
+
+      "ATM", "BANKOMAT", "CASH",
+      "NOTARAS", "TEISMAS", "ANTSTOLIS",
+      "MOKESČIAI", "TAX", "BAUDA", "FINE",
+
+      "SENUKAI", "DEPO", "OBI",
+      "VARLE", "1A.LT", "TECHNORAMA",
+      "PIGU.LT"
+    ],
+
+    "possible_subscription": [
+      "APPLE.COM", "GOOGLE PLAY", "GOOGLE",
+      "AMAZON", "PAYPAL",
+      "META", "FACEBOOK", "INSTAGRAM",
+      "REVOLUT",
+      "PAYSERA",
+      "WISE"
+    ]
+  },
+
+  "rules": {
+    "subscription_confidence": {
+      "known_merchant": 95,
+      "recurring_similar_amount": 80,
+      "recurring_variable_amount": 50
+    },
+    "bill_confidence": {
+      "known_merchant": 90,
+      "recurring_similar_amount": 85
+    },
+    "recurring_detection": {
+      "min_occurrences_known_merchant": 1,
+      "min_occurrences_unknown": 2,
+      "interval_days_min": 25,
+      "interval_days_max": 35,
+      "amount_variance_percent": 15
+    },
+    "frequent_spending": {
+      "min_occurrences_monthly": 2,
+      "show_in_dashboard": true,
+      "never_show_as_subscription": true
+    }
+  }
+}

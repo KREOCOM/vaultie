@@ -13,8 +13,6 @@ Schema (see docs/VAULTIE_3.0_PLAN.md):
 import logging
 import re
 
-from firebase_admin import firestore
-
 _cache = None  # list[dict] | None
 _word_re = {}  # alias -> compiled regex
 
@@ -24,6 +22,9 @@ def _load():
     if _cache is not None:
         return _cache
     try:
+        # Imported lazily so this module (and unit tests that seed _cache
+        # directly) don't require firebase_admin at import time.
+        from firebase_admin import firestore
         db = firestore.client()
         _cache = []
         for doc in db.collection("merchants").where("status", "==", "active").stream():
