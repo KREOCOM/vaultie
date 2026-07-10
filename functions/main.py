@@ -63,6 +63,8 @@ def _log_mcc_diagnostics(txns: list) -> None:
     """
     mcc = Counter()
     btc = Counter()
+    months = Counter()
+    dates = []
     n_mcc = 0
     n_btc = 0
     for t in txns:
@@ -76,6 +78,11 @@ def _log_mcc_diagnostics(txns: list) -> None:
             if c or sc:
                 n_btc += 1
                 btc[f"{c}/{sc}"] += 1
+        d = t.get("booking_date") or t.get("value_date") or t.get("transaction_date")
+        if d:
+            ds = str(d)[:10]
+            dates.append(ds)
+            months[ds[:7]] += 1
     logging.info(
         "mcc_diag: txns=%d with_mcc=%d with_bank_txn_code=%d", len(txns), n_mcc, n_btc,
     )
@@ -85,6 +92,9 @@ def _log_mcc_diagnostics(txns: list) -> None:
         "withBankTxnCode": n_btc,
         "topMcc": dict(mcc.most_common(25)),
         "topBankTxnCode": dict(btc.most_common(25)),
+        "dateMin": min(dates) if dates else None,
+        "dateMax": max(dates) if dates else None,
+        "byMonth": dict(sorted(months.items())),
     }
     # Persist so it can be read back via get_debug (gen2 Python stdout isn't
     # visible through `firebase functions:log`). Codes/counts only — no PII.
