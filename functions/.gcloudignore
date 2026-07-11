@@ -1,0 +1,25 @@
+# Defense-in-depth deploy ignore. `firebase deploy` uses firebase.json's
+# functions.ignore (authoritative); this file additionally protects any direct
+# `gcloud functions deploy` from ever bundling real bank data or dev tooling.
+
+venv/
+.venv/
+.git/
+__pycache__/
+*.pyc
+
+# Secrets / keys.
+*.pem
+.env
+.env.*
+.runtimeconfig.json
+
+# Real SEB bank-data fixtures + offline dev/diagnostic tooling.
+# MUST NEVER be uploaded into a Cloud Functions artifact.
+fixtures/
+diag.py
+entity.py
+bench_entity.py
+
+# Tests (synthetic data only, but no reason to ship them).
+test_*.py

@@ -17,7 +17,6 @@ Deploy region is ``europe-west1`` (close to LT users).
 import datetime as dt
 import json
 import logging
-from collections import Counter
 
 import firebase_admin
 from firebase_functions import https_fn
@@ -53,58 +52,6 @@ def _require_auth(req: https_fn.CallableRequest) -> None:
 
 def _client() -> EnableBankingClient:
     return EnableBankingClient(ENABLE_BANKING_PRIVATE_KEY.value)
-
-
-def _log_mcc_diagnostics(txns: list) -> None:
-    """Log presence + histograms of merchant_category_code and
-    bank_transaction_code across the fetched transactions. Codes only — no
-    amounts, names or other personal data — so we can see whether SEB populates
-    MCC (and direct-debit / standing-order codes) before building on it.
-    """
-    mcc = Counter()
-    btc = Counter()
-    months = Counter()
-    dates = []
-    n_mcc = 0
-    n_btc = 0
-    for t in txns:
-        code = t.get("merchant_category_code")
-        if code:
-            n_mcc += 1
-            mcc[str(code)] += 1
-        b = t.get("bank_transaction_code")
-        if isinstance(b, dict):
-            c, sc = b.get("code"), b.get("sub_code")
-            if c or sc:
-                n_btc += 1
-                btc[f"{c}/{sc}"] += 1
-        d = t.get("booking_date") or t.get("value_date") or t.get("transaction_date")
-        if d:
-            ds = str(d)[:10]
-            dates.append(ds)
-            months[ds[:7]] += 1
-    logging.info(
-        "mcc_diag: txns=%d with_mcc=%d with_bank_txn_code=%d", len(txns), n_mcc, n_btc,
-    )
-    summary = {
-        "txns": len(txns),
-        "withMcc": n_mcc,
-        "withBankTxnCode": n_btc,
-        "topMcc": dict(mcc.most_common(25)),
-        "topBankTxnCode": dict(btc.most_common(25)),
-        "dateMin": min(dates) if dates else None,
-        "dateMax": max(dates) if dates else None,
-        "byMonth": dict(sorted(months.items())),
-    }
-    # Persist so it can be read back via get_debug (gen2 Python stdout isn't
-    # visible through `firebase functions:log`). Codes/counts only — no PII.
-    try:
-        from firebase_admin import firestore
-        firestore.client().collection("debug").document("last_scan").set(
-            {**summary, "at": firestore.SERVER_TIMESTAMP}
-        )
-    except Exception:  # noqa: BLE001
-        pass
 
 
 @https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])
@@ -183,7 +130,10 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
             message="code is required.",
         )
-    history_days = int(data.get("historyDays", 365))
+    # Ask for a long window (2 years); combined with strategy=longest the ASPSP
+    # returns the most it will give right after authorization. It caps to its
+    # own max, so an over-generous date_from is safe.
+    history_days = int(data.get("historyDays", 730))
     date_from = (dt.date.today() - dt.timedelta(days=history_days)).isoformat()
 
     client = _client()
@@ -202,29 +152,22 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             details=str(e),
         )
 
-    _log_mcc_diagnostics(all_txns)
+    # Detection runs entirely on-server against the curated/crowdsourced merchant
+    # DB and local keyword heuristics — no transaction-derived data is sent to any
+    # third party, and nothing is persisted (privacy-first; see policy §6).
     detection = detect_recurring(all_txns)
     candidates = detection["candidates"]
     frequent = detection["frequent"]
-    # Persist the detection funnel to the debug doc (read via get_debug). Not
-    # returned to the client. Debug-only; remove before production.
-    try:
-        from firebase_admin import firestore
-        firestore.client().collection("debug").document("last_scan").set(
-            {"funnel": detection.get("debug", {})}, merge=True
-        )
-    except Exception:  # noqa: BLE001
-        pass
+    # Counts only — never transaction content — so nothing sensitive is logged.
     logging.info(
         "finish_bank_auth: accounts=%d txns=%d candidates=%d frequent=%d "
         "history_days=%d",
-        len(accounts),
-        len(all_txns),
-        len(candidates),
-        len(frequent),
+        len(accounts), len(all_txns), len(candidates), len(frequent),
         history_days,
     )
-    # Raw transactions are intentionally not returned or stored.
+    # Privacy-first: raw transactions are processed transiently and are NEVER
+    # returned or stored. Only detected candidates + frequent-merchant summaries
+    # go to the client, which persists only what the user chooses to import.
     return {
         "accountCount": len(accounts),
         "transactionCount": len(all_txns),
@@ -249,21 +192,5 @@ def seed_merchants(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response(f"error: {e}", status=500)
     return https_fn.Response(
         json.dumps(result), status=200,
-        headers={"Content-Type": "application/json"},
-    )
-
-
-@https_fn.on_request(region=_REGION, secrets=[SEED_TOKEN])
-def get_debug(req: https_fn.Request) -> https_fn.Response:
-    """Return the last scan's MCC diagnostics (written by finish_bank_auth).
-    Guarded by SEED_TOKEN. Lets us read gen2 diagnostics that don't surface in
-    `firebase functions:log`."""
-    if req.args.get("key") != SEED_TOKEN.value:
-        return https_fn.Response("forbidden", status=403)
-    from firebase_admin import firestore
-    doc = firestore.client().collection("debug").document("last_scan").get()
-    data = doc.to_dict() if doc.exists else {}
-    return https_fn.Response(
-        json.dumps(data, default=str), status=200,
         headers={"Content-Type": "application/json"},
     )

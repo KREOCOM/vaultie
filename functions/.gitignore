@@ -9,3 +9,10 @@ __pycache__/
 .env
 .env.*
 .runtimeconfig.json
+
+# Dev-only: real bank-data fixtures + offline Stage-2 tooling.
+# MUST NEVER be committed or bundled into a Cloud Functions deploy.
+fixtures/
+diag.py
+entity.py
+bench_entity.py
