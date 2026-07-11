@@ -12,7 +12,6 @@
         "*.pem",
         "fixtures",
         "diag.py",
-        "entity.py",
         "bench_entity.py",
         "test_*.py"
       ]

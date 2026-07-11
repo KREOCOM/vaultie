@@ -109,12 +109,18 @@ class EnableBankingClient:
         """Exchange the redirect ``code`` for a session (+ its accounts)."""
         return self._request("POST", "/sessions", body={"code": code})
 
-    def transactions(self, account_uid: str, *, date_from: str, max_pages: int = 10) -> list:
-        """Page through an account's transactions since ``date_from`` (ISO date)."""
+    def transactions(self, account_uid: str, *, date_from: str, max_pages: int = 25) -> list:
+        """Page through an account's transactions since ``date_from`` (ISO date).
+
+        ``strategy=longest`` asks the ASPSP for the maximum history it will
+        return. Many banks expose 1–3 years of history ONLY in the short window
+        right after authorization, then cap to ~90 days — so we must request the
+        longest window up front, on the very first fetch, and page all of it.
+        """
         all_txns: list = []
         cont = None
         for _ in range(max_pages):
-            params = {"date_from": date_from}
+            params = {"date_from": date_from, "strategy": "longest"}
             if cont:
                 params["continuation_key"] = cont
             resp = requests.get(
@@ -135,4 +141,5 @@ class EnableBankingClient:
             cont = data.get("continuation_key")
             if not cont:
                 break
+            time.sleep(0.25)  # be gentle with consent-frequency limits
         return all_txns

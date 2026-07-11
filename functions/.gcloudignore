@@ -16,9 +16,9 @@ __pycache__/
 
 # Real SEB bank-data fixtures + offline dev/diagnostic tooling.
 # MUST NEVER be uploaded into a Cloud Functions artifact.
+# NOTE: entity.py is NOT here — it is now production (imported by resolver.py).
 fixtures/
 diag.py
-entity.py
 bench_entity.py
 
 # Tests (synthetic data only, but no reason to ship them).

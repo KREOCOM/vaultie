@@ -13,8 +13,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+import kb  # noqa: E402
 import merchant_db  # noqa: E402
 from recurring import detect_recurring  # noqa: E402
+
+# Hermetic unit test: this file exercises recurring-detection LOGIC against a
+# controlled merchant set, so pin the KB to empty (no compiled artifact) — every
+# lookup then falls through to the merchant_db seed below. Otherwise the real
+# 1541-entity Wikidata artifact would supply richer canonical names (e.g.
+# "Maxima LT") and couple this logic test to live open data.
+kb._entities = []
+kb._alias_index = kb._related_index = kb._norm_index = kb._prefix_index = {}
+kb._loaded_source = "test-empty"
 
 merchant_db._cache = [
     {"_key": "spotify", "displayName": "Spotify", "type": "subscription",
@@ -56,10 +66,16 @@ DEMO = [
     _txn("2026-05-20", 22.99, "APPLE.COM/BILL"),
     _txn("2026-06-25", 117.46, "APPLE.COM/US"),
     _txn("2026-06-08", 11.99, "UAB Telia 8842"),
-    # Unknown, single occurrence — now returned (manual, unchecked).
+    # Fuel single charge — filtered out ("kuro" hint).
     _txn("2026-06-22", 45.00, "Kuro Pavilnys UAB"),
-    # Card-processor prefix — real merchant is APPMYWEB (unknown).
-    _txn("2026-06-11", 61.88, "PAYPAL*APPMYWEB"),
+    # One-off travel / fuel — filtered out.
+    _txn("2026-06-02", 120.00, "Ferryscanner"),
+    _txn("2026-06-14", 55.00, "ORLEN DEGALINE"),
+    # Card-processor prefix, seen twice → kept as APPMYWEB.
+    _txn("2026-05-11", 61.88, "PAYPAL*APPMYWEB"),
+    _txn("2026-06-11", 60.00, "PAYPAL*APPMYWEB"),
+    # Single small digital service → kept.
+    _txn("2026-06-18", 12.00, "SOMECLOUD.IO"),
     # Rent (unknown, large) — a manual candidate.
     _txn("2026-05-03", 1203.00, "MB Artusgrupė"),
     _txn("2026-05-31", 1043.00, "MB Artusgrupe"),
@@ -98,16 +114,24 @@ def main() -> int:
     check(apple and apple[0]["autoDetected"] is True, "Apple not auto")
     check(apple and apple[0]["needsReview"] is True, "Apple (possible) not review")
 
-    # Unknown merchants are returned as MANUAL candidates (autoDetected False).
-    for nm in ("Kuro Pavilnys UAB", "MB Artusgrupė"):
-        check(nm in by_name, f"{nm} not returned")
-        check(by_name.get(nm, {}).get("autoDetected") is False, f"{nm} should be manual")
+    # Repeated unknown → kept as a MANUAL candidate.
+    check("MB Artusgrupė" in by_name, "MB Artusgrupė not returned")
+    check(by_name.get("MB Artusgrupė", {}).get("autoDetected") is False,
+          "MB should be manual")
 
-    # Card-processor prefix stripped → APPMYWEB, not PayPal.
-    check(any("appmyweb" in c["name"].lower() for c in cands),
-          "PAYPAL*APPMYWEB not resolved to APPMYWEB")
+    # Card-processor prefix stripped → APPMYWEB (seen 2×), not PayPal.
+    check(any("appmyweb" in c["name"].lower() for c in cands), "APPMYWEB not kept")
     check(all("paypal" not in c["name"].lower() for c in cands),
-          "processor prefix leaked into a candidate")
+          "processor prefix leaked")
+
+    # Single small digital service is kept.
+    check(any("somecloud" in c["name"].lower() for c in cands),
+          "SomeCloud.io dropped")
+
+    # One-off / physical / fuel merchants are filtered OUT.
+    for nm in ("kuro", "ferryscanner", "orlen"):
+        check(not any(nm in c["name"].lower() for c in cands),
+              f"{nm} wrongly shown")
 
     # Never candidates: frequent + income.
     check("Maxima" in freq_names, "Maxima not frequent")
@@ -134,5 +158,61 @@ def main() -> int:
     return 0
 
 
+def test_classifier() -> int:
+    """The classify_unknown hook is treated exactly like a DB hit (no network)."""
+    calls = []
+
+    def fake(name, amount):
+        calls.append(name)
+        low = name.lower()
+        if "ferry" in low or "orlen" in low or "kuro" in low:
+            return ("One-off", "one_time", "travel", None)      # hidden
+        if "somecloud" in low:
+            return ("SomeCloud", "subscription", "cloud", None)  # high → auto
+        if "artusgrup" in low:
+            return ("MB Artusgrupė", "possible", "housing", None)  # → review
+        return None  # unknown to the model → heuristic fallback
+
+    result = detect_recurring(DEMO, classify_unknown=fake)
+    cands = {c["name"]: c for c in result["candidates"]}
+    failures = []
+
+    def check(cond, msg):
+        if not cond:
+            failures.append(msg)
+
+    # one_time answers are hidden, even though heuristic would also drop them.
+    for nm in ("ferryscanner", "orlen", "kuro"):
+        check(not any(nm in n.lower() for n in cands), f"{nm} not hidden by AI")
+    check(result["debug"]["aiHidden"] >= 3, "aiHidden not counted")
+
+    # Known subscription but seen only ONCE → auto-detected yet flagged for
+    # review and not "confident": a single charge isn't proof of recurrence, so
+    # it must not be auto-counted until the user confirms it.
+    sc = cands.get("SomeCloud")
+    check(sc is not None, "SomeCloud not classified")
+    check(sc and sc["autoDetected"] is True, "SomeCloud not auto")
+    check(sc and sc["needsReview"] is True, "single-charge SomeCloud should need review")
+    check(sc and sc["confident"] is False, "single-charge SomeCloud should not be confident")
+    check(sc and sc["type"] == "subscription", "SomeCloud type wrong")
+
+    # "possible" (medium/low) → auto-detected but flagged for review.
+    ar = cands.get("MB Artusgrupė")
+    check(ar is not None, "Artusgrupė not classified")
+    check(ar and ar["autoDetected"] is True, "Artusgrupė not auto (possible)")
+    check(ar and ar["needsReview"] is True, "Artusgrupė not flagged for review")
+
+    # DB hits never reach the classifier (Spotify/Telia/Maxima are known).
+    check(all("spotify" not in n.lower() for n in calls), "DB hit sent to AI")
+
+    if failures:
+        print("\nclassifier FAILURES:")
+        for f in failures:
+            print(f"  ✗ {f}")
+        return 1
+    print("Classifier hook assertions passed ✓")
+    return 0
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main() or test_classifier())
