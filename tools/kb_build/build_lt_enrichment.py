@@ -26,6 +26,7 @@ NOT part of the Cloud Functions deploy tooling; runs offline only.
 
 import json
 import os
+import re
 import sys
 from collections import Counter, defaultdict
 
@@ -80,6 +81,51 @@ def _existing_norms():
     return {n for n in out if n}
 
 
+# ── generic brand-format collapse ────────────────────────────────────────────
+# An unbranded Overture POI whose name is an EXISTING main-KB brand core plus only
+# a store/format/tier/branch qualifier ("Maxima X", "Rimi Express", "Circle K
+# Express") is NOT a distinct merchant — it is a format variant of that brand. If
+# it were emitted as its own local entity it would compete with the parent brand
+# and trip margin-abstention (the Maxima X regression). We never name a brand: the
+# authoritative brand core is the main-KB alias index; the qualifier set is generic.
+_FORMAT_WORDS = {
+    "express", "extra", "city", "market", "supermarket", "hypermarket", "mini",
+    "local", "center", "centre", "super", "plus", "food", "shop", "store",
+    "maxi", "mega", "xl",
+}
+
+
+def _brand_cores(existing_norms):
+    # main-KB identities usable as a brand core: length >= 4 (avoid tiny/generic
+    # tokens matching spuriously). Purely data-driven — no merchant is named.
+    return {n for n in existing_norms if len(n) >= 4}
+
+
+def _safe_qualifier(tok):
+    return (
+        tok in _FORMAT_WORDS
+        or re.fullmatch(r"[a-z]", tok) is not None            # single-letter tier
+        or (re.fullmatch(r"(.)\1*", tok) is not None and len(tok) <= 4)  # x/xx/xxx
+        or re.fullmatch(r"[ivxlcdm]{1,4}", tok) is not None   # roman tier
+        or re.fullmatch(r"\d{1,4}", tok) is not None          # numeric store format
+    )
+
+
+def _is_brand_format_variant(name, brand_cores):
+    """True iff `name` = <existing main-KB brand core> + ONLY safe format/tier/branch
+    qualifiers. Longest leading core wins; residue must be non-empty and entirely
+    safe (any other business/semantic token -> not a variant, keep it separate)."""
+    tk = N.norm_tokens(name) if hasattr(N, "norm_tokens") else \
+        [t for t in re.split(r"[^a-z0-9]+", N.fold(name).lower()) if t]
+    for k in range(len(tk) - 1, 0, -1):
+        core = N.norm("".join(tk[:k]))
+        if len(core) >= 4 and core in brand_cores:
+            residue = tk[k:]
+            if residue and all(_safe_qualifier(t) for t in residue):
+                return True
+    return False
+
+
 def _is_branded(r):
     """A POI has a reliable brand identity iff it carries a brand Wikidata QID or a
     non-trivial brand name."""
@@ -128,6 +174,7 @@ def _entity(eid, name, alias_norms, aliases, cat, source, extra):
 def build(refresh=False):
     raw = overture.fetch(refresh=refresh)
     taken = _existing_norms()          # curated/Wikidata identities always win
+    brand_cores = _brand_cores(taken)  # authoritative brand cores for format collapse
 
     branded = defaultdict(list)        # brand key -> POIs (one merchant each)
     unbranded_by_name = defaultdict(list)  # norm(name) -> POIs (POI-level)
@@ -169,11 +216,18 @@ def build(refresh=False):
         entities.append(e)
 
     # UNBRANDED local POIs — POI level, dedup by normalized name (NO family collapse).
+    format_collapsed = 0
     for n, recs in unbranded_by_name.items():
         cat = _majority_category(recs)
         if not cat:
             continue
         name = Counter(r["name"].strip() for r in recs).most_common(1)[0][0]
+        # Brand-format collapse: "Maxima X" / "Rimi Express" etc. are format variants
+        # of an existing main-KB brand, not new merchants — drop so the parent brand
+        # (from the main KB) resolves them and no sibling candidate is created.
+        if _is_brand_format_variant(name, brand_cores):
+            format_collapsed += 1
+            continue
         website = next((r["website"] for r in recs if r.get("website")), None)
         coords = next(((r["lon"], r["lat"]) for r in recs
                        if r.get("lon") is not None), None)
@@ -213,6 +267,7 @@ def build(refresh=False):
     print(f"built {_OUT}")
     print(f"  raw_pois={len(raw)} -> entities={len(entities)} "
           f"(branded={branded_n} unbranded={len(entities) - branded_n})")
+    print(f"  brand-format variants collapsed into main-KB brands: {format_collapsed}")
     print(f"  categories={dict(cat_hist.most_common())}")
 
 

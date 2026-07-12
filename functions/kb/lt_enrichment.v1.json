@@ -23,18 +23,18 @@
   "fitness_center",
   "health_club"
  ],
- "entity_count": 4211,
+ "entity_count": 4203,
  "branded_entities": 596,
- "unbranded_entities": 3615,
+ "unbranded_entities": 3607,
  "category_histogram": {
   "restaurant": 1734,
-  "grocery_store": 525,
+  "grocery_store": 523,
   "gym": 502,
   "bakery": 386,
   "fast_food_restaurant": 336,
   "car_wash": 237,
-  "gas_station": 174,
-  "supermarket": 143,
+  "gas_station": 173,
+  "supermarket": 138,
   "pharmacy": 100,
   "convenience_store": 74
  },
@@ -38848,41 +38848,6 @@
    "poi_count": 1
   },
   {
-   "entity_id": "ovu:circlekexpress",
-   "canonical_name": "Circle K Express",
-   "entity_type": "MERCHANT",
-   "aliases": [
-    "Circle K Express"
-   ],
-   "related_aliases": [],
-   "alias_norms": [
-    "circlekexpress"
-   ],
-   "country_coverage": [
-    "LT"
-   ],
-   "categories": [
-    "gas_station"
-   ],
-   "merchant_type": "GAS_STATION",
-   "icon_key": "FUEL",
-   "known_domains": [
-    "circlek.pl"
-   ],
-   "is_processor": false,
-   "is_brand": true,
-   "brand_relationships": [],
-   "popularity_prior": 0.45,
-   "recurring_type": "frequent",
-   "_source": "overture-local",
-   "website": "https://www.circlek.pl/",
-   "coordinates": [
-    21.3072,
-    53.8776
-   ],
-   "poi_count": 5
-  },
-  {
    "entity_id": "ovu:circlekgreitkelis",
    "canonical_name": "Circle K Greitkelis",
    "entity_type": "MERCHANT",
@@ -50851,39 +50816,6 @@
    "coordinates": [
     22.949,
     54.1004
-   ],
-   "poi_count": 1
-  },
-  {
-   "entity_id": "ovu:gamamini",
-   "canonical_name": "Gama mini",
-   "entity_type": "MERCHANT",
-   "aliases": [
-    "Gama mini"
-   ],
-   "related_aliases": [],
-   "alias_norms": [
-    "gamamini"
-   ],
-   "country_coverage": [
-    "LT"
-   ],
-   "categories": [
-    "grocery_store"
-   ],
-   "merchant_type": "SUPERMARKET",
-   "icon_key": "GROCERIES",
-   "known_domains": [],
-   "is_processor": false,
-   "is_brand": true,
-   "brand_relationships": [],
-   "popularity_prior": 0.45,
-   "recurring_type": "frequent",
-   "_source": "overture-local",
-   "website": null,
-   "coordinates": [
-    22.3492,
-    53.824
    ],
    "poi_count": 1
   },
@@ -79954,146 +79886,6 @@
    "poi_count": 1
   },
   {
-   "entity_id": "ovu:maximax",
-   "canonical_name": "Maxima X",
-   "entity_type": "MERCHANT",
-   "aliases": [
-    "Maxima X"
-   ],
-   "related_aliases": [],
-   "alias_norms": [
-    "maximax"
-   ],
-   "country_coverage": [
-    "LT"
-   ],
-   "categories": [
-    "supermarket"
-   ],
-   "merchant_type": "SUPERMARKET",
-   "icon_key": "GROCERIES",
-   "known_domains": [
-    "maxima.lt"
-   ],
-   "is_processor": false,
-   "is_brand": true,
-   "brand_relationships": [],
-   "popularity_prior": 0.45,
-   "recurring_type": "frequent",
-   "_source": "overture-local",
-   "website": "http://www.maxima.lt",
-   "coordinates": [
-    23.8822,
-    54.9215
-   ],
-   "poi_count": 16
-  },
-  {
-   "entity_id": "ovu:maximaxx",
-   "canonical_name": "Maxima XX",
-   "entity_type": "MERCHANT",
-   "aliases": [
-    "Maxima XX"
-   ],
-   "related_aliases": [],
-   "alias_norms": [
-    "maximaxx"
-   ],
-   "country_coverage": [
-    "LT"
-   ],
-   "categories": [
-    "supermarket"
-   ],
-   "merchant_type": "SUPERMARKET",
-   "icon_key": "GROCERIES",
-   "known_domains": [
-    "maxima.lt"
-   ],
-   "is_processor": false,
-   "is_brand": true,
-   "brand_relationships": [],
-   "popularity_prior": 0.45,
-   "recurring_type": "frequent",
-   "_source": "overture-local",
-   "website": "http://www.maxima.lt",
-   "coordinates": [
-    23.8865,
-    54.9331
-   ],
-   "poi_count": 7
-  },
-  {
-   "entity_id": "ovu:maximaxxx",
-   "canonical_name": "MAXIMA XXX",
-   "entity_type": "MERCHANT",
-   "aliases": [
-    "MAXIMA XXX"
-   ],
-   "related_aliases": [],
-   "alias_norms": [
-    "maximaxxx"
-   ],
-   "country_coverage": [
-    "LT"
-   ],
-   "categories": [
-    "supermarket"
-   ],
-   "merchant_type": "SUPERMARKET",
-   "icon_key": "GROCERIES",
-   "known_domains": [
-    "maxima.lt"
-   ],
-   "is_processor": false,
-   "is_brand": true,
-   "brand_relationships": [],
-   "popularity_prior": 0.45,
-   "recurring_type": "frequent",
-   "_source": "overture-local",
-   "website": "https://www.maxima.lt",
-   "coordinates": [
-    25.2726,
-    54.714
-   ],
-   "poi_count": 3
-  },
-  {
-   "entity_id": "ovu:maximaxxxx",
-   "canonical_name": "MAXIMA XXXX",
-   "entity_type": "MERCHANT",
-   "aliases": [
-    "MAXIMA XXXX"
-   ],
-   "related_aliases": [],
-   "alias_norms": [
-    "maximaxxxx"
-   ],
-   "country_coverage": [
-    "LT"
-   ],
-   "categories": [
-    "supermarket"
-   ],
-   "merchant_type": "SUPERMARKET",
-   "icon_key": "GROCERIES",
-   "known_domains": [
-    "maxima.lt"
-   ],
-   "is_processor": false,
-   "is_brand": true,
-   "brand_relationships": [],
-   "popularity_prior": 0.45,
-   "recurring_type": "frequent",
-   "_source": "overture-local",
-   "website": "http://www.maxima.lt",
-   "coordinates": [
-    25.2615,
-    54.7099
-   ],
-   "poi_count": 1
-  },
-  {
    "entity_id": "ovu:maximusgym",
    "canonical_name": "Maximus gym",
    "entity_type": "MERCHANT",
@@ -106647,41 +106439,6 @@
    "poi_count": 1
   },
   {
-   "entity_id": "ovu:rimiexpress",
-   "canonical_name": "Rimi Express",
-   "entity_type": "MERCHANT",
-   "aliases": [
-    "Rimi Express"
-   ],
-   "related_aliases": [],
-   "alias_norms": [
-    "rimiexpress"
-   ],
-   "country_coverage": [
-    "LT"
-   ],
-   "categories": [
-    "grocery_store"
-   ],
-   "merchant_type": "SUPERMARKET",
-   "icon_key": "GROCERIES",
-   "known_domains": [
-    "rimi.lt"
-   ],
-   "is_processor": false,
-   "is_brand": true,
-   "brand_relationships": [],
-   "popularity_prior": 0.45,
-   "recurring_type": "frequent",
-   "_source": "overture-local",
-   "website": "https://www.rimi.lt/parduotuves/rimi-didzioji",
-   "coordinates": [
-    25.2877,
-    54.678
-   ],
-   "poi_count": 2
-  },
-  {
    "entity_id": "ovu:rimihipermarketsbauska",
    "canonical_name": "Rimi Hipermārkets [Bauska]",
    "entity_type": "MERCHANT",
@@ -106750,41 +106507,6 @@
     56.4059
    ],
    "poi_count": 1
-  },
-  {
-   "entity_id": "ovu:rimihypermarket",
-   "canonical_name": "RIMI Hypermarket",
-   "entity_type": "MERCHANT",
-   "aliases": [
-    "RIMI Hypermarket"
-   ],
-   "related_aliases": [],
-   "alias_norms": [
-    "rimihypermarket"
-   ],
-   "country_coverage": [
-    "LT"
-   ],
-   "categories": [
-    "supermarket"
-   ],
-   "merchant_type": "SUPERMARKET",
-   "icon_key": "GROCERIES",
-   "known_domains": [
-    "rimi.lt"
-   ],
-   "is_processor": false,
-   "is_brand": true,
-   "brand_relationships": [],
-   "popularity_prior": 0.45,
-   "recurring_type": "frequent",
-   "_source": "overture-local",
-   "website": "http://rimi.lt",
-   "coordinates": [
-    21.1561,
-    55.6871
-   ],
-   "poi_count": 4
   },
   {
    "entity_id": "ovu:rimijekabpils",
