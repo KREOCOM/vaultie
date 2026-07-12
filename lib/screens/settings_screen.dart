@@ -15,7 +15,7 @@ import '../services/purchase_service.dart';
 import '../user_session.dart';
 import '../widgets/budget_dialog.dart';
 import '../widgets/subscription_avatar.dart';
-import 'auth_screen.dart';
+import 'login_screen.dart';
 import 'legal_screen.dart';
 import 'paywall_screen.dart';
 
@@ -140,7 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await onSignedOut(); // detach billing; local data kept for the same user
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
     );
   }
@@ -301,7 +301,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await wipeLocalDataAndForget();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
     );
   }

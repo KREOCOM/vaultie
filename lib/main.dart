@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -74,6 +75,19 @@ Future<void> main() async {
   // "How would you like to start?" choice screen — it's for fresh installs.
   if (!AppPrefs.onboardingComplete && subsBox.isNotEmpty) {
     await AppPrefs.setOnboardingComplete(true);
+  }
+
+  // TEST HARNESS (debug only). Remove before release.
+  // Review mode: force the onboarding flow (Landing → … → Two paths → Account →
+  // Paywall) to show on launch so we can walk it. Flip `onboarded` back to true
+  // to land straight on the dashboard again.
+  if (!kReleaseMode) {
+    // Debug + profile only (never release). Mock billing so the forced premium
+    // flag sticks (RevenueCat would overwrite it), land on the dashboard, and
+    // enable the bank flow for testing. Remove this whole block before release.
+    PurchaseService.instance = MockPurchaseService();
+    await settings.put('premium', true);
+    await settings.put('onboarded', true);
   }
 
   await NotificationService.instance.init();

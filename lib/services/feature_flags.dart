@@ -24,6 +24,13 @@ class FeatureFlags {
   /// once at startup WITHOUT awaiting — it never throws and never blocks the
   /// first frame; any failure leaves the safe in-code defaults in place.
   Future<void> init() async {
+    // TEST OVERRIDE (debug + profile, never release): exercise the real
+    // bank-connect flow without flipping production Remote Config. Remove
+    // before release.
+    if (!kReleaseMode) {
+      bankingEnabled.value = true;
+      return;
+    }
     try {
       final rc = FirebaseRemoteConfig.instance;
       await rc.setDefaults(const {bankingKey: false});

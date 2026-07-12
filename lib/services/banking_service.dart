@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/subscription.dart';
 
@@ -47,6 +48,7 @@ class RecurringCandidate {
     required this.cadenceLabel,
     required this.amountVaries,
     this.needsReview = false,
+    this.confident = false,
     this.logoDomain,
   });
 
@@ -69,6 +71,11 @@ class RecurringCandidate {
   /// True when the pattern algorithm (not the whitelist) inferred this, so the
   /// UI should flag it for a second look.
   final bool needsReview;
+
+  /// True when seen ≥2 times — safe to count toward the recurring total and
+  /// pre-select on import. Single sightings are shown but left for the user to
+  /// confirm (they shouldn't inflate the monthly total).
+  final bool confident;
   final String? logoDomain;
 
   factory RecurringCandidate.fromMap(Map<Object?, Object?> m) {
@@ -85,6 +92,7 @@ class RecurringCandidate {
       cadenceLabel: (m['cadenceLabel'] ?? '') as String,
       amountVaries: (m['amountVaries'] ?? false) as bool,
       needsReview: (m['needsReview'] ?? false) as bool,
+      confident: (m['confident'] ?? false) as bool,
       logoDomain: m['logoDomain'] as String?,
     );
   }
@@ -182,6 +190,12 @@ class BankingService {
   Future<List<Bank>> listBanks({String country = 'LT'}) {
     return _call('list_banks', {'country': country}, (m) {
       final list = (m['banks'] as List?) ?? const [];
+      if (kDebugMode) {
+        debugPrint('=== LIST_BANKS ($country): ${list.length} banks ===');
+        for (final b in list) {
+          debugPrint('  BANK $b');
+        }
+      }
       return [
         for (final b in list) Bank.fromMap((b as Map).cast<Object?, Object?>()),
       ];
@@ -203,9 +217,24 @@ class BankingService {
   /// Exchanges the redirect [code] for the scan result: importable recurring
   /// candidates plus frequent-spending merchants (never recurring, feed-only).
   Future<BankScanResult> finishBankAuth(String code) {
-    return _call('finish_bank_auth', {'code': code}, (m) {
+    return _call('finish_bank_auth', {'code': code, 'debug': kDebugMode}, (m) {
       final cands = (m['candidates'] as List?) ?? const [];
       final freq = (m['frequent'] as List?) ?? const [];
+      if (kDebugMode) {
+        final report = (m['debugReport'] as List?) ?? const [];
+        for (final line in report) {
+          debugPrint('DIAG| $line');
+        }
+        debugPrint('=== BANK SCAN RESULT ===');
+        debugPrint('accounts=${m['accountCount']} txns=${m['transactionCount']} '
+            'candidates=${cands.length} frequent=${freq.length}');
+        for (final c in cands) {
+          debugPrint('  CANDIDATE $c');
+        }
+        for (final f in freq) {
+          debugPrint('  FREQUENT $f');
+        }
+      }
       return BankScanResult(
         candidates: [
           for (final c in cands)

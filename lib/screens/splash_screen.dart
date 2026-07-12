@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../user_session.dart';
-import 'auth_screen.dart';
+import 'login_screen.dart';
+import 'onboarding/onboarding_flow.dart';
 import 'onboarding_choice_screen.dart';
-import 'onboarding_screen.dart';
 import 'verify_email_screen.dart';
 
 /// Branded splash shown for ~2 seconds on launch, then fades into the app.
@@ -61,13 +61,13 @@ class _SplashScreenState extends State<SplashScreen>
     }
     final Widget next;
     if (!widget.hasOnboarded) {
-      next = const OnboardingScreen();
+      next = const OnboardingFlow();
     } else if (auth.isLoggedIn) {
       next = auth.isEmailVerified
           ? landingAfterAuth()
           : const VerifyEmailScreen();
     } else {
-      next = const AuthScreen();
+      next = const LoginScreen();
     }
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(

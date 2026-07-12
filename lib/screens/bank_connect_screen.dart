@@ -7,9 +7,15 @@ import '../main.dart';
 import '../services/banking_service.dart';
 import 'bank_import_screen.dart';
 
-/// Pro-only flow: pick a bank → approve inside an ASWebAuthenticationSession →
-/// the session intercepts the `vaultie://banking/callback` return (no "Open in
-/// Vaultie?" prompt) → detect recurring payments.
+/// A country Vaultie can list banks for (Enable Banking coverage).
+class _Country {
+  const _Country(this.code, this.flag, this.lt, this.en);
+  final String code, flag, lt, en;
+}
+
+/// Pro-only flow: pick a country → pick a bank → approve inside an
+/// ASWebAuthenticationSession → the session intercepts the
+/// `vaultie://banking/callback` return → detect recurring payments.
 class BankConnectScreen extends StatefulWidget {
   const BankConnectScreen({super.key});
 
@@ -19,21 +25,74 @@ class BankConnectScreen extends StatefulWidget {
   State<BankConnectScreen> createState() => _BankConnectScreenState();
 }
 
-enum _Phase { loading, list, connecting, analysing, error }
+enum _Phase { country, loading, list, connecting, analysing, error }
 
 class _BankConnectScreenState extends State<BankConnectScreen> {
-  _Phase _phase = _Phase.loading;
+  _Phase _phase = _Phase.country;
   List<Bank> _banks = const [];
   String? _error;
   String? _connectingBank;
 
+  _Country _country = _countries.first; // Lithuania by default
+  final _countrySearch = TextEditingController();
+
+  // Enable Banking coverage — Baltics + Nordics first, then the rest of Europe.
+  static const _countries = <_Country>[
+    _Country('LT', '🇱🇹', 'Lietuva', 'Lithuania'),
+    _Country('LV', '🇱🇻', 'Latvija', 'Latvia'),
+    _Country('EE', '🇪🇪', 'Estija', 'Estonia'),
+    _Country('FI', '🇫🇮', 'Suomija', 'Finland'),
+    _Country('SE', '🇸🇪', 'Švedija', 'Sweden'),
+    _Country('NO', '🇳🇴', 'Norvegija', 'Norway'),
+    _Country('DK', '🇩🇰', 'Danija', 'Denmark'),
+    _Country('IS', '🇮🇸', 'Islandija', 'Iceland'),
+    _Country('DE', '🇩🇪', 'Vokietija', 'Germany'),
+    _Country('PL', '🇵🇱', 'Lenkija', 'Poland'),
+    _Country('GB', '🇬🇧', 'Jungtinė Karalystė', 'United Kingdom'),
+    _Country('IE', '🇮🇪', 'Airija', 'Ireland'),
+    _Country('NL', '🇳🇱', 'Nyderlandai', 'Netherlands'),
+    _Country('BE', '🇧🇪', 'Belgija', 'Belgium'),
+    _Country('LU', '🇱🇺', 'Liuksemburgas', 'Luxembourg'),
+    _Country('FR', '🇫🇷', 'Prancūzija', 'France'),
+    _Country('ES', '🇪🇸', 'Ispanija', 'Spain'),
+    _Country('PT', '🇵🇹', 'Portugalija', 'Portugal'),
+    _Country('IT', '🇮🇹', 'Italija', 'Italy'),
+    _Country('AT', '🇦🇹', 'Austrija', 'Austria'),
+    _Country('CZ', '🇨🇿', 'Čekija', 'Czechia'),
+    _Country('SK', '🇸🇰', 'Slovakija', 'Slovakia'),
+    _Country('SI', '🇸🇮', 'Slovėnija', 'Slovenia'),
+    _Country('HU', '🇭🇺', 'Vengrija', 'Hungary'),
+    _Country('HR', '🇭🇷', 'Kroatija', 'Croatia'),
+    _Country('RO', '🇷🇴', 'Rumunija', 'Romania'),
+    _Country('BG', '🇧🇬', 'Bulgarija', 'Bulgaria'),
+    _Country('GR', '🇬🇷', 'Graikija', 'Greece'),
+    _Country('CY', '🇨🇾', 'Kipras', 'Cyprus'),
+    _Country('MT', '🇲🇹', 'Malta', 'Malta'),
+  ];
+
   @override
-  void initState() {
-    super.initState();
-    _loadBanks();
+  void dispose() {
+    _countrySearch.dispose();
+    super.dispose();
   }
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
+
+  List<_Country> get _filteredCountries {
+    final q = _countrySearch.text.trim().toLowerCase();
+    if (q.isEmpty) return _countries;
+    return _countries
+        .where((c) =>
+            c.lt.toLowerCase().contains(q) ||
+            c.en.toLowerCase().contains(q) ||
+            c.code.toLowerCase().contains(q))
+        .toList();
+  }
+
+  void _pickCountry(_Country c) {
+    setState(() => _country = c);
+    _loadBanks();
+  }
 
   Future<void> _loadBanks() async {
     setState(() {
@@ -41,7 +100,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       _error = null;
     });
     try {
-      final banks = await BankingService.instance.listBanks();
+      final banks = await BankingService.instance.listBanks(country: _country.code);
       if (!mounted) return;
       setState(() {
         _banks = banks;
@@ -63,11 +122,8 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       _error = null;
     });
     try {
-      final url = await BankingService.instance.startBankAuth(bank.name);
-      // Open the bank's page in an ASWebAuthenticationSession (iOS) / Custom
-      // Tab (Android). The session itself intercepts the vaultie:// callback and
-      // hands it straight back here — no "Open in Vaultie?" prompt, no bounce
-      // out to Safari.
+      final url = await BankingService.instance.startBankAuth(bank.name,
+          country: bank.country.isNotEmpty ? bank.country : _country.code);
       final result = await FlutterWebAuth2.authenticate(
         url: url,
         callbackUrlScheme: kBankingCallbackScheme,
@@ -88,7 +144,6 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         ),
       );
     } on PlatformException catch (e) {
-      // The user dismissed the bank sheet — quietly return to the bank list.
       if (!mounted) return;
       if (e.code == 'CANCELED') {
         setState(() => _phase = _Phase.list);
@@ -111,12 +166,23 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // From the bank list / error, "back" returns to country selection rather
+    // than leaving the flow entirely.
+    final atRoot = _phase == _Phase.country;
     return Theme(
       data: contentTheme(Theme.of(context)),
       child: Scaffold(
         backgroundColor: cBg,
         appBar: AppBar(
-          title: Text(_isLt ? 'Prijungti banką' : 'Connect your bank'),
+          leading: atRoot
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  onPressed: () => setState(() => _phase = _Phase.country),
+                ),
+          title: Text(atRoot
+              ? (_isLt ? 'Pasirink šalį' : 'Choose a country')
+              : (_isLt ? 'Prijungti banką' : 'Connect your bank')),
         ),
         body: SafeArea(child: _body()),
       ),
@@ -125,6 +191,8 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   Widget _body() {
     switch (_phase) {
+      case _Phase.country:
+        return _countryList();
       case _Phase.loading:
         return _busy(_isLt ? 'Kraunami bankai…' : 'Loading banks…');
       case _Phase.connecting:
@@ -188,12 +256,116 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     );
   }
 
-  Widget _bankList() {
+  // ── COUNTRY SELECTION ──
+  Widget _countryList() {
+    final list = _filteredCountries;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+          child: Text(
+            _isLt
+                ? 'Kurioje šalyje tavo bankas? Rodysim tos šalies bankus.'
+                : 'Which country is your bank in? We\'ll show that country\'s banks.',
+            style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+          child: TextField(
+            controller: _countrySearch,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.search_rounded, color: cSubtle, size: 20),
+              hintText: _isLt ? 'Ieškoti šalies' : 'Search country',
+              isDense: true,
+            ),
+          ),
+        ),
+        Expanded(
+          child: list.isEmpty
+              ? Center(
+                  child: Text(_isLt ? 'Nerasta.' : 'No matches.',
+                      style: TextStyle(color: cSubtle)))
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (_, i) => _countryTile(list[i]),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _countryTile(_Country c) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _pickCountry(c),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: cCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cLine),
+          ),
+          child: Row(
+            children: [
+              Text(c.flag, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  _isLt ? c.lt : c.en,
+                  style: TextStyle(
+                      color: cInk, fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, color: cSubtle, size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── BANK LIST ──
+  Widget _bankList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Selected country + quick "change".
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => setState(() => _phase = _Phase.country),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Text(_country.flag, style: const TextStyle(fontSize: 18)),
+                  const SizedBox(width: 8),
+                  Text(_isLt ? _country.lt : _country.en,
+                      style: TextStyle(
+                          color: cInk,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 8),
+                  Text(_isLt ? '· Keisti' : '· Change',
+                      style: TextStyle(
+                          color: VaultieColors.primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
           child: Text(
             _isLt
                 ? 'Pasirink savo banką. Prisijungsi saugiai banko puslapyje — mes niekada nematome tavo slaptažodžio.'
@@ -205,7 +377,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
           child: _banks.isEmpty
               ? Center(
                   child: Text(
-                    _isLt ? 'Bankų nerasta.' : 'No banks found.',
+                    _isLt ? 'Šioje šalyje bankų nerasta.' : 'No banks found here.',
                     style: TextStyle(color: cSubtle),
                   ),
                 )

@@ -53,7 +53,19 @@
       "WebSearch",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:firebase.google.com)",
-      "Artifact"
+      "Artifact",
+      "WebFetch(domain:enablebanking.com)",
+      "Skill(claude-api)",
+      "Skill(artifact-design)",
+      "WebFetch(domain:blog.finexer.com)",
+      "WebFetch(domain:subaio.com)",
+      "WebFetch(domain:www.ntropy.com)",
+      "WebFetch(domain:www.sqlhabit.com)",
+      "WebFetch(domain:plaid.com)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:claude.com)",
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(shuf)"
     ]
   }
 }
