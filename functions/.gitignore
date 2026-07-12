@@ -16,3 +16,8 @@ __pycache__/
 fixtures/
 diag.py
 bench_entity.py
+
+# Global merchant fallback index — a large build artifact (~461MB) compiled offline
+# by tools/kb_build/build_index.py. Not tracked in git (would bloat the repo); it is
+# built and placed here for deploy. Resolver runs main-KB-only if it is absent.
+kb/merchant_index.sqlite

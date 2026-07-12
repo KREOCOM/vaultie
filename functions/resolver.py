@@ -22,6 +22,7 @@ entity (the old priority cascade this module supersedes).
 
 import re
 
+import global_index
 import kb
 from entity import (
     _BANK_PRIORS, _COUNTRY, _LEGAL, _PROCESSOR_PRIORS, _amount, _creditor,
@@ -324,7 +325,7 @@ def _score_candidate(surface, prov, entity, kind, ev, roles):
     }
 
 
-def _rank(ev, roles, surfaces):
+def _rank(ev, roles, surfaces, use_global=False):
     scored = []
     for surface, prov in surfaces:
         hits = kb.lookup(surface)
@@ -332,6 +333,12 @@ def _rank(ev, roles, surfaces):
         # brand (e.g. "circleklillehammer"). Only when nothing else matched.
         if not hits and " " not in surface.strip():
             hits = kb.probe_prefix(surface)
+        # Fallback layer: the big offline global merchant index, consulted ONLY on
+        # the abstention re-rank (use_global). Its hits are ordinary candidates —
+        # they go through the same scoring/completeness/abstention below. The main
+        # KB is authoritative; the index excludes any identity it already owns.
+        if use_global:
+            hits = hits + global_index.lookup(surface)
         if hits:
             for entity, kind in hits:
                 scored.append(_score_candidate(surface, prov, entity, kind, ev, roles))
@@ -440,8 +447,43 @@ def resolve(t, corpus):
     # merchant is already emitted as a remittance_domain/web candidate above; the
     # processor's own surface is separately penalised in scoring.
     surfaces = generate_candidates(ev, roles)
-    ranked = _rank(ev, roles, surfaces)
+    result = _finalize(ev, roles, _rank(ev, roles, surfaces))
 
+    # Fallback: only when the authoritative main KB abstained, re-rank WITH the big
+    # offline global merchant index added to the candidate pool and re-apply the
+    # exact same accept/completeness/abstention. If it now resolves, take it;
+    # otherwise keep the original abstention. The index is never consulted for a
+    # transaction the main KB already resolved, so recognized merchants and the
+    # SQLite is only touched on the unknown tail.
+    if result["status"] != RESOLVED and global_index.available():
+        alt = _finalize(ev, roles, _rank(ev, roles, surfaces, use_global=True))
+        if alt["status"] == RESOLVED and _fallback_evidence_ok(alt, ev):
+            return alt
+    return result
+
+
+def _fallback_evidence_ok(alt, ev):
+    """Long-tail safety for the big global index: a fallback merchant may stand as a
+    RESOLVED match on its own only when it carries real evidence. If NO descriptor
+    token was matched (identity came only from a normalized sub-span), trust it only
+    when the entity IS the whole descriptor — not a short fragment of a longer name
+    that still has other content tokens ("Areas Portugal Sa" -> "Aréas": "areas" is
+    one of three tokens, none matched -> reject; "Intermarche" -> "Intermarché": the
+    descriptor is exactly the entity -> keep). Generic — no merchant is named, no
+    threshold/completeness change; only overture/global-index candidates are gated."""
+    if alt["matched_tokens"]:
+        return True
+    top = alt["candidates"][0] if alt["candidates"] else None
+    ent = (top or {}).get("entity") or {}
+    if not str(ent.get("_source", "")).startswith("overture"):
+        return True                      # main-KB candidate — unaffected
+    return kb._norm(ent.get("canonical_name", "")) == kb._norm("".join(ev["otokens"]))
+
+
+def _finalize(ev, roles, ranked):
+    """Turn a ranked candidate list into a resolution (accept + completeness, or
+    abstain). Pure function of (ev, roles, ranked) so resolve() can call it once on
+    the main-KB ranking and again on the global-index-augmented ranking."""
     top = ranked[0] if ranked else None
     second = ranked[1] if len(ranked) > 1 else None
     top_score = top["score"] if top else 0.0
