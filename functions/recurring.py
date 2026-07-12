@@ -532,6 +532,12 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             typ = "bill" if category in ("housing", "finance") else "subscription"
             if stable and typ == "subscription":
                 typ = "bill"       # deliberate transfers lean bill, not subscription
+            # Weak person-like hint: a repeated transfer to a non-merchant party
+            # keeps its temporal-recurrence signal but must NOT be classified as a
+            # subscription/bill purely from a stable IBAN + recurrence. Fall back
+            # to "transfer" (not a final government/tax semantic — just safer).
+            if (canon_g.get("counterparty") or {}).get("party_kind_hint") == "person_like":
+                typ = "transfer"
             disp = cp_name if stable else _clean_name(st_items[0][2])
             cand = _build_candidate(disp, typ, category, None, st_items, dates,
                                     needs_review=True, auto_detected=False,

@@ -21,7 +21,8 @@ import re
 import unicodedata
 
 from entity import (BANK_FEE, PURCHASE, TRANSFER_IN, TRANSFER_OUT, UNKNOWN_TYPE,
-                    _amount, _creditor, _date, _debtor, classify_type,
+                    _amount, _creditor, _date, _debtor, _looks_like_person,
+                    classify_type,
                     parse_remittance)
 
 # transaction types (structured, code-gated)
@@ -114,7 +115,15 @@ def build_canonical(t):
         "direction": direction,
         "transaction_type": txn_type,
         "type_evidence": ttype_ev,
-        "counterparty": {"iban": cp_iban, "name": cp_name, "scheme_id": cp_scheme},
+        "counterparty": {
+            "iban": cp_iban, "name": cp_name, "scheme_id": cp_scheme,
+            # WEAK structural hint (NOT ground truth — the heuristic over-triggers
+            # on some institutions, e.g. VMI). Used only to keep an unknown-brand
+            # counterparty out of subscription/bill purely from a stable IBAN +
+            # recurrence; never to assert a person identity.
+            "party_kind_hint": ("person_like"
+                                if cp_name and _looks_like_person(cp_name) else None),
+        },
         "remittance": {
             "lines": list(lines), "acceptor": acceptor,
             "city": pr.get("city_hint"), "country": pr.get("country_hint"),
