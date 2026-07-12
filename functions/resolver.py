@@ -54,6 +54,18 @@ _STRUCTURAL = {
     "BANK", "LOCATION", "GENERIC",
 }
 
+# Legal-form abbreviations + country names — qualifier tokens that are dropped
+# from a canonical name for the completeness check (not identity-critical).
+# Descriptive words (international, group, corporation…) are deliberately NOT here.
+_GEO_LEGAL = {
+    "uab", "ab", "asa", "as", "oy", "oyj", "ou", "sia", "sa", "gmbh", "ltd",
+    "llc", "inc", "plc", "bv", "ag", "nv", "aps", "kb", "ky", "spa", "srl",
+    "latvia", "latvija", "lithuania", "lietuva", "estonia", "eesti", "norway",
+    "norge", "sweden", "sverige", "finland", "suomi", "denmark", "danmark",
+    "poland", "polska", "germany", "deutschland", "portugal", "spain", "france",
+    "italy", "italia", "ireland",
+}
+
 
 # ── descriptor source (mirrors recurring.counterparty_name priority) ──
 def _counterparty(t):
@@ -390,17 +402,22 @@ def _identity_complete(top, ev):
     if ent is None or top.get("provenance") == "remittance_domain" \
             or top.get("match_kind") == "related":
         return True
-    canon = [t for t in (_fold(x) for x in _otokens(ent.get("canonical_name", "")))
-             if len(t) >= 2]
+    name = ent.get("canonical_name", "")
+    canon = [t for t in (_fold(x) for x in _otokens(name)) if len(t) >= 2]
     if not canon:
         return True
+    # Drop legal-form abbreviations and country names from the required core —
+    # they are qualifiers, not identity ("Lidl Eesti" -> core "lidl"). Descriptive
+    # business words (International, Group, …) are KEPT so fragment matches (AVIA
+    # TRUCK -> AVIA International) still abstain.
+    core = [t for t in canon if t not in _GEO_LEGAL] or canon
     present = set(ev["ftokens"])
-    if all(t in present for t in canon):
-        return True                      # (a) every canonical token is a token
-    # (b) the glued canonical is itself a full descriptor token — covers legit
-    #     separator-stripped / diacritic-folded forms ("UNOX" == Uno-X) without
-    #     re-admitting fragment matches (a longer glued token is NOT equality).
-    return "".join(canon) in present
+    if all(t in present for t in core):
+        return True                      # (a) every core canonical token present
+    # (b) the fully-normalized canonical (apostrophe/punctuation collapsed) is a
+    #     descriptor token — "McDonald's" -> "mcdonalds", "Uno-X" -> "unox". A
+    #     longer glued token is NOT equality, so fragments still abstain.
+    return kb._norm(name) in present
 
 
 # ── main entry ──
