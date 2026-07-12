@@ -2,7 +2,7 @@
  "schema_version": 2,
  "kb_version": "2026.07.2-wikidata",
  "sources": [
-  "curated:kb_entities.json@sha256:bb432d082b27ce3b",
+  "curated:kb_entities.json@sha256:bba92e77f17fdd05",
   "wikidata:CC0:1618records",
   "osm:ODbL:disabled"
  ],
@@ -17,8 +17,8 @@
   "PL",
   "SE"
  ],
- "entity_count": 1541,
- "curated_count": 5,
+ "entity_count": 1542,
+ "curated_count": 6,
  "wikidata_count": 1536,
  "entities": [
   {
@@ -20062,7 +20062,6 @@
     "husqvarna vapenfabrik",
     "husqvarna vapenfabriks",
     "husqvarna vapenfabriks ab",
-    "husse",
     "hva",
     "jönköpings gevärsfaktori"
    ],
@@ -20075,7 +20074,6 @@
     "husqvarnavapenfabrik",
     "husqvarnavapenfabriks",
     "husqvarnavapenfabriksab",
-    "husse",
     "hva",
     "jonkopingsgevarsfaktori"
    ],
@@ -20199,12 +20197,9 @@
    "canonical_name": "ICA AB",
    "entity_type": "BRAND",
    "aliases": [
-    "cura",
-    "cura apoteket",
     "ica",
     "ica (supermarket)",
     "ica ab",
-    "ica ahold",
     "ica focus",
     "ica förbundet",
     "ica gruppen",
@@ -20215,16 +20210,12 @@
     "ica provkök",
     "ica-modellen",
     "inköpscentralernas aktiebolag",
-    "maxi ica stormarknad",
-    "rimi"
+    "maxi ica stormarknad"
    ],
    "related_aliases": [],
    "alias_norms": [
-    "cura",
-    "curaapoteket",
     "ica",
     "icaab",
-    "icaahold",
     "icafocus",
     "icaforbundet",
     "icagruppen",
@@ -20236,8 +20227,7 @@
     "icaprovkok",
     "icasupermarket",
     "inkopscentralernasaktiebolag",
-    "maxiicastormarknad",
-    "rimi"
+    "maxiicastormarknad"
    ],
    "country_coverage": [
     "SE"
@@ -38016,6 +38006,38 @@
    "popularity_prior": 0.6,
    "recurring_type": "frequent",
    "_source": "wikidata"
+  },
+  {
+   "entity_id": "rimi",
+   "canonical_name": "Rimi",
+   "entity_type": "MERCHANT",
+   "aliases": [
+    "rimi"
+   ],
+   "related_aliases": [],
+   "country_coverage": [
+    "LT",
+    "LV",
+    "EE"
+   ],
+   "categories": [
+    "groceries"
+   ],
+   "merchant_type": "SUPERMARKET",
+   "icon_key": "GROCERIES",
+   "known_domains": [
+    "rimi.lt"
+   ],
+   "known_locations": [],
+   "is_processor": false,
+   "is_brand": true,
+   "brand_relationships": [],
+   "popularity_prior": 0.6,
+   "recurring_type": "frequent",
+   "alias_norms": [
+    "rimi"
+   ],
+   "_source": "curated"
   },
   {
    "entity_id": "rimilatvia",

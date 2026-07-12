@@ -91,6 +91,24 @@
       "brand_relationships": [],
       "popularity_prior": 0.4,
       "recurring_type": null
+    },
+    {
+      "entity_id": "rimi",
+      "canonical_name": "Rimi",
+      "entity_type": "MERCHANT",
+      "aliases": ["rimi"],
+      "related_aliases": [],
+      "country_coverage": ["LT", "LV", "EE"],
+      "categories": ["groceries"],
+      "merchant_type": "SUPERMARKET",
+      "icon_key": "GROCERIES",
+      "known_domains": ["rimi.lt"],
+      "known_locations": [],
+      "is_processor": false,
+      "is_brand": true,
+      "brand_relationships": [],
+      "popularity_prior": 0.6,
+      "recurring_type": "frequent"
     }
   ]
 }

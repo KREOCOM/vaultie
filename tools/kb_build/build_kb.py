@@ -147,6 +147,28 @@ def _merge_shared_alias(entities):
     return merged
 
 
+# Curated data-cleanup: a parent/legal organisation must not carry a DISTINCT
+# consumer-facing subsidiary brand as its own identity alias (Wikidata altLabels
+# of holdings list their subsidiaries). Keyed by parent entity_id -> alias_norms
+# to drop. This is data cleanup only — no resolver/matching logic. (Rimi is not
+# listed here: it is promoted to its own curated entity, which already evicts the
+# "rimi" alias from ICA AB via the curated-alias precedence in build.)
+_ALIAS_DENYLIST = {
+    "icaab": {"cura", "curaapoteket", "icaahold"},   # Cura pharmacy / Ahold group
+    "husqvarnagroup": {"husse"},                       # Husse = separate pet-food brand
+}
+
+
+def _apply_denylist(entities):
+    for e in entities:
+        drop = _ALIAS_DENYLIST.get(e["entity_id"])
+        if not drop:
+            continue
+        e["aliases"] = [a for a in e.get("aliases", []) if N.norm(a) not in drop]
+        e["alias_norms"] = [n for n in e.get("alias_norms", []) if n not in drop]
+    return entities
+
+
 def build_v2(refresh=False):
     curated = _curated()
     curated_norms = {n for e in curated for n in e.get("alias_norms", [])}
@@ -154,7 +176,7 @@ def build_v2(refresh=False):
 
     records = wikidata.fetch(refresh=refresh)
     records += osm.fetch(refresh=refresh)  # [] unless ODbL review enabled
-    wd = [e for e in _wikidata_entities(records, curated_norms | curated_ids)]
+    wd = _apply_denylist(_wikidata_entities(records, curated_norms | curated_ids))
 
     entities = sorted(curated + wd, key=lambda e: e["entity_id"])
     countries = sorted({c for e in entities for c in e.get("country_coverage", [])})
