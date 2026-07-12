@@ -46,8 +46,15 @@ _ARTIFACTS = (
     (os.path.join(_KB_DIR, "merchant_kb.v1.json"), "artifact-v1"),
     (_CURATED_PATH, "curated"),
 )
+# Additive open-data enrichment (Overture LT, CC-BY; brand-collapsed offline).
+# Consulted ONLY via the indexed exact/normalized/prefix paths below — NEVER by the
+# broad substring scan (step 3) or the is_brand/is_processor iterations — so a noisy
+# POI name can never substring-match into an unrelated descriptor. The curated/
+# Wikidata KB always wins on collision, so existing resolutions are unchanged.
+_ENRICH_ARTIFACT = os.path.join(_KB_DIR, "lt_enrichment.v1.json")
 
 _entities = None          # list[dict] | None  (loaded entities)
+_enrich_entities = None   # list[dict]         (open-data enrichment, index-only)
 _alias_index = None       # alias(str) -> list[entity]
 _related_index = None     # related_alias(str) -> list[entity]
 _norm_index = None        # alias_norm -> list[entity]   (joined/fused-exact)
@@ -58,7 +65,7 @@ _loaded_source = None     # provenance for diagnostics ("artifact" | "curated" |
 
 def _load():
     global _entities, _alias_index, _related_index, _norm_index, _prefix_index
-    global _loaded_source
+    global _loaded_source, _enrich_entities
     if _entities is not None:
         return
     _entities, _loaded_source = None, None
@@ -91,13 +98,39 @@ def _load():
             if len(n) >= 4:
                 _prefix_index.setdefault(n[:3], []).append((n, e))
 
+    # Additive open-data enrichment: index-only, and never over an identity the
+    # curated/Wikidata KB already owns (main KB stays authoritative -> no new
+    # sibling candidate, so existing resolutions are byte-for-byte unchanged).
+    _enrich_entities = []
+    try:
+        with open(_ENRICH_ARTIFACT, encoding="utf-8") as f:
+            enrich = json.load(f).get("entities", [])
+    except Exception:  # noqa: BLE001 — enrichment is optional
+        enrich = []
+    for e in enrich:
+        norms = e.get("alias_norms") or [_norm(a) for a in e.get("aliases", [])]
+        survive = {n for n in norms if n and n not in _norm_index}
+        if not survive:
+            continue
+        _enrich_entities.append(e)
+        # Index only aliases whose normalized form survived the collision filter —
+        # otherwise a branch/brand alias the main KB already owns would re-enter the
+        # exact-alias path and spawn a sibling candidate that trips margin-abstention.
+        for a in e.get("aliases", []):
+            if _norm(a) in survive:
+                _alias_index.setdefault(a.lower(), []).append(e)
+        for n in survive:
+            _norm_index.setdefault(n, []).append(e)
+            if len(n) >= 4:
+                _prefix_index.setdefault(n[:3], []).append((n, e))
+
 
 def reset_cache():
     """Drop caches (curated + the underlying merchant_db)."""
     global _entities, _alias_index, _related_index, _norm_index, _prefix_index
-    global _word_re, _loaded_source
+    global _word_re, _loaded_source, _enrich_entities
     _entities = _alias_index = _related_index = _loaded_source = None
-    _norm_index = _prefix_index = None
+    _norm_index = _prefix_index = _enrich_entities = None
     _word_re = {}
     merchant_db.reset_cache()
 
