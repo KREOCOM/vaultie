@@ -227,11 +227,9 @@ def _classify(t, resolve_cat, salary_refs):
         return (name, "Sąskaitos papildymas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
     if code in _CASH_CODES:
         return (name, "Grynieji", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
-    if code in _FEE_CODES or any(k in nl for k in _FEE_HINTS):
-        return (name, "Bankas, komisiniai", "finance", "money", "Finansai", "red", amt > 0, False)
 
-    # credit transfers (SEPA / P2P, in or out) — never a merchant purchase,
-    # never sent to the merchant resolver
+    # credit transfers (SEPA / P2P, in or out) — before merchant matching, so a
+    # person is never sent to the merchant resolver
     if code in _XFER_CODES or (not code and _is_person_name(name)):
         if any(k in nl for k in _FINANCE_HINTS):
             return (name, "Paskola, lizingas", "finance", "money", "Finansai", "red", amt > 0, False)
@@ -241,13 +239,18 @@ def _classify(t, resolve_cat, salary_refs):
             return (name, "Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True)
         return (name, "Pervedimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
 
-    # ── card / direct-debit / unknown business → merchant flow ──
-    # curated name overrides win over the resolver; only now do we resolve the
-    # merchant (KB first, global index as fallback).
+    # known merchant by name (BEFORE the fee check, so an oddly-coded Apple/Google
+    # — e.g. MCOP/MDOP — isn't swallowed as a bank fee)
     for kws, mapped in NAME_OVERRIDES:
         if any(k in nl for k in kws):
             cat_lt, col, ic, sec, secc = mapped
             return (name, cat_lt, col, ic, sec, secc, amt > 0, False)
+
+    # bank fees / charges
+    if code in _FEE_CODES or any(k in nl for k in _FEE_HINTS):
+        return (name, "Bankas, komisiniai", "finance", "money", "Finansai", "red", amt > 0, False)
+
+    # ── unknown business → resolver (KB first, global index fallback) ──
     canonical, category = resolve_cat(t)
     cat_lt, col, ic, sec, secc = CAT_MAP.get((category or "other").lower(), OTHER)
     return (canonical or name, cat_lt, col, ic, sec, secc, amt > 0, False)
