@@ -2556,6 +2556,9 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       if (a < 0) spentByCat[t['cat'] as String] = (spentByCat[t['cat'] as String] ?? 0) - a;
     }
     final cats = b.keys.toList();
+    // No user budgets → don't show a budget section at all (it was showing fake
+    // hardcoded example limits that confused people — "where did 880 € come from?").
+    if (cats.isEmpty) return const SizedBox.shrink();
     final totalBudget = cats.fold(0.0, (s, c) => s + (b[c] as num).toDouble());
     final totalSpent = cats.fold(0.0, (s, c) => s + (spentByCat[c] ?? 0));
     final under = totalBudget - totalSpent;
@@ -3572,7 +3575,7 @@ class _SavingsRateScreen extends StatelessWidget {
 // PLANNING TAB — budgets (data-suggested limits) + recurring
 // ══════════════════════════════════════════════════════════════════════════════
 class _Budget {
-  _Budget(this.sec, this.limit, {this.auto});
+  _Budget(this.sec, this.limit);
   final String sec;
   double limit;
   bool? auto; // true = we suggested the limit from history; false = user-set
@@ -3614,12 +3617,6 @@ class _PlanningTabState extends State<_PlanningTab> {
   Color _colorOfSec(String sec) => _secColor[_secColorKey[sec]] ?? _muted;
   IconData _iconOfSec(String sec) => _secIcon[_secToIcon[sec]] ?? Icons.circle;
 
-  bool _isSpendSec(String sec) => sec != 'Pajamos' && sec != 'Pervedimai' && sec != 'Pajamos ir pervedimai';
-
-  // Poor auto-seed candidates: fixed bills (belong in Recurring), spiky one-offs,
-  // and the "Kita" catch-all. User can still add these manually via the sheet.
-  static const _nonSeedSecs = {'Būstas, sąskaitos', 'Finansai', 'Kita'};
-  bool _isDiscretionary(String sec) => _isSpendSec(sec) && !_nonSeedSecs.contains(sec);
 
   // expenses only (positive €) in a section, over an arbitrary row set
   double _spentInSec(Iterable<Map<String, dynamic>> rows, String sec) => rows
@@ -3663,11 +3660,10 @@ class _PlanningTabState extends State<_PlanningTab> {
     for (final e in _taxonomy) {
       _secColorKey.putIfAbsent(e['sec'] as String, () => e['c'] as String);
     }
-    // seed with the two biggest DISCRETIONARY sections (fixed bills belong in
-    // Recurring), each with a data-suggested limit
-    final secs = <String>{for (final t in widget.all) t['sec'] as String}.where(_isDiscretionary).toList();
-    final ranked = secs.map((s) => MapEntry(s, _suggestLimit(s))).toList()..sort((a, b) => b.value.compareTo(a.value));
-    _budgets = [for (final e in ranked.take(2)) _Budget(e.key, e.value, auto: true)];
+    // Start with NO budgets — auto-creating them confused users ("where did this
+    // limit come from?"). The user adds their own; the add sheet still offers a
+    // data-based suggested limit (median of real spend) to accept or edit.
+    _budgets = [];
   }
 
   // pace-aware colour: red if already over, orange if trending over, else green
@@ -3693,6 +3689,7 @@ class _PlanningTabState extends State<_PlanningTab> {
           _sectionTitle('Biudžetai'),
           if (_showBanner) _banner(),
           if (_budgets.isNotEmpty) _summaryCard(spentSoFar, totalLimit),
+          if (_budgets.isEmpty) _budgetsEmpty(),
           for (final b in _budgets) _budgetRow(b),
           _addButton(),
           const SizedBox(height: 10),
@@ -3995,6 +3992,22 @@ class _PlanningTabState extends State<_PlanningTab> {
               Text('Pridėti biudžetą', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
             ]),
           ),
+        ),
+      );
+
+  Widget _budgetsEmpty() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
+          child: Column(children: [
+            Icon(Icons.savings_outlined, size: 30, color: _muted),
+            const SizedBox(height: 8),
+            Text('Dar neturi biudžetų', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+            const SizedBox(height: 4),
+            Text('Pridėk kategoriją — pasiūlysim limitą pagal tavo tikras išlaidas, o tu patvirtinsi ar pakeisi.',
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: _muted, height: 1.35)),
+          ]),
         ),
       );
 

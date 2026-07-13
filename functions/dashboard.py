@@ -371,8 +371,10 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
         # Canonical headline figures — the single source of truth every screen
         # reads so the same concept shows the same number everywhere.
         "totals": _totals(all_rows),
-        "budgets": {"Maisto prekės": 390.0, "Kavinės, restoranai": 150.0,
-                    "Kuras": 220.0, "Alkoholis, tabakas": 120.0},
+        # No auto/example budgets — they confused users ("where did this limit
+        # come from?"). Budgets are user-created (Planning tab), with a suggested
+        # limit from the user's real average spend they accept or edit.
+        "budgets": {},
         "meta": {"count": len(txns),
                  "range": f"{min(t['booking_date'] for t in txns)}..{max(t['booking_date'] for t in txns)}",
                  "sample": sample,
