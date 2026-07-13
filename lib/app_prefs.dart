@@ -88,9 +88,11 @@ class AppPrefs {
   // IBANs, identifiers, dates or person/P2P names.
   static const _kAiEnrichment = 'aiEnrichment';
 
+  // NOTE: default ON for now (testing). Flip to false before App Store submission
+  // so it is a true opt-in.
   static bool get aiEnrichment => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _box.get(_kAiEnrichment, defaultValue: false) as bool
-      : false;
+      ? _box.get(_kAiEnrichment, defaultValue: true) as bool
+      : true;
 
   static Future<void> setAiEnrichment(bool value) async {
     await _box.put(_kAiEnrichment, value);
