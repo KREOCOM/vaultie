@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 
@@ -143,9 +145,13 @@ class FrequentMerchant {
 /// Result of a bank scan: importable recurring candidates + frequent-spending
 /// merchants surfaced for information only.
 class BankScanResult {
-  const BankScanResult({required this.candidates, required this.frequent});
+  const BankScanResult({required this.candidates, required this.frequent, this.dash});
   final List<RecurringCandidate> candidates;
   final List<FrequentMerchant> frequent;
+
+  /// Full dashboard payload (every transaction classified + feed/week/subs/
+  /// balance) for the new dashboard. Null if the backend couldn't build it.
+  final Map<String, dynamic>? dash;
 }
 
 BillingCycle _cycleFromString(String s) => switch (s) {
@@ -235,6 +241,19 @@ class BankingService {
           debugPrint('  FREQUENT $f');
         }
       }
+      // Deep-convert the nested dashboard map (Firebase hands back
+      // Map<Object?,Object?>) into a clean Map<String,dynamic> via a JSON
+      // round-trip, so the dashboard's typed `.cast<Map<String,dynamic>>()`
+      // access works.
+      Map<String, dynamic>? dash;
+      final rawDash = m['dash'];
+      if (rawDash != null) {
+        try {
+          dash = jsonDecode(jsonEncode(rawDash)) as Map<String, dynamic>;
+        } catch (_) {
+          dash = null;
+        }
+      }
       return BankScanResult(
         candidates: [
           for (final c in cands)
@@ -244,6 +263,7 @@ class BankingService {
           for (final f in freq)
             FrequentMerchant.fromMap((f as Map).cast<Object?, Object?>()),
         ],
+        dash: dash,
       );
     });
   }

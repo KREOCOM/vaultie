@@ -139,14 +139,17 @@ List<String> _ptype(Map t) {
 }
 
 class DashboardPreview extends StatefulWidget {
-  const DashboardPreview({super.key});
+  /// [data] is the live dashboard payload from a bank connection. When null the
+  /// screen falls back to the baked sample data (standalone design preview).
+  const DashboardPreview({super.key, this.data});
+  final Map<String, dynamic>? data;
   @override
   State<DashboardPreview> createState() => _DashboardPreviewState();
 }
 
 class _DashboardPreviewState extends State<DashboardPreview> {
   late final Map<String, dynamic> _d =
-      jsonDecode(utf8.decode(base64Decode(_dashB64))) as Map<String, dynamic>;
+      widget.data ?? jsonDecode(utf8.decode(base64Decode(_dashB64))) as Map<String, dynamic>;
   int _tab = 0;
   bool _hideBal = false;
   int? _weekSel; // tapped weekday bar

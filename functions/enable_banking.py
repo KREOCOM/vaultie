@@ -109,6 +109,20 @@ class EnableBankingClient:
         """Exchange the redirect ``code`` for a session (+ its accounts)."""
         return self._request("POST", "/sessions", body={"code": code})
 
+    def balances(self, account_uid: str) -> list:
+        """Current balances for an account (list of balance objects).
+
+        Each item carries ``balance_amount`` ({amount, currency}) and a
+        ``balance_type`` (e.g. CLBD closing-booked, XPCD, ITAV interim-available).
+        Returns [] on any error so a missing-balances endpoint never blocks the
+        transaction scan.
+        """
+        try:
+            data = self._request("GET", f"/accounts/{account_uid}/balances")
+            return data.get("balances", [])
+        except EnableBankingError:
+            return []
+
     def transactions(self, account_uid: str, *, date_from: str, max_pages: int = 25) -> list:
         """Page through an account's transactions since ``date_from`` (ISO date).
 

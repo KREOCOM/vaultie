@@ -6,6 +6,7 @@ import '../content_theme.dart';
 import '../main.dart';
 import '../services/banking_service.dart';
 import 'bank_import_screen.dart';
+import 'preview/dashboard_preview.dart';
 
 /// A country Vaultie can list banks for (Enable Banking coverage).
 class _Country {
@@ -138,9 +139,14 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       setState(() => _phase = _Phase.analysing);
       final scan = await BankingService.instance.finishBankAuth(code);
       if (!mounted) return;
+      // Land straight in the new dashboard with the classified transactions.
+      // Fall back to the legacy import screen only if the backend couldn't
+      // build the dashboard payload.
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => BankImportScreen(result: scan),
+          builder: (_) => scan.dash != null
+              ? DashboardPreview(data: scan.dash)
+              : BankImportScreen(result: scan),
         ),
       );
     } on PlatformException catch (e) {

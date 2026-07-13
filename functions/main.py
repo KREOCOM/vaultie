@@ -22,9 +22,30 @@ import firebase_admin
 from firebase_functions import https_fn
 from firebase_functions.params import SecretParam
 
+from dashboard import build_dashboard
 from enable_banking import DEFAULT_COUNTRY, EnableBankingClient, EnableBankingError
 from recurring import detect_recurring
 from seed_merchants import seed as _run_seed
+
+
+def _pick_balance(balances: list) -> float:
+    """Choose the most 'spendable' balance from an account's balance list.
+
+    Prefer interim-available (ITAV), then closing-booked (CLBD), else the first.
+    Returns 0.0 when none are present.
+    """
+    if not balances:
+        return 0.0
+    def amt(b):
+        try:
+            return float((b.get("balance_amount") or {}).get("amount") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    by_type = {str(b.get("balance_type") or "").upper(): b for b in balances}
+    for pref in ("ITAV", "CLBD", "XPCD", "OTHR"):
+        if pref in by_type:
+            return round(amt(by_type[pref]), 2)
+    return round(amt(balances[0]), 2)
 
 # Initialize the Admin SDK so the callable framework can verify the caller's
 # Firebase Auth ID token. Without this the token is rejected and every call
@@ -40,6 +61,30 @@ ENABLE_BANKING_PRIVATE_KEY = SecretParam("ENABLE_BANKING_PRIVATE_KEY")
 SEED_TOKEN = SecretParam("SEED_TOKEN")
 
 _REGION = "europe-west1"
+
+
+def _dedupe_transactions(txns: list) -> list:
+    """Drop duplicate bank entries before detection.
+
+    A single connection (especially a multi-account one like Revolut EUR+NOK)
+    can return the same entry more than once — pagination windows that overlap,
+    or a connection re-scanned within a session. Every Enable Banking entry
+    carries a stable, unique ``entry_reference``; de-duplicating on it keeps the
+    first sighting and discards exact repeats, so nothing is double-counted.
+    Entries without a reference are kept as-is (can't safely be matched).
+    """
+    seen: set = set()
+    out: list = []
+    for t in txns:
+        ref = t.get("entry_reference")
+        if ref is None:
+            out.append(t)
+            continue
+        if ref in seen:
+            continue
+        seen.add(ref)
+        out.append(t)
+    return out
 
 
 def _require_auth(req: https_fn.CallableRequest) -> None:
@@ -141,10 +186,23 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
         session = client.create_session(code)
         accounts = session.get("accounts", [])
         all_txns: list = []
+        account_summaries: list = []
         for acc in accounts:
             uid = acc.get("uid") or acc.get("account_uid")
-            if uid:
-                all_txns.extend(client.transactions(uid, date_from=date_from))
+            if not uid:
+                continue
+            all_txns.extend(client.transactions(uid, date_from=date_from))
+            # current balance for the account (closing-booked / available)
+            bal = _pick_balance(client.balances(uid))
+            name = (acc.get("name") or acc.get("product")
+                    or (acc.get("account_id") or {}).get("iban") or "Sąskaita")
+            currency = ((acc.get("currency"))
+                        or (acc.get("account_id") or {}).get("currency") or "EUR")
+            account_summaries.append({
+                "name": name, "balance": bal, "sub": None,
+                "icon": "R" if "revolut" in str(name).lower() else "bank",
+                "currency": currency,
+            })
     except EnableBankingError as e:
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
@@ -152,12 +210,29 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             details=str(e),
         )
 
+    # De-duplicate before anything reads the list, so counts, totals and
+    # recurring detection all see each real entry exactly once.
+    _raw_count = len(all_txns)
+    all_txns = _dedupe_transactions(all_txns)
+    if len(all_txns) != _raw_count:
+        logging.info("finish_bank_auth: deduped %d -> %d transactions",
+                     _raw_count, len(all_txns))
+
     # Detection runs entirely on-server against the curated/crowdsourced merchant
     # DB and local keyword heuristics — no transaction-derived data is sent to any
     # third party, and nothing is persisted (privacy-first; see policy §6).
     detection = detect_recurring(all_txns)
     candidates = detection["candidates"]
     frequent = detection["frequent"]
+
+    # Full dashboard payload — every transaction classified into the 9-section
+    # model + feed/week/subs/balance, so the app can land straight in the
+    # dashboard. Built defensively: a failure here must not break the scan.
+    try:
+        dash = build_dashboard(all_txns, account_summaries)
+    except Exception:  # noqa: BLE001
+        logging.exception("build_dashboard failed")
+        dash = None
     # Counts only — never transaction content — so nothing sensitive is logged.
     logging.info(
         "finish_bank_auth: accounts=%d txns=%d candidates=%d frequent=%d "
@@ -173,6 +248,7 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
         "transactionCount": len(all_txns),
         "candidates": candidates,
         "frequent": frequent,
+        "dash": dash,
     }
 
 
