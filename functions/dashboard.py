@@ -190,16 +190,29 @@ _FEE_HINTS = ["komisin", "aptarnavim", "paslaugų planas", "paslaugu planas",
               "mokestis už", "sąskaitos mokest", "account fee", "service fee"]
 
 
-def _salary_refs(txns):
-    """entry_references of the one salary/month (largest EXCHANGE credit),
-    trusted only when the pattern repeats across >=3 months."""
-    by_month = defaultdict(list)
+def _salary_sources(txns):
+    """Normalised counterparty names that pay you like an EMPLOYER: a recurring
+    (>=3 distinct months), substantial, NON-person incoming credit — in whatever
+    account/currency it actually lands. This is the real salary signal.
+
+    A currency EXCHANGE is NOT salary — it is you converting money you already
+    have, and it happens on a different date than payday, so treating it as
+    income would book the salary in the wrong month and inflate any conversion.
+    """
+    months_by = defaultdict(set)
     for t in txns:
-        if (t.get("bank_transaction_code") or {}).get("code") == "EXCHANGE" and _amt(t) >= 300:
-            by_month[t["booking_date"][:7]].append((_amt(t), t.get("entry_reference")))
-    if len(by_month) < 3:
-        return set()
-    return {max(lst)[1] for lst in by_month.values()}
+        if t.get("credit_debit_indicator") != "CRDT":
+            continue
+        code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
+        if code in _EXCHANGE_CODES | _REFUND_CODES | _TOPUP_CODES:
+            continue  # conversions / refunds / top-ups are not employer pay
+        if _amt(t) < 300:
+            continue
+        name = _name(t)
+        if _is_person_name(name):
+            continue  # a person sending you money is not an employer
+        months_by[_norm(name)].add(t["booking_date"][:7])
+    return {k for k, mos in months_by.items() if len(mos) >= 3}
 
 
 def _classify(t, resolve_cat, salary_refs):
@@ -216,10 +229,9 @@ def _classify(t, resolve_cat, salary_refs):
     code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
     name = _name(t); nl = name.lower(); amt = _amt(t)
 
-    # currency exchange (Revolut): recurring large in = salary, else conversion
+    # currency exchange is ALWAYS just a conversion of your own money — never
+    # income and never spending (moving money between your own currencies).
     if code in _EXCHANGE_CODES:
-        if t.get("entry_reference") in salary_refs:
-            return (name, "Atlyginimas", "income", "income", "Pajamos", "amber", True, False)
         return (name, "Valiutos keitimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
     if code in _REFUND_CODES:
         return (name, "Grąžinimas", "income", "swap", "Pajamos", "amber", True, False)
@@ -231,6 +243,10 @@ def _classify(t, resolve_cat, salary_refs):
     # credit transfers (SEPA / P2P, in or out) — before merchant matching, so a
     # person is never sent to the merchant resolver
     if code in _XFER_CODES or (not code and _is_person_name(name)):
+        # a recurring, substantial, non-person INCOMING transfer from the same
+        # source = your salary (booked on the real payday, in whatever currency).
+        if amt > 0 and _norm(name) in salary_refs:
+            return (name, "Atlyginimas", "income", "income", "Pajamos", "amber", True, False)
         if any(k in nl for k in _FINANCE_HINTS):
             return (name, "Paskola, lizingas", "finance", "money", "Finansai", "red", amt > 0, False)
         if any(k in nl for k in _HOUSING_HINTS):
@@ -267,7 +283,7 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
                 "spark": [], "balance": _balance_block([], accounts), "budgets": {},
                 "meta": {"count": 0}}
 
-    salary_refs = _salary_refs(txns)
+    salary_refs = _salary_sources(txns)  # employer names (recurring inflow)
 
     # resolver corpus (built from debit merchant txns, as recurring does)
     dbit = [t for t in txns if t.get("credit_debit_indicator") == "DBIT"]
