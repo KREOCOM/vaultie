@@ -54,6 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _auth = AuthService();
   bool _busy = false;
   late bool _notifications = AppPrefs.notificationsEnabled;
+  late bool _aiEnrichment = AppPrefs.aiEnrichment;
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
 
@@ -410,6 +411,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: _notifications,
                     activeThumbColor: cAccent,
                     onChanged: _busy ? null : _onNotificationsChanged,
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: Icon(Icons.auto_awesome_outlined, color: cAccent),
+                    title: Text(isLt
+                        ? 'Tikslesnis kategorizavimas su AI'
+                        : 'Smarter categorisation with AI'),
+                    subtitle: Text(
+                      isLt
+                          ? 'Nežinomo prekybininko pavadinimas (pvz. „H&M") gali būti '
+                              'siunčiamas AI kategorijai nustatyti. Niekada nesiunčiame '
+                              'sumų, sąskaitų nr. ar asmenų pervedimų.'
+                          : 'An unknown merchant name (e.g. "H&M") may be sent to AI to '
+                              'determine its category. We never send amounts, account '
+                              'numbers or personal transfers.',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    isThreeLine: true,
+                    value: _aiEnrichment,
+                    activeThumbColor: cAccent,
+                    onChanged: _busy
+                        ? null
+                        : (v) {
+                            setState(() => _aiEnrichment = v);
+                            AppPrefs.setAiEnrichment(v);
+                          },
                   ),
                   const Divider(height: 1),
                   SwitchListTile(

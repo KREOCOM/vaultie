@@ -60,6 +60,10 @@ ENABLE_BANKING_PRIVATE_KEY = SecretParam("ENABLE_BANKING_PRIVATE_KEY")
 # Set with:  firebase functions:secrets:set SEED_TOKEN
 SEED_TOKEN = SecretParam("SEED_TOKEN")
 
+# Stage-3 AI merchant classification (opt-in only). Used solely to classify
+# unresolved BUSINESS merchant names — never amounts/IBANs/identifiers/people.
+ANTHROPIC_API_KEY = SecretParam("ANTHROPIC_API_KEY")
+
 _REGION = "europe-west1"
 
 
@@ -161,7 +165,7 @@ def start_bank_auth(req: https_fn.CallableRequest) -> dict:
     return {"url": url, "state": state}
 
 
-@https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])
+@https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY, ANTHROPIC_API_KEY])
 def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     """Exchange the redirect ``code``, fetch transactions, detect recurring ones.
 
@@ -233,8 +237,12 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     # Full dashboard payload — every transaction classified into the 9-section
     # model + feed/week/subs/balance, so the app can land straight in the
     # dashboard. Built defensively: a failure here must not break the scan.
+    # AI enrichment (Stage 3) runs only when the user opted in; then the
+    # Anthropic key is passed through, otherwise it stays disabled.
+    ai_enabled = bool(data.get("aiEnrichment"))
+    ai_key = ANTHROPIC_API_KEY.value if ai_enabled else None
     try:
-        dash = build_dashboard(all_txns, account_summaries)
+        dash = build_dashboard(all_txns, account_summaries, ai_key=ai_key)
     except Exception:  # noqa: BLE001
         logging.exception("build_dashboard failed")
         dash = None

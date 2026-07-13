@@ -256,9 +256,10 @@ def _classify(t, resolve_cat, salary_refs):
     return (canonical or name, cat_lt, col, ic, sec, secc, amt > 0, False)
 
 
-def build_dashboard(transactions, accounts, today=None):
+def build_dashboard(transactions, accounts, today=None, ai_key=None):
     """transactions: deduped Enable Banking list. accounts: [{name, balance, sub,
-    icon, currency}]. Returns the dash_data dict the app renders."""
+    icon, currency}]. ai_key: Anthropic key when the user opted into AI
+    enrichment (Stage 3); None disables it. Returns the dash_data dict."""
     today = today or dt.date.today()
     txns = [t for t in transactions if t.get("booking_date")]
     if not txns:
@@ -276,12 +277,24 @@ def build_dashboard(transactions, accounts, today=None):
         corpus = None
 
     def resolve_cat(t):
+        # Stage 2: deterministic resolver (KB → offline global index).
         try:
             _, hit, _ = resolver.resolve_hit(t, corpus)
             if hit:
                 return hit[0], hit[2]  # canonical_name, category
         except Exception:
             pass
+        # Stage 3: AI enrichment (opt-in only) for the unresolved business tail.
+        # resolve_cat is reached ONLY from the merchant branch, so this is never a
+        # person/P2P name; ai_enrichment also guards against person names + caches.
+        if ai_key:
+            try:
+                import ai_enrichment
+                res = ai_enrichment.classify(_name(t), ai_key)
+                if res:
+                    return res
+            except Exception:
+                pass
         return _name(t), "other"
 
     # ── flat `all` list ──

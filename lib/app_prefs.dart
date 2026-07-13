@@ -83,6 +83,19 @@ class AppPrefs {
     await _box.put(_kNotifBannerDismissed, value);
   }
 
+  // Opt-in: allow sending unresolved BUSINESS merchant names (only) to the AI
+  // classifier for better categorisation. Off by default. Never sends amounts,
+  // IBANs, identifiers, dates or person/P2P names.
+  static const _kAiEnrichment = 'aiEnrichment';
+
+  static bool get aiEnrichment => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _box.get(_kAiEnrichment, defaultValue: false) as bool
+      : false;
+
+  static Future<void> setAiEnrichment(bool value) async {
+    await _box.put(_kAiEnrichment, value);
+  }
+
   static const _kOnboardingComplete = 'onboardingComplete';
 
   /// Whether the post-login "How would you like to start?" choice has been made.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
+import '../app_prefs.dart';
 import '../content_theme.dart';
 import '../main.dart';
 import '../services/banking_service.dart';
@@ -137,7 +138,8 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       }
       if (!mounted) return;
       setState(() => _phase = _Phase.analysing);
-      final scan = await BankingService.instance.finishBankAuth(code);
+      final scan = await BankingService.instance
+          .finishBankAuth(code, aiEnrichment: AppPrefs.aiEnrichment);
       if (!mounted) return;
       // Land straight in the new dashboard with the classified transactions.
       // Fall back to the legacy import screen only if the backend couldn't

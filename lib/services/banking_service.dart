@@ -222,8 +222,9 @@ class BankingService {
 
   /// Exchanges the redirect [code] for the scan result: importable recurring
   /// candidates plus frequent-spending merchants (never recurring, feed-only).
-  Future<BankScanResult> finishBankAuth(String code) {
-    return _call('finish_bank_auth', {'code': code, 'debug': kDebugMode}, (m) {
+  Future<BankScanResult> finishBankAuth(String code, {bool aiEnrichment = false}) {
+    return _call('finish_bank_auth',
+        {'code': code, 'debug': kDebugMode, 'aiEnrichment': aiEnrichment}, (m) {
       final cands = (m['candidates'] as List?) ?? const [];
       final freq = (m['frequent'] as List?) ?? const [];
       if (kDebugMode) {
