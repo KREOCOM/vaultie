@@ -32,9 +32,9 @@ Color _ink = const Color(0xFF16161A);
 Color _navOff = const Color(0xFF9A9AA2);
 Color _card = const Color(0xFFFFFFFF); // card / surface background
 Color _hair = const Color(0xFFE8ECE7); // hairline / dividers
-Color _soft = _soft; // recessed surface (input / inner boxes)
-Color _warnBg = _warnBg; // amber notice card bg
-Color _warnLine = _warnLine; // amber notice card border
+Color _soft = const Color(0xFFF4F2FA); // recessed surface (input / inner boxes)
+Color _warnBg = const Color(0xFFFEF7E4); // amber notice card bg
+Color _warnLine = const Color(0xFFF6E4B8); // amber notice card border
 
 void _applyTheme(bool dark) {
   _darkMode = dark;
@@ -46,9 +46,9 @@ void _applyTheme(bool dark) {
   _navOff     = dark ? const Color(0xFF585A66) : const Color(0xFF9A9AA2);
   _card       = dark ? const Color(0xFF1A1B23) : const Color(0xFFFFFFFF);
   _hair       = dark ? const Color(0xFF282A36) : const Color(0xFFE8ECE7);
-  _soft       = dark ? const Color(0xFF14151C) : _soft;
-  _warnBg     = dark ? const Color(0xFF2A2410) : _warnBg;
-  _warnLine   = dark ? const Color(0xFF3C3520) : _warnLine;
+  _soft       = dark ? const Color(0xFF14151C) : const Color(0xFFF4F2FA);
+  _warnBg     = dark ? const Color(0xFF2A2410) : const Color(0xFFFEF7E4);
+  _warnLine   = dark ? const Color(0xFF3C3520) : const Color(0xFFF6E4B8);
   _themeVN.value = dark;
 }
 
