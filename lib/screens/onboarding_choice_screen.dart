@@ -3,16 +3,16 @@ import 'package:flutter/material.dart';
 import '../app_prefs.dart';
 import '../main.dart';
 import 'bank_info_screen.dart';
-import 'dashboard_screen.dart';
 
 /// Green accent for onboarding CTAs, matching the paywall/splash.
 const Color _brightGreen = Color(0xFF4CAF72);
 const Color _gold = Color(0xFFFFD24A);
 
 /// Where a user lands after signing in: the one-time "How would you like to
-/// start?" choice on first run, otherwise straight to the dashboard.
+/// start?" choice on first run, otherwise the bank flow. (The green
+/// DashboardScreen is temporarily hidden — kept in code, final home TBD.)
 Widget landingAfterAuth() => AppPrefs.onboardingComplete
-    ? const DashboardScreen()
+    ? const BankInfoScreen()
     : const OnboardingChoiceScreen();
 
 /// First-run screen shown right after login: connect a bank (recommended) or
@@ -25,19 +25,11 @@ class OnboardingChoiceScreen extends StatelessWidget {
   Future<void> _choose(BuildContext context, {required bool bank}) async {
     await AppPrefs.setOnboardingComplete(true);
     if (!context.mounted) return;
-    final nav = Navigator.of(context);
-    if (bank) {
-      // Land the user on the dashboard first, then push the bank flow on top,
-      // so finishing (or backing out of) the import returns to the dashboard.
-      nav.pushReplacement(
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
-      );
-      nav.push(MaterialPageRoute(builder: (_) => const BankInfoScreen()));
-    } else {
-      nav.pushReplacement(
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
-      );
-    }
+    // Both paths land on the bank flow for now — the green DashboardScreen is
+    // temporarily hidden (kept in code; `bank` retained for the later decision).
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const BankInfoScreen()),
+    );
   }
 
   @override

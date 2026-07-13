@@ -20,16 +20,23 @@ class TwoPathsScreen extends StatelessWidget {
   static const _lightBg = Color(0xFFF1F4EF);
   static const _tint = Color(0xFFE4F0E7); // light green square/arrow bg
 
+  /// Manual path is temporarily hidden — only the bank CTA is shown. Flip to
+  /// true (and the `_bottom` manual card returns) when the manual product is
+  /// decided. `_bottom` / `onManual` are kept in code, referenced below.
+  static const bool _manualEnabled = false;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _lightBg,
-      body: Column(
-        children: [
-          Expanded(flex: 62, child: _greenTop(context)),
-          Expanded(flex: 38, child: _bottom(context)),
-        ],
-      ),
+      body: _manualEnabled
+          ? Column(
+              children: [
+                Expanded(flex: 62, child: _greenTop(context)),
+                Expanded(flex: 38, child: _bottom(context)),
+              ],
+            )
+          : SizedBox.expand(child: _greenTop(context)),
     );
   }
 

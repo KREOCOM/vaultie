@@ -7,7 +7,6 @@ import '../../services/auth_service.dart';
 import '../../user_session.dart';
 import '../auth_screen.dart';
 import '../bank_info_screen.dart';
-import '../dashboard_screen.dart';
 import 'account_screen.dart';
 import 'annual_bars_screen.dart';
 import 'bank_scale_screen.dart';
@@ -120,8 +119,9 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     await AppPrefs.setOnboardingComplete(true);
   }
 
-  /// Ends onboarding: scope the local vault to this account, go to the
-  /// dashboard, and (bank path) push the Enable Banking intro on top.
+  /// Ends onboarding: scope the local vault to this account, then land on the
+  /// bank flow. The green DashboardScreen is temporarily hidden (kept in code;
+  /// final home decided later) — the only visible path is bank → new dashboard.
   Future<void> _finishOnboarding(
       {required bool bank, required bool pro}) async {
     await _markOnboarded();
@@ -131,13 +131,11 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     }
     await ensureLocalDataForCurrentUser();
     if (!mounted) return;
-    final nav = Navigator.of(context);
-    nav.pushReplacement(
-      MaterialPageRoute(builder: (_) => const DashboardScreen()),
+    // Land straight on the bank intro (was: DashboardScreen with BankInfoScreen
+    // pushed on top). `bank` is retained for when the manual path returns.
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const BankInfoScreen()),
     );
-    if (bank) {
-      nav.push(MaterialPageRoute(builder: (_) => const BankInfoScreen()));
-    }
   }
 
   void _snack(String msg) {
