@@ -33,6 +33,15 @@ class EnableBankingError(RuntimeError):
         self.status = status
 
 
+def _is_period_error(e: "EnableBankingError") -> bool:
+    """True when the bank refuses a window because it has no transactions that
+    far back (PSD2 history limit). Documented error name is
+    ``WRONG_TRANSACTIONS_PERIOD``; some banks return a plain 4xx. Used to stop
+    the backward window walk gracefully instead of treating it as a hard failure.
+    """
+    return "WRONG_TRANSACTIONS_PERIOD" in str(e).upper()
+
+
 def _build_jwt(private_key: str) -> str:
     """Create a short-lived RS256 JWT signed with the app's private key."""
     now = int(time.time())
@@ -123,65 +132,106 @@ class EnableBankingClient:
         except EnableBankingError:
             return []
 
-    def transactions(self, account_uid: str, *, date_from: str, max_pages: int = 80):
-        """Page through an account's transactions since ``date_from`` (ISO date).
+    def _fetch_window(self, account_uid, *, date_from, date_to, page_budget):
+        """Page through ONE [date_from, date_to] window (default strategy).
 
-        We deliberately DON'T pass ``strategy=longest``: on oldest-first banks
-        (e.g. SEB, which pages in tiny ~6-transaction chunks) it forces the walk
-        to begin at the earliest available month, so the page budget is spent on
-        old data and the fresh months are never reached. Requesting a recent
-        ``date_from`` with the default strategy starts the walk near "now", so
-        the freshest transactions are the ones we actually get.
-
-        We still retry a rate-limited page with backoff before giving up, and
-        report a diagnostic (pages, rate_limited, gave_up, date span) so any
-        truncation is visible instead of silent. Returns ``(transactions, diag)``.
+        Returns ``(txns, pages_used, rate_limited, hit_budget)``. Raises
+        EnableBankingError on a non-2xx that isn't a rate limit (the caller
+        decides whether that ends the whole scan or just the backward walk).
         """
-        all_txns: list = []
+        txns: list = []
         cont = None
         pages = 0
         rate_limited = False
-        gave_up = False
-        for _ in range(max_pages):
-            params = {"date_from": date_from}
+        while pages < page_budget:
+            params = {"date_from": date_from, "date_to": date_to}
             if cont:
                 params["continuation_key"] = cont
             resp = None
             for attempt in range(3):  # retry the SAME page on 429 with backoff
                 resp = requests.get(
                     f"{BASE_URL}/accounts/{account_uid}/transactions",
-                    headers=self._headers(),
-                    params=params,
-                    timeout=_TIMEOUT,
+                    headers=self._headers(), params=params, timeout=_TIMEOUT,
                 )
                 if resp.status_code != 429:
                     break
                 rate_limited = True
                 time.sleep(1.5 * (attempt + 1))
             if resp.status_code == 429:
-                gave_up = True  # still limited after retries — keep what we have
-                break
+                return txns, pages, rate_limited, True  # still limited — bail out
             if not resp.ok:
                 raise EnableBankingError(
-                    resp.status_code, f"/accounts/{account_uid}/transactions", resp.text
-                )
+                    resp.status_code, f"/accounts/{account_uid}/transactions",
+                    resp.text)
             data = resp.json() if resp.text else {}
-            all_txns.extend(data.get("transactions", []))
+            txns.extend(data.get("transactions", []))
             pages += 1
             cont = data.get("continuation_key")
             if not cont:
+                return txns, pages, rate_limited, False  # window fully fetched
+            time.sleep(0.1)
+        return txns, pages, rate_limited, True  # hit the page budget
+
+    def transactions(self, account_uid: str, *, months_back: int = 12,
+                     page_budget: int = 90, window_days: int = 30, today=None):
+        """Fetch up to ``months_back`` months of transactions, NEWEST WINDOW FIRST.
+
+        Oldest-first banks (SEB) return a long ``date_from``-only window starting
+        at the earliest month, so the page budget gets spent on old data and the
+        fresh months are never reached. Instead we walk backward in
+        ``window_days`` windows using BOTH ``date_from`` and ``date_to`` — the
+        freshest window is fetched first, so recent data is always retrieved
+        regardless of the bank's page order, and we only go deeper (for salary /
+        annual-subscription detection) until the overall ``page_budget`` is spent
+        or the bank reports no more history.
+
+        Returns ``(transactions, diag)``. Already-fetched recent windows are never
+        discarded because an older window failed.
+        """
+        today = today or dt.date.today()
+        all_txns: list = []
+        pages_used = 0
+        windows_fetched = 0
+        rate_limited = False
+        truncated = False
+        history_exhausted = False
+        n_windows = max(1, (months_back * 30) // window_days)
+        for i in range(n_windows):
+            if pages_used >= page_budget:
+                truncated = True
                 break
-            time.sleep(0.1)  # small gap; recent window keeps page count modest
-        # Exhausted the page budget while the bank still had more pages
-        # (continuation_key present) — the history is TRUNCATED, not complete.
-        # Surfaced so the app can flag partial data instead of it being silent.
-        truncated = bool(cont) and not gave_up
+            d_to = today - dt.timedelta(days=window_days * i)
+            d_from = today - dt.timedelta(days=window_days * (i + 1))
+            try:
+                txns, pages, rl, hit_budget = self._fetch_window(
+                    account_uid,
+                    date_from=d_from.isoformat(), date_to=d_to.isoformat(),
+                    page_budget=page_budget - pages_used,
+                )
+            except EnableBankingError as e:
+                # The most-recent window failing for a real reason is a genuine
+                # error — surface it. An OLDER window failing (bank has no data
+                # that far back, e.g. WRONG_TRANSACTIONS_PERIOD) just ends the
+                # backward walk; the recent windows we already have are kept.
+                if windows_fetched == 0 and not _is_period_error(e):
+                    raise
+                history_exhausted = True
+                break
+            all_txns.extend(txns)
+            pages_used += pages
+            rate_limited = rate_limited or rl
+            windows_fetched += 1
+            if hit_budget:
+                truncated = True
+                break
         dates = [t.get("booking_date") for t in all_txns if t.get("booking_date")]
         diag = {
-            "pages": pages,
+            "pages": pages_used,
+            "windows": windows_fetched,
+            "months_back": months_back,
             "rate_limited": rate_limited,
-            "gave_up": gave_up,
-            "truncated": truncated,
+            "truncated": truncated,            # page budget spent before done
+            "history_exhausted": history_exhausted,  # bank had no older data
             "count": len(all_txns),
             "from": min(dates) if dates else None,
             "to": max(dates) if dates else None,

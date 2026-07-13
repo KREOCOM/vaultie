@@ -179,13 +179,10 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
             message="code is required.",
         )
-    # Fetch a RECENT window (default ~4 months). Banks like SEB paginate
-    # oldest-first in tiny pages, so an over-long window burns the page budget
-    # reaching only old months and never the fresh ones. A recent date_from
-    # starts near "now", so the freshest transactions are what we actually get —
-    # while still spanning enough months for recurring detection.
-    history_days = int(data.get("historyDays", 120))
-    date_from = (dt.date.today() - dt.timedelta(days=history_days)).isoformat()
+    # Fetch up to 12 months, newest window first (see EnableBankingClient.
+    # transactions): recent data is always retrieved even on oldest-first banks,
+    # while the deeper history feeds salary + annual-subscription detection.
+    months_back = int(data.get("monthsBack", 12))
 
     client = _client()
     # Creating the session is the one hard prerequisite — if it fails there is
@@ -213,7 +210,7 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
         # it, record it in scan_diag, and carry on with a partial-but-usable
         # result instead of aborting the whole connection.
         try:
-            acc_txns, diag = client.transactions(uid, date_from=date_from)
+            acc_txns, diag = client.transactions(uid, months_back=months_back)
             all_txns.extend(acc_txns)
             # current balance for the account (closing-booked / available)
             bal = _pick_balance(client.balances(uid))
@@ -261,9 +258,9 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     # Counts only — never transaction content — so nothing sensitive is logged.
     logging.info(
         "finish_bank_auth: accounts=%d txns=%d candidates=%d frequent=%d "
-        "history_days=%d",
+        "months_back=%d",
         len(accounts), len(all_txns), len(candidates), len(frequent),
-        history_days,
+        months_back,
     )
     # Privacy-first: raw transactions are processed transiently and are NEVER
     # returned or stored. Only detected candidates + frequent-merchant summaries
