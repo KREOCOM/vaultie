@@ -3492,6 +3492,10 @@ class _PlanningTabState extends State<_PlanningTab> {
     for (final t in widget.all) {
       _secColorKey.putIfAbsent(t['sec'] as String, () => t['secc'] as String);
     }
+    // fallback colours for taxonomy sections the user has no transactions in yet
+    for (final e in _taxonomy) {
+      _secColorKey.putIfAbsent(e['sec'] as String, () => e['c'] as String);
+    }
     // seed with the two biggest DISCRETIONARY sections (fixed bills belong in
     // Recurring), each with a data-suggested limit
     final secs = <String>{for (final t in widget.all) t['sec'] as String}.where(_isDiscretionary).toList();
@@ -3697,16 +3701,22 @@ class _PlanningTabState extends State<_PlanningTab> {
       );
 
   void _openAddSheet() {
-    // sections not already budgeted, biggest-spending first
+    // Offer the full Vaultie spending taxonomy (minus income/transfers & the
+    // already-budgeted ones) — a consistent set for every user, not just what
+    // happened to be spent this month. Ordered by total historical spend so the
+    // categories the user actually uses float to the top.
     final used = _budgets.map((b) => b.sec).toSet();
-    final avail = <String, double>{};
-    for (final t in _rows) {
-      final sec = t['sec'] as String;
-      if (_isSpendSec(sec) && sec != 'Kita' && !used.contains(sec) && (t['a'] as num) < 0) {
-        avail[sec] = (avail[sec] ?? 0) - (t['a'] as num).toDouble();
+    const skip = {'Pajamos ir pervedimai', 'Kita'};
+    final hist = <String, double>{};
+    for (final t in widget.all) {
+      if ((t['a'] as num) < 0) {
+        hist[t['sec'] as String] = (hist[t['sec'] as String] ?? 0) - (t['a'] as num).toDouble();
       }
     }
-    final options = avail.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final options = [for (final e in _taxonomy) e['sec'] as String]
+        .where((s) => !used.contains(s) && !skip.contains(s))
+        .toList()
+      ..sort((a, b) => (hist[b] ?? 0).compareTo(hist[a] ?? 0));
     if (options.isEmpty) return;
     showModalBottomSheet<void>(
       context: context,
@@ -3714,7 +3724,7 @@ class _PlanningTabState extends State<_PlanningTab> {
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
       builder: (_) => _AddBudgetSheet(
-        options: [for (final e in options) e.key],
+        options: options,
         colorOf: _colorOfSec,
         iconOf: _iconOfSec,
         suggestOf: _suggestLimit,
