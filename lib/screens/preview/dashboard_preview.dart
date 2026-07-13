@@ -2615,7 +2615,11 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
   // ── MERCHANTS ──
   Widget _merchants() {
-    final count = _rows.map((t) => t['mkey']).toSet().length;
+    final count = _rows
+        .where((t) => !_isIncome(t['sec'] as String) && !_isTransfer(t['sec'] as String) && (t['a'] as num) < 0)
+        .map((t) => t['mkey'])
+        .toSet()
+        .length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3120,6 +3124,8 @@ class _OverviewTabState extends State<_OverviewTab> {
   Widget _merchants() {
     final m = <String, List<dynamic>>{}; // mkey -> [name, sum, count]
     for (final t in _rows) {
+      // merchants = places you spent; skip income + internal transfers
+      if (_isIncome(t['sec'] as String) || _isTransfer(t['sec'] as String) || (t['a'] as num) >= 0) continue;
       final k = t['mkey'] as String;
       final e = m.putIfAbsent(k, () => [t['nm'], 0.0, 0]);
       e[1] = (e[1] as double) + (t['a'] as num).toDouble();
