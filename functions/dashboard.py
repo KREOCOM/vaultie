@@ -66,6 +66,24 @@ CAT_MAP = {
 }
 OTHER = ("Kita", "other", "swap", "Kita", "indigo")
 
+# Curated merchant-name overrides for entities the generic classifier gets wrong.
+# A robot can't infer that "UAB Mogo LT" only does loans (they also sell cars),
+# so we pin known Lithuanian brands by name. Checked before the resolver category.
+# Each: (name-substrings) -> (cat_lt, col, icon, section, section_color).
+NAME_OVERRIDES = [
+    (("mogo", "general financ", "sb lizing", "swedbank lizing", "citadele faktoring",
+      "luminor lizing", "credit24", "vivus", "smscredit", "bobocash", "momentum credit",
+      "paskol", "lizing"),
+     ("Paskola, lizingas", "finance", "money", "Finansai", "red")),
+    (("savasld", "draudim", "insur", "ergo", "gjensidige", "balcia", "compensa",
+      "seesam", "lietuvos draudimas", "pzu"),
+     ("Draudimas", "vehicle", "shield", "Būstas, sąskaitos", "olive")),
+    (("hotel", "hotell", "viesbut", "viešbut", "airbnb", "booking.com", "hostel", "hostal"),
+     ("Kelionės", "entertainment", "fun", "Pramogos", "cyan")),
+    (("paysera",),  # payment gateway — too ambiguous to categorise as a merchant
+     ("Kita", "other", "swap", "Kita", "indigo")),
+]
+
 _FINANCE_HINTS = ["mogo", "general financing", "sb lizing", "swedbank lizing",
                   "citadele faktoring", "luminor lizing", "paskola", "lizing"]
 _HOUSING_HINTS = ["artus", "nuoma", "rent", "busto adm", "namu prieziur"]
@@ -130,7 +148,12 @@ def _classify(t, category, salary_refs):
         if _looks_person(_name(t)):
             return ("Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", _amt(t) > 0, True)
         return ("Pervedimas", "transfer", "swap", "Pervedimai", "indigo", _amt(t) > 0, True)
-    # ── merchant flow (CARD_PAYMENT etc.) — resolver category → our model ──
+    # ── merchant flow (CARD_PAYMENT etc.) ──
+    # curated name overrides win over the generic resolver category
+    for kws, mapped in NAME_OVERRIDES:
+        if any(k in nl for k in kws):
+            cat_lt, col, ic, sec, secc = mapped
+            return (cat_lt, col, ic, sec, secc, _amt(t) > 0, False)
     cat_lt, col, ic, sec, secc = CAT_MAP.get((category or "other").lower(), OTHER)
     return (cat_lt, col, ic, sec, secc, _amt(t) > 0, False)
 
@@ -305,7 +328,7 @@ def _subs(txns):
 
 def _balance_block(all_rows, accounts):
     """Daily cumulative series anchored so the end == summed account balance."""
-    end = round(sum(float(a.get("balance") or 0) for a in accounts), 2) if accounts else 0.0
+    end = round(sum(float(a.get("amount") or 0) for a in accounts), 2) if accounts else 0.0
     by_day = OrderedDict()
     for r in sorted(all_rows, key=lambda x: x["d"]):
         by_day[r["d"]] = by_day.get(r["d"], 0.0) + r["a"]

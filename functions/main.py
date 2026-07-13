@@ -199,7 +199,7 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             currency = ((acc.get("currency"))
                         or (acc.get("account_id") or {}).get("currency") or "EUR")
             account_summaries.append({
-                "name": name, "balance": bal, "sub": None,
+                "name": name, "amount": bal, "sub": None,
                 "icon": "R" if "revolut" in str(name).lower() else "bank",
                 "currency": currency,
             })

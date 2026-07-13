@@ -1091,7 +1091,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
                   children: [
                     const Text('Bendras likutis', style: TextStyle(fontSize: 15, color: _muted, fontWeight: FontWeight.w500)),
                     const SizedBox(height: 2),
-                    Text(_eur((widget.bal['current'] as num).toDouble()),
+                    Text(_eur(((widget.bal['current'] ?? 0) as num).toDouble()),
                         style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
                   ],
                 ),
@@ -1303,10 +1303,10 @@ class _BalanceSheetState extends State<_BalanceSheet> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(a['sub'] != null ? '${a['sub']}' : _eur((a['amount'] as num).toDouble()),
+              Text(a['sub'] != null ? '${a['sub']}' : _eur(((a['amount'] ?? 0) as num).toDouble()),
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
               if (a['sub'] != null)
-                Text(_eur((a['amount'] as num).toDouble()), style: const TextStyle(fontSize: 12.5, color: _muted)),
+                Text(_eur(((a['amount'] ?? 0) as num).toDouble()), style: const TextStyle(fontSize: 12.5, color: _muted)),
             ],
           ),
         ],
@@ -4007,7 +4007,7 @@ class _AccountTab extends StatefulWidget {
 class _AccountTabState extends State<_AccountTab> {
   bool _promo = true;
 
-  double get _netWorth => (widget.balance['current'] as num).toDouble();
+  double get _netWorth => ((widget.balance['current'] ?? 0) as num).toDouble();
   List<Map<String, dynamic>> get _accounts => (widget.balance['accounts'] as List).cast<Map<String, dynamic>>();
 
   @override
@@ -4218,7 +4218,7 @@ class _AccountTabState extends State<_AccountTab> {
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       if (_accounts[i]['sub'] != null)
                         Text(_accounts[i]['sub'] as String, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
-                      Text(_eur((_accounts[i]['amount'] as num).toDouble()),
+                      Text(_eur(((_accounts[i]['amount'] ?? 0) as num).toDouble()),
                           style: TextStyle(
                             fontSize: _accounts[i]['sub'] != null ? 12.5 : 16,
                             fontWeight: _accounts[i]['sub'] != null ? FontWeight.w500 : FontWeight.w700,
