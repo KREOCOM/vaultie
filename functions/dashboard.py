@@ -70,33 +70,72 @@ OTHER = ("Kita", "other", "swap", "Kita", "indigo")
 # A robot can't infer that "UAB Mogo LT" only does loans (they also sell cars),
 # so we pin known Lithuanian brands by name. Checked before the resolver category.
 # Each: (name-substrings) -> (cat_lt, col, icon, section, section_color).
+# Ordered, most-specific first — this is the proven keyword coverage (ported from
+# the original LT classifier). It runs as merchant stage-1; anything it doesn't
+# match falls through to the resolver (KB → global index).
+_FUEL = ("Kuras", "fuel", "fuel", "Transportas", "blue")
+_GROC = ("Maisto prekės", "food", "cart", "Maistas, gėrimai", "green")
+_DINE = ("Kavinės, restoranai", "food", "dining", "Maistas, gėrimai", "green")
+_ALCO = ("Alkoholis, tabakas", "food", "bottle", "Maistas, gėrimai", "green")
+_SUBS = ("Prenumeratos", "entertainment", "monitor", "Pramogos", "cyan")
+_ENTM = ("Pramogos", "entertainment", "fun", "Pramogos", "cyan")
+_TRAVEL = ("Kelionės", "entertainment", "fun", "Pramogos", "cyan")
+_TAXI = ("Taksi", "transport", "taxi", "Transportas", "blue")
+_SHARE = ("Paspirtukai, dalinimasis", "transport", "scooter", "Transportas", "blue")
+_PARK = ("Parkavimas", "transport", "taxi", "Transportas", "blue")
+_GYM = ("Sportas", "fitness", "health", "Sveikata, sportas", "orange")
+_HEALTH = ("Sveikata", "health", "health", "Sveikata, sportas", "orange")
+_ELEC = ("Elektronika, prekės", "shopping", "monitor", "Apsipirkimas", "teal")
+_LOAN = ("Paskola, lizingas", "finance", "money", "Finansai", "red")
+_INVEST = ("Investicijos", "finance", "doc", "Finansai", "red")
+_INSUR = ("Draudimas", "vehicle", "shield", "Būstas, sąskaitos", "olive")
+_UTIL = ("Ryšys, internetas", "housing", "home", "Būstas, sąskaitos", "olive")
+_TAX = ("Mokesčiai", "taxes", "doc", "Finansai", "red")
+_KITA = ("Kita", "other", "swap", "Kita", "indigo")
+
 NAME_OVERRIDES = [
     (("mogo", "general financ", "sb lizing", "swedbank lizing", "citadele faktoring",
       "luminor lizing", "credit24", "vivus", "smscredit", "bobocash", "momentum credit",
-      "paskol", "lizing"),
-     ("Paskola, lizingas", "finance", "money", "Finansai", "red")),
+      "delca invest", "paskol", "lizing"), _LOAN),
     (("savasld", "draudim", "insur", "ergo", "gjensidige", "balcia", "compensa",
-      "seesam", "lietuvos draudimas", "pzu"),
-     ("Draudimas", "vehicle", "shield", "Būstas, sąskaitos", "olive")),
-    (("hotel", "hotell", "viesbut", "viešbut", "airbnb", "booking.com", "hostel", "hostal"),
-     ("Kelionės", "entertainment", "fun", "Pramogos", "cyan")),
-    (("paysera",),  # payment gateway — too ambiguous to categorise as a merchant
-     ("Kita", "other", "swap", "Kita", "indigo")),
-    # Global digital services / subscriptions — pinned so the same merchant always
-    # lands in the same category (the generic resolver is not deterministic here).
+      "seesam", "lietuvos draudimas", "pzu"), _INSUR),
+    (("hotel", "hotell", "viesbut", "viešbut", "airbnb", "booking.com", "hostel",
+      "hostal", "gjestehus", "guesthouse"), _TRAVEL),
+    (("omio", "openferry", "viking line", "ferryscanner", "ryanair", "stena line",
+      "wizz", "flixbus", "easyjet", "trainline", "autobusu stot", "flyr", "sas "), _TRAVEL),
+    (("paysera",), _KITA),  # payment gateway — too ambiguous
     (("apple.com", "itunes", "anthropic", "openai", "chatgpt", "dribbble", "figma",
       "github", "adobe", "notion", "midjourney", "canva", "dropbox", "slack",
-      "zoom.us", "patreon", "google *", "google play", "youtubepremium", "google storage"),
-     ("Prenumeratos", "entertainment", "monitor", "Pramogos", "cyan")),
+      "zoom.us", "patreon", "google *", "google play", "youtubepremium",
+      "google storage", "delfiplius", "delfi plius"), _SUBS),
     (("netflix", "spotify", "hbo", "max help", "disney", "viaplay", "go3", "twitch",
-      "steam", "playstation", "xbox", "nintendo"),
-     ("Pramogos", "entertainment", "fun", "Pramogos", "cyan")),
-    # Common LT grocery / fuel that the KB may miss under odd surface names
-    (("maxima", "rimi", "lidl", "iki ", "norfa", "aibė", "aibe", "coop", "rema 1000", "lidl eesti"),
-     ("Maisto prekės", "food", "cart", "Maistas, gėrimai", "green")),
-    (("circle k", "viada", "neste", "orlen", "st1", "yx ", "uno-x", "okq8", "esso",
-      "7-eleven", "shell", "lukoil", "emsi", "baltic petroleum", "bensinautomat"),
-     ("Kuras", "fuel", "fuel", "Transportas", "blue")),
+      "steam", "playstation", "xbox", "nintendo", "cinema", "forum cinemas", "apollo kin"), _ENTM),
+    (("oanda", "trading212", "trading 212", "fxflat", "swissquote", "interactive brokers",
+      "photon global", "revolut trading", "etoro", "binance", "coinbase"), _INVEST),
+    (("vmi ", "valstybine mokesciu", "sodra", "epaslaug", "e.paslaug", "regitra",
+      "mokesciu inspekcija"), _TAX),
+    (("telia", "bite", "tele2", "pildyk", "ignitis", "eso ", "vandenys",
+      "elektros skyr", "teo ", "cgates", "init"), _UTIL),
+    (("senukai", "kesko", "verslo vartai", "varlė", "varle", "pigu", "technorama",
+      "avitela", "kilobaitas", "elektromarkt", "topocentras", "media markt"), _ELEC),
+    (("gympl", "lemon gym", "impuls klub", "impuls sport", "fitness", "wellness",
+      "sporto klub", "gym "), _GYM),
+    (("vaistin", "pharm", "benu", "camelia", "gintarine", "eurovaistine", "klinik",
+      "odontolog", "medicin", "ordinacij"), _HEALTH),
+    (("royal smoke", "smoke", "vyno", "vynoteka", "alko", "tabak", "garrafeira"), _ALCO),
+    (("bolt rentals", "citybee", "spark", "boldas", "ride "), _SHARE),
+    (("bolt.eu", "bolt ", "uber", "taksi", "trafi"), _TAXI),
+    (("parking", "stova", "up202", "parkin", "easypark", "skypark"), _PARK),
+    (("circle k", "viada", "neste", "orlen", "1-2-3", "123 ", "lukoil", "emsi",
+      "baltic petroleum", "st1", "yx ", "uno-x", "uno x", "okq8", "7-eleven", "shell",
+      "bensinautomat", "circlek", "gulf ", "amic", "dus ", "degalin"), _FUEL),
+    (("maxima", "rimi", "iki ", "lidl", "aibė", "aibe", "norfa", "prisma", "coop",
+      "rema 1000", "minipreco", "minimani", "joker ", "t-market", "grocer",
+      "maisto prek", "parduotuv", "spar ", "hemkop", "kiwi ", "meny "), _GROC),
+    (("mcdonald", "hesburger", "kfc", "burger king", "litriukas", "pocien", "skoniai",
+      "birzu duona", "duona myli", "kavin", "restoran", "pizza", "sushi", "coffee",
+      "caffe", "cili", "charlie", "vero cafe", "baras", "bardakas", " pub", "uzeiga",
+      "bistro", "delano", "subway", "bhaji", "kebab", "kepyk", "prezo", "mcdroval"), _DINE),
 ]
 
 _FINANCE_HINTS = ["mogo", "general financing", "sb lizing", "swedbank lizing",
@@ -163,14 +202,16 @@ def _salary_refs(txns):
     return {max(lst)[1] for lst in by_month.values()}
 
 
-def _classify(t, category, salary_refs):
-    """Return (cat_lt, col, icon, section, section_color, pos, is_transfer).
+def _classify(t, resolve_cat, salary_refs):
+    """Return (canonical, cat_lt, col, icon, section, section_color, pos, is_transfer).
 
-    Order matters: identify the *flow* from the (normalised) transaction code
-    first — currency exchange, refund, top-up, cash, fee, or a credit transfer
-    (P2P) — and only treat CARD purchases (and unknown codes) as merchant spend
-    routed through the resolver category. This keeps SEB's ISO codes (ICDT/RCDT
-    = transfers, CCRD = card, MDOP = fee) from being mis-sorted as purchases.
+    Identify the *flow* from the (normalised) transaction code FIRST — currency
+    exchange, refund, top-up, cash, fee, or a credit transfer (P2P). Only actual
+    CARD purchases (and unknown non-person codes) reach the merchant resolver,
+    so ``resolve_cat`` (KB → global index) is called lazily and NEVER sees a
+    person/P2P transfer. This keeps SEB's ISO codes (ICDT/RCDT = transfers,
+    CCRD = card, MDOP = fee) correctly sorted and keeps people out of merchant
+    resolution.
     """
     code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
     name = _name(t); nl = name.lower(); amt = _amt(t)
@@ -178,37 +219,38 @@ def _classify(t, category, salary_refs):
     # currency exchange (Revolut): recurring large in = salary, else conversion
     if code in _EXCHANGE_CODES:
         if t.get("entry_reference") in salary_refs:
-            return ("Atlyginimas", "income", "income", "Pajamos", "amber", True, False)
-        return ("Valiutos keitimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+            return (name, "Atlyginimas", "income", "income", "Pajamos", "amber", True, False)
+        return (name, "Valiutos keitimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
     if code in _REFUND_CODES:
-        return ("Grąžinimas", "income", "swap", "Pajamos", "amber", True, False)
+        return (name, "Grąžinimas", "income", "swap", "Pajamos", "amber", True, False)
     if code in _TOPUP_CODES:
-        return ("Sąskaitos papildymas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+        return (name, "Sąskaitos papildymas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
     if code in _CASH_CODES:
-        return ("Grynieji", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+        return (name, "Grynieji", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
     if code in _FEE_CODES or any(k in nl for k in _FEE_HINTS):
-        return ("Bankas, komisiniai", "finance", "money", "Finansai", "red", amt > 0, False)
+        return (name, "Bankas, komisiniai", "finance", "money", "Finansai", "red", amt > 0, False)
 
-    # credit transfers (SEPA / P2P, in or out) — never a merchant purchase
-    if code in _XFER_CODES:
+    # credit transfers (SEPA / P2P, in or out) — never a merchant purchase,
+    # never sent to the merchant resolver
+    if code in _XFER_CODES or (not code and _is_person_name(name)):
         if any(k in nl for k in _FINANCE_HINTS):
-            return ("Paskola, lizingas", "finance", "money", "Finansai", "red", amt > 0, False)
+            return (name, "Paskola, lizingas", "finance", "money", "Finansai", "red", amt > 0, False)
         if any(k in nl for k in _HOUSING_HINTS):
-            return ("Būstas, nuoma", "housing", "house", "Būstas, sąskaitos", "olive", amt > 0, False)
+            return (name, "Būstas, nuoma", "housing", "house", "Būstas, sąskaitos", "olive", amt > 0, False)
         if _is_person_name(name):
-            return ("Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True)
-        return ("Pervedimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+            return (name, "Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True)
+        return (name, "Pervedimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
 
-    # ── card / direct-debit / unknown → merchant flow ──
-    # if a name-less/odd code still names a person, treat it as a transfer
-    if not code and _is_person_name(name):
-        return ("Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True)
+    # ── card / direct-debit / unknown business → merchant flow ──
+    # curated name overrides win over the resolver; only now do we resolve the
+    # merchant (KB first, global index as fallback).
     for kws, mapped in NAME_OVERRIDES:
         if any(k in nl for k in kws):
             cat_lt, col, ic, sec, secc = mapped
-            return (cat_lt, col, ic, sec, secc, amt > 0, False)
+            return (name, cat_lt, col, ic, sec, secc, amt > 0, False)
+    canonical, category = resolve_cat(t)
     cat_lt, col, ic, sec, secc = CAT_MAP.get((category or "other").lower(), OTHER)
-    return (cat_lt, col, ic, sec, secc, amt > 0, False)
+    return (canonical or name, cat_lt, col, ic, sec, secc, amt > 0, False)
 
 
 def build_dashboard(transactions, accounts, today=None):
@@ -241,16 +283,14 @@ def build_dashboard(transactions, accounts, today=None):
 
     # ── flat `all` list ──
     all_rows = []
-    sample = []  # DEBUG: (name, code, resolver-category, final cat/section) to inspect sorting
+    sample = []  # DEBUG: (name, code, final cat/section) to inspect sorting
     for t in sorted(txns, key=lambda x: x["booking_date"], reverse=True):
-        canonical, category = resolve_cat(t)
-        cat, col, ic, sec, secc, pos, _tr = _classify(t, category, salary_refs)
+        canonical, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs)
         if len(sample) < 30:
             sample.append({
                 "nm": _name(t)[:28],
                 "code": (t.get("bank_transaction_code") or {}).get("code"),
-                "rcat": category, "cat": cat, "sec": sec,
-                "iban": bool((t.get("creditor_account") or t.get("debtor_account"))),
+                "cat": cat, "sec": sec,
             })
         y, m, day = map(int, t["booking_date"].split("-"))
         all_rows.append({
@@ -293,8 +333,7 @@ def build_dashboard(transactions, accounts, today=None):
 def _merge_day(day_txns, salary_refs, resolve_cat):
     merged = OrderedDict()
     for t in day_txns:
-        canonical, category = resolve_cat(t)
-        cat, col, ic, sec, secc, pos, _tr = _classify(t, category, salary_refs)
+        _canon, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs)
         key = _norm(_name(t))
         if key not in merged:
             merged[key] = {"nm": _name(t), "cat": cat, "ic": ic, "col": col,
@@ -356,8 +395,7 @@ def _week(txns, salary_refs, resolve_cat, today):
         for t in bydate.get(dd.isoformat(), []):
             if t.get("credit_debit_indicator") != "DBIT":
                 continue
-            canonical, category = resolve_cat(t)
-            _cat, _col, _ic, sec, secc, _pos, is_tr = _classify(t, category, salary_refs)
+            _canon, _cat, _col, _ic, sec, secc, _pos, is_tr = _classify(t, resolve_cat, salary_refs)
             if is_tr or sec in ("Pajamos", "Pervedimai"):
                 continue
             e = secagg.setdefault(sec, {"label": sec, "color": SECTION_BAR.get(sec, "indigo"),
