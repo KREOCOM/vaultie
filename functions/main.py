@@ -175,10 +175,12 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
             message="code is required.",
         )
-    # Ask for a long window (2 years); combined with strategy=longest the ASPSP
-    # returns the most it will give right after authorization. It caps to its
-    # own max, so an over-generous date_from is safe.
-    history_days = int(data.get("historyDays", 730))
+    # Fetch a RECENT window (default ~4 months). Banks like SEB paginate
+    # oldest-first in tiny pages, so an over-long window burns the page budget
+    # reaching only old months and never the fresh ones. A recent date_from
+    # starts near "now", so the freshest transactions are what we actually get —
+    # while still spanning enough months for recurring detection.
+    history_days = int(data.get("historyDays", 120))
     date_from = (dt.date.today() - dt.timedelta(days=history_days)).isoformat()
 
     client = _client()

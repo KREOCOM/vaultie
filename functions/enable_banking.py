@@ -123,22 +123,19 @@ class EnableBankingClient:
         except EnableBankingError:
             return []
 
-    def transactions(self, account_uid: str, *, date_from: str, max_pages: int = 40):
+    def transactions(self, account_uid: str, *, date_from: str, max_pages: int = 80):
         """Page through an account's transactions since ``date_from`` (ISO date).
 
-        ``strategy=longest`` asks the ASPSP for the maximum history it will
-        return. Many banks expose 1–3 years of history ONLY in the short window
-        right after authorization, then cap to ~90 days — so we must request the
-        longest window up front, on the very first fetch, and page all of it.
+        We deliberately DON'T pass ``strategy=longest``: on oldest-first banks
+        (e.g. SEB, which pages in tiny ~6-transaction chunks) it forces the walk
+        to begin at the earliest available month, so the page budget is spent on
+        old data and the fresh months are never reached. Requesting a recent
+        ``date_from`` with the default strategy starts the walk near "now", so
+        the freshest transactions are the ones we actually get.
 
-        Banks that paginate oldest-first (e.g. SEB) will hand back the earliest
-        months first, so a hard stop on the first 429 leaves you with STALE data
-        and none of the recent months. We therefore retry a rate-limited page a
-        few times with backoff before giving up, and report a small diagnostic
-        (pages fetched, whether we were rate-limited, date span) so truncation is
-        visible instead of silent.
-
-        Returns ``(transactions, diag)``.
+        We still retry a rate-limited page with backoff before giving up, and
+        report a diagnostic (pages, rate_limited, gave_up, date span) so any
+        truncation is visible instead of silent. Returns ``(transactions, diag)``.
         """
         all_txns: list = []
         cont = None
@@ -146,7 +143,7 @@ class EnableBankingClient:
         rate_limited = False
         gave_up = False
         for _ in range(max_pages):
-            params = {"date_from": date_from, "strategy": "longest"}
+            params = {"date_from": date_from}
             if cont:
                 params["continuation_key"] = cont
             resp = None
@@ -174,7 +171,7 @@ class EnableBankingClient:
             cont = data.get("continuation_key")
             if not cont:
                 break
-            time.sleep(0.3)  # be gentle with consent-frequency limits
+            time.sleep(0.1)  # small gap; recent window keeps page count modest
         dates = [t.get("booking_date") for t in all_txns if t.get("booking_date")]
         diag = {
             "pages": pages,
