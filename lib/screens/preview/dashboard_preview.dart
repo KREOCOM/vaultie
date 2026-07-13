@@ -163,7 +163,10 @@ class _DashboardPreviewState extends State<DashboardPreview> {
               budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
             ),
             _placeholder('AI Chat'),
-            _placeholder('Planning'),
+            _PlanningTab(
+              all: (_d['all'] as List).cast<Map<String, dynamic>>(),
+              subs: _d['subs'] as Map<String, dynamic>,
+            ),
             _placeholder('Account'),
           ],
         ),
@@ -2672,15 +2675,16 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 }
 
 class _RingProgressPainter extends CustomPainter {
-  _RingProgressPainter(this.ratio);
+  _RingProgressPainter(this.ratio, [this.arcColor = _good]);
   final double ratio;
+  final Color arcColor;
   @override
   void paint(Canvas canvas, Size size) {
     final c = size.center(Offset.zero);
     final r = size.width / 2 - 4;
     canvas.drawCircle(c, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 6..color = const Color(0xFFE7F0E8));
     canvas.drawArc(Rect.fromCircle(center: c, radius: r), -math.pi / 2, 2 * math.pi * ratio.clamp(0.0, 1.0), false,
-        Paint()..style = PaintingStyle.stroke..strokeWidth = 6..strokeCap = StrokeCap.round..color = _good);
+        Paint()..style = PaintingStyle.stroke..strokeWidth = 6..strokeCap = StrokeCap.round..color = arcColor);
   }
 
   @override
@@ -3398,4 +3402,567 @@ class _SavingsRateScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PLANNING TAB — budgets (data-suggested limits) + recurring
+// ══════════════════════════════════════════════════════════════════════════════
+class _Budget {
+  _Budget(this.sec, this.limit);
+  final String sec;
+  double limit;
+}
+
+class _PlanningTab extends StatefulWidget {
+  const _PlanningTab({required this.all, required this.subs});
+  final List<Map<String, dynamic>> all;
+  final Map<String, dynamic> subs;
+  @override
+  State<_PlanningTab> createState() => _PlanningTabState();
+}
+
+class _PlanningTabState extends State<_PlanningTab> {
+  late List<_Budget> _budgets;
+  bool _showBanner = true;
+
+  // ── month scope ────────────────────────────────────────────────────────────
+  List<String> get _monthKeys {
+    final s = widget.all.map((t) => (t['d'] as String).substring(0, 7)).toSet().toList()..sort();
+    return s;
+  }
+
+  String get _curKey => _monthKeys.last;
+  int get _curMon => int.parse(_curKey.substring(5, 7));
+  int get _curYear => int.parse(_curKey.substring(0, 4));
+  List<Map<String, dynamic>> get _rows => widget.all.where((t) => (t['d'] as String).startsWith(_curKey)).toList();
+
+  int get _daysInMonth => DateTime(_curYear, _curMon + 1, 0).day;
+  int get _elapsedDays {
+    final latest = _rows.map((t) => int.parse((t['d'] as String).substring(8, 10))).fold(1, (a, b) => b > a ? b : a);
+    return (latest + 1).clamp(1, _daysInMonth);
+  }
+
+  // section label → colour key / icon (looked up from any tx in that section)
+  final Map<String, String> _secColorKey = {};
+  Color _colorOfSec(String sec) => _secColor[_secColorKey[sec]] ?? _muted;
+  IconData _iconOfSec(String sec) => _secIcon[_secToIcon[sec]] ?? Icons.circle;
+
+  bool _isSpendSec(String sec) => sec != 'Pajamos' && sec != 'Pervedimai' && sec != 'Pajamos ir pervedimai';
+
+  // Poor auto-seed candidates: fixed bills (belong in Recurring), spiky one-offs,
+  // and the "Kita" catch-all. User can still add these manually via the sheet.
+  static const _nonSeedSecs = {'Būstas, sąskaitos', 'Finansai', 'Kita'};
+  bool _isDiscretionary(String sec) => _isSpendSec(sec) && !_nonSeedSecs.contains(sec);
+
+  // expenses only (positive €) in a section, over an arbitrary row set
+  double _spentInSec(Iterable<Map<String, dynamic>> rows, String sec) => rows
+      .where((t) => t['sec'] == sec && (t['a'] as num) < 0)
+      .fold(0.0, (s, t) => s - (t['a'] as num).toDouble());
+
+  // data-suggested monthly limit = a TYPICAL month + a little headroom.
+  // Uses the median of complete months (robust to one-off spikes); if the section
+  // only appears in the current partial month, extrapolates it to full-month pace.
+  double _suggestLimit(String sec) {
+    final months = _monthKeys;
+    if (months.isEmpty) return 100;
+    // complete months = everything except the current (partial) latest month
+    final complete = months.length > 1 ? months.sublist(0, months.length - 1) : months;
+    final vals = <double>[];
+    for (final mk in complete) {
+      final v = _spentInSec(widget.all.where((t) => (t['d'] as String).startsWith(mk)), sec);
+      if (v > 0) vals.add(v);
+    }
+    double typical;
+    if (vals.isEmpty) {
+      final cur = _spentInSec(_rows, sec);
+      typical = _elapsedDays > 0 ? cur / _elapsedDays * _daysInMonth : cur;
+    } else {
+      vals.sort();
+      typical = vals[vals.length ~/ 2]; // median
+    }
+    final withHead = typical * 1.15; // ~15% headroom so a normal month fits
+    if (withHead < 5) return 20;
+    final step = withHead < 100 ? 10 : (withHead < 500 ? 25 : 50);
+    return math.max(step.toDouble(), (withHead / step).ceil() * step.toDouble());
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    for (final t in widget.all) {
+      _secColorKey.putIfAbsent(t['sec'] as String, () => t['secc'] as String);
+    }
+    // seed with the two biggest DISCRETIONARY sections (fixed bills belong in
+    // Recurring), each with a data-suggested limit
+    final secs = <String>{for (final t in widget.all) t['sec'] as String}.where(_isDiscretionary).toList();
+    final ranked = secs.map((s) => MapEntry(s, _suggestLimit(s))).toList()..sort((a, b) => b.value.compareTo(a.value));
+    _budgets = [for (final e in ranked.take(2)) _Budget(e.key, e.value)];
+  }
+
+  // pace-aware colour: red if already over, orange if trending over, else green
+  Color _pace(double spent, double limit) {
+    if (spent > limit) return const Color(0xFFE0574F);
+    final projected = _elapsedDays > 0 ? spent / _elapsedDays * _daysInMonth : spent;
+    if (projected > limit) return const Color(0xFFEE7A3A);
+    return _good;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final spentSoFar = _budgets.fold(0.0, (s, b) => s + _spentInSec(_rows, b.sec));
+    final totalLimit = _budgets.fold(0.0, (s, b) => s + b.limit);
+
+    return SafeArea(
+      bottom: false,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 28),
+        children: [
+          _header(),
+          _monthFilter(),
+          _sectionTitle('Biudžetai'),
+          if (_showBanner) _banner(),
+          if (_budgets.isNotEmpty) _summaryCard(spentSoFar, totalLimit),
+          for (final b in _budgets) _budgetRow(b),
+          _addButton(),
+          const SizedBox(height: 10),
+          _sectionTitle('Pasikartojantys'),
+          _recurringCard(),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _header() => const Padding(
+        padding: EdgeInsets.fromLTRB(16, 6, 16, 12),
+        child: Row(children: [
+          Text('Planavimas', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+          Spacer(),
+          Icon(Icons.visibility_outlined, size: 25, color: _ink),
+        ]),
+      );
+
+  Widget _monthFilter() => const Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: Row(children: [_Chip(icon: Icons.calendar_today_rounded, label: 'Šis mėnuo')]),
+      );
+
+  Widget _sectionTitle(String t) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+        child: Text(t, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
+      );
+
+  Widget _banner() => Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: DS.hairline)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Expanded(
+              child: Text('Biudžetai padeda suvaldyti išlaidas',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink, height: 1.25)),
+            ),
+            GestureDetector(
+              onTap: () => setState(() => _showBanner = false),
+              child: const Icon(Icons.close_rounded, size: 20, color: _faint),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          const Text('Limitus pasiūlėme pagal tavo tikrą 3 mėn. vidurkį. Redaguok pagal save arba pridėk daugiau.',
+              style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
+        ]),
+      );
+
+  // ── summary card: spent-so-far / total + projection area chart ───────────────
+  Widget _summaryCard(double spent, double limit) {
+    final pct = limit > 0 ? (spent / limit * 100).round() : 0;
+    final budgetedSecs = _budgets.map((b) => b.sec).toSet();
+    // cumulative daily spend across all budgeted sections, day 1..today
+    final cum = <double>[];
+    var run = 0.0;
+    for (var day = 1; day <= _elapsedDays; day++) {
+      final ds = '$_curKey-${day.toString().padLeft(2, '0')}';
+      run += _rows
+          .where((t) => t['d'] == ds && budgetedSecs.contains(t['sec']) && (t['a'] as num) < 0)
+          .fold(0.0, (s, t) => s - (t['a'] as num).toDouble());
+      cum.add(run);
+    }
+    final projected = _elapsedDays > 0 && cum.isNotEmpty ? cum.last / _elapsedDays * _daysInMonth : 0.0;
+    final onTrack = projected <= limit;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: DS.e1),
+      child: Column(children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_eur(spent), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
+            const Text('išleista', style: TextStyle(fontSize: 13, color: _muted)),
+          ]),
+          const Spacer(),
+          SizedBox(
+            width: 62,
+            height: 62,
+            child: Stack(alignment: Alignment.center, children: [
+              CustomPaint(size: const Size(62, 62), painter: _RingProgressPainter(pct / 100, onTrack ? _good : const Color(0xFFEE7A3A))),
+              Text('$pct%', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _ink)),
+            ]),
+          ),
+          const Spacer(),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(_eur(limit), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
+            const Text('visas biudžetas', style: TextStyle(fontSize: 13, color: _muted)),
+          ]),
+        ]),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 118,
+          child: CustomPaint(
+            size: Size.infinite,
+            painter: _BudgetProjPainter(cum: cum, limit: limit, daysInMonth: _daysInMonth, elapsed: _elapsedDays, projected: projected, onTrack: onTrack),
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text('1', style: TextStyle(fontSize: 12, color: _muted)),
+          Text('8', style: TextStyle(fontSize: 12, color: _muted)),
+          Text('16', style: TextStyle(fontSize: 12, color: _muted)),
+          Text('24', style: TextStyle(fontSize: 12, color: _muted)),
+        ]),
+        const SizedBox(height: 8),
+        Text(
+          onTrack
+              ? 'Tokiu tempu mėnesį baigsi ~${projected.round()} € — telpi į biudžetą.'
+              : 'Tokiu tempu peršoksi biudžetą ~${(projected - limit).round()} € — sulėtink.',
+          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: onTrack ? _good : const Color(0xFFEE7A3A)),
+        ),
+      ]),
+    );
+  }
+
+  // ── one budget row: name + limit, spent/left, paced progress bar ─────────────
+  Widget _budgetRow(_Budget b) {
+    final spent = _spentInSec(_rows, b.sec);
+    final left = b.limit - spent;
+    final frac = b.limit > 0 ? (spent / b.limit).clamp(0.0, 1.0) : 0.0;
+    final col = _pace(spent, b.limit);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: DS.hairline)),
+      child: Column(children: [
+        Row(children: [
+          CategoryIcon(icon: _iconOfSec(b.sec), color: _colorOfSec(b.sec), size: 40),
+          const SizedBox(width: 12),
+          Expanded(child: Text(b.sec, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink))),
+          Text(_eur(b.limit), style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: _ink)),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Text('${_eur(spent)} išleista', style: const TextStyle(fontSize: 13.5, color: _muted)),
+          const Spacer(),
+          Text(
+            left >= 0 ? '${_eur(left)} liko' : '${_eur(-left)} viršyta',
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: col),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Stack(children: [
+            Container(height: 9, color: col.withValues(alpha: 0.14)),
+            FractionallySizedBox(widthFactor: frac, child: Container(height: 9, color: col)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _addButton() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+        child: GestureDetector(
+          onTap: _openAddSheet,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: DS.hairline)),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.add_rounded, size: 22, color: _purple),
+              SizedBox(width: 10),
+              Text('Pridėti biudžetą', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
+            ]),
+          ),
+        ),
+      );
+
+  void _openAddSheet() {
+    // sections not already budgeted, biggest-spending first
+    final used = _budgets.map((b) => b.sec).toSet();
+    final avail = <String, double>{};
+    for (final t in _rows) {
+      final sec = t['sec'] as String;
+      if (_isSpendSec(sec) && sec != 'Kita' && !used.contains(sec) && (t['a'] as num) < 0) {
+        avail[sec] = (avail[sec] ?? 0) - (t['a'] as num).toDouble();
+      }
+    }
+    final options = avail.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    if (options.isEmpty) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (_) => _AddBudgetSheet(
+        options: [for (final e in options) e.key],
+        colorOf: _colorOfSec,
+        iconOf: _iconOfSec,
+        suggestOf: _suggestLimit,
+        onSave: (sec, limit) => setState(() => _budgets.add(_Budget(sec, limit))),
+      ),
+    );
+  }
+
+  // ── recurring block (reuses detected subscriptions) ──────────────────────────
+  Widget _recurringCard() {
+    final items = (widget.subs['items'] as List).cast<List>();
+    final total = (widget.subs['total'] as num).toDouble();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A22C6), Color(0xFF7C3AED)]),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${_eur(total)} / mėn', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+              Text('${items.length} pasikartojantys mokėjimai — aptikti automatiškai',
+                  style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
+            ]),
+          ),
+          Container(
+            width: 52, height: 52,
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(16)),
+            child: const Icon(Icons.event_repeat_rounded, color: Colors.white, size: 26),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        for (final it in items.take(5)) ...[
+          Row(children: [
+            const Icon(Icons.circle, size: 7, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(child: Text(_shortNm(it[0] as String), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Colors.white))),
+            Text('${(it[1] as num).round()} € / mėn', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.92))),
+          ]),
+          if (it != items.take(5).last) Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Container(height: 1, color: Colors.white.withValues(alpha: 0.14)),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+// add-budget sheet: pick a section, edit the data-suggested limit, save
+class _AddBudgetSheet extends StatefulWidget {
+  const _AddBudgetSheet({required this.options, required this.colorOf, required this.iconOf, required this.suggestOf, required this.onSave});
+  final List<String> options;
+  final Color Function(String) colorOf;
+  final IconData Function(String) iconOf;
+  final double Function(String) suggestOf;
+  final void Function(String sec, double limit) onSave;
+  @override
+  State<_AddBudgetSheet> createState() => _AddBudgetSheetState();
+}
+
+class _AddBudgetSheetState extends State<_AddBudgetSheet> {
+  String? _sec;
+  late final TextEditingController _limitCtl = TextEditingController();
+
+  @override
+  void dispose() {
+    _limitCtl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const SizedBox(height: 10),
+        Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(3))),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+          child: Row(children: [
+            const Text('Naujas biudžetas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+            const Spacer(),
+            GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.close_rounded, color: _faint)),
+          ]),
+        ),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 6, 18, 18),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Kategorija', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Wrap(spacing: 9, runSpacing: 9, children: [
+                for (final s in widget.options)
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _sec = s;
+                      _limitCtl.text = widget.suggestOf(s).round().toString();
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: _sec == s ? _purpleSoft : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _sec == s ? _purple : DS.hairline, width: _sec == s ? 1.5 : 1),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(widget.iconOf(s), size: 17, color: widget.colorOf(s)),
+                        const SizedBox(width: 7),
+                        Text(s, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _sec == s ? _purple : _ink)),
+                      ]),
+                    ),
+                  ),
+              ]),
+              if (_sec != null) ...[
+                const SizedBox(height: 20),
+                Row(children: [
+                  const Text('Mėnesio limitas', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(8)),
+                    child: Text('siūlome ${widget.suggestOf(_sec!).round()} €',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _purple)),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(color: const Color(0xFFF6F6F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: DS.hairline)),
+                  child: Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _limitCtl,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink),
+                        decoration: const InputDecoration(border: InputBorder.none, hintText: '0'),
+                      ),
+                    ),
+                    const Text('€', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _muted)),
+                  ]),
+                ),
+              ],
+              const SizedBox(height: 22),
+              GestureDetector(
+                onTap: () {
+                  final v = double.tryParse(_limitCtl.text.replaceAll(',', '.')) ?? 0;
+                  if (_sec == null || v <= 0) return;
+                  widget.onSave(_sec!, v);
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: (_sec != null) ? _purple : _faint,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Text('Išsaugoti', style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// budget projection: solid actual line → dashed projection → dashed limit line
+class _BudgetProjPainter extends CustomPainter {
+  _BudgetProjPainter({required this.cum, required this.limit, required this.daysInMonth, required this.elapsed, required this.projected, required this.onTrack});
+  final List<double> cum;
+  final double limit, projected;
+  final int daysInMonth, elapsed;
+  final bool onTrack;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final maxV = [limit, projected, cum.isEmpty ? 0.0 : cum.last].reduce((a, b) => a > b ? a : b) * 1.12;
+    final range = maxV < 1e-6 ? 1.0 : maxV;
+    final lineCol = onTrack ? _good : const Color(0xFFEE7A3A);
+
+    double xOf(int day) => (day - 1) / (daysInMonth - 1) * size.width;
+    double yOf(double v) => size.height - (v / range) * (size.height - 6) - 3;
+
+    // limit gridline (dashed, green)
+    final ly = yOf(limit);
+    final gp = Paint()
+      ..color = _good.withValues(alpha: 0.55)
+      ..strokeWidth = 1.4;
+    var x = 0.0;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, ly), Offset(x + 6, ly), gp);
+      x += 11;
+    }
+
+    if (cum.isEmpty) return;
+
+    // actual cumulative line (solid) days 1..elapsed
+    final line = Path()..moveTo(xOf(1), yOf(cum[0]));
+    for (var i = 1; i < cum.length; i++) {
+      line.lineTo(xOf(i + 1), yOf(cum[i]));
+    }
+    final area = Path.from(line)
+      ..lineTo(xOf(elapsed), size.height)
+      ..lineTo(xOf(1), size.height)
+      ..close();
+    canvas.drawPath(
+      area,
+      Paint()
+        ..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [lineCol.withValues(alpha: 0.22), lineCol.withValues(alpha: 0.02)]).createShader(Offset.zero & size),
+    );
+    canvas.drawPath(
+      line,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.6
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = lineCol,
+    );
+
+    // projection (dashed grey) from today → month-end
+    final start = Offset(xOf(elapsed), yOf(cum.last));
+    final end = Offset(xOf(daysInMonth), yOf(projected));
+    final pp = Paint()
+      ..color = _faint
+      ..strokeWidth = 1.8;
+    final total = (end - start).distance;
+    final dir = (end - start) / (total == 0 ? 1 : total);
+    var d = 0.0;
+    while (d < total) {
+      final a = start + dir * d;
+      final b = start + dir * math.min(d + 5, total);
+      canvas.drawLine(a, b, pp);
+      d += 9;
+    }
+    // endpoint dot on today's actual
+    canvas.drawCircle(start, 4, Paint()..color = lineCol);
+    canvas.drawCircle(start, 4, Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(_BudgetProjPainter old) =>
+      old.cum != cum || old.limit != limit || old.projected != projected || old.onTrack != onTrack;
 }
