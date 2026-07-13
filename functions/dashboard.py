@@ -106,13 +106,34 @@ def _norm(n):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z ]", "", n.lower())).strip()[:16]
 
 
-def _looks_person(n):
+_COMPANY_MARKERS = ["uab", "mb", "ab", "vsi", "všį", "grupe", "grupė", "ltd", "llc",
+                    "oy", "oü", " as ", "inc", "gmbh", "sia", "ou", "corp", ".lt", ".com"]
+
+
+def _is_person_name(n):
+    """A counterparty that looks like an individual (P2P transfer). Case-insensitive
+    — SEB sends surnames lowercased ("Milda dirsiene") and names uppercased
+    ("INGRIDA ČELEDINĖ"), both are people."""
     parts = n.split()
     if len(parts) not in (2, 3):
         return False
-    if any(k in n.lower() for k in ["uab", "mb", "ab", "vsi", "grupe", "ltd", "llc", "oy", "oü", " as "]):
+    if any(k in n.lower() for k in _COMPANY_MARKERS):
         return False
-    return all(p.isalpha() and (p[:1].isupper() or p.isupper()) for p in parts)
+    return all(re.sub(r"[-']", "", p).isalpha() and len(p) > 1 for p in parts)
+
+
+# ── bank_transaction_code vocabularies (Revolut uses its own names; SEB and most
+#    banks use ISO 20022 4-letter codes). Normalised so classification is
+#    bank-agnostic. ──
+_EXCHANGE_CODES = {"EXCHANGE"}
+_REFUND_CODES = {"CARD_REFUND", "CARD_CREDIT", "RRTN"}
+_TOPUP_CODES = {"TOPUP"}
+_CASH_CODES = {"CWDL", "ATM", "CSHW"}
+_FEE_CODES = {"MDOP", "MCOP", "CHRG", "COMM"}
+# credit transfers in/out (P2P, SEPA) — NOT card purchases
+_XFER_CODES = {"ICDT", "RCDT", "MSCT", "ISCT", "RSCT", "ICHQ", "RCHQ", "TRANSFER", "SCT"}
+_FEE_HINTS = ["komisin", "aptarnavim", "paslaugų planas", "paslaugu planas",
+              "mokestis už", "sąskaitos mokest", "account fee", "service fee"]
 
 
 def _salary_refs(txns):
@@ -128,34 +149,51 @@ def _salary_refs(txns):
 
 
 def _classify(t, category, salary_refs):
-    """Return (cat_lt, col, icon, section, section_color, pos, is_transfer)."""
-    code = (t.get("bank_transaction_code") or {}).get("code")
-    nl = _name(t).lower()
-    # ── non-merchant flows via bank_transaction_code ──
-    if code == "EXCHANGE":
+    """Return (cat_lt, col, icon, section, section_color, pos, is_transfer).
+
+    Order matters: identify the *flow* from the (normalised) transaction code
+    first — currency exchange, refund, top-up, cash, fee, or a credit transfer
+    (P2P) — and only treat CARD purchases (and unknown codes) as merchant spend
+    routed through the resolver category. This keeps SEB's ISO codes (ICDT/RCDT
+    = transfers, CCRD = card, MDOP = fee) from being mis-sorted as purchases.
+    """
+    code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
+    name = _name(t); nl = name.lower(); amt = _amt(t)
+
+    # currency exchange (Revolut): recurring large in = salary, else conversion
+    if code in _EXCHANGE_CODES:
         if t.get("entry_reference") in salary_refs:
             return ("Atlyginimas", "income", "income", "Pajamos", "amber", True, False)
-        return ("Valiutos keitimas", "transfer", "swap", "Pervedimai", "indigo", _amt(t) > 0, True)
-    if code == "TOPUP":
-        return ("Sąskaitos papildymas", "transfer", "swap", "Pervedimai", "indigo", _amt(t) > 0, True)
-    if code in ("CARD_REFUND", "CARD_CREDIT"):
+        return ("Valiutos keitimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+    if code in _REFUND_CODES:
         return ("Grąžinimas", "income", "swap", "Pajamos", "amber", True, False)
-    if code == "TRANSFER":
+    if code in _TOPUP_CODES:
+        return ("Sąskaitos papildymas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+    if code in _CASH_CODES:
+        return ("Grynieji", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+    if code in _FEE_CODES or any(k in nl for k in _FEE_HINTS):
+        return ("Bankas, komisiniai", "finance", "money", "Finansai", "red", amt > 0, False)
+
+    # credit transfers (SEPA / P2P, in or out) — never a merchant purchase
+    if code in _XFER_CODES:
         if any(k in nl for k in _FINANCE_HINTS):
-            return ("Paskola, lizingas", "finance", "money", "Finansai", "red", _amt(t) > 0, False)
+            return ("Paskola, lizingas", "finance", "money", "Finansai", "red", amt > 0, False)
         if any(k in nl for k in _HOUSING_HINTS):
-            return ("Būstas, nuoma", "housing", "house", "Būstas, sąskaitos", "olive", _amt(t) > 0, False)
-        if _looks_person(_name(t)):
-            return ("Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", _amt(t) > 0, True)
-        return ("Pervedimas", "transfer", "swap", "Pervedimai", "indigo", _amt(t) > 0, True)
-    # ── merchant flow (CARD_PAYMENT etc.) ──
-    # curated name overrides win over the generic resolver category
+            return ("Būstas, nuoma", "housing", "house", "Būstas, sąskaitos", "olive", amt > 0, False)
+        if _is_person_name(name):
+            return ("Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True)
+        return ("Pervedimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+
+    # ── card / direct-debit / unknown → merchant flow ──
+    # if a name-less/odd code still names a person, treat it as a transfer
+    if not code and _is_person_name(name):
+        return ("Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True)
     for kws, mapped in NAME_OVERRIDES:
         if any(k in nl for k in kws):
             cat_lt, col, ic, sec, secc = mapped
-            return (cat_lt, col, ic, sec, secc, _amt(t) > 0, False)
+            return (cat_lt, col, ic, sec, secc, amt > 0, False)
     cat_lt, col, ic, sec, secc = CAT_MAP.get((category or "other").lower(), OTHER)
-    return (cat_lt, col, ic, sec, secc, _amt(t) > 0, False)
+    return (cat_lt, col, ic, sec, secc, amt > 0, False)
 
 
 def build_dashboard(transactions, accounts, today=None):
@@ -188,9 +226,17 @@ def build_dashboard(transactions, accounts, today=None):
 
     # ── flat `all` list ──
     all_rows = []
+    sample = []  # DEBUG: (name, code, resolver-category, final cat/section) to inspect sorting
     for t in sorted(txns, key=lambda x: x["booking_date"], reverse=True):
         canonical, category = resolve_cat(t)
         cat, col, ic, sec, secc, pos, _tr = _classify(t, category, salary_refs)
+        if len(sample) < 30:
+            sample.append({
+                "nm": _name(t)[:28],
+                "code": (t.get("bank_transaction_code") or {}).get("code"),
+                "rcat": category, "cat": cat, "sec": sec,
+                "iban": bool((t.get("creditor_account") or t.get("debtor_account"))),
+            })
         y, m, day = map(int, t["booking_date"].split("-"))
         all_rows.append({
             "nm": _name(t), "mkey": (canonical or _name(t)).lower()[:24],
@@ -224,7 +270,8 @@ def build_dashboard(transactions, accounts, today=None):
         "budgets": {"Maisto prekės": 390.0, "Kavinės, restoranai": 150.0,
                     "Kuras": 220.0, "Alkoholis, tabakas": 120.0},
         "meta": {"count": len(txns),
-                 "range": f"{min(t['booking_date'] for t in txns)}..{max(t['booking_date'] for t in txns)}"},
+                 "range": f"{min(t['booking_date'] for t in txns)}..{max(t['booking_date'] for t in txns)}",
+                 "sample": sample},
     }
 
 

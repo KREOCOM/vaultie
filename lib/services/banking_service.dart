@@ -236,6 +236,10 @@ class BankingService {
             'candidates=${cands.length} frequent=${freq.length} '
             'dash=${m['dash'] != null}');
         debugPrint('SCAN DIAG: ${m['scanDiag']}');
+        final dashMap = m['dash'];
+        if (dashMap is Map && dashMap['meta'] is Map) {
+          debugPrint('CLASS SAMPLE: ${(dashMap['meta'] as Map)['sample']}');
+        }
         for (final c in cands) {
           debugPrint('  CANDIDATE $c');
         }
