@@ -3425,9 +3425,10 @@ class _SavingsRateScreen extends StatelessWidget {
 // PLANNING TAB — budgets (data-suggested limits) + recurring
 // ══════════════════════════════════════════════════════════════════════════════
 class _Budget {
-  _Budget(this.sec, this.limit);
+  _Budget(this.sec, this.limit, {this.auto = false});
   final String sec;
   double limit;
+  bool auto; // true = we suggested the limit from history; false = user-set
 }
 
 class _PlanningTab extends StatefulWidget {
@@ -3517,7 +3518,7 @@ class _PlanningTabState extends State<_PlanningTab> {
     // Recurring), each with a data-suggested limit
     final secs = <String>{for (final t in widget.all) t['sec'] as String}.where(_isDiscretionary).toList();
     final ranked = secs.map((s) => MapEntry(s, _suggestLimit(s))).toList()..sort((a, b) => b.value.compareTo(a.value));
-    _budgets = [for (final e in ranked.take(2)) _Budget(e.key, e.value)];
+    _budgets = [for (final e in ranked.take(2)) _Budget(e.key, e.value, auto: true)];
   }
 
   // pace-aware colour: red if already over, orange if trending over, else green
@@ -3668,35 +3669,115 @@ class _PlanningTabState extends State<_PlanningTab> {
     final left = b.limit - spent;
     final frac = b.limit > 0 ? (spent / b.limit).clamp(0.0, 1.0) : 0.0;
     final col = _pace(spent, b.limit);
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: DS.hairline)),
-      child: Column(children: [
-        Row(children: [
-          CategoryIcon(icon: _iconOfSec(b.sec), color: _colorOfSec(b.sec), size: 40),
-          const SizedBox(width: 12),
-          Expanded(child: Text(b.sec, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink))),
-          Text(_eur(b.limit), style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: _ink)),
-        ]),
-        const SizedBox(height: 10),
-        Row(children: [
-          Text('${_eur(spent)} išleista', style: const TextStyle(fontSize: 13.5, color: _muted)),
-          const Spacer(),
-          Text(
-            left >= 0 ? '${_eur(left)} liko' : '${_eur(-left)} viršyta',
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: col),
+    return GestureDetector(
+      onTap: () => _editBudget(b),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: DS.hairline)),
+        child: Column(children: [
+          Row(children: [
+            CategoryIcon(icon: _iconOfSec(b.sec), color: _colorOfSec(b.sec), size: 40),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(b.sec, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink)),
+                Text(b.auto ? 'Pasiūlyta pagal tavo išlaidas · keisk' : 'Tavo biudžetas · keisk',
+                    style: const TextStyle(fontSize: 11.5, color: _muted)),
+              ]),
+            ),
+            Text(_eur(b.limit), style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: _ink)),
+            const SizedBox(width: 3),
+            const Icon(Icons.edit_rounded, size: 15, color: _faint),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Text('${_eur(spent)} išleista', style: const TextStyle(fontSize: 13.5, color: _muted)),
+            const Spacer(),
+            Text(
+              left >= 0 ? '${_eur(left)} liko' : '${_eur(-left)} virš pasiūlymo',
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: col),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Stack(children: [
+              Container(height: 9, color: col.withValues(alpha: 0.14)),
+              FractionallySizedBox(widthFactor: frac, child: Container(height: 9, color: col)),
+            ]),
           ),
         ]),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Stack(children: [
-            Container(height: 9, color: col.withValues(alpha: 0.14)),
-            FractionallySizedBox(widthFactor: frac, child: Container(height: 9, color: col)),
+      ),
+    );
+  }
+
+  // Edit a budget's limit (turns an auto-suggested budget into a user-set one).
+  void _editBudget(_Budget b) {
+    final ctl = TextEditingController(text: b.limit.round().toString());
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom + 20, left: 18, right: 18, top: 18),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            CategoryIcon(icon: _iconOfSec(b.sec), color: _colorOfSec(b.sec), size: 34),
+            const SizedBox(width: 10),
+            Expanded(child: Text(b.sec, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink))),
+            GestureDetector(onTap: () => Navigator.pop(ctx), child: const Icon(Icons.close_rounded, color: _faint)),
           ]),
-        ),
-      ]),
+          const SizedBox(height: 6),
+          Text(b.auto
+              ? 'Šį limitą pasiūlėme pagal tavo ~3 mėn. vidurkį. Gali pakeisti į savo.'
+              : 'Keisk savo mėnesio limitą.',
+              style: const TextStyle(fontSize: 13.5, color: _muted, height: 1.35)),
+          const SizedBox(height: 16),
+          const Text('Mėnesio limitas', style: TextStyle(fontSize: 13, color: _muted, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(color: const Color(0xFFF6F6F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: DS.hairline)),
+            child: Row(children: [
+              Expanded(child: TextField(controller: ctl, keyboardType: TextInputType.number, autofocus: true,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink),
+                  decoration: const InputDecoration(border: InputBorder.none))),
+              const Text('€', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: _muted)),
+            ]),
+          ),
+          const SizedBox(height: 18),
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () { setState(() => _budgets.remove(b)); Navigator.pop(ctx); },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 15), alignment: Alignment.center,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: DS.hairline)),
+                  child: const Text('Pašalinti', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: DS.danger)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: GestureDetector(
+                onTap: () {
+                  final v = double.tryParse(ctl.text.replaceAll(',', '.')) ?? 0;
+                  if (v > 0) setState(() { b.limit = v; b.auto = false; });
+                  Navigator.pop(ctx);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 15), alignment: Alignment.center,
+                  decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(14)),
+                  child: const Text('Išsaugoti', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                ),
+              ),
+            ),
+          ]),
+        ]),
+      ),
     );
   }
 
