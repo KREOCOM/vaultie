@@ -300,7 +300,13 @@ class _DashboardPreviewState extends State<DashboardPreview> {
             child: Icon(_hideBal ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 25, color: _ink),
           ),
           const SizedBox(width: 12),
-          const Icon(Icons.search_rounded, size: 25, color: _ink),
+          GestureDetector(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _SearchScreen(
+                  all: (_d['all'] as List).cast<Map<String, dynamic>>(),
+                  budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
+                ))),
+            child: const Icon(Icons.search_rounded, size: 25, color: _ink),
+          ),
         ],
       ),
     );
@@ -2933,14 +2939,18 @@ class _OverviewTabState extends State<_OverviewTab> {
     );
   }
 
-  Widget _header() => const Padding(
-        padding: EdgeInsets.fromLTRB(16, 6, 16, 12),
+  Widget _header() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
         child: Row(children: [
-          Text('Overview', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-          Spacer(),
-          Icon(Icons.visibility_outlined, size: 25, color: _ink),
-          SizedBox(width: 14),
-          Icon(Icons.search_rounded, size: 25, color: _ink),
+          const Text('Overview', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+          const Spacer(),
+          const Icon(Icons.visibility_outlined, size: 25, color: _ink),
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => _SearchScreen(all: widget.all, budgets: widget.budgets))),
+            child: const Icon(Icons.search_rounded, size: 25, color: _ink),
+          ),
         ]),
       );
 
@@ -3448,6 +3458,7 @@ class _PlanningTab extends StatefulWidget {
 class _PlanningTabState extends State<_PlanningTab> {
   late List<_Budget> _budgets;
   bool _showBanner = true;
+  String? _selKey; // selected month (null = latest / "Šis mėnuo")
 
   // ── month scope ────────────────────────────────────────────────────────────
   List<String> get _monthKeys {
@@ -3455,7 +3466,7 @@ class _PlanningTabState extends State<_PlanningTab> {
     return s;
   }
 
-  String get _curKey => _monthKeys.last;
+  String get _curKey => _selKey ?? _monthKeys.last;
   int get _curMon => int.parse(_curKey.substring(5, 7));
   int get _curYear => int.parse(_curKey.substring(0, 4));
   List<Map<String, dynamic>> get _rows => widget.all.where((t) => (t['d'] as String).startsWith(_curKey)).toList();
@@ -3570,10 +3581,61 @@ class _PlanningTabState extends State<_PlanningTab> {
         ]),
       );
 
-  Widget _monthFilter() => const Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-        child: Row(children: [_Chip(icon: Icons.calendar_today_rounded, label: 'Šis mėnuo')]),
-      );
+  Widget _monthFilter() {
+    final isLatest = _selKey == null || _selKey == _monthKeys.last;
+    final label = isLatest ? 'Šis mėnuo' : _monNom[_curMon - 1];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(children: [
+        GestureDetector(
+          onTap: _pickMonth,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: DS.hairline)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.calendar_today_rounded, size: 16, color: _purple),
+              const SizedBox(width: 7),
+              Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
+              const SizedBox(width: 4),
+              const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _purple),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  void _pickMonth() {
+    final keys = _monthKeys.reversed.toList(); // newest first
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 12),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(3))),
+          const Padding(padding: EdgeInsets.fromLTRB(18, 14, 18, 6),
+              child: Align(alignment: Alignment.centerLeft, child: Text('Pasirink mėnesį', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)))),
+          for (final k in keys)
+            InkWell(
+              onTap: () { setState(() => _selKey = k); Navigator.pop(ctx); },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+                child: Row(children: [
+                  Text('${_monNom[int.parse(k.substring(5, 7)) - 1]} ${k.substring(0, 4)}',
+                      style: TextStyle(fontSize: 16.5, fontWeight: k == _curKey ? FontWeight.w800 : FontWeight.w500, color: _ink)),
+                  const Spacer(),
+                  if (k == _monthKeys.last) const Text('Šis mėnuo', style: TextStyle(fontSize: 12.5, color: _muted)),
+                  if (k == _curKey) const Padding(padding: EdgeInsets.only(left: 8), child: Icon(Icons.check_rounded, size: 20, color: _purple)),
+                ]),
+              ),
+            ),
+          const SizedBox(height: 10),
+        ]),
+      ),
+    );
+  }
 
   Widget _sectionTitle(String t) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
@@ -4383,6 +4445,7 @@ class _SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<_SettingsScreen> {
+  String _name = 'Vartotojas';
   String _currency = 'Euras (EUR)';
   String _theme = 'Sistemos numatytoji';
   String _country = 'Lietuva';
@@ -4463,16 +4526,56 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           Container(
             width: 84, height: 84,
             decoration: const BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
-            child: const Icon(Icons.person_rounded, size: 44, color: _purple),
+            alignment: Alignment.center,
+            child: _name == 'Vartotojas'
+                ? const Icon(Icons.person_rounded, size: 44, color: _purple)
+                : Text(_name.trim().isEmpty ? '?' : _name.trim()[0].toUpperCase(),
+                    style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w800, color: _purple)),
           ),
           const SizedBox(height: 12),
-          const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('Vartotojas', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink)),
-            SizedBox(width: 8),
-            Icon(Icons.edit_rounded, size: 19, color: _ink),
-          ]),
+          GestureDetector(
+            onTap: _editName,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Flexible(child: Text(_name, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink))),
+              const SizedBox(width: 8),
+              const Icon(Icons.edit_rounded, size: 19, color: _ink),
+            ]),
+          ),
         ]),
       );
+
+  void _editName() {
+    final ctl = TextEditingController(text: _name == 'Vartotojas' ? '' : _name);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Tavo vardas', style: TextStyle(fontWeight: FontWeight.w800)),
+        content: TextField(
+          controller: ctl, autofocus: true, textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            hintText: 'Įrašyk vardą',
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
+          ),
+          onSubmitted: (_) => _saveName(ctx, ctl.text),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+              child: const Text('Atšaukti', style: TextStyle(color: _muted))),
+          TextButton(onPressed: () => _saveName(ctx, ctl.text),
+              child: const Text('Išsaugoti', style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+  }
+
+  void _saveName(BuildContext ctx, String v) {
+    final n = v.trim();
+    setState(() => _name = n.isEmpty ? 'Vartotojas' : n);
+    Navigator.pop(ctx);
+  }
 
   Widget _group(String title, List<Widget> items) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
@@ -4722,6 +4825,118 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           const SizedBox(height: 8),
         ]),
       ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SEARCH — filter transactions by merchant / category
+// ══════════════════════════════════════════════════════════════════════════════
+class _SearchScreen extends StatefulWidget {
+  const _SearchScreen({required this.all, required this.budgets});
+  final List<Map<String, dynamic>> all;
+  final Map<String, dynamic> budgets;
+  @override
+  State<_SearchScreen> createState() => _SearchScreenState();
+}
+
+class _SearchScreenState extends State<_SearchScreen> {
+  String _q = '';
+
+  List<Map<String, dynamic>> get _results {
+    final q = _q.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+    final r = widget.all.where((t) {
+      final nm = (t['nm'] as String).toLowerCase();
+      final cat = (t['cat'] as String).toLowerCase();
+      return nm.contains(q) || _shortNm(t['nm'] as String).toLowerCase().contains(q) || cat.contains(q);
+    }).toList();
+    r.sort((a, b) => (b['d'] as String).compareTo(a['d'] as String));
+    return r;
+  }
+
+  void _open(Map<String, dynamic> t) {
+    final day = {
+      'date': t['d'], 'label': t['md'], 'wd': t['wd'] ?? '',
+      'day': int.tryParse((t['d'] as String).substring(8, 10)) ?? 1,
+      'total': t['a'], 'tx': [t],
+    };
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _TxDetailScreen(tx: t, day: day, all: widget.all, budgets: widget.budgets),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final res = _results;
+    final total = res.fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        titleSpacing: 0,
+        leading: IconButton(icon: const Icon(Icons.chevron_left_rounded, size: 30, color: _ink), onPressed: () => Navigator.pop(context)),
+        title: TextField(
+          autofocus: true,
+          onChanged: (v) => setState(() => _q = v),
+          style: const TextStyle(fontSize: 17, color: _ink),
+          decoration: const InputDecoration(
+            hintText: 'Ieškok prekybininko ar kategorijos…',
+            hintStyle: TextStyle(color: _faint, fontSize: 16),
+            border: InputBorder.none,
+          ),
+        ),
+      ),
+      body: _q.trim().isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 40),
+                child: Text('Įrašyk, ko ieškai — pvz. „Maxima", „kuras", „Netflix".',
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: _muted, height: 1.4)),
+              ),
+            )
+          : res.isEmpty
+              ? const Center(child: Text('Nieko nerasta', style: TextStyle(fontSize: 16, color: _muted)))
+              : ListView(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                      child: Row(children: [
+                        Text('${res.length} ${res.length == 1 ? 'sandoris' : 'sandoriai'}',
+                            style: const TextStyle(fontSize: 13.5, color: _muted)),
+                        const Spacer(),
+                        Text(_eur(total, signed: true),
+                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: total >= 0 ? _good : _ink)),
+                      ]),
+                    ),
+                    for (final t in res)
+                      InkWell(
+                        onTap: () => _open(t),
+                        child: Container(
+                          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: DS.hairline)),
+                          child: Row(children: [
+                            CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 40),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(_shortNm(t['nm'] as String), maxLines: 1, overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink)),
+                                Text('${t['cat']} · ${t['md']}', style: const TextStyle(fontSize: 12.5, color: _muted)),
+                              ]),
+                            ),
+                            Text(_eur((t['a'] as num).toDouble(), signed: true),
+                                style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700,
+                                    color: (t['a'] as num) >= 0 ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
+                          ]),
+                        ),
+                      ),
+                  ],
+                ),
     );
   }
 }
