@@ -1876,8 +1876,11 @@ class _SelectCategorySheetState extends State<_SelectCategorySheet> {
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
             child: TextField(
               onChanged: (v) => setState(() => _q = v.toLowerCase()),
+              cursorColor: _purple,
+              style: TextStyle(color: _ink),
               decoration: InputDecoration(
                 hintText: 'Ieškoti',
+                hintStyle: TextStyle(color: _faint),
                 suffixIcon: Icon(Icons.search_rounded, color: _muted),
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
@@ -4591,12 +4594,16 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Tavo vardas', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: Text('Tavo vardas', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
         content: TextField(
           controller: ctl, autofocus: true, textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
+          cursorColor: _purple,
+          style: TextStyle(color: _ink, fontSize: 17),
+          decoration: InputDecoration(
             hintText: 'Įrašyk vardą',
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
+            hintStyle: TextStyle(color: _faint),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _hair)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
           ),
           onSubmitted: (_) => _saveName(ctx, ctl.text),
         ),
