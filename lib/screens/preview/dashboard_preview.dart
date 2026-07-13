@@ -3425,10 +3425,11 @@ class _SavingsRateScreen extends StatelessWidget {
 // PLANNING TAB — budgets (data-suggested limits) + recurring
 // ══════════════════════════════════════════════════════════════════════════════
 class _Budget {
-  _Budget(this.sec, this.limit, {this.auto = false});
+  _Budget(this.sec, this.limit, {this.auto});
   final String sec;
   double limit;
-  bool auto; // true = we suggested the limit from history; false = user-set
+  bool? auto; // true = we suggested the limit from history; false = user-set
+  bool get isAuto => auto ?? true; // null (hot-reload) → treat as suggested
 }
 
 class _PlanningTab extends StatefulWidget {
@@ -3682,7 +3683,7 @@ class _PlanningTabState extends State<_PlanningTab> {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(b.sec, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink)),
-                Text(b.auto ? 'Pasiūlyta pagal tavo išlaidas · keisk' : 'Tavo biudžetas · keisk',
+                 Text(b.isAuto ? 'Pasiūlyta pagal tavo išlaidas · keisk' : 'Tavo biudžetas · keisk',
                     style: const TextStyle(fontSize: 11.5, color: _muted)),
               ]),
             ),
@@ -3730,7 +3731,7 @@ class _PlanningTabState extends State<_PlanningTab> {
             GestureDetector(onTap: () => Navigator.pop(ctx), child: const Icon(Icons.close_rounded, color: _faint)),
           ]),
           const SizedBox(height: 6),
-          Text(b.auto
+          Text(b.isAuto
               ? 'Šį limitą pasiūlėme pagal tavo ~3 mėn. vidurkį. Gali pakeisti į savo.'
               : 'Keisk savo mėnesio limitą.',
               style: const TextStyle(fontSize: 13.5, color: _muted, height: 1.35)),
