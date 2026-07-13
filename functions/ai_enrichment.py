@@ -17,6 +17,7 @@ No new pip dependency: the Anthropic API is called over plain HTTPS (requests).
 import json
 import logging
 import re
+import time
 
 import requests
 
@@ -36,7 +37,10 @@ _CATSET = set(_CATEGORIES)
 _COMPANY_MARKERS = ("uab", "mb", "ab", "vsi", "ltd", "llc", "gmbh", "oy", "as",
                     "inc", "sia", "ou", "corp", ".lt", ".com", ".eu", "*")
 
-_mem = {}  # in-instance memo (per warm instance)
+_mem = {}   # in-instance positive memo (per warm instance)
+_neg = set()  # in-instance negative memo: keys that failed / were unclassifiable
+# this warm instance — avoids re-hammering the API on the repeated classification
+# passes and during a provider outage.
 
 
 def _norm(s):
@@ -116,6 +120,8 @@ def classify(surface, api_key):
     cached = _cache_get(key)
     if cached is not None:
         return (cached.get("canonical") or surface, cached.get("category") or "other")
+    if key in _neg:
+        return None  # already failed this instance — don't call the API again
 
     prompt = (
         "You categorise a payment merchant/payee name into ONE category and give "
@@ -127,28 +133,42 @@ def classify(surface, api_key):
         'business, use "other". Reply with ONLY compact JSON, no prose: '
         '{"canonical":"<clean name>","category":"<one category>"}'
     )
-    try:
-        r = requests.post(
-            _ANTHROPIC_URL, timeout=_TIMEOUT,
-            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01",
-                     "content-type": "application/json"},
-            data=json.dumps({"model": _MODEL, "max_tokens": 80,
-                             "messages": [{"role": "user", "content": prompt}]}),
-        )
-        if not r.ok:
+    payload = json.dumps({"model": _MODEL, "max_tokens": 80,
+                          "messages": [{"role": "user", "content": prompt}]})
+    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
+               "content-type": "application/json"}
+    for attempt in range(3):
+        try:
+            r = requests.post(_ANTHROPIC_URL, timeout=_TIMEOUT,
+                              headers=headers, data=payload)
+        except Exception as e:  # network / timeout — brief backoff, then retry
+            logging.warning("ai_enrichment request failed for %r: %s", surface[:40], e)
+            time.sleep(0.8 * (attempt + 1))
+            continue
+        if r.status_code == 429:  # rate limited — back off and retry the call
+            logging.warning("ai_enrichment rate-limited (attempt %d)", attempt + 1)
+            time.sleep(1.5 * (attempt + 1))
+            continue
+        if not r.ok:  # other HTTP error — not retryable
             logging.warning("ai_enrichment http %s: %s", r.status_code, r.text[:200])
-            return None
-        txt = r.json()["content"][0]["text"]
-        m = re.search(r"\{.*\}", txt, re.S)
-        if not m:
-            return None
-        obj = json.loads(m.group(0))
+            break
+        try:
+            txt = r.json()["content"][0]["text"]
+            m = re.search(r"\{.*\}", txt, re.S)
+            if not m:
+                break
+            obj = json.loads(m.group(0))
+        except Exception as e:  # malformed response — not retryable
+            logging.warning("ai_enrichment parse failed for %r: %s", surface[:40], e)
+            break
         cat = (obj.get("category") or "other").strip().lower()
         if cat not in _CATSET:
             cat = "other"
         canon = (obj.get("canonical") or surface).strip() or surface
         _cache_put(key, {"canonical": canon, "category": cat})
         return (canon, cat)
-    except Exception as e:  # noqa: BLE001
-        logging.warning("ai_enrichment failed for %r: %s", surface[:40], e)
-        return None
+
+    # All retries exhausted or a non-retryable error — remember the failure for
+    # this warm instance so the repeated passes don't re-hit the API.
+    _neg.add(key)
+    return None

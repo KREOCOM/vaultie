@@ -188,22 +188,35 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     date_from = (dt.date.today() - dt.timedelta(days=history_days)).isoformat()
 
     client = _client()
+    # Creating the session is the one hard prerequisite — if it fails there is
+    # nothing to scan, so this stays a fatal error.
     try:
         session = client.create_session(code)
-        accounts = session.get("accounts", [])
-        all_txns: list = []
-        account_summaries: list = []
-        scan_diag: list = []
-        for acc in accounts:
-            uid = acc.get("uid") or acc.get("account_uid")
-            if not uid:
-                continue
+    except EnableBankingError as e:
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.INTERNAL,
+            message="Could not fetch transactions.",
+            details=str(e),
+        )
+    accounts = session.get("accounts", [])
+    all_txns: list = []
+    account_summaries: list = []
+    scan_diag: list = []
+    for acc in accounts:
+        uid = acc.get("uid") or acc.get("account_uid")
+        if not uid:
+            continue
+        name = (acc.get("name") or acc.get("product")
+                or (acc.get("account_id") or {}).get("iban") or "Sąskaita")
+        # Per-account isolation: one account failing (timeout / 500 / expired
+        # consent) must not discard the accounts that already scanned fine. Log
+        # it, record it in scan_diag, and carry on with a partial-but-usable
+        # result instead of aborting the whole connection.
+        try:
             acc_txns, diag = client.transactions(uid, date_from=date_from)
             all_txns.extend(acc_txns)
             # current balance for the account (closing-booked / available)
             bal = _pick_balance(client.balances(uid))
-            name = (acc.get("name") or acc.get("product")
-                    or (acc.get("account_id") or {}).get("iban") or "Sąskaita")
             currency = ((acc.get("currency"))
                         or (acc.get("account_id") or {}).get("currency") or "EUR")
             account_summaries.append({
@@ -212,12 +225,11 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
                 "currency": currency,
             })
             scan_diag.append({"account": name, **diag})
-    except EnableBankingError as e:
-        raise https_fn.HttpsError(
-            code=https_fn.FunctionsErrorCode.INTERNAL,
-            message="Could not fetch transactions.",
-            details=str(e),
-        )
+        except EnableBankingError as e:
+            logging.warning(
+                "finish_bank_auth: account %r failed, skipping: %s", name, e)
+            scan_diag.append({"account": name, "error": str(e)})
+            continue
 
     # De-duplicate before anything reads the list, so counts, totals and
     # recurring detection all see each real entry exactly once.

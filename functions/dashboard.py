@@ -292,26 +292,40 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
     except Exception:
         corpus = None
 
+    _resolve_memo = {}
+
     def resolve_cat(t):
+        # Memoized per transaction: _classify runs 3× over the same objects
+        # (all / month feed / week) and this is the expensive stage (resolver +
+        # optional AI). Same object → identical result, so cache by id(t). This
+        # cuts the resolver/AI work ~3× per transaction with no output change.
+        tid = id(t)
+        cached = _resolve_memo.get(tid)
+        if cached is not None:
+            return cached
+        result = None
         # Stage 2: deterministic resolver (KB → offline global index).
         try:
             _, hit, _ = resolver.resolve_hit(t, corpus)
             if hit:
-                return hit[0], hit[2]  # canonical_name, category
+                result = (hit[0], hit[2])  # canonical_name, category
         except Exception:
             pass
         # Stage 3: AI enrichment (opt-in only) for the unresolved business tail.
         # resolve_cat is reached ONLY from the merchant branch, so this is never a
         # person/P2P name; ai_enrichment also guards against person names + caches.
-        if ai_key:
+        if result is None and ai_key:
             try:
                 import ai_enrichment
                 res = ai_enrichment.classify(_name(t), ai_key)
                 if res:
-                    return res
+                    result = res
             except Exception:
                 pass
-        return _name(t), "other"
+        if result is None:
+            result = (_name(t), "other")
+        _resolve_memo[tid] = result
+        return result
 
     # ── flat `all` list ──
     all_rows = []

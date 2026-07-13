@@ -172,11 +172,16 @@ class EnableBankingClient:
             if not cont:
                 break
             time.sleep(0.1)  # small gap; recent window keeps page count modest
+        # Exhausted the page budget while the bank still had more pages
+        # (continuation_key present) — the history is TRUNCATED, not complete.
+        # Surfaced so the app can flag partial data instead of it being silent.
+        truncated = bool(cont) and not gave_up
         dates = [t.get("booking_date") for t in all_txns if t.get("booking_date")]
         diag = {
             "pages": pages,
             "rate_limited": rate_limited,
             "gave_up": gave_up,
+            "truncated": truncated,
             "count": len(all_txns),
             "from": min(dates) if dates else None,
             "to": max(dates) if dates else None,
