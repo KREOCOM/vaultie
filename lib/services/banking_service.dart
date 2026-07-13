@@ -239,7 +239,11 @@ class BankingService {
         debugPrint('SCAN DIAG: ${m['scanDiag']}');
         final dashMap = m['dash'];
         if (dashMap is Map && dashMap['meta'] is Map) {
-          debugPrint('CLASS SAMPLE: ${(dashMap['meta'] as Map)['sample']}');
+          final meta = dashMap['meta'] as Map;
+          debugPrint('CLASS SAMPLE: ${meta['sample']}');
+          debugPrint('SALARY SOURCES: ${meta['salarySources']}');
+          debugPrint('INCOME: ${meta['income']}');
+          debugPrint('INCOMING TRANSFERS: ${meta['incomingTransfers']}');
         }
         for (final c in cands) {
           debugPrint('  CANDIDATE $c');

@@ -358,7 +358,13 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
                     "Kuras": 220.0, "Alkoholis, tabakas": 120.0},
         "meta": {"count": len(txns),
                  "range": f"{min(t['booking_date'] for t in txns)}..{max(t['booking_date'] for t in txns)}",
-                 "sample": sample},
+                 "sample": sample,
+                 # DEBUG: salary detection visibility
+                 "salarySources": sorted(salary_refs),
+                 "income": [{"nm": r["nm"], "a": r["a"], "cat": r["cat"], "d": r["d"]}
+                            for r in all_rows if r["sec"] == "Pajamos"][:12],
+                 "incomingTransfers": [{"nm": r["nm"], "a": r["a"], "d": r["d"]}
+                                       for r in all_rows if r["sec"] == "Pervedimai" and r["pos"]][:12]},
     }
 
 
