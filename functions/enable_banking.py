@@ -123,28 +123,46 @@ class EnableBankingClient:
         except EnableBankingError:
             return []
 
-    def transactions(self, account_uid: str, *, date_from: str, max_pages: int = 25) -> list:
+    def transactions(self, account_uid: str, *, date_from: str, max_pages: int = 40):
         """Page through an account's transactions since ``date_from`` (ISO date).
 
         ``strategy=longest`` asks the ASPSP for the maximum history it will
         return. Many banks expose 1–3 years of history ONLY in the short window
         right after authorization, then cap to ~90 days — so we must request the
         longest window up front, on the very first fetch, and page all of it.
+
+        Banks that paginate oldest-first (e.g. SEB) will hand back the earliest
+        months first, so a hard stop on the first 429 leaves you with STALE data
+        and none of the recent months. We therefore retry a rate-limited page a
+        few times with backoff before giving up, and report a small diagnostic
+        (pages fetched, whether we were rate-limited, date span) so truncation is
+        visible instead of silent.
+
+        Returns ``(transactions, diag)``.
         """
         all_txns: list = []
         cont = None
+        pages = 0
+        rate_limited = False
+        gave_up = False
         for _ in range(max_pages):
             params = {"date_from": date_from, "strategy": "longest"}
             if cont:
                 params["continuation_key"] = cont
-            resp = requests.get(
-                f"{BASE_URL}/accounts/{account_uid}/transactions",
-                headers=self._headers(),
-                params=params,
-                timeout=_TIMEOUT,
-            )
-            # ASPSP consent-frequency rate limit — stop paging, keep what we have.
+            resp = None
+            for attempt in range(3):  # retry the SAME page on 429 with backoff
+                resp = requests.get(
+                    f"{BASE_URL}/accounts/{account_uid}/transactions",
+                    headers=self._headers(),
+                    params=params,
+                    timeout=_TIMEOUT,
+                )
+                if resp.status_code != 429:
+                    break
+                rate_limited = True
+                time.sleep(1.5 * (attempt + 1))
             if resp.status_code == 429:
+                gave_up = True  # still limited after retries — keep what we have
                 break
             if not resp.ok:
                 raise EnableBankingError(
@@ -152,8 +170,18 @@ class EnableBankingClient:
                 )
             data = resp.json() if resp.text else {}
             all_txns.extend(data.get("transactions", []))
+            pages += 1
             cont = data.get("continuation_key")
             if not cont:
                 break
-            time.sleep(0.25)  # be gentle with consent-frequency limits
-        return all_txns
+            time.sleep(0.3)  # be gentle with consent-frequency limits
+        dates = [t.get("booking_date") for t in all_txns if t.get("booking_date")]
+        diag = {
+            "pages": pages,
+            "rate_limited": rate_limited,
+            "gave_up": gave_up,
+            "count": len(all_txns),
+            "from": min(dates) if dates else None,
+            "to": max(dates) if dates else None,
+        }
+        return all_txns, diag

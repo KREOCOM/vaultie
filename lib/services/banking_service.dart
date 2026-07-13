@@ -233,7 +233,9 @@ class BankingService {
         }
         debugPrint('=== BANK SCAN RESULT ===');
         debugPrint('accounts=${m['accountCount']} txns=${m['transactionCount']} '
-            'candidates=${cands.length} frequent=${freq.length}');
+            'candidates=${cands.length} frequent=${freq.length} '
+            'dash=${m['dash'] != null}');
+        debugPrint('SCAN DIAG: ${m['scanDiag']}');
         for (final c in cands) {
           debugPrint('  CANDIDATE $c');
         }

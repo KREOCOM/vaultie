@@ -187,11 +187,13 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
         accounts = session.get("accounts", [])
         all_txns: list = []
         account_summaries: list = []
+        scan_diag: list = []
         for acc in accounts:
             uid = acc.get("uid") or acc.get("account_uid")
             if not uid:
                 continue
-            all_txns.extend(client.transactions(uid, date_from=date_from))
+            acc_txns, diag = client.transactions(uid, date_from=date_from)
+            all_txns.extend(acc_txns)
             # current balance for the account (closing-booked / available)
             bal = _pick_balance(client.balances(uid))
             name = (acc.get("name") or acc.get("product")
@@ -203,6 +205,7 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
                 "icon": "R" if "revolut" in str(name).lower() else "bank",
                 "currency": currency,
             })
+            scan_diag.append({"account": name, **diag})
     except EnableBankingError as e:
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
@@ -243,12 +246,14 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     # Privacy-first: raw transactions are processed transiently and are NEVER
     # returned or stored. Only detected candidates + frequent-merchant summaries
     # go to the client, which persists only what the user chooses to import.
+    logging.info("finish_bank_auth scan_diag=%s", scan_diag)
     return {
         "accountCount": len(accounts),
         "transactionCount": len(all_txns),
         "candidates": candidates,
         "frequent": frequent,
         "dash": dash,
+        "scanDiag": scan_diag,
     }
 
 
