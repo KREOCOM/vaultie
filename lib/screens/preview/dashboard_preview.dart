@@ -73,11 +73,20 @@ const _catIcons = <String, IconData>{
   'taxi': Icons.local_taxi_rounded,
   'scooter': Icons.electric_scooter_rounded,
   'shield': Icons.verified_user_rounded,
-  'doc': Icons.description_rounded,
+  'doc': Icons.receipt_long_rounded,
   'house': Icons.home_rounded,
   'monitor': Icons.devices_other_rounded,
   'swap': Icons.swap_horiz_rounded,
   'person': Icons.person_rounded,
+  // previously missing → fell back to the swap arrows on many rows
+  'money': Icons.account_balance_rounded, // bank / finance
+  'home': Icons.wifi_rounded, // connectivity / utilities (Ryšys)
+  'health': Icons.medical_services_rounded,
+  'fun': Icons.celebration_rounded,
+  'income': Icons.payments_rounded,
+  'edu': Icons.school_rounded,
+  'bag': Icons.shopping_bag_rounded,
+  'car': Icons.directions_car_rounded,
 };
 
 // section (spending-category) colours + glyphs for the weekly bar chart
@@ -88,9 +97,9 @@ const _secColor = <String, Color>{
   'purple': Color(0xFF7C5CD6),
 };
 const _secIcon = <String, IconData>{
-  'food': Icons.eco_rounded, 'car': Icons.directions_car_rounded, 'bag': Icons.shopping_bag_rounded,
-  'home': Icons.home_rounded, 'money': Icons.attach_money_rounded, 'health': Icons.favorite_rounded,
-  'fun': Icons.celebration_rounded, 'edu': Icons.school_rounded, 'income': Icons.work_rounded,
+  'food': Icons.restaurant_rounded, 'car': Icons.directions_car_rounded, 'bag': Icons.shopping_bag_rounded,
+  'home': Icons.home_rounded, 'money': Icons.account_balance_rounded, 'health': Icons.fitness_center_rounded,
+  'fun': Icons.celebration_rounded, 'edu': Icons.school_rounded, 'income': Icons.account_balance_wallet_rounded,
   'transfer': Icons.swap_horiz_rounded,
 };
 
