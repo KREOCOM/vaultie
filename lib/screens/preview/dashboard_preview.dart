@@ -191,7 +191,26 @@ class _DashboardPreviewState extends State<DashboardPreview> {
   int? _weekSel; // tapped weekday bar
   int _shownPast = 2; // how many past months are shown below the current one
 
-  void _onTheme() => setState(() {});
+  // Cached non-dashboard tabs. They depend only on the immutable `_d` data, so
+  // rebuilding them on every tab switch (setState) is wasted work that made tab
+  // taps lag — build once and reuse; only a theme flip invalidates them.
+  List<Widget>? _otherTabs;
+  List<Widget> _buildOtherTabs() => [
+        _OverviewTab(
+          all: (_d['all'] as List).cast<Map<String, dynamic>>(),
+          balance: _d['balance'] as Map<String, dynamic>,
+          budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
+        ),
+        _placeholder('AI Chat'),
+        _PlanningTab(
+          all: (_d['all'] as List).cast<Map<String, dynamic>>(),
+          subs: _d['subs'] as Map<String, dynamic>,
+        ),
+        _AccountTab(balance: _d['balance'] as Map<String, dynamic>),
+      ];
+
+  // Theme flip must rebuild the cached tabs so their colours update.
+  void _onTheme() => setState(() => _otherTabs = null);
   @override
   void initState() {
     super.initState();
@@ -214,17 +233,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
           index: _tab,
           children: [
             _dashboard(),
-            _OverviewTab(
-              all: (_d['all'] as List).cast<Map<String, dynamic>>(),
-              balance: _d['balance'] as Map<String, dynamic>,
-              budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
-            ),
-            _placeholder('AI Chat'),
-            _PlanningTab(
-              all: (_d['all'] as List).cast<Map<String, dynamic>>(),
-              subs: _d['subs'] as Map<String, dynamic>,
-            ),
-            _AccountTab(balance: _d['balance'] as Map<String, dynamic>),
+            ...(_otherTabs ??= _buildOtherTabs()),
           ],
         ),
       ),
@@ -291,7 +300,46 @@ class _DashboardPreviewState extends State<DashboardPreview> {
 
   int _monthCount(String mk) => (_d['all'] as List).where((t) => (t['d'] as String).startsWith(mk)).length;
 
-  Widget _monthHeaderFor(String mk) => _monthHeader(_monNom[int.parse(mk.substring(5, 7)) - 1], _monthNet(mk));
+  // ── Canonical money figures — the SINGLE source of truth so the same concept
+  // shows the same number everywhere (no "250 here / 230 there"). Prefer the
+  // backend `totals` block; fall back to computing from `all` with the identical
+  // rule (see functions/dashboard.py _flow/_totals) when it isn't present yet.
+  Map<String, dynamic>? get _totalsBlock => _d['totals'] as Map<String, dynamic>?;
+
+  String _flowOf(Map t) {
+    if (t['sec'] == 'Pervedimai') return 'transfer'; // moving money, not spend
+    if (t['cat'] == 'Grąžinimas') return 'refund';   // money back — nets spend down
+    return (t['a'] as num) > 0 ? 'income' : 'expense';
+  }
+
+  // A transaction's contribution to "spent": outflow counts, a refund nets down.
+  double _spendOf(Map t) {
+    final f = _flowOf(t);
+    return (f == 'expense' || f == 'refund') ? -(t['a'] as num).toDouble() : 0.0;
+  }
+
+  Map<String, dynamic>? _monthTotals(String mk) =>
+      (_totalsBlock?['months'] as Map?)?[mk] as Map<String, dynamic>?;
+
+  double _monthExpenses(String mk) {
+    final m = _monthTotals(mk);
+    if (m != null) return (m['expenses'] as num).toDouble();
+    return (_d['all'] as List)
+        .where((t) => (t['d'] as String).startsWith(mk))
+        .fold(0.0, (s, t) => s + _spendOf(t as Map));
+  }
+
+  double _monthIncome(String mk) {
+    final m = _monthTotals(mk);
+    if (m != null) return (m['income'] as num).toDouble();
+    return (_d['all'] as List)
+        .where((t) => (t['d'] as String).startsWith(mk) && _flowOf(t as Map) == 'income')
+        .fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
+  }
+
+  Widget _monthHeaderFor(String mk) => _monthHeader(
+      _monNom[int.parse(mk.substring(5, 7)) - 1],
+      _monthExpenses(mk), _monthIncome(mk));
 
   static const _wdFull = ['Pirmadienis', 'Antradienis', 'Trečiadienis', 'Ketvirtadienis', 'Penktadienis', 'Šeštadienis', 'Sekmadienis'];
 
@@ -318,7 +366,9 @@ class _DashboardPreviewState extends State<DashboardPreview> {
         m['count'] = (m['count'] as int) + 1;
       }
       final tx = merged.values.map((m) => {...m, 'count': (m['count'] as int) > 1 ? m['count'] : 0}).toList();
-      final total = dayTx.fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
+      // Day "spent" uses the canonical rule (expenses only) so it stays
+      // consistent with the month header and category totals.
+      final total = dayTx.fold(0.0, (s, t) => s + _spendOf(t));
       final dt = DateTime.parse(d);
       out.add({'date': d, 'wd': _wdFull[dt.weekday - 1], 'day': dt.day, 'total': total, 'tx': tx});
     }
@@ -536,7 +586,8 @@ class _DashboardPreviewState extends State<DashboardPreview> {
           child: Row(children: [
             Text('Šios savaitės išlaidos', style: TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w500)),
             const Spacer(),
-            Text('−${_eur(total)}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+            // Positive amount — consistent with the month header's "Išleista X".
+            Text(_eur(total), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
           ]),
         ),
         Container(
@@ -702,15 +753,30 @@ class _DashboardPreviewState extends State<DashboardPreview> {
     );
   }
 
-  Widget _monthHeader(String name, double total) {
+  Widget _monthHeader(String name, double expenses, double income) {
+    final net = income - expenses;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-      child: Row(children: [
-        Text(name, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
-        const Spacer(),
-        Text(_eur(total, signed: true),
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: total >= 0 ? _good : _ink)),
-      ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(name, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
+          const Spacer(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('Išleista ${_eur(expenses)}',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
+              if (income > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('Pajamos ${_eur(income)} · Liko ${_eur(net, signed: true)}',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _muted)),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -724,7 +790,8 @@ class _DashboardPreviewState extends State<DashboardPreview> {
             Text('${dd['wd']}, ${dd['day']} d.',
                 style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
             const Spacer(),
-            Text(_eur((dd['total'] as num).toDouble(), signed: true),
+            // Day "spent" (expenses only) — matches the month header rule.
+            Text(_eur((dd['total'] as num).toDouble()),
                 style: TextStyle(fontSize: 13.5, color: _muted)),
           ]),
         ),
