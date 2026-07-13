@@ -409,7 +409,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
             const SizedBox(height: 9),
             Text(
               '* Likutis ateina iš banko (Enable Banking balances) — sandorių sąraše jo nėra. Grafikas = realus sandorių srautas.',
-              style: TextStyle(fontSize: 11, color: _faint, height: 1.3),
+              style: TextStyle(fontSize: 11.5, color: _muted, height: 1.35, fontWeight: FontWeight.w500),
             ),
           ],
         ),
