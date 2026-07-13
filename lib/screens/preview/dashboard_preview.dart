@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../ui/design_system.dart';
+import '../bank_connect_screen.dart';
 
 /// Bilance-style Dashboard preview, on the user's REAL computed Revolut data.
 ///
@@ -4311,14 +4312,15 @@ class _AccountTabState extends State<_AccountTab> {
                 ),
                 const RowDivider(indent: 66),
               ],
-              _addRow('Pridėti sąskaitą'),
+              _addRow('Prijungti / atnaujinti banką', onTap: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const BankConnectScreen()))),
             ]),
           ),
         ]),
       );
 
-  Widget _addRow(String label) => InkWell(
-        onTap: () {},
+  Widget _addRow(String label, {VoidCallback? onTap}) => InkWell(
+        onTap: onTap ?? () {},
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(children: [
