@@ -167,7 +167,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
               all: (_d['all'] as List).cast<Map<String, dynamic>>(),
               subs: _d['subs'] as Map<String, dynamic>,
             ),
-            _placeholder('Account'),
+            _AccountTab(balance: _d['balance'] as Map<String, dynamic>),
           ],
         ),
       ),
@@ -3975,4 +3975,644 @@ class _BudgetProjPainter extends CustomPainter {
   @override
   bool shouldRepaint(_BudgetProjPainter old) =>
       old.cum != cum || old.limit != limit || old.projected != projected || old.onTrack != onTrack;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ACCOUNT TAB — net worth, assets, accounts (real balance data) + Settings
+// ══════════════════════════════════════════════════════════════════════════════
+class _AccountTab extends StatefulWidget {
+  const _AccountTab({required this.balance});
+  final Map<String, dynamic> balance;
+  @override
+  State<_AccountTab> createState() => _AccountTabState();
+}
+
+class _AccountTabState extends State<_AccountTab> {
+  bool _promo = true;
+
+  double get _netWorth => (widget.balance['current'] as num).toDouble();
+  List<Map<String, dynamic>> get _accounts => (widget.balance['accounts'] as List).cast<Map<String, dynamic>>();
+
+  @override
+  Widget build(BuildContext context) {
+    final spark = (widget.balance['series'] as List)
+        .cast<Map<String, dynamic>>()
+        .map((p) => (p['v'] as num).toDouble())
+        .toList();
+    // sub-sample the 245-pt series for a light sparkline
+    final step = (spark.length / 60).ceil().clamp(1, 999);
+    final thin = [for (var i = 0; i < spark.length; i += step) spark[i]];
+
+    return SafeArea(
+      bottom: false,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 28),
+        children: [
+          _header(),
+          _settingsRow(),
+          if (_promo) _promoCard(),
+          _netWorthCard(),
+          _assetsCard(),
+          _totalBalanceCard(thin),
+          _accountsCard(),
+          _feedbackCard(),
+          _socialFooter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _header() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+        child: Row(children: [
+          const Text('Account', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(20)),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.card_giftcard_rounded, size: 15, color: Colors.white),
+              SizedBox(width: 6),
+              Text('Kviesk draugus', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          const Icon(Icons.visibility_outlined, size: 24, color: _ink),
+          const SizedBox(width: 12),
+          const Icon(Icons.help_outline_rounded, size: 24, color: _ink),
+        ]),
+      );
+
+  Widget _settingsRow() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: GestureDetector(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _SettingsScreen())),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: DS.e1),
+            child: Row(children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(color: _faint.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.settings_rounded, size: 22, color: Colors.white),
+              ),
+              const SizedBox(width: 13),
+              const Text('Nustatymai', style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink)),
+              const Spacer(),
+              Container(
+                width: 40, height: 40,
+                decoration: const BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
+                child: const Icon(Icons.person_rounded, size: 22, color: _purple),
+              ),
+            ]),
+          ),
+        ),
+      );
+
+  Widget _promoCard() => Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.fromLTRB(18, 18, 14, 18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFF3EEFE), Color(0xFFFBF9FF)]),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Expanded(
+              child: Text('Naujiena: matyk visą savo turtą', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink, height: 1.2)),
+            ),
+            Container(
+              width: 58, height: 58,
+              decoration: const BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
+              child: const Icon(Icons.insights_rounded, size: 28, color: _purple),
+            ),
+            GestureDetector(onTap: () => setState(() => _promo = false), child: const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.close_rounded, size: 20, color: _faint))),
+          ]),
+          const SizedBox(height: 8),
+          const Text('Pridėk būstą, investicijas, paskolas ir daugiau — visą finansinį vaizdą vienoje vietoje.',
+              style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
+          const SizedBox(height: 12),
+          const Row(children: [
+            Icon(Icons.auto_awesome_rounded, size: 18, color: _purple),
+            SizedBox(width: 8),
+            Expanded(child: Text('Geresni AI patarimai, kai Vaultie mato visą tavo situaciją.',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _purpleDeep, height: 1.35))),
+          ]),
+        ]),
+      );
+
+  Widget _netWorthCard() => Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: DS.hairline)),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Grynasis turtas', style: TextStyle(fontSize: 14, color: _muted, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 3),
+              Text(_eur(_netWorth), style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+            ]),
+          ),
+          SizedBox(width: 46, height: 46, child: CustomPaint(painter: _RingProgressPainter(1, _good))),
+        ]),
+      );
+
+  Widget _assetsCard() {
+    final assets = _netWorth; // all cash for now
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: Row(children: [Text('Turto kategorija', style: TextStyle(fontSize: 13.5, color: _muted)), Spacer(), Text('Vertė', style: TextStyle(fontSize: 13.5, color: _muted))]),
+        ),
+        AppCard(
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              child: Row(children: [
+                const CategoryIcon(icon: Icons.savings_rounded, color: _good, size: 40),
+                const SizedBox(width: 13),
+                const Expanded(child: Text('Grynieji ir santaupos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
+                Text(_eur(assets), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink, fontFeatures: [FontFeature.tabularFigures()])),
+              ]),
+            ),
+            const RowDivider(indent: 66),
+            _addRow('Pridėti turtą'),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _totalBalanceCard(List<double> spark) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: GestureDetector(
+          onTap: () => showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.white,
+            isScrollControlled: true,
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+            builder: (_) => _BalanceSheet(bal: widget.balance),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: const Color(0xFFF6F5FA), borderRadius: BorderRadius.circular(16), border: Border.all(color: DS.hairline)),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Bendras likutis', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 3),
+                  Text(_eur(_netWorth), style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+                ]),
+              ),
+              Container(
+                width: 140, height: 50,
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
+                child: CustomPaint(painter: _SparkPainter(spark)),
+              ),
+            ]),
+          ),
+        ),
+      );
+
+  Widget _accountsCard() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
+            child: Row(children: [Text('Sąskaita', style: TextStyle(fontSize: 13.5, color: _muted)), Spacer(), Text('Likutis', style: TextStyle(fontSize: 13.5, color: _muted))]),
+          ),
+          AppCard(
+            child: Column(children: [
+              for (var i = 0; i < _accounts.length; i++) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                  child: Row(children: [
+                    Container(
+                      width: 40, height: 40,
+                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: DS.hairline, width: 1.5)),
+                      alignment: Alignment.center,
+                      child: Text((_accounts[i]['icon'] as String?) ?? '•', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(child: Text(_accounts[i]['name'] as String, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      if (_accounts[i]['sub'] != null)
+                        Text(_accounts[i]['sub'] as String, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+                      Text(_eur((_accounts[i]['amount'] as num).toDouble()),
+                          style: TextStyle(
+                            fontSize: _accounts[i]['sub'] != null ? 12.5 : 16,
+                            fontWeight: _accounts[i]['sub'] != null ? FontWeight.w500 : FontWeight.w700,
+                            color: _accounts[i]['sub'] != null ? _muted : _ink,
+                          )),
+                    ]),
+                  ]),
+                ),
+                const RowDivider(indent: 66),
+              ],
+              _addRow('Pridėti sąskaitą'),
+            ]),
+          ),
+        ]),
+      );
+
+  Widget _addRow(String label) => InkWell(
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(children: [
+            const Icon(Icons.add_rounded, size: 22, color: _purple),
+            const SizedBox(width: 14),
+            Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
+          ]),
+        ),
+      );
+
+  Widget _feedbackCard() => Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: DS.hairline)),
+        child: Row(children: [
+          const Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Turi pastabų?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+              SizedBox(height: 2),
+              Text('Pasakyk, ką galvoji', style: TextStyle(fontSize: 13.5, color: _muted)),
+            ]),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _purple)),
+            child: const Text('Palikti atsiliepimą', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _purple)),
+          ),
+        ]),
+      );
+
+  Widget _socialFooter() => const Padding(
+        padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+        child: Column(children: [
+          Text('Sek naujienas apie Vaultie', textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, color: _muted)),
+          SizedBox(height: 12),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.camera_alt_outlined, size: 22, color: _muted),
+            SizedBox(width: 22),
+            Icon(Icons.work_outline_rounded, size: 22, color: _muted),
+            SizedBox(width: 22),
+            Icon(Icons.facebook_rounded, size: 22, color: _muted),
+          ]),
+        ]),
+      );
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+class _SettingsScreen extends StatefulWidget {
+  const _SettingsScreen();
+  @override
+  State<_SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<_SettingsScreen> {
+  String _currency = 'Euras (EUR)';
+  String _theme = 'Sistemos numatytoji';
+  String _country = 'Lietuva';
+  int _firstDay = 1;
+  bool _pin = false, _faceId = false, _inactivity = false, _newTxn = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(icon: const Icon(Icons.chevron_left_rounded, size: 30, color: _ink), onPressed: () => Navigator.pop(context)),
+        title: const Text('Nustatymai', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)),
+        centerTitle: true,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 30),
+        children: [
+          _profile(),
+          _group('Bendrinimas', [
+            _navItem(Icons.card_giftcard_rounded, 'Rekomendacijos', 'Kviesk draugus ir gauk dovanų'),
+            _navItem(Icons.group_rounded, 'Bendri finansai', 'Susisiek su kitais'),
+          ]),
+          _group('Privatumas', [
+            _toggleItem(Icons.lock_outline_rounded, 'PIN kodas', 'Atrakink Vaultie su PIN', _pin, (v) => setState(() => _pin = v)),
+            _toggleItem(Icons.face_retouching_natural_rounded, 'Face ID atrakinimas', 'Įjunk PIN, kad naudotum Face ID', _faceId && _pin, _pin ? (v) => setState(() => _faceId = v) : null),
+          ]),
+          _group('Pagalba', [
+            _navItem(Icons.help_outline_rounded, 'Pagalba', 'Pagalbos centras'),
+            _navItem(Icons.chat_bubble_outline_rounded, 'Atsiliepimai', 'Pasakyk, ką galvoji'),
+          ]),
+          _group('Nustatymai', [
+            _valueItem('€', 'Numatytoji valiuta', _currency, _pickCurrency),
+            _valueItem('LT', 'Gyvenamoji šalis', _country, _pickCountry),
+            _valueItem('EN', 'Kalba', 'Keisti programos kalbą', () {}),
+            _iconValueItem(Icons.brightness_6_rounded, 'Tema', _theme, _pickTheme),
+            _iconValueItem(Icons.calendar_today_rounded, 'Mėnesio pradžia', 'Mėnuo prasideda $_firstDay d.', _pickFirstDay),
+            _toggleItem(Icons.notifications_none_rounded, 'Neaktyvumo priminimas', 'Priminti pasitikrinti Vaultie', _inactivity, (v) => setState(() => _inactivity = v)),
+            _toggleItem(Icons.notifications_active_outlined, 'Naujų sandorių pranešimai', 'Periodiškai pranešti apie naujus', _newTxn, (v) => setState(() => _newTxn = v)),
+          ]),
+          _group('Paskyra', [
+            _navItem(Icons.workspace_premium_rounded, 'Vaultie prenumerata', 'Atsiskaitymo informacija', onTap: _subInfo),
+            _navItem(Icons.grid_on_rounded, 'Eksportuoti sandorius', 'Atsisiųsk CSV ar kopijuok'),
+            _navItem(Icons.logout_rounded, 'Atsijungti', 'Grįžti į prisijungimą'),
+            _navItem(Icons.delete_outline_rounded, 'Ištrinti paskyrą', 'Ištrink savo Vaultie paskyrą'),
+          ]),
+          _group('Papildoma', [
+            _navItem(Icons.delete_sweep_outlined, 'Ištrinti senus sandorius', 'Paliesk plačiau'),
+          ]),
+          _group('Dokumentai', [
+            _navItem(Icons.description_outlined, 'Naudojimo sąlygos', ''),
+            _navItem(Icons.privacy_tip_outlined, 'Privatumo politika', ''),
+          ]),
+          const SizedBox(height: 20),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Row(children: [
+                Text('Sukurta su ', style: TextStyle(fontSize: 13, color: _muted)),
+                Icon(Icons.favorite_rounded, size: 13, color: _purple),
+                Text(' Lietuvoje', style: TextStyle(fontSize: 13, color: _muted)),
+              ]),
+              Text('Versija: 1.0.0+1', style: TextStyle(fontSize: 13, color: _muted)),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _profile() => Container(
+        color: Colors.white,
+        padding: const EdgeInsets.only(bottom: 22, top: 4),
+        child: Column(children: [
+          Container(
+            width: 84, height: 84,
+            decoration: const BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
+            child: const Icon(Icons.person_rounded, size: 44, color: _purple),
+          ),
+          const SizedBox(height: 12),
+          const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text('Vartotojas', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink)),
+            SizedBox(width: 8),
+            Icon(Icons.edit_rounded, size: 19, color: _ink),
+          ]),
+        ]),
+      );
+
+  Widget _group(String title, List<Widget> items) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+            child: Text(title, style: const TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w600)),
+          ),
+          Container(
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: DS.e1),
+            child: Column(children: [
+              for (var i = 0; i < items.length; i++) ...[
+                items[i],
+                if (i != items.length - 1) const RowDivider(indent: 62),
+              ],
+            ]),
+          ),
+        ]),
+      );
+
+  Widget _navItem(IconData ic, String title, String sub, {VoidCallback? onTap}) => InkWell(
+        onTap: onTap ?? () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(children: [
+            SizedBox(width: 30, child: Icon(ic, size: 23, color: _purple)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink)),
+                if (sub.isNotEmpty) Text(sub, style: const TextStyle(fontSize: 13, color: _muted)),
+              ]),
+            ),
+          ]),
+        ),
+      );
+
+  Widget _toggleItem(IconData ic, String title, String sub, bool val, ValueChanged<bool>? onChanged) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(children: [
+          SizedBox(width: 30, child: Icon(ic, size: 23, color: onChanged == null ? _faint : _purple)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: onChanged == null ? _faint : _ink)),
+              if (sub.isNotEmpty) Text(sub, style: const TextStyle(fontSize: 13, color: _muted)),
+            ]),
+          ),
+          Switch(value: val, onChanged: onChanged, activeTrackColor: _purple, activeThumbColor: Colors.white),
+        ]),
+      );
+
+  Widget _valueItem(String badge, String title, String sub, VoidCallback onTap) => InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(children: [
+            SizedBox(width: 30, child: Text(badge, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _purple))),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink)),
+                Text(sub, style: const TextStyle(fontSize: 13, color: _muted)),
+              ]),
+            ),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
+          ]),
+        ),
+      );
+
+  Widget _iconValueItem(IconData ic, String title, String sub, VoidCallback onTap) => InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(children: [
+            SizedBox(width: 30, child: Icon(ic, size: 23, color: _purple)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink)),
+                Text(sub, style: const TextStyle(fontSize: 13, color: _muted)),
+              ]),
+            ),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
+          ]),
+        ),
+      );
+
+  // ── preference sheets ────────────────────────────────────────────────────────
+  void _pickCurrency() {
+    // Curated set matching Vaultie's EU rollout (EUR base, NOK for salary, USD)
+    const opts = [
+      ['Euras (EUR)', '€', 'Bazinė valiuta'],
+      ['Norvegijos krona (NOK)', 'kr', '1 EUR = 11,14 NOK'],
+      ['JAV doleris (USD)', '\$', '1 EUR = 1,14 USD'],
+    ];
+    _sheet('Numatytoji valiuta', [
+      for (final o in opts)
+        _radioRow(o[0], o[2], o[1], _currency == o[0], () => setState(() { _currency = o[0]; Navigator.pop(context); })),
+    ]);
+  }
+
+  void _pickCountry() {
+    const opts = ['Lietuva', 'Latvija', 'Estija', 'Norvegija'];
+    _sheet('Gyvenamoji šalis', [
+      for (final c in opts)
+        _radioRow(c, '', '', _country == c, () => setState(() { _country = c; Navigator.pop(context); })),
+    ]);
+  }
+
+  void _pickTheme() {
+    const opts = [
+      ['Sistemos numatytoji', Icons.brightness_auto_rounded],
+      ['Šviesi', Icons.light_mode_rounded],
+      ['Tamsi', Icons.dark_mode_rounded],
+    ];
+    _sheet('Tema', [
+      for (final o in opts)
+        InkWell(
+          onTap: () => setState(() { _theme = o[0] as String; Navigator.pop(context); }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            child: Row(children: [
+              Icon(o[1] as IconData, size: 23, color: _purple),
+              const SizedBox(width: 16),
+              Text(o[0] as String, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w600, color: _ink)),
+              const Spacer(),
+              if (_theme == o[0]) const Icon(Icons.check_rounded, size: 22, color: _purple),
+            ]),
+          ),
+        ),
+    ]);
+  }
+
+  void _pickFirstDay() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (_) => StatefulBuilder(builder: (ctx, setSheet) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              GestureDetector(onTap: () => Navigator.pop(ctx), child: const Icon(Icons.close_rounded, color: _ink)),
+              const SizedBox(width: 14),
+              const Text('Mėnesio pirma diena', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(padding: const EdgeInsets.all(8), decoration: const BoxDecoration(color: _purpleSoft, shape: BoxShape.circle), child: const Icon(Icons.check_rounded, size: 20, color: _purple)),
+              ),
+            ]),
+            const SizedBox(height: 14),
+            const Text('Pasirink, kada prasideda tavo išlaidų ir pajamų sekimas — pvz. atlyginimo dieną.',
+                style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
+            const SizedBox(height: 18),
+            GridView.count(
+              crossAxisCount: 7,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 6,
+              children: [
+                for (var d = 1; d <= 31; d++)
+                  GestureDetector(
+                    onTap: () { setSheet(() {}); setState(() => _firstDay = d); },
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _firstDay == d ? _ink : Colors.transparent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text('$d', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _firstDay == d ? Colors.white : _ink)),
+                    ),
+                  ),
+              ],
+            ),
+          ]),
+        );
+      }),
+    );
+  }
+
+  void _subInfo() {
+    _sheet('Prenumeratos informacija', [
+      const Padding(
+        padding: EdgeInsets.fromLTRB(18, 4, 18, 4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Būsena: Bandomasis laikotarpis', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
+          SizedBox(height: 10),
+          Text('Vaultie — prenumerata pagrįstas produktas. Mūsų nefinansuoja reklama ir mes neparduodame duomenų — mus finansuoji tu. Tavo mokestis išlaiko Vaultie be reklamų, privatų ir nuolat tobulėjantį. 💜',
+              style: TextStyle(fontSize: 14.5, color: _muted, height: 1.5)),
+        ]),
+      ),
+      const SizedBox(height: 14),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: DS.hairline)),
+          child: const Text('Susisiekti su pagalba', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _purple)),
+        ),
+      ),
+    ]);
+  }
+
+  Widget _radioRow(String title, String sub, String trailing, bool sel, VoidCallback onTap) => InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: TextStyle(fontSize: 16.5, fontWeight: sel ? FontWeight.w800 : FontWeight.w600, color: _ink)),
+                if (sub.isNotEmpty) Text(sub, style: const TextStyle(fontSize: 12.5, color: _muted)),
+              ]),
+            ),
+            if (trailing.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 10), child: Text(trailing, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _muted))),
+            if (sel) const Icon(Icons.check_rounded, size: 22, color: _purple),
+          ]),
+        ),
+      );
+
+  void _sheet(String title, List<Widget> children) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).padding.bottom + 12),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const SizedBox(height: 12),
+          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(3)))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+            child: Row(children: [
+              Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+              const Spacer(),
+              GestureDetector(onTap: () => Navigator.pop(ctx), child: const Icon(Icons.close_rounded, color: _faint)),
+            ]),
+          ),
+          ...children,
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
 }
