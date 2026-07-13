@@ -368,6 +368,9 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
         "subs": subs,
         "spark": [round(x) for x in recent],
         "balance": balance,
+        # Canonical headline figures — the single source of truth every screen
+        # reads so the same concept shows the same number everywhere.
+        "totals": _totals(all_rows),
         "budgets": {"Maisto prekės": 390.0, "Kavinės, restoranai": 150.0,
                     "Kuras": 220.0, "Alkoholis, tabakas": 120.0},
         "meta": {"count": len(txns),
@@ -476,6 +479,77 @@ def _subs(txns):
             items.append([c.get("name", "—"), round(float(c["cost"]), 2)])
     items.sort(key=lambda x: -x[1])
     return {"items": items, "total": round(sum(a for _, a in items), 2)}
+
+
+def _flow(r):
+    """Canonical money bucket for a classified row: expense / refund / income /
+    transfer.
+
+    Direction is the authoritative signal for income vs expense — a stray
+    incoming credit the classifier couldn't name (e.g. a one-off payment, or
+    salary before the ≥3-month rule kicks in) is money IN, so it must count as
+    income, never as a negative expense. Only the money-movement flows
+    (transfers) and refunds are special-cased first."""
+    if r["sec"] == "Pervedimai":
+        return "transfer"       # own-account / P2P / exchange / cash / top-up
+    if r["cat"] == "Grąžinimas":
+        return "refund"         # money back — reduces spend, is NOT income
+    return "income" if r["a"] > 0 else "expense"
+
+
+def _totals(all_rows):
+    """THE single source of truth for headline money figures.
+
+    Every screen must read these instead of re-summing `all` with its own rule,
+    so the same concept shows the same number everywhere (no "250 here / 230
+    there"). EUR only for now — multi-currency FX is a separate step.
+
+    Rules:
+      * expense  = genuine spending outflow; a REFUND nets it down
+      * income   = genuine incoming (salary / real credits); NOT refunds
+      * transfer = own-account / P2P / exchange / cash / top-up — EXCLUDED from
+                   both income and expenses (moving money ≠ earning/spending)
+      * net      = income − expenses
+    ``byCategory`` and ``bySection`` sum EXACTLY to ``expenses`` (refunds sit in
+    a dedicated "Grąžinimai" bucket). Returned per month ('YYYY-MM') + 'all'.
+    """
+    def _blank():
+        return {"expenses": 0.0, "income": 0.0,
+                "cats": defaultdict(float), "secs": defaultdict(float)}
+
+    periods = defaultdict(_blank)
+    agg = _blank()
+
+    def _add(b, flow, r):
+        a = r["a"]
+        if flow in ("expense", "refund"):
+            spend = -a  # debit a<0 → +spend; refund credit a>0 → −spend (nets down)
+            b["expenses"] += spend
+            b["cats"][r["cat"]] += spend
+            b["secs"]["Grąžinimai" if flow == "refund" else r["sec"]] += spend
+        elif flow == "income":
+            b["income"] += a
+
+    for r in all_rows:
+        flow = _flow(r)
+        _add(agg, flow, r)
+        _add(periods[r["d"][:7]], flow, r)
+
+    def _finalize(b):
+        exp = round(b["expenses"], 2)
+        inc = round(b["income"], 2)
+        return {
+            "expenses": exp,
+            "income": inc,
+            "net": round(inc - exp, 2),
+            "byCategory": sorted(([c, round(v, 2)] for c, v in b["cats"].items()),
+                                 key=lambda x: -x[1]),
+            "bySection": sorted(([s, round(v, 2)] for s, v in b["secs"].items()),
+                                key=lambda x: -x[1]),
+        }
+
+    return {"all": _finalize(agg),
+            "months": {mk: _finalize(b) for mk, b in periods.items()}}
 
 
 def _balance_block(all_rows, accounts):
