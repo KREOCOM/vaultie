@@ -430,6 +430,10 @@ class _DashboardPreviewState extends State<DashboardPreview> {
                     children: [
                       Text('${_eur(total)} / mėn',
                           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+                      const SizedBox(height: 2),
+                      Text('= ${_eur(total * 12)} per metus',
+                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
+                      const SizedBox(height: 3),
                       Text('${items.length} pasikartojantys mokėjimai · sąskaitos',
                           style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
                     ],
@@ -3849,6 +3853,10 @@ class _PlanningTabState extends State<_PlanningTab> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${_eur(total)} / mėn', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+              const SizedBox(height: 2),
+              Text('= ${_eur(total * 12)} per metus',
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
+              const SizedBox(height: 3),
               Text('${items.length} pasikartojantys mokėjimai — aptikti automatiškai',
                   style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
             ]),
