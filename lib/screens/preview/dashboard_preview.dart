@@ -145,6 +145,29 @@ Color _colOf(String? k) => _catColors[k] ?? const Color(0xFF6E6E86);
 IconData _iconOf(String? k) => _catIcons[k] ?? Icons.swap_horiz_rounded;
 String _eur(num v, {bool signed = false}) => Money.format(v.toDouble(), signed: signed);
 
+// ── Canonical money rule — the ONE definition every screen uses so the same
+// concept shows the same number everywhere (mirrors functions/dashboard.py
+// _flow/_totals). Direction decides income vs expense; transfers/exchange are
+// excluded from both; a refund nets spending down. NEVER raw-sum amounts for a
+// displayed "net" — that double-counts transfers between the user's own accounts.
+String _flowOf(Map t) {
+  if (t['sec'] == 'Pervedimai') return 'transfer';
+  if (t['cat'] == 'Grąžinimas') return 'refund';
+  return (t['a'] as num) > 0 ? 'income' : 'expense';
+}
+
+// A transaction's contribution to "spent": an outflow counts, a refund nets down.
+double _spendOf(Map t) {
+  final f = _flowOf(t);
+  return (f == 'expense' || f == 'refund') ? -(t['a'] as num).toDouble() : 0.0;
+}
+
+double _sumExpenses(Iterable rows) =>
+    rows.fold(0.0, (s, t) => s + _spendOf(t as Map));
+
+double _sumIncome(Iterable rows) => rows.fold(0.0,
+    (s, t) => s + (_flowOf(t as Map) == 'income' ? (t['a'] as num).toDouble() : 0.0));
+
 String _shortNm(String n) {
   // collapse an exactly-doubled name ("VMI prie LR FM VMI prie LR FM" → "VMI prie LR FM")
   final w = n.trim().split(RegExp(r'\s+'));
@@ -295,47 +318,33 @@ class _DashboardPreviewState extends State<DashboardPreview> {
     );
   }
 
-  double _monthNet(String mk) =>
-      (_d['all'] as List).where((t) => (t['d'] as String).startsWith(mk)).fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
-
   int _monthCount(String mk) => (_d['all'] as List).where((t) => (t['d'] as String).startsWith(mk)).length;
 
-  // ── Canonical money figures — the SINGLE source of truth so the same concept
-  // shows the same number everywhere (no "250 here / 230 there"). Prefer the
-  // backend `totals` block; fall back to computing from `all` with the identical
-  // rule (see functions/dashboard.py _flow/_totals) when it isn't present yet.
+  // ── Canonical month figures — the SINGLE source of truth so the same concept
+  // shows the same number everywhere. Prefer the backend `totals` block; fall
+  // back to the shared top-level _flowOf/_spendOf rule.
   Map<String, dynamic>? get _totalsBlock => _d['totals'] as Map<String, dynamic>?;
-
-  String _flowOf(Map t) {
-    if (t['sec'] == 'Pervedimai') return 'transfer'; // moving money, not spend
-    if (t['cat'] == 'Grąžinimas') return 'refund';   // money back — nets spend down
-    return (t['a'] as num) > 0 ? 'income' : 'expense';
-  }
-
-  // A transaction's contribution to "spent": outflow counts, a refund nets down.
-  double _spendOf(Map t) {
-    final f = _flowOf(t);
-    return (f == 'expense' || f == 'refund') ? -(t['a'] as num).toDouble() : 0.0;
-  }
 
   Map<String, dynamic>? _monthTotals(String mk) =>
       (_totalsBlock?['months'] as Map?)?[mk] as Map<String, dynamic>?;
 
+  Iterable<Map<String, dynamic>> _rowsForMonth(String mk) => (_d['all'] as List)
+      .cast<Map<String, dynamic>>()
+      .where((t) => (t['d'] as String).startsWith(mk));
+
   double _monthExpenses(String mk) {
     final m = _monthTotals(mk);
-    if (m != null) return (m['expenses'] as num).toDouble();
-    return (_d['all'] as List)
-        .where((t) => (t['d'] as String).startsWith(mk))
-        .fold(0.0, (s, t) => s + _spendOf(t as Map));
+    return m != null ? (m['expenses'] as num).toDouble() : _sumExpenses(_rowsForMonth(mk));
   }
 
   double _monthIncome(String mk) {
     final m = _monthTotals(mk);
-    if (m != null) return (m['income'] as num).toDouble();
-    return (_d['all'] as List)
-        .where((t) => (t['d'] as String).startsWith(mk) && _flowOf(t as Map) == 'income')
-        .fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
+    return m != null ? (m['income'] as num).toDouble() : _sumIncome(_rowsForMonth(mk));
   }
+
+  // Canonical month net = income − expenses (NOT a raw sum of amounts, which
+  // double-counts transfers between the user's own accounts).
+  double _monthNet(String mk) => _monthIncome(mk) - _monthExpenses(mk);
 
   Widget _monthHeaderFor(String mk) => _monthHeader(
       _monNom[int.parse(mk.substring(5, 7)) - 1],
@@ -911,7 +920,6 @@ class _DashboardPreviewState extends State<DashboardPreview> {
         month: mk,
         monthNom: _monNom[m - 1],
         monthGen: _monGen[m - 1],
-        net: _monthNet(mk),
       ),
     ));
   }
@@ -2070,12 +2078,11 @@ class _SecAgg {
 }
 
 class _MonthReviewScreen extends StatefulWidget {
-  const _MonthReviewScreen({required this.all, required this.balance, required this.budgets, required this.month, required this.monthNom, required this.monthGen, required this.net});
+  const _MonthReviewScreen({required this.all, required this.balance, required this.budgets, required this.month, required this.monthNom, required this.monthGen});
   final List<Map<String, dynamic>> all;
   final Map<String, dynamic> balance;
   final Map<String, dynamic> budgets;
   final String month, monthNom, monthGen;
-  final double net;
   @override
   State<_MonthReviewScreen> createState() => _MonthReviewScreenState();
 }
@@ -2109,10 +2116,12 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   Widget build(BuildContext context) {
     final secs = _sections();
     final expenseSecs = secs.where((s) => !_isIncome(s.label) && !_isTransfer(s.label) && s.net < 0).toList();
-    final spent = expenseSecs.fold(0.0, (t, s) => t - s.net);
-    final earned = secs.where((s) => _isIncome(s.label)).fold(0.0, (t, s) => t + (s.net > 0 ? s.net : 0));
-    // savings = share of income kept (income = classified salary/refunds, not internal
-    // top-ups/transfers, which would distort the rate).
+    // Headline figures use the canonical rule (transfers excluded, refunds net
+    // spending down) so grynasis == earned − spent and matches the dashboard +
+    // review card exactly — never the raw sum-of-amounts that inflated it before.
+    final spent = _sumExpenses(_rows);
+    final earned = _sumIncome(_rows);
+    final net = earned - spent;
     final savings = earned > 0 ? ((earned - spent) / earned * 100).round().clamp(0, 100) : 0;
 
     return Scaffold(
@@ -2127,10 +2136,10 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 const SizedBox(height: 14),
                 _filters(),
                 _donuts(spent, earned, expenseSecs),
-                _totalCard(),
-                _statsRow(spent, earned, savings),
+                _totalCard(net),
+                _statsRow(spent, earned, savings, net),
                 _currencyNote(),
-                _aiReport(spent, earned, expenseSecs),
+                _aiReport(spent, earned, expenseSecs, net),
                 _balanceChart(),
                 _calendar(),
                 _savingsClub(savings),
@@ -2211,7 +2220,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     );
   }
 
-  Widget _totalCard() {
+  Widget _totalCard(double net) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
@@ -2219,12 +2228,12 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       child: Row(children: [
         Text('${widget.monthGen} suma', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
         const Spacer(),
-        Text(_eur(widget.net, signed: true), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: widget.net >= 0 ? _good : _ink)),
+        Text(_eur(net, signed: true), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: net >= 0 ? _good : _ink)),
       ]),
     );
   }
 
-  Widget _statsRow(double spent, double earned, int savings) {
+  Widget _statsRow(double spent, double earned, int savings, double net) {
     Widget stat(String v, String l) => Expanded(
           child: Column(children: [
             Text(v, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
@@ -2242,7 +2251,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
         div(),
         stat('${earned.round()} €', 'uždirbta'),
         div(),
-        stat('${widget.net >= 0 ? '+' : '−'}${widget.net.abs().round()} €', 'grynasis'),
+        stat('${net >= 0 ? '+' : '−'}${net.abs().round()} €', 'grynasis'),
         div(),
         stat('$savings %', 'santaupų'),
       ]),
@@ -2269,10 +2278,10 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     );
   }
 
-  Widget _aiReport(double spent, double earned, List<_SecAgg> expenseSecs) {
+  Widget _aiReport(double spent, double earned, List<_SecAgg> expenseSecs, double net) {
     final savings = earned > 0 ? ((earned - spent) / earned * 100).round().clamp(0, 100) : 0;
     final top = expenseSecs.isNotEmpty ? expenseSecs.first : null;
-    final body = '${widget.monthGen} mėnesį uždirbai ${earned.round()} €, o išleidai ${spent.round()} €. Grynasis rezultatas ${_eur(widget.net, signed: true)}. '
+    final body = '${widget.monthGen} mėnesį uždirbai ${earned.round()} €, o išleidai ${spent.round()} €. Grynasis rezultatas ${_eur(net, signed: true)}. '
         '${top != null ? 'Daugiausia išleidai kategorijoje „${top.label.split(',').first}" (${(-top.net).round()} €). ' : ''}'
         'Santaupų norma šį mėnesį — $savings %.';
     return Container(
@@ -2562,7 +2571,12 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_purpleDeep, _purple]),
           ),
           child: Text(
-            under >= 0 ? 'Puiku! Išleidai ${under.round()} € mažiau nei suplanuota.' : 'Viršijai biudžetą ${(-under).round()} €.',
+            // Honest scope: these are example limits covering only a few
+            // categories, so never claim overall savings — state what was spent
+            // in the tracked categories out of their (placeholder) limit.
+            under >= 0
+                ? 'Sekamose kategorijose išleidai ${totalSpent.round()} € iš ${totalBudget.round()} €.'
+                : 'Viršijai sekamų kategorijų limitą ${(-under).round()} €.',
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white, height: 1.3),
           ),
         ),
@@ -3008,12 +3022,12 @@ class _OverviewTabState extends State<_OverviewTab> {
     return m.values.toList()..sort((x, y) => y.net.abs().compareTo(x.net.abs()));
   }
 
-  double _spentOf(List<Map<String, dynamic>> rows) => _sections(rows)
-      .where((s) => !_isIncome(s.label) && !_isTransfer(s.label) && s.net < 0)
-      .fold(0.0, (t, s) => t - s.net);
-  double _earnedOf(List<Map<String, dynamic>> rows) =>
-      rows.where((t) => t['sec'] == 'Pajamos' && (t['a'] as num) > 0).fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
-  double _netOf(List<Map<String, dynamic>> rows) => rows.fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
+  // Canonical rule (shared with the dashboard + review) so every Overview figure
+  // matches: transfers/exchange excluded, refunds net spending down, and net =
+  // income − expenses (never the raw sum that double-counts transfers).
+  double _spentOf(List<Map<String, dynamic>> rows) => _sumExpenses(rows);
+  double _earnedOf(List<Map<String, dynamic>> rows) => _sumIncome(rows);
+  double _netOf(List<Map<String, dynamic>> rows) => _sumIncome(rows) - _sumExpenses(rows);
   // savings rate = share of income you didn't spend. Uses classified income
   // (salary incl. currency-converted salary + refunds), NOT all inflows —
   // account top-ups / transfers between your own accounts are not income and
