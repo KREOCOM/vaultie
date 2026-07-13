@@ -32,6 +32,9 @@ Color _ink = const Color(0xFF16161A);
 Color _navOff = const Color(0xFF9A9AA2);
 Color _card = const Color(0xFFFFFFFF); // card / surface background
 Color _hair = const Color(0xFFE8ECE7); // hairline / dividers
+Color _soft = _soft; // recessed surface (input / inner boxes)
+Color _warnBg = _warnBg; // amber notice card bg
+Color _warnLine = _warnLine; // amber notice card border
 
 void _applyTheme(bool dark) {
   _darkMode = dark;
@@ -43,6 +46,9 @@ void _applyTheme(bool dark) {
   _navOff     = dark ? const Color(0xFF585A66) : const Color(0xFF9A9AA2);
   _card       = dark ? const Color(0xFF1A1B23) : const Color(0xFFFFFFFF);
   _hair       = dark ? const Color(0xFF282A36) : const Color(0xFFE8ECE7);
+  _soft       = dark ? const Color(0xFF14151C) : _soft;
+  _warnBg     = dark ? const Color(0xFF2A2410) : _warnBg;
+  _warnLine   = dark ? const Color(0xFF3C3520) : _warnLine;
   _themeVN.value = dark;
 }
 
@@ -422,7 +428,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
           Container(
             width: 34,
             height: 34,
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0xFFE4DAFB), width: 2)),
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _purpleSoft, width: 2)),
             child: const Icon(Icons.check_rounded, size: 18, color: _purple),
           ),
           const SizedBox(width: 12),
@@ -530,7 +536,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
           decoration: BoxDecoration(
             color: _bg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE3E3E8)),
+            border: Border.all(color: _hair),
           ),
           child: LayoutBuilder(
             builder: (context, c) {
@@ -622,7 +628,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
         decoration: BoxDecoration(
           color: _card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFECECEF)),
+          border: Border.all(color: _hair),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 14, offset: const Offset(0, 5))],
         ),
         child: Column(
@@ -660,9 +666,9 @@ class _DashboardPreviewState extends State<DashboardPreview> {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF7E4),
+        color: _warnBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF6E4B8)),
+        border: Border.all(color: _warnLine),
       ),
       child: Row(
         children: [
@@ -1030,7 +1036,7 @@ class _Chip extends StatelessWidget {
       decoration: BoxDecoration(
         color: _card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFECECEF)),
+        border: Border.all(color: _hair),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 15, color: _purple),
@@ -1228,7 +1234,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
             child: Container(
               padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(color: const Color(0xFFF4F2FA), borderRadius: BorderRadius.circular(14)),
+              decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(14)),
               child: Row(
                 children: [
                   for (final r in _ranges)
@@ -1263,7 +1269,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
               margin: const EdgeInsets.fromLTRB(20, 4, 20, 4),
               padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: const Color(0xFFF4F2FA),
+                color: _soft,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -1308,7 +1314,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
       decoration: BoxDecoration(
         color: _card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFECECEF)),
+        border: Border.all(color: _hair),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Column(
@@ -1333,8 +1339,8 @@ class _BalanceSheetState extends State<_BalanceSheet> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isCash ? _purpleSoft : Colors.white,
-              border: Border.all(color: const Color(0xFFE8E8EE)),
+              color: isCash ? _purpleSoft : _card,
+              border: Border.all(color: _hair),
             ),
             child: isCash
                 ? const Icon(Icons.payments_outlined, size: 20, color: _purple)
@@ -1765,7 +1771,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
             child: Row(children: [
               Container(
                 width: 38, height: 38, alignment: Alignment.center,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, border: Border.all(color: const Color(0xFFE8E8EE))),
+                decoration: BoxDecoration(shape: BoxShape.circle, color: _card, border: Border.all(color: _hair)),
                 child: Text('R', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
               ),
               const SizedBox(width: 12),
@@ -2170,7 +2176,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(color: const Color(0xFFF4F2FA), borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(14)),
       child: Row(children: [
         const Icon(Icons.currency_exchange_rounded, size: 18, color: _purple),
         const SizedBox(width: 10),
@@ -3840,7 +3846,7 @@ class _PlanningTabState extends State<_PlanningTab> {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(color: const Color(0xFFF6F6F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
+            decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
             child: Row(children: [
               Expanded(child: TextField(controller: ctl, keyboardType: TextInputType.number, autofocus: true,
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink),
@@ -4034,7 +4040,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                       decoration: BoxDecoration(
-                        color: _sec == s ? _purpleSoft : Colors.white,
+                        color: _sec == s ? _purpleSoft : _card,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: _sec == s ? _purple : _hair, width: _sec == s ? 1.5 : 1),
                       ),
@@ -4061,7 +4067,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(color: const Color(0xFFF6F6F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
+                  decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
                   child: Row(children: [
                     Expanded(
                       child: TextField(
@@ -4277,7 +4283,7 @@ class _AccountTabState extends State<_AccountTab> {
         padding: const EdgeInsets.fromLTRB(18, 18, 14, 18),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFF3EEFE), Color(0xFFFBF9FF)]),
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_purpleSoft, _card]),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -4360,7 +4366,7 @@ class _AccountTabState extends State<_AccountTab> {
           ),
           child: Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: const Color(0xFFF6F5FA), borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
+            decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
