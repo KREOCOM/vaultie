@@ -82,6 +82,21 @@ NAME_OVERRIDES = [
      ("Kelionės", "entertainment", "fun", "Pramogos", "cyan")),
     (("paysera",),  # payment gateway — too ambiguous to categorise as a merchant
      ("Kita", "other", "swap", "Kita", "indigo")),
+    # Global digital services / subscriptions — pinned so the same merchant always
+    # lands in the same category (the generic resolver is not deterministic here).
+    (("apple.com", "itunes", "anthropic", "openai", "chatgpt", "dribbble", "figma",
+      "github", "adobe", "notion", "midjourney", "canva", "dropbox", "slack",
+      "zoom.us", "patreon", "google *", "google play", "youtubepremium", "google storage"),
+     ("Prenumeratos", "entertainment", "monitor", "Pramogos", "cyan")),
+    (("netflix", "spotify", "hbo", "max help", "disney", "viaplay", "go3", "twitch",
+      "steam", "playstation", "xbox", "nintendo"),
+     ("Pramogos", "entertainment", "fun", "Pramogos", "cyan")),
+    # Common LT grocery / fuel that the KB may miss under odd surface names
+    (("maxima", "rimi", "lidl", "iki ", "norfa", "aibė", "aibe", "coop", "rema 1000", "lidl eesti"),
+     ("Maisto prekės", "food", "cart", "Maistas, gėrimai", "green")),
+    (("circle k", "viada", "neste", "orlen", "st1", "yx ", "uno-x", "okq8", "esso",
+      "7-eleven", "shell", "lukoil", "emsi", "baltic petroleum", "bensinautomat"),
+     ("Kuras", "fuel", "fuel", "Transportas", "blue")),
 ]
 
 _FINANCE_HINTS = ["mogo", "general financing", "sb lizing", "swedbank lizing",
