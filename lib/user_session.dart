@@ -53,6 +53,7 @@ Future<void> _wipeLocalData() async {
   await Hive.box<Subscription>(HiveBoxes.subscriptions).clear();
   await _clearBox(HiveBoxes.cancellations);
   await _clearBox(HiveBoxes.monthlyStats);
+  await _clearBox(HiveBoxes.dashboard);
   final settings = Hive.box(HiveBoxes.settings);
   // Clear per-user state; keep device-level prefs (onboarded, language, currency).
   await settings.delete('premium');

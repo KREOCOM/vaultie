@@ -48,6 +48,10 @@ class HiveBoxes {
 
   /// Per-month spend snapshots for the Monthly Recap.
   static const String monthlyStats = 'monthlyStats';
+
+  /// The last bank-scan dashboard payload, so the app opens straight into the
+  /// dashboard instead of forcing a re-connect (see DashboardStore).
+  static const String dashboard = 'dashboard';
 }
 
 Future<void> main() async {
@@ -68,6 +72,7 @@ Future<void> main() async {
   final settings = await Hive.openBox(HiveBoxes.settings);
   await Hive.openBox(HiveBoxes.cancellations);
   await Hive.openBox(HiveBoxes.monthlyStats);
+  await Hive.openBox(HiveBoxes.dashboard);
   // Load persisted language/currency preferences into their notifiers.
   AppPrefs.load();
 

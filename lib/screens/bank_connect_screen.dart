@@ -6,6 +6,7 @@ import '../app_prefs.dart';
 import '../content_theme.dart';
 import '../main.dart';
 import '../services/banking_service.dart';
+import '../services/dashboard_store.dart';
 import 'bank_import_screen.dart';
 import 'preview/dashboard_preview.dart';
 
@@ -140,6 +141,12 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       setState(() => _phase = _Phase.analysing);
       final scan = await BankingService.instance
           .finishBankAuth(code, aiEnrichment: AppPrefs.aiEnrichment);
+      if (!mounted) return;
+      // Persist the dashboard payload so the app opens straight into it next
+      // launch (no re-connect) — and so a refresh overwrites the old data.
+      if (scan.dash != null) {
+        await DashboardStore.save(scan.dash!, bank: bank.name);
+      }
       if (!mounted) return;
       // Land straight in the new dashboard with the classified transactions.
       // Fall back to the legacy import screen only if the backend couldn't

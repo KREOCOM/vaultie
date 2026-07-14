@@ -2,18 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../app_prefs.dart';
 import '../main.dart';
+import '../services/dashboard_store.dart';
 import 'bank_info_screen.dart';
+import 'preview/dashboard_preview.dart';
 
 /// Green accent for onboarding CTAs, matching the paywall/splash.
 const Color _brightGreen = Color(0xFF4CAF72);
 const Color _gold = Color(0xFFFFD24A);
 
 /// Where a user lands after signing in: the one-time "How would you like to
-/// start?" choice on first run, otherwise the bank flow. (The green
-/// DashboardScreen is temporarily hidden — kept in code, final home TBD.)
-Widget landingAfterAuth() => AppPrefs.onboardingComplete
-    ? const BankInfoScreen()
-    : const OnboardingChoiceScreen();
+/// start?" choice on first run; otherwise the saved dashboard (persisted from
+/// the last bank scan) if there is one, else the bank flow to connect.
+Widget landingAfterAuth() {
+  if (!AppPrefs.onboardingComplete) return const OnboardingChoiceScreen();
+  final saved = DashboardStore.load();
+  return saved != null ? DashboardPreview(data: saved) : const BankInfoScreen();
+}
 
 /// First-run screen shown right after login: connect a bank (recommended) or
 /// start manually. Shown once — either choice marks onboarding complete.
