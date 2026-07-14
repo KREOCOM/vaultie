@@ -228,12 +228,13 @@ class BankingService {
   /// candidates plus frequent-spending merchants (never recurring, feed-only).
   Future<BankScanResult> finishBankAuth(String code, {bool aiEnrichment = false}) {
     return _call('finish_bank_auth',
-        {'code': code, 'debug': kDebugMode, 'aiEnrichment': aiEnrichment,
-         // 12-month window for salary + annual-subscription detection. Sent from
-         // the client (not the backend default of 6) so we don't have to
-         // `firebase deploy` — which would reset the Cloud Run timeout back to
-         // 60s (its discovery doesn't apply the decorator's timeout_sec).
-         'monthsBack': 12}, (m) {
+        // AI enrichment OFF: it depends on ANTHROPIC_API_KEY, which firebase's
+        // discovery keeps dropping from the deployed secrets, so accessing it is
+        // fragile. It's meant to be opt-in/off before launch anyway, and the KB
+        // classifies the vast majority without it. 6-month window (fits the 60s
+        // timeout firebase resets the function to).
+        {'code': code, 'debug': kDebugMode, 'aiEnrichment': false,
+         'monthsBack': 6}, (m) {
       final cands = (m['candidates'] as List?) ?? const [];
       final freq = (m['frequent'] as List?) ?? const [];
       if (kDebugMode) {
