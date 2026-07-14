@@ -187,10 +187,16 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
             message="code is required.",
         )
-    # Fetch up to 12 months, newest window first (see EnableBankingClient.
-    # transactions): recent data is always retrieved even on oldest-first banks,
-    # while the deeper history feeds salary + annual-subscription detection.
-    months_back = int(data.get("monthsBack", 12))
+    # Fetch newest window first (see EnableBankingClient.transactions): recent
+    # data is always retrieved even on oldest-first banks, and the deeper history
+    # feeds salary + subscription detection.
+    #
+    # TEMP: 6 months (not 12). The function is stuck at the 60s default timeout —
+    # firebase-tools' Python discovery isn't applying the decorator's timeout_sec/
+    # memory, so a cold-start 12-month scan (~51 pages + classification) exceeds
+    # 60s → DEADLINE_EXCEEDED. 6 months fits. Restore 12 once the timeout is
+    # raised to 300s in the Cloud Console (Cloud Run → finish-bank-auth → Edit).
+    months_back = int(data.get("monthsBack", 6))
 
     client = _client()
     # Creating the session is the one hard prerequisite — if it fails there is
