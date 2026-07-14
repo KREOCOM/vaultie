@@ -182,6 +182,74 @@ double _sumExpenses(Iterable rows) =>
 double _sumIncome(Iterable rows) => rows.fold(0.0,
     (s, t) => s + (_flowOf(t as Map) == 'income' ? (t['a'] as num).toDouble() : 0.0));
 
+// "Gauta" — money that actually LANDED in the account from outside: genuine
+// income plus incoming transfers (P2P from people, top-ups). This is a
+// DISPLAY-ONLY figure layered on top of the canonical rule; it must NEVER feed
+// net / savings / budgets (those stay on _sumIncome). Refunds are excluded —
+// they already net down "Išleista", so counting them here would double-represent
+// the same money. Only positive legs count, so an outgoing transfer never
+// reduces it. ⚠️ Single-bank-safe only: once multi-bank lands, own-account
+// inbound transfers (SEB→Revolut) must be neutralised first (see M5) or this
+// over-counts the user's own money moving between accounts.
+double _receivedOf(Map t) {
+  final f = _flowOf(t);
+  final a = (t['a'] as num).toDouble();
+  return (a > 0 && (f == 'income' || f == 'transfer')) ? a : 0.0;
+}
+
+double _sumReceived(Iterable rows) =>
+    rows.fold(0.0, (s, t) => s + _receivedOf(t as Map));
+
+// Breakdown sheet for "Gauta": recognised income vs everything else that came in
+// (personal transfers, top-ups). Keeps the honest message that not every inflow
+// is "earned" income. Shared by both Overview screens.
+void _showReceivedBreakdown(BuildContext context, double income, double other) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: _card,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+    builder: (_) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 18, 22, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Text('Gauta', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+              const Spacer(),
+              Text('${(income + other).round()} €', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+            ]),
+            const SizedBox(height: 4),
+            Text('Visi pinigai, kurie įkrito į tavo sąskaitą.', style: TextStyle(fontSize: 13.5, color: _muted)),
+            const SizedBox(height: 16),
+            _breakdownRow(_secColor['amber']!, 'Atpažintos pajamos', 'atlyginimas, reguliarios įplaukos', income),
+            const SizedBox(height: 12),
+            _breakdownRow(_secColor['indigo']!, 'Kiti pervedimai / įplaukos', 'pavedimai iš žmonių, papildymai', other),
+            const SizedBox(height: 16),
+            Text('Į santaupų normą įskaičiuojamos tik atpažintos pajamos — pervedimai iš kitų nelaikomi uždarbiu.',
+                style: TextStyle(fontSize: 12.5, color: _faint, height: 1.35)),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _breakdownRow(Color color, String title, String sub, double amount) {
+  return Row(children: [
+    Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+    const SizedBox(width: 12),
+    Expanded(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+        Text(sub, style: TextStyle(fontSize: 12.5, color: _muted)),
+      ]),
+    ),
+    Text('${amount.round()} €', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+  ]);
+}
+
 // Lowercase + strip Lithuanian diacritics so search matches "ivairus" ↔ "įvairūs".
 String _fold(String s) {
   const m = {'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's', 'ų': 'u', 'ū': 'u', 'ž': 'z'};
@@ -219,6 +287,35 @@ List<String> _ptype(Map t) {
     return ['Dažnas pirkimas', '${t['count']}× tą pačią dieną'];
   }
   return ['Vienkartinis', ''];
+}
+
+// Account avatar built from the backend `icon` field (main.py: 'R' for Revolut,
+// 'bank' otherwise, 'cash' for cash) — NEVER a hardcoded bank. 'cash' → wallet
+// glyph, 'R' or a revolut-named account → the Revolut letter, otherwise the
+// first letter of the account name (SEB → "S"). The connected bank varies per
+// user, so every account row must read this, not assume Revolut.
+Widget _acctGlyph(Map a, {double diameter = 40, double fontSize = 18}) {
+  final icon = ((a['icon'] as String?) ?? '').trim();
+  final name = ((a['name'] as String?) ?? '').trim();
+  final isCash = icon == 'cash';
+  Widget child;
+  if (isCash) {
+    child = Icon(Icons.payments_outlined, size: diameter * 0.5, color: _purple);
+  } else if (icon == 'R' || name.toLowerCase().contains('revolut')) {
+    child = Text('R', style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: _ink));
+  } else {
+    final letter = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '•';
+    child = Text(letter, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: _ink));
+  }
+  return Container(
+    width: diameter, height: diameter, alignment: Alignment.center,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: isCash ? _purpleSoft : _card,
+      border: Border.all(color: _hair, width: 1.5),
+    ),
+    child: child,
+  );
 }
 
 class DashboardPreview extends StatefulWidget {
@@ -1077,6 +1174,8 @@ class _DashboardPreviewState extends State<DashboardPreview> {
         day: dd,
         all: (_d['all'] as List).cast<Map<String, dynamic>>(),
         budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
+        accounts: (((_d['balance'] as Map?)?['accounts'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>(),
       ),
     ));
   }
@@ -2295,24 +2394,11 @@ class _BalanceSheetState extends State<_BalanceSheet> {
   }
 
   Widget _accountRow(Map<String, dynamic> a) {
-    final isCash = a['icon'] == 'cash';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isCash ? _purpleSoft : _card,
-              border: Border.all(color: _hair),
-            ),
-            child: isCash
-                ? const Icon(Icons.payments_outlined, size: 20, color: _purple)
-                : Text('R', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)),
-          ),
+          _acctGlyph(a),
           const SizedBox(width: 12),
           Expanded(
             child: Text(a['name'] as String, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
@@ -2421,11 +2507,15 @@ class _AreaChartPainter extends CustomPainter {
 // TRANSACTION DETAIL — full screen
 // ══════════════════════════════════════════════════════════════════════════════
 class _TxDetailScreen extends StatefulWidget {
-  const _TxDetailScreen({required this.tx, required this.day, required this.all, required this.budgets, this.single = false});
+  const _TxDetailScreen({required this.tx, required this.day, required this.all, required this.budgets, this.accounts = const [], this.single = false});
   final Map<String, dynamic> tx;
   final Map<String, dynamic> day;
   final List<Map<String, dynamic>> all;
   final Map<String, dynamic> budgets;
+  // The connected account(s) so the detail can name the real bank instead of a
+  // hardcoded one. When there isn't exactly one account we can't map a tx to a
+  // specific account, so the card is hidden rather than guessing.
+  final List<Map<String, dynamic>> accounts;
   // Opened for ONE specific row (e.g. from search) → actions must not affect
   // the whole merchant+day group. From the feed a row represents the group.
   final bool single;
@@ -2882,6 +2972,13 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   }
 
   Widget _accountCard() {
+    // Only name an account when the scan has exactly one — otherwise we can't
+    // tell which account this transaction belongs to (rows carry no account id),
+    // so showing any single bank would be a guess. Hide it instead of lying.
+    if (widget.accounts.length != 1) return const SizedBox.shrink();
+    final a = widget.accounts.first;
+    final label = (a['name'] as String?)?.trim();
+    if (label == null || label.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       child: Column(
@@ -2889,16 +2986,12 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
         children: [
           Text('Sąskaita', style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          AppCard(color: _card, border: _hair, 
+          AppCard(color: _card, border: _hair,
             padding: const EdgeInsets.all(14),
             child: Row(children: [
-              Container(
-                width: 38, height: 38, alignment: Alignment.center,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: _card, border: Border.all(color: _hair)),
-                child: Text('R', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
-              ),
+              _acctGlyph(a, diameter: 38, fontSize: 17),
               const SizedBox(width: 12),
-              Text('Revolut EUR', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
+              Text(label, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
             ]),
           ),
         ],
@@ -3161,6 +3254,9 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     // review card exactly — never the raw sum-of-amounts that inflated it before.
     final spent = _sumExpenses(_rows);
     final earned = _sumIncome(_rows);
+    // "Gauta" = all money that landed from outside (income + incoming transfers).
+    // Display-only — net/savings below still use `earned` (canonical income).
+    final received = _sumReceived(_rows);
     final net = earned - spent;
     final savings = earned > 0 ? ((earned - spent) / earned * 100).round().clamp(0, 100) : 0;
     // Real saving streak (was hardcoded "2 mėn."), derived from all months.
@@ -3182,7 +3278,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
               children: [
                 const SizedBox(height: 14),
                 _filters(),
-                _donuts(spent, earned, expenseSecs),
+                _donuts(spent, earned, received, expenseSecs),
                 _totalCard(net),
                 _statsRow(spent, earned, savings, net),
                 _currencyNote(),
@@ -3234,13 +3330,25 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     );
   }
 
-  Widget _donuts(double spent, double earned, List<_SecAgg> expenseSecs) {
+  Widget _donuts(double spent, double earned, double received, List<_SecAgg> expenseSecs) {
+    // Right donut = "Gauta" (all inflows), split into recognised income (amber)
+    // and other inflows/transfers (indigo). Tappable → breakdown. Value/segments
+    // are display-only; the canonical income (`earned`) still drives net/savings.
+    final other = (received - earned).clamp(0.0, double.infinity);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Row(
         children: [
           Expanded(child: _donut(spent, [for (final s in expenseSecs) [-s.net, s.color]], '−', 'Išleista')),
-          Expanded(child: _donut(earned, [[earned, _secColor['amber']!]], '+', 'Uždirbta')),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _showReceivedBreakdown(context, earned, other),
+              child: _donut(
+                received,
+                [if (earned > 0) [earned, _secColor['amber']!], if (other > 0) [other, _secColor['indigo']!]],
+                '+', 'Gauta'),
+            ),
+          ),
         ],
       ),
     );
@@ -4177,6 +4285,9 @@ class _OverviewTabState extends State<_OverviewTab> {
     final expenseSecs = secs.where((s) => !_isIncome(s.label) && !_isTransfer(s.label) && s.net < 0).toList();
     final spent = _spentOf(rows);
     final earned = _earnedOf(rows);
+    // "Gauta" = all inflows (income + incoming transfers); display-only, does not
+    // touch net/savings which stay on canonical income (`earned`).
+    final received = _sumReceived(rows);
     final net = _netOf(rows);
     final savings = _savingsOf(rows);
     // No income that month → a savings rate is undefined, so show "—" not "0 %".
@@ -4192,7 +4303,7 @@ class _OverviewTabState extends State<_OverviewTab> {
         children: [
           _header(),
           _filters(),
-          _donuts(spent, earned, expenseSecs),
+          _donuts(spent, earned, received, expenseSecs),
           _totalCard(net),
           _savingsCard(savStr, prevStr, _savingStreak),
           _categoryList(secs),
@@ -4241,12 +4352,21 @@ class _OverviewTabState extends State<_OverviewTab> {
         ]),
       );
 
-  Widget _donuts(double spent, double earned, List<_SecAgg> exp) {
+  Widget _donuts(double spent, double earned, double received, List<_SecAgg> exp) {
+    final other = (received - earned).clamp(0.0, double.infinity);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Row(children: [
         Expanded(child: _donut(spent, [for (final s in exp) [-s.net, s.color]], '−', 'Išleista')),
-        Expanded(child: _donut(earned, earned > 0 ? [[earned, _secColor['amber']!]] : [], '+', 'Uždirbta')),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => _showReceivedBreakdown(context, earned, other),
+            child: _donut(
+              received,
+              [if (earned > 0) [earned, _secColor['amber']!], if (other > 0) [other, _secColor['indigo']!]],
+              '+', 'Gauta'),
+          ),
+        ),
       ]),
     );
   }
@@ -5671,12 +5791,7 @@ class _AccountTabState extends State<_AccountTab> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                   child: Row(children: [
-                    Container(
-                      width: 40, height: 40,
-                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _hair, width: 1.5)),
-                      alignment: Alignment.center,
-                      child: Text((_accounts[i]['icon'] as String?) ?? '•', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
-                    ),
+                    _acctGlyph(_accounts[i], fontSize: 17),
                     const SizedBox(width: 13),
                     Expanded(child: Text(_accounts[i]['name'] as String, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
