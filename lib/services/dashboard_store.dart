@@ -68,7 +68,11 @@ class DashboardStore {
     String? sessionId,
     required List<Map<String, dynamic>> accounts,
   }) async {
-    final list = connections()..removeWhere((c) => (c['bank'] as String?) == bank);
+    // Spread into a fresh GROWABLE list — connections() can return an empty
+    // const list on the first connect, and add()/removeWhere() on a const list
+    // throws (silently aborting the very first bank, so the list never grows).
+    final list = [...connections()]
+      ..removeWhere((c) => (c['bank'] as String?) == bank);
     list.add({
       'bank': bank,
       'sessionId': sessionId,
@@ -78,16 +82,16 @@ class DashboardStore {
     await _box.put(_kBanks, jsonEncode(list));
   }
 
-  /// Every connected bank's stored record.
+  /// Every connected bank's stored record. Always a growable list.
   static List<Map<String, dynamic>> connections() {
     final raw = _box.get(_kBanks) as String?;
-    if (raw == null) return const [];
+    if (raw == null) return <Map<String, dynamic>>[];
     try {
       return (jsonDecode(raw) as List)
           .map((e) => (e as Map).cast<String, dynamic>())
           .toList();
     } catch (_) {
-      return const [];
+      return <Map<String, dynamic>>[];
     }
   }
 
@@ -105,7 +109,8 @@ class DashboardStore {
   }
 
   static Future<void> removeConnection(String bank) async {
-    final list = connections()..removeWhere((c) => (c['bank'] as String?) == bank);
+    final list = [...connections()]
+      ..removeWhere((c) => (c['bank'] as String?) == bank);
     await _box.put(_kBanks, jsonEncode(list));
   }
 
