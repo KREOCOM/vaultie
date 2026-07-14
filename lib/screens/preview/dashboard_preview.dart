@@ -192,6 +192,9 @@ double _sumIncome(Iterable rows) => rows.fold(0.0,
 // inbound transfers (SEB→Revolut) must be neutralised first (see M5) or this
 // over-counts the user's own money moving between accounts.
 double _receivedOf(Map t) {
+  // Own-account transfers (SEB → Revolut etc., tagged "Savas pervedimas" by the
+  // multi-bank backend) are the user's own money moving — never "received".
+  if (t['cat'] == 'Savas pervedimas') return 0.0;
   final f = _flowOf(t);
   final a = (t['a'] as num).toDouble();
   return (a > 0 && (f == 'income' || f == 'transfer')) ? a : 0.0;
@@ -5778,42 +5781,68 @@ class _AccountTabState extends State<_AccountTab> {
         ),
       );
 
-  Widget _accountsCard() => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-            child: Row(children: [Text('Sąskaita', style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text('Likutis', style: TextStyle(fontSize: 13.5, color: _muted))]),
-          ),
-          AppCard(color: _card, border: _hair, 
-            child: Column(children: [
-              for (var i = 0; i < _accounts.length; i++) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                  child: Row(children: [
-                    _acctGlyph(_accounts[i], fontSize: 17),
-                    const SizedBox(width: 13),
-                    Expanded(child: Text(_accounts[i]['name'] as String, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
-                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      if (_accounts[i]['sub'] != null)
-                        Text(_accounts[i]['sub'] as String, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
-                      Text(_eur(((_accounts[i]['amount'] ?? 0) as num).toDouble()),
-                          style: TextStyle(
-                            fontSize: _accounts[i]['sub'] != null ? 12.5 : 16,
-                            fontWeight: _accounts[i]['sub'] != null ? FontWeight.w500 : FontWeight.w700,
-                            color: _accounts[i]['sub'] != null ? _muted : _ink,
-                          )),
-                    ]),
-                  ]),
-                ),
-                const RowDivider(indent: 66),
-              ],
-              _addRow('Prijungti / atnaujinti banką', onTap: () => Navigator.of(context)
-                  .push(MaterialPageRoute(builder: (_) => const BankConnectScreen()))),
+  Widget _accountsCard() {
+    // Group accounts by bank so a multi-bank user sees each bank's accounts +
+    // its subtotal. A single bank (or old data without a bank tag) stays a flat
+    // list. Order is preserved from the payload.
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final a in _accounts) {
+      final b = (a['bank'] as String?)?.trim();
+      groups.putIfAbsent((b == null || b.isEmpty) ? '' : b, () => []).add(a);
+    }
+    final multi = groups.length > 1;
+    final rows = <Widget>[];
+    groups.forEach((bank, accts) {
+      if (multi && bank.isNotEmpty) {
+        final subtotal = accts.fold(0.0, (s, a) => s + ((a['amount'] ?? 0) as num).toDouble());
+        rows.add(Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+          child: Row(children: [
+            Text(bank, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.2)),
+            const Spacer(),
+            Text(_eur(subtotal), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _muted)),
+          ]),
+        ));
+      }
+      for (final a in accts) {
+        rows.add(Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(children: [
+            _acctGlyph(a, fontSize: 17),
+            const SizedBox(width: 13),
+            Expanded(child: Text(a['name'] as String, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              if (a['sub'] != null)
+                Text(a['sub'] as String, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+              Text(_eur(((a['amount'] ?? 0) as num).toDouble()),
+                  style: TextStyle(
+                    fontSize: a['sub'] != null ? 12.5 : 16,
+                    fontWeight: a['sub'] != null ? FontWeight.w500 : FontWeight.w700,
+                    color: a['sub'] != null ? _muted : _ink,
+                  )),
             ]),
-          ),
-        ]),
-      );
+          ]),
+        ));
+        rows.add(const RowDivider(indent: 66));
+      }
+    });
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: Row(children: [Text('Sąskaitos', style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text('Likutis', style: TextStyle(fontSize: 13.5, color: _muted))]),
+        ),
+        AppCard(color: _card, border: _hair,
+          child: Column(children: [
+            ...rows,
+            _addRow('Prijungti kitą banką', onTap: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const BankConnectScreen()))),
+          ]),
+        ),
+      ]),
+    );
+  }
 
   Widget _addRow(String label, {VoidCallback? onTap}) => InkWell(
         onTap: onTap ?? _soon,

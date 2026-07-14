@@ -140,12 +140,41 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       if (!mounted) return;
       setState(() => _phase = _Phase.analysing);
       final scan = await BankingService.instance
-          .finishBankAuth(code, aiEnrichment: AppPrefs.aiEnrichment);
+          .finishBankAuth(code, aiEnrichment: AppPrefs.aiEnrichment, bank: bank.name);
+      if (!mounted) return;
+      // Record this bank's accounts (session id + uids + IBANs) so it can be
+      // re-fetched and merged with other banks later — without another login.
+      final conn = scan.connection;
+      if (conn != null) {
+        await DashboardStore.addConnection(
+          bank: bank.name,
+          sessionId: conn['sessionId'] as String?,
+          accounts: (((conn['accounts'] as List?) ?? const [])
+              .map((e) => (e as Map).cast<String, dynamic>())
+              .toList()),
+        );
+      }
+      // With more than one bank connected, rebuild ONE combined dashboard across
+      // all of them (own-account SEB↔Revolut transfers are neutralised in the
+      // merge). With a single bank, this scan's dashboard already is the whole
+      // picture. If the combined refresh fails, fall back to this scan's data so
+      // the user is never left with nothing.
+      Map<String, dynamic>? dash = scan.dash;
+      if (DashboardStore.bankCount > 1) {
+        try {
+          final combined = await BankingService.instance.refreshDashboard(
+              DashboardStore.accountRefs(),
+              aiEnrichment: AppPrefs.aiEnrichment);
+          if (combined != null) dash = combined;
+        } on BankingException {
+          // keep the single-bank dash as a fallback
+        }
+      }
       if (!mounted) return;
       // Persist the dashboard payload so the app opens straight into it next
       // launch (no re-connect) — and so a refresh overwrites the old data.
-      if (scan.dash != null) {
-        await DashboardStore.save(scan.dash!, bank: bank.name);
+      if (dash != null) {
+        await DashboardStore.save(dash, bank: bank.name);
       }
       if (!mounted) return;
       // Land straight in the new dashboard with the classified transactions.
@@ -153,8 +182,8 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       // build the dashboard payload.
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => scan.dash != null
-              ? DashboardPreview(data: scan.dash)
+          builder: (_) => dash != null
+              ? DashboardPreview(data: dash)
               : BankImportScreen(result: scan),
         ),
       );
@@ -370,7 +399,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                           fontWeight: FontWeight.w700)),
                   const SizedBox(width: 8),
                   Text(_isLt ? '· Keisti' : '· Change',
-                      style: TextStyle(
+                      style: const TextStyle(
                           color: VaultieColors.primary,
                           fontSize: 13,
                           fontWeight: FontWeight.w600)),

@@ -21,11 +21,20 @@
 set -euo pipefail
 
 REGION="europe-west1"
-SERVICE="finish-bank-auth"   # Cloud Run service name = function name, _ → -
+# Cloud Run service name = function name with _ → -. Both the initial connect
+# (finish-bank-auth) and the multi-bank combined re-fetch (refresh-dashboard) run
+# 12-month scans, so both need the restored 300s/512Mi.
+SERVICES=("finish-bank-auth" "refresh-dashboard")
 # pyexpat on macOS 26 is broken; point at Homebrew's expat so discovery runs.
 EXPAT="/opt/homebrew/opt/expat/lib"
 
 cd "$(dirname "$0")/.."   # repo root (firebase.json lives here)
+
+# gcloud may be installed via the tarball (~/google-cloud-sdk/bin) rather than on
+# PATH — the Homebrew cask breaks on python@3.14. Make it findable either way.
+if ! command -v gcloud >/dev/null 2>&1 && [[ -x "$HOME/google-cloud-sdk/bin/gcloud" ]]; then
+  export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+fi
 
 # ── SAFETY: the 53MB merchant index is gitignored (not in version control), so a
 # clean checkout / CI / another machine can be missing it. Without it the resolver
@@ -51,18 +60,22 @@ echo "▶ Deploying Cloud Functions…"
 DYLD_LIBRARY_PATH="$EXPAT" firebase deploy --only functions
 
 echo
-echo "▶ Restoring $SERVICE timeout=300s / memory=512Mi (firebase-tools resets these)…"
 if command -v gcloud >/dev/null 2>&1; then
-  gcloud run services update "$SERVICE" \
-    --region="$REGION" --timeout=300 --memory=512Mi
-  echo "✓ $SERVICE → 300s / 512Mi (mounted secrets preserved)."
+  for SERVICE in "${SERVICES[@]}"; do
+    echo "▶ Restoring $SERVICE timeout=300s / memory=512Mi (firebase-tools resets these)…"
+    gcloud run services update "$SERVICE" \
+      --region="$REGION" --timeout=300 --memory=512Mi
+    echo "✓ $SERVICE → 300s / 512Mi (mounted secrets preserved)."
+  done
   echo "  You can now raise the client's monthsBack back to 12 if desired."
 else
   echo "⚠ gcloud is NOT installed — timeout/memory were NOT restored."
-  echo "  The function is still at 60s / 256Mi (keep monthsBack=6)."
+  echo "  The functions are still at 60s / 256Mi (keep monthsBack=6)."
   echo "  Install once, then re-run this script:"
   echo "    brew install --cask google-cloud-sdk && gcloud auth login"
   echo "  Or apply manually:"
-  echo "    gcloud run services update $SERVICE --region=$REGION --timeout=300 --memory=512Mi"
+  for SERVICE in "${SERVICES[@]}"; do
+    echo "    gcloud run services update $SERVICE --region=$REGION --timeout=300 --memory=512Mi"
+  done
   exit 1
 fi

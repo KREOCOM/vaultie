@@ -103,6 +103,120 @@ def _client() -> EnableBankingClient:
     return EnableBankingClient(ENABLE_BANKING_PRIVATE_KEY.value)
 
 
+def _coerce_months(raw) -> int:
+    """Coerce the client's ``monthsBack`` to an int, defaulting to 12.
+
+    The Flutter callable SDK serialises a Dart int as a protobuf Int64Value
+    wrapper — {"@type": ".../Int64Value", "value": "12"} — not a bare number, so
+    a plain int() blows up. Unwrap it, then coerce defensively.
+    """
+    if isinstance(raw, dict):
+        raw = raw.get("value", 12)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 12
+
+
+def _norm_iban(iban) -> str | None:
+    """Uppercase, strip spaces — so own-account IBANs compare regardless of
+    formatting."""
+    if not iban:
+        return None
+    return str(iban).replace(" ", "").upper()
+
+
+def _account_meta(acc: dict, bank: str | None) -> dict:
+    """Normalise an Enable Banking account object OR a stored client account ref
+    to the fields the scan core needs: uid, name, currency, iban, bank."""
+    uid = acc.get("uid") or acc.get("account_uid")
+    acct_id = acc.get("account_id") if isinstance(acc.get("account_id"), dict) else {}
+    iban = acc.get("iban") or acct_id.get("iban")
+    name = acc.get("name") or acc.get("product") or iban or "Sąskaita"
+    currency = acc.get("currency") or acct_id.get("currency") or "EUR"
+    return {"uid": uid, "name": name, "currency": currency,
+            "iban": iban, "bank": bank}
+
+
+def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int):
+    """Fetch transactions + current balance for each account BY UID (no session
+    needed — Enable Banking addresses accounts directly, so this works for a
+    freshly-created session AND for a stored multi-bank refresh weeks later).
+
+    Per-account isolation: one account failing (timeout / expired consent) never
+    aborts the rest — it's logged into ``scan_diag`` and the scan carries on with
+    a partial-but-usable result.
+
+    Returns ``(all_txns, account_summaries, scan_diag, own_ibans)`` where
+    ``own_ibans`` is the set of the user's OWN account IBANs across every bank —
+    the basis for neutralising own-account (SEB↔Revolut) transfers.
+    """
+    all_txns: list = []
+    summaries: list = []
+    scan_diag: list = []
+    own_ibans: set = set()
+    for m in metas:
+        uid = m.get("uid")
+        if not uid:
+            continue
+        norm = _norm_iban(m.get("iban"))
+        if norm:
+            own_ibans.add(norm)
+        bank = m.get("bank")
+        is_revolut = "revolut" in str(m.get("name", "")).lower() \
+            or "revolut" in str(bank or "").lower()
+        try:
+            acc_txns, diag = client.transactions(uid, months_back=months_back)
+            all_txns.extend(acc_txns)
+            bal = _pick_balance(client.balances(uid))
+            summaries.append({
+                "name": m["name"], "amount": bal, "sub": None,
+                "icon": "R" if is_revolut else "bank",
+                "currency": m["currency"], "bank": bank, "iban": m.get("iban"),
+            })
+            scan_diag.append({"account": m["name"], "bank": bank, **diag})
+        except EnableBankingError as e:
+            logging.warning("scan: account %r (%s) failed, skipping: %s",
+                            m.get("name"), bank, e)
+            scan_diag.append({"account": m["name"], "bank": bank, "error": str(e)})
+    return all_txns, summaries, scan_diag, own_ibans
+
+
+def _build_result(all_txns: list, summaries: list, own_ibans: set,
+                  scan_diag: list, ai_enabled: bool) -> dict:
+    """Shared tail for finish_bank_auth + refresh_dashboard: dedupe, detect
+    recurring, build the (multi-bank-aware) dashboard, and package the response.
+    Nothing is persisted server-side (privacy-first)."""
+    raw = len(all_txns)
+    all_txns = _dedupe_transactions(all_txns)
+    if len(all_txns) != raw:
+        logging.info("scan: deduped %d -> %d transactions", raw, len(all_txns))
+    try:
+        detection = detect_recurring(all_txns)
+    except Exception:  # noqa: BLE001
+        logging.exception("detect_recurring failed")
+        detection = {"candidates": [], "frequent": []}
+    ai_key = ANTHROPIC_API_KEY.value if ai_enabled else None
+    try:
+        dash = build_dashboard(all_txns, summaries, own_ibans=own_ibans,
+                               ai_key=ai_key)
+    except Exception:  # noqa: BLE001
+        logging.exception("build_dashboard failed")
+        dash = None
+    logging.info("scan: accounts=%d txns=%d candidates=%d frequent=%d",
+                 len(summaries), len(all_txns),
+                 len(detection["candidates"]), len(detection["frequent"]))
+    logging.info("scan scan_diag=%s", scan_diag)
+    return {
+        "accountCount": len(summaries),
+        "transactionCount": len(all_txns),
+        "candidates": detection["candidates"],
+        "frequent": detection["frequent"],
+        "dash": dash,
+        "scanDiag": scan_diag,
+    }
+
+
 @https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])
 def list_banks(req: https_fn.CallableRequest) -> dict:
     """Return the banks a user can connect to for ``country`` (default LT)."""
@@ -196,17 +310,8 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     # firebase-tools Python-discovery bug), so ALWAYS restore it afterwards via
     # `functions/deploy.sh` (gcloud run services update … --timeout=300 …), or a
     # cold 12-month scan will DEADLINE_EXCEEDED.
-    # The Flutter callable SDK serialises a Dart int as a protobuf Int64Value
-    # wrapper — {"@type": ".../Int64Value", "value": "12"} — not a bare number,
-    # so a plain int() blew up ("int() argument … not 'dict'" → INTERNAL). Unwrap
-    # it, then coerce defensively.
-    _mb = data.get("monthsBack", 12)
-    if isinstance(_mb, dict):
-        _mb = _mb.get("value", 12)
-    try:
-        months_back = int(_mb)
-    except (TypeError, ValueError):
-        months_back = 12
+    months_back = _coerce_months(data.get("monthsBack", 12))
+    bank = data.get("bank")  # the bank the user just connected (for the label)
 
     client = _client()
     # Creating the session is the one hard prerequisite — if it fails there is
@@ -219,91 +324,59 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             message="Could not fetch transactions.",
             details=str(e),
         )
-    accounts = session.get("accounts", [])
-    all_txns: list = []
-    account_summaries: list = []
-    scan_diag: list = []
-    for acc in accounts:
-        uid = acc.get("uid") or acc.get("account_uid")
-        if not uid:
-            continue
-        name = (acc.get("name") or acc.get("product")
-                or (acc.get("account_id") or {}).get("iban") or "Sąskaita")
-        # Per-account isolation: one account failing (timeout / 500 / expired
-        # consent) must not discard the accounts that already scanned fine. Log
-        # it, record it in scan_diag, and carry on with a partial-but-usable
-        # result instead of aborting the whole connection.
-        try:
-            acc_txns, diag = client.transactions(uid, months_back=months_back)
-            all_txns.extend(acc_txns)
-            # current balance for the account (closing-booked / available)
-            bal = _pick_balance(client.balances(uid))
-            currency = ((acc.get("currency"))
-                        or (acc.get("account_id") or {}).get("currency") or "EUR")
-            account_summaries.append({
-                "name": name, "amount": bal, "sub": None,
-                "icon": "R" if "revolut" in str(name).lower() else "bank",
-                "currency": currency,
-            })
-            scan_diag.append({"account": name, **diag})
-        except EnableBankingError as e:
-            logging.warning(
-                "finish_bank_auth: account %r failed, skipping: %s", name, e)
-            scan_diag.append({"account": name, "error": str(e)})
-            continue
-
-    # De-duplicate before anything reads the list, so counts, totals and
-    # recurring detection all see each real entry exactly once.
-    _raw_count = len(all_txns)
-    all_txns = _dedupe_transactions(all_txns)
-    if len(all_txns) != _raw_count:
-        logging.info("finish_bank_auth: deduped %d -> %d transactions",
-                     _raw_count, len(all_txns))
-
-    # Detection runs entirely on-server against the curated/crowdsourced merchant
-    # DB and local keyword heuristics — no transaction-derived data is sent to any
-    # third party, and nothing is persisted (privacy-first; see policy §6).
-    # Wrapped so a detection bug logs a full traceback (not just a bare INTERNAL)
-    # and still lets the dashboard build.
-    try:
-        detection = detect_recurring(all_txns)
-    except Exception:  # noqa: BLE001
-        logging.exception("detect_recurring failed")
-        detection = {"candidates": [], "frequent": []}
-    candidates = detection["candidates"]
-    frequent = detection["frequent"]
-
-    # Full dashboard payload — every transaction classified into the 9-section
-    # model + feed/week/subs/balance, so the app can land straight in the
-    # dashboard. Built defensively: a failure here must not break the scan.
-    # AI enrichment (Stage 3) runs only when the user opted in; then the
-    # Anthropic key is passed through, otherwise it stays disabled.
+    metas = [_account_meta(a, bank) for a in session.get("accounts", [])]
+    all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
+        client, metas, months_back=months_back)
     ai_enabled = bool(data.get("aiEnrichment"))
-    ai_key = ANTHROPIC_API_KEY.value if ai_enabled else None
-    try:
-        dash = build_dashboard(all_txns, account_summaries, ai_key=ai_key)
-    except Exception:  # noqa: BLE001
-        logging.exception("build_dashboard failed")
-        dash = None
-    # Counts only — never transaction content — so nothing sensitive is logged.
-    logging.info(
-        "finish_bank_auth: accounts=%d txns=%d candidates=%d frequent=%d "
-        "months_back=%d",
-        len(accounts), len(all_txns), len(candidates), len(frequent),
-        months_back,
-    )
-    # Privacy-first: raw transactions are processed transiently and are NEVER
-    # returned or stored. Only detected candidates + frequent-merchant summaries
-    # go to the client, which persists only what the user chooses to import.
-    logging.info("finish_bank_auth scan_diag=%s", scan_diag)
-    return {
-        "accountCount": len(accounts),
-        "transactionCount": len(all_txns),
-        "candidates": candidates,
-        "frequent": frequent,
-        "dash": dash,
-        "scanDiag": scan_diag,
+    result = _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled)
+    # `connection` lets the client STORE this bank (session id + account uids +
+    # IBANs) so it can be re-fetched later — without another login — and merged
+    # with other banks by refresh_dashboard. The account IBANs are the user's own
+    # and stay on-device (same privacy model as the rest of the scan).
+    result["connection"] = {
+        "sessionId": session.get("session_id"),
+        "bank": bank,
+        "accounts": [
+            {"uid": m["uid"], "iban": m["iban"], "name": m["name"],
+             "currency": m["currency"]}
+            for m in metas if m.get("uid")
+        ],
     }
+    return result
+
+
+@https_fn.on_call(
+    region=_REGION,
+    secrets=[ENABLE_BANKING_PRIVATE_KEY, ANTHROPIC_API_KEY],
+    timeout_sec=300,
+    memory=options.MemoryOption.MB_512,
+)
+def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
+    """Re-fetch ALL of a user's connected banks by account UID (no re-login) and
+    build ONE combined dashboard.
+
+    The client sends the accounts it stored at connect time:
+    ``{accounts: [{uid, bank, iban, name, currency}, …], monthsBack, aiEnrichment}``.
+    Enable Banking addresses accounts directly, so as long as each bank's consent
+    is still valid (~90 days) this needs no user interaction. An account whose
+    consent expired surfaces in ``scanDiag[].error`` so the client can prompt a
+    reconnect for just that bank. Nothing is persisted server-side.
+    """
+    _require_auth(req)
+    data = req.data or {}
+    accounts_in = data.get("accounts") or []
+    if not isinstance(accounts_in, list) or not accounts_in:
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+            message="accounts is required.",
+        )
+    months_back = _coerce_months(data.get("monthsBack", 12))
+    ai_enabled = bool(data.get("aiEnrichment"))
+    metas = [_account_meta(a, a.get("bank")) for a in accounts_in
+             if isinstance(a, dict)]
+    all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
+        _client(), metas, months_back=months_back)
+    return _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled)
 
 
 @https_fn.on_request(region=_REGION, secrets=[SEED_TOKEN])

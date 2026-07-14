@@ -237,7 +237,18 @@ def _salary_sources(txns):
     return {k for k, mos in months_by.items() if len(mos) >= 3}
 
 
-def _classify(t, resolve_cat, salary_refs):
+def _cp_iban_norm(t):
+    """Counterparty IBAN (the OTHER side of the transaction), uppercased and
+    space-stripped, for comparison against the user's own-account IBAN set. For
+    an incoming (CRDT) transaction the counterparty is the debtor; for an
+    outgoing (DBIT) one it's the creditor."""
+    d = t.get("credit_debit_indicator")
+    acc = t.get("debtor_account") if d == "CRDT" else t.get("creditor_account")
+    iban = acc.get("iban") if isinstance(acc, dict) else None
+    return iban.replace(" ", "").upper() if iban else None
+
+
+def _classify(t, resolve_cat, salary_refs, own_ibans=None):
     """Return (canonical, cat_lt, col, icon, section, section_color, pos, is_transfer).
 
     Identify the *flow* from the (normalised) transaction code FIRST — currency
@@ -250,6 +261,18 @@ def _classify(t, resolve_cat, salary_refs):
     """
     code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
     name = _name(t); nl = name.lower(); amt = _amt(t)
+
+    # Own-account transfer: the counterparty is one of the user's OWN connected
+    # accounts (e.g. SEB → Revolut, or between two accounts at one bank). Never
+    # income, never spending, and — unlike a P2P transfer from another person —
+    # excluded from "Gauta" too (see client _receivedOf), because it's just the
+    # user's own money moving. Detected purely from the IBAN set, so it needs the
+    # multi-bank context (own_ibans); with none passed this is a no-op.
+    if own_ibans:
+        cpi = _cp_iban_norm(t)
+        if cpi and cpi in own_ibans:
+            return (name, "Savas pervedimas", "transfer", "swap",
+                    "Pervedimai", "indigo", amt > 0, True)
 
     # currency exchange is ALWAYS just a conversion of your own money — never
     # income and never spending (moving money between your own currencies).
@@ -294,10 +317,12 @@ def _classify(t, resolve_cat, salary_refs):
     return (canonical or name, cat_lt, col, ic, sec, secc, amt > 0, False)
 
 
-def build_dashboard(transactions, accounts, today=None, ai_key=None):
+def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=None):
     """transactions: deduped Enable Banking list. accounts: [{name, balance, sub,
     icon, currency}]. ai_key: Anthropic key when the user opted into AI
-    enrichment (Stage 3); None disables it. Returns the dash_data dict."""
+    enrichment (Stage 3); None disables it. own_ibans: the user's own account
+    IBANs across all connected banks — transfers to/from them are tagged "Savas
+    pervedimas" (own-account, excluded from Gauta). Returns the dash_data dict."""
     today = today or dt.date.today()
     txns = [t for t in transactions if t.get("booking_date")]
     if not txns:
@@ -352,7 +377,7 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
     # ── flat `all` list ──
     all_rows = []
     for t in sorted(txns, key=lambda x: x["booking_date"], reverse=True):
-        canonical, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs)
+        canonical, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs, own_ibans)
         y, m, day = map(int, t["booking_date"].split("-"))
         all_rows.append({
             "nm": _name(t), "mkey": (canonical or _name(t)).lower()[:24],
@@ -364,10 +389,10 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
         })
 
     # ── month → day feed (latest 2 months), merging same merchant same day ──
-    months = _month_feed(txns, salary_refs, resolve_cat)
+    months = _month_feed(txns, salary_refs, resolve_cat, own_ibans)
 
     # ── this-week category bars ──
-    week = _week(txns, salary_refs, resolve_cat, today)
+    week = _week(txns, salary_refs, resolve_cat, today, own_ibans)
 
     # ── subscriptions & bills: reuse the recurring engine's confident candidates ──
     subs = _subs(txns, corpus)
@@ -408,10 +433,10 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
     }
 
 
-def _merge_day(day_txns, salary_refs, resolve_cat):
+def _merge_day(day_txns, salary_refs, resolve_cat, own_ibans=None):
     merged = OrderedDict()
     for t in day_txns:
-        _canon, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs)
+        _canon, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs, own_ibans)
         key = _norm(_name(t))
         if key not in merged:
             merged[key] = {"nm": _name(t), "cat": cat, "ic": ic, "col": col,
@@ -423,7 +448,7 @@ def _merge_day(day_txns, salary_refs, resolve_cat):
     return merged
 
 
-def _month_feed(txns, salary_refs, resolve_cat):
+def _month_feed(txns, salary_refs, resolve_cat, own_ibans=None):
     bydate = defaultdict(list)
     for t in txns:
         bydate[t["booking_date"]].append(t)
@@ -432,7 +457,7 @@ def _month_feed(txns, salary_refs, resolve_cat):
         y, m, day = map(int, dtk.split("-"))
         mkey = f"{y}-{m:02d}"
         months.setdefault(mkey, {"name": LT_MON[m], "y": y, "m": m, "total": 0.0, "days": []})
-        merged = _merge_day(bydate[dtk], salary_refs, resolve_cat)
+        merged = _merge_day(bydate[dtk], salary_refs, resolve_cat, own_ibans)
         # Canonical day "spent" (expenses only, refunds net down; transfers/income
         # excluded) — a positive number, matching the client + month header. Was a
         # raw signed sum that included transfers/income (the old "−2127" trap).
@@ -461,7 +486,7 @@ SEC_ORDER = ["Maistas, gėrimai", "Transportas", "Apsipirkimas", "Būstas, sąsk
              "Sveikata, sportas", "Pramogos", "Finansai", "Švietimas", "Kita"]
 
 
-def _week(txns, salary_refs, resolve_cat, today):
+def _week(txns, salary_refs, resolve_cat, today, own_ibans=None):
     latest = max(t["booking_date"] for t in txns)
     ly, lm, ld = map(int, latest.split("-"))
     d0 = dt.date(ly, lm, ld)
@@ -476,7 +501,7 @@ def _week(txns, salary_refs, resolve_cat, today):
         for t in bydate.get(dd.isoformat(), []):
             if t.get("credit_debit_indicator") != "DBIT":
                 continue
-            _canon, _cat, _col, _ic, sec, secc, _pos, is_tr = _classify(t, resolve_cat, salary_refs)
+            _canon, _cat, _col, _ic, sec, secc, _pos, is_tr = _classify(t, resolve_cat, salary_refs, own_ibans)
             if is_tr or sec in ("Pajamos", "Pervedimai"):
                 continue
             e = secagg.setdefault(sec, {"label": sec, "color": SECTION_BAR.get(sec, "indigo"),

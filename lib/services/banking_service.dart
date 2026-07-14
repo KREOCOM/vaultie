@@ -145,13 +145,19 @@ class FrequentMerchant {
 /// Result of a bank scan: importable recurring candidates + frequent-spending
 /// merchants surfaced for information only.
 class BankScanResult {
-  const BankScanResult({required this.candidates, required this.frequent, this.dash});
+  const BankScanResult(
+      {required this.candidates, required this.frequent, this.dash, this.connection});
   final List<RecurringCandidate> candidates;
   final List<FrequentMerchant> frequent;
 
   /// Full dashboard payload (every transaction classified + feed/week/subs/
   /// balance) for the new dashboard. Null if the backend couldn't build it.
   final Map<String, dynamic>? dash;
+
+  /// The connected bank's session id + accounts ({uid, iban, name, currency}),
+  /// so the client can store it and later re-fetch/merge it with other banks
+  /// via [BankingService.refreshDashboard]. Null on the legacy import path.
+  final Map<String, dynamic>? connection;
 }
 
 BillingCycle _cycleFromString(String s) => switch (s) {
@@ -226,7 +232,8 @@ class BankingService {
 
   /// Exchanges the redirect [code] for the scan result: importable recurring
   /// candidates plus frequent-spending merchants (never recurring, feed-only).
-  Future<BankScanResult> finishBankAuth(String code, {bool aiEnrichment = false}) {
+  Future<BankScanResult> finishBankAuth(String code,
+      {bool aiEnrichment = false, String? bank}) {
     return _call('finish_bank_auth',
         // AI enrichment flows through from the user's setting (was hardcoded
         // false, which left the toggle dead). It is still OFF by default; turning
@@ -234,8 +241,10 @@ class BankingService {
         // and enough timeout headroom — without the key the function gracefully
         // skips AI (no extra latency, no timeout risk). 12-month window (the
         // function runs at 300s/512Mi — restored via deploy.sh after each deploy).
+        // `bank` labels the connection so the stored record + Account breakdown
+        // name the right bank.
         {'code': code, 'debug': kDebugMode, 'aiEnrichment': aiEnrichment,
-         'monthsBack': 12}, (m) {
+         'monthsBack': 12, if (bank != null) 'bank': bank}, (m) {
       final cands = (m['candidates'] as List?) ?? const [];
       final freq = (m['frequent'] as List?) ?? const [];
       if (kDebugMode) {
@@ -276,6 +285,15 @@ class BankingService {
           dash = null;
         }
       }
+      Map<String, dynamic>? connection;
+      final rawConn = m['connection'];
+      if (rawConn != null) {
+        try {
+          connection = jsonDecode(jsonEncode(rawConn)) as Map<String, dynamic>;
+        } catch (_) {
+          connection = null;
+        }
+      }
       return BankScanResult(
         candidates: [
           for (final c in cands)
@@ -286,9 +304,38 @@ class BankingService {
             FrequentMerchant.fromMap((f as Map).cast<Object?, Object?>()),
         ],
         dash: dash,
+        connection: connection,
       );
       // The 12-month windowed scan can take well over the default ~70s callable
       // timeout on a cold start, so give it a generous ceiling.
+    }, timeout: const Duration(minutes: 5));
+  }
+
+  /// Re-fetches ALL connected banks by stored account uid (no re-login) and
+  /// returns ONE combined dashboard payload. [accounts] is
+  /// [DashboardStore.accountRefs] — {uid, bank, iban, name, currency} per
+  /// account. Returns null if the backend couldn't build a dashboard. A bank
+  /// whose consent expired simply drops out (surfaced in scanDiag); its accounts
+  /// won't appear until reconnected.
+  Future<Map<String, dynamic>?> refreshDashboard(
+      List<Map<String, dynamic>> accounts,
+      {bool aiEnrichment = false}) {
+    return _call('refresh_dashboard',
+        {'accounts': accounts, 'aiEnrichment': aiEnrichment, 'monthsBack': 12},
+        (m) {
+      if (kDebugMode) {
+        debugPrint('=== REFRESH DASHBOARD ===');
+        debugPrint('accounts=${m['accountCount']} txns=${m['transactionCount']} '
+            'dash=${m['dash'] != null}');
+        debugPrint('SCAN DIAG: ${m['scanDiag']}');
+      }
+      final rawDash = m['dash'];
+      if (rawDash == null) return null;
+      try {
+        return jsonDecode(jsonEncode(rawDash)) as Map<String, dynamic>;
+      } catch (_) {
+        return null;
+      }
     }, timeout: const Duration(minutes: 5));
   }
 

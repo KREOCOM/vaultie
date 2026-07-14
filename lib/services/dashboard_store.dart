@@ -7,13 +7,19 @@ import '../main.dart';
 /// Persists the latest bank-scan dashboard payload on-device (Hive) so the app
 /// opens straight into the dashboard instead of forcing a re-connect every time.
 ///
-/// Local only — the payload never leaves the phone, same privacy model as the
-/// scan itself. Scoped per account via [ensureLocalDataForCurrentUser] (the box
-/// is wiped when a different user signs in).
+/// Multi-bank: [_kBanks] holds one record per connected bank (its Enable Banking
+/// session id + account uids/IBANs), so all banks can be re-fetched and merged
+/// into ONE combined dashboard (see refresh_dashboard). [_kDash] holds that
+/// combined payload for instant open.
+///
+/// Local only — nothing leaves the phone, same privacy model as the scan itself.
+/// Scoped per account via [ensureLocalDataForCurrentUser] (the box is wiped when
+/// a different user signs in).
 class DashboardStore {
   static const _kDash = 'dash';
   static const _kSyncedAt = 'syncedAt';
   static const _kBank = 'bank';
+  static const _kBanks = 'banks';
 
   static Box get _box => Hive.box(HiveBoxes.dashboard);
 
@@ -50,6 +56,61 @@ class DashboardStore {
   }
 
   static String? get bank => _box.get(_kBank) as String?;
+
+  // ── Multi-bank connections ──────────────────────────────────────────────
+
+  /// Record (or replace) a connected bank's accounts so they can be re-fetched
+  /// and merged later, WITHOUT another login. Keyed by bank name — reconnecting
+  /// the same bank replaces its record (fresh session id) rather than
+  /// duplicating it. [accounts] items carry {uid, iban, name, currency}.
+  static Future<void> addConnection({
+    required String bank,
+    String? sessionId,
+    required List<Map<String, dynamic>> accounts,
+  }) async {
+    final list = connections()..removeWhere((c) => (c['bank'] as String?) == bank);
+    list.add({
+      'bank': bank,
+      'sessionId': sessionId,
+      'accounts': accounts,
+      'connectedAt': DateTime.now().toIso8601String(),
+    });
+    await _box.put(_kBanks, jsonEncode(list));
+  }
+
+  /// Every connected bank's stored record.
+  static List<Map<String, dynamic>> connections() {
+    final raw = _box.get(_kBanks) as String?;
+    if (raw == null) return const [];
+    try {
+      return (jsonDecode(raw) as List)
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Flat list of every connected account across all banks, shaped for
+  /// refresh_dashboard: {uid, bank, iban, name, currency}.
+  static List<Map<String, dynamic>> accountRefs() {
+    final out = <Map<String, dynamic>>[];
+    for (final c in connections()) {
+      final bank = c['bank'];
+      for (final a in ((c['accounts'] as List?) ?? const [])) {
+        out.add({...(a as Map).cast<String, dynamic>(), 'bank': bank});
+      }
+    }
+    return out;
+  }
+
+  static Future<void> removeConnection(String bank) async {
+    final list = connections()..removeWhere((c) => (c['bank'] as String?) == bank);
+    await _box.put(_kBanks, jsonEncode(list));
+  }
+
+  /// Number of connected banks (0 before any connection).
+  static int get bankCount => connections().length;
 
   static Future<void> clear() => _box.clear();
 }
