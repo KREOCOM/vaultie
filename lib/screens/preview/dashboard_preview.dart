@@ -920,6 +920,11 @@ class _DashboardPreviewState extends State<DashboardPreview> {
         month: mk,
         monthNom: _monNom[m - 1],
         monthGen: _monGen[m - 1],
+        // Close the review and jump to the Planning tab where budgets are set.
+        onGoToBudgets: () {
+          Navigator.of(context).pop();
+          setState(() => _tab = 3);
+        },
       ),
     ));
   }
@@ -2078,11 +2083,12 @@ class _SecAgg {
 }
 
 class _MonthReviewScreen extends StatefulWidget {
-  const _MonthReviewScreen({required this.all, required this.balance, required this.budgets, required this.month, required this.monthNom, required this.monthGen});
+  const _MonthReviewScreen({required this.all, required this.balance, required this.budgets, required this.month, required this.monthNom, required this.monthGen, required this.onGoToBudgets});
   final List<Map<String, dynamic>> all;
   final Map<String, dynamic> balance;
   final Map<String, dynamic> budgets;
   final String month, monthNom, monthGen;
+  final VoidCallback onGoToBudgets;
   @override
   State<_MonthReviewScreen> createState() => _MonthReviewScreenState();
 }
@@ -2693,12 +2699,15 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
               Expanded(child: _insightBox(color, junV, widget.monthNom)),
             ]),
             const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white54)),
-              child: const Text('Bandyk nusistatyti biudžetą', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white)),
+            GestureDetector(
+              onTap: widget.onGoToBudgets,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white54)),
+                child: const Text('Nusistatyti biudžetą', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white)),
+              ),
             ),
           ],
         ),
