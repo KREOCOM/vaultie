@@ -392,16 +392,6 @@ class _DashboardPreviewState extends State<DashboardPreview> {
           Text('Dashboard',
               style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
           const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-            decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(20)),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.card_giftcard_rounded, size: 15, color: Colors.white),
-              SizedBox(width: 6),
-              Text('Gift & Earn', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-            ]),
-          ),
-          const SizedBox(width: 12),
           GestureDetector(
             onTap: () => setState(() => _hideBal = !_hideBal),
             child: Icon(_hideBal ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 25, color: _ink),
@@ -1557,6 +1547,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   late Color _catColor = _colOf(widget.tx['col'] as String?);
   late IconData _catIcon = _iconOf(widget.tx['ic'] as String?);
   late bool _isTransfer = widget.tx['col'] == 'transfer';
+  bool _starred = false;
 
   Map<String, dynamic> get tx => widget.tx;
   double get amount => (tx['a'] as num).toDouble();
@@ -1660,7 +1651,10 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _ink)),
           ),
           IconButton(onPressed: () => _toast('Ištrinti — ruošiama'), icon: Icon(Icons.delete_outline_rounded, size: 22, color: _muted)),
-          IconButton(onPressed: () => _toast('Pažymėta žvaigždute'), icon: Icon(Icons.star_border_rounded, size: 24, color: _muted)),
+          IconButton(
+              onPressed: () => setState(() => _starred = !_starred),
+              icon: Icon(_starred ? Icons.star_rounded : Icons.star_border_rounded,
+                  size: 24, color: _starred ? const Color(0xFFF5B301) : _muted)),
           IconButton(onPressed: () => _toast('Redaguoti — ruošiama'), icon: const Icon(Icons.edit_outlined, size: 21, color: _purple)),
         ],
       ),
@@ -1767,7 +1761,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     final chips = <List<dynamic>>[
       [Icons.edit_outlined, 'Redaguoti', () => _toast('Redaguoti — ruošiama')],
       [Icons.tag_rounded, 'Žyma', () => _toast('Žyma — ruošiama')],
-      [Icons.repeat_rounded, 'Prie pasikartojančių', () => _toast('Pridėta prie pasikartojančių')],
+      [Icons.repeat_rounded, 'Prie pasikartojančių', () => _toast('Prie pasikartojančių — netrukus')],
       [Icons.swap_horiz_rounded, _isTransfer ? 'Į įprastą' : 'Į vidinį pervedimą', () => setState(() {
             _isTransfer = !_isTransfer;
             _toast(_isTransfer ? 'Konvertuota į vidinį pervedimą' : 'Konvertuota į įprastą');
@@ -2964,7 +2958,8 @@ class _CategoryDetailScreen extends StatelessWidget {
                       if (i != subList.length - 1) const RowDivider(indent: 66),
                     ],
                     InkWell(
-                      onTap: () {},
+                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Kategorijų tvarkymas — netrukus'), duration: Duration(milliseconds: 1500))),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                         child: Row(children: [
@@ -3203,7 +3198,8 @@ class _OverviewTabState extends State<_OverviewTab> {
               if (i != secs.length - 1) const RowDivider(indent: 66),
             ],
             InkWell(
-              onTap: () {},
+              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Kategorijų tvarkymas — netrukus'), duration: Duration(milliseconds: 1500))),
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 child: Row(children: [
@@ -3747,6 +3743,7 @@ class _PlanningTabState extends State<_PlanningTab> {
     final keys = _monthKeys.reversed.toList(); // newest first
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: _card,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
       builder: (ctx) => SafeArea(
@@ -3755,21 +3752,30 @@ class _PlanningTabState extends State<_PlanningTab> {
           Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(3))),
           Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
               child: Align(alignment: Alignment.centerLeft, child: Text('Pasirink mėnesį', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)))),
-          for (final k in keys)
-            InkWell(
-              onTap: () { setState(() => _selKey = k); Navigator.pop(ctx); },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-                child: Row(children: [
-                  Text('${_monNom[int.parse(k.substring(5, 7)) - 1]} ${k.substring(0, 4)}',
-                      style: TextStyle(fontSize: 16.5, fontWeight: k == _curKey ? FontWeight.w800 : FontWeight.w500, color: _ink)),
-                  const Spacer(),
-                  if (k == _monthKeys.last) Text('Šis mėnuo', style: TextStyle(fontSize: 12.5, color: _muted)),
-                  if (k == _curKey) const Padding(padding: EdgeInsets.only(left: 8), child: Icon(Icons.check_rounded, size: 20, color: _purple)),
-                ]),
-              ),
+          // Scrollable so a full year of months never overflows (was the yellow
+          // overflow bar at the bottom of the sheet).
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: 10),
+              children: [
+                for (final k in keys)
+                  InkWell(
+                    onTap: () { setState(() => _selKey = k); Navigator.pop(ctx); },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+                      child: Row(children: [
+                        Text('${_monNom[int.parse(k.substring(5, 7)) - 1]} ${k.substring(0, 4)}',
+                            style: TextStyle(fontSize: 16.5, fontWeight: k == _curKey ? FontWeight.w800 : FontWeight.w500, color: _ink)),
+                        const Spacer(),
+                        if (k == _monthKeys.last) Text('Šis mėnuo', style: TextStyle(fontSize: 12.5, color: _muted)),
+                        if (k == _curKey) const Padding(padding: EdgeInsets.only(left: 8), child: Icon(Icons.check_rounded, size: 20, color: _purple)),
+                      ]),
+                    ),
+                  ),
+              ],
             ),
-          const SizedBox(height: 10),
+          ),
         ]),
       ),
     );
@@ -4659,14 +4665,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Row(children: [
-                Text('Sukurta su ', style: TextStyle(fontSize: 13, color: _muted)),
-                const Icon(Icons.favorite_rounded, size: 13, color: _purple),
-                Text(' Lietuvoje', style: TextStyle(fontSize: 13, color: _muted)),
-              ]),
-              Text('Versija: 1.0.0+1', style: TextStyle(fontSize: 13, color: _muted)),
-            ]),
+            child: Text('Versija: 1.0.0+1', style: TextStyle(fontSize: 13, color: _muted)),
           ),
         ],
       ),
