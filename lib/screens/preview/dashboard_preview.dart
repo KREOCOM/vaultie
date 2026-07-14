@@ -827,13 +827,13 @@ class _DashboardPreviewState extends State<DashboardPreview> {
     return InkWell(
       onTap: () => _openTx(t, dd),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
         child: Row(
           children: [
             Stack(
               clipBehavior: Clip.none,
               children: [
-                CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 44, circle: false),
+                CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 38, circle: false),
                 if (count > 1)
                   Positioned(
                     top: -6,
@@ -853,7 +853,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
                   ),
               ],
             ),
-            const SizedBox(width: 13),
+            const SizedBox(width: 11),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -861,8 +861,8 @@ class _DashboardPreviewState extends State<DashboardPreview> {
                   Text(_shortNm(t['nm'] as String),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink, letterSpacing: -0.2)),
-                  const SizedBox(height: 3),
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink, letterSpacing: -0.2)),
+                  const SizedBox(height: 2),
                   Row(children: [
                     Container(
                       width: 6,
@@ -876,7 +876,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(t['cat'] as String,
-                          maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: _muted)),
+                          maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted)),
                     ),
                     for (final b in badges) ...[
                       const SizedBox(width: 6),
@@ -889,7 +889,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
             const SizedBox(width: 10),
             Text(_eur((t['a'] as num).toDouble(), signed: true),
                 style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.3,
                     color: pos ? _good : _ink,
