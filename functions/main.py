@@ -19,7 +19,7 @@ import json
 import logging
 
 import firebase_admin
-from firebase_functions import https_fn
+from firebase_functions import https_fn, options
 from firebase_functions.params import SecretParam
 
 from dashboard import build_dashboard
@@ -165,7 +165,15 @@ def start_bank_auth(req: https_fn.CallableRequest) -> dict:
     return {"url": url, "state": state}
 
 
-@https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY, ANTHROPIC_API_KEY])
+@https_fn.on_call(
+    region=_REGION,
+    secrets=[ENABLE_BANKING_PRIVATE_KEY, ANTHROPIC_API_KEY],
+    # The 12-month windowed scan (many bank pages) plus classification can run
+    # well past the 60s default on a cold start — give it room, and more memory
+    # for a faster cold start + the in-RAM merchant KB.
+    timeout_sec=300,
+    memory=options.MemoryOption.MB_512,
+)
 def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     """Exchange the redirect ``code``, fetch transactions, detect recurring ones.
 

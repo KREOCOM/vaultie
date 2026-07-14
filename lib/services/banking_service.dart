@@ -181,9 +181,13 @@ class BankingService {
       FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   Future<T> _call<T>(String name, Map<String, dynamic> data,
-      T Function(Map<Object?, Object?>) parse) async {
+      T Function(Map<Object?, Object?>) parse, {Duration? timeout}) async {
     try {
-      final res = await _functions.httpsCallable(name).call(data);
+      final callable = timeout != null
+          ? _functions.httpsCallable(name,
+              options: HttpsCallableOptions(timeout: timeout))
+          : _functions.httpsCallable(name);
+      final res = await callable.call(data);
       return parse((res.data as Map).cast<Object?, Object?>());
     } on FirebaseFunctionsException catch (e) {
       throw BankingException(e.message ?? 'Something went wrong. Please try again.');
@@ -276,7 +280,9 @@ class BankingService {
         ],
         dash: dash,
       );
-    });
+      // The 12-month windowed scan can take well over the default ~70s callable
+      // timeout on a cold start, so give it a generous ceiling.
+    }, timeout: const Duration(minutes: 5));
   }
 
   /// Extracts the `code` query parameter from an incoming callback [uri], or
