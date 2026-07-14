@@ -417,7 +417,7 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
 
 
 def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNOWN,
-                     classify_unknown=None):
+                     classify_unknown=None, corpus=None):
     """Return ``{"candidates": [...], "frequent": [...], "debug": {...}}``.
 
     Every outgoing merchant becomes a candidate (even seen once), tagged
@@ -445,9 +445,13 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
     id_src = defaultdict(int)          # identity-source coverage (canonical Stage 1)
     # Build the per-creditor corpus once so the resolver's processor detection
     # (N distinct merchants behind one creditor) works across the whole batch.
-    dbit_txns = [t for t in transactions
-                 if t.get("credit_debit_indicator") == "DBIT"]
-    corpus = resolver.build_corpus(dbit_txns)
+    # A caller with the SAME transaction set may pass a prebuilt corpus to avoid
+    # rebuilding it (e.g. build_dashboard → _subs); identical input → identical
+    # corpus, so no behaviour change.
+    if corpus is None:
+        dbit_txns = [t for t in transactions
+                     if t.get("credit_debit_indicator") == "DBIT"]
+        corpus = resolver.build_corpus(dbit_txns)
     for t in transactions:
         if t.get("credit_debit_indicator") != "DBIT":
             continue  # never surface income / incoming credits

@@ -1,10 +1,17 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../services/auth_service.dart';
+import '../../services/dashboard_store.dart';
 import '../../ui/design_system.dart';
+import '../../user_session.dart';
 import '../bank_connect_screen.dart';
+import '../legal_screen.dart';
+import '../login_screen.dart';
 
 /// Bilance-style Dashboard preview, on the user's REAL computed Revolut data.
 ///
@@ -24,10 +31,14 @@ const _good = Color(0xFF2FA34E);
 // Theme-dependent tokens: reassigned by _applyTheme; _themeVN drives rebuilds.
 final ValueNotifier<bool> _themeVN = ValueNotifier<bool>(false);
 bool _darkMode = false;
+
+// Set by the live dashboard; a transaction-detail/edit screen calls this after
+// mutating the shared `_d['all']` list so totals recompute and data persists.
+void Function()? _dashRefresh;
 Color _bg = const Color(0xFFF1F1F4);
 Color _purpleSoft = const Color(0xFFF3EEFE);
-Color _muted = const Color(0xFF8B8B93);
-Color _faint = const Color(0xFFB6B6BE);
+Color _muted = const Color(0xFF48484F); // darker → secondary text stays readable
+Color _faint = const Color(0xFF9A9AA6);
 Color _ink = const Color(0xFF16161A);
 Color _navOff = const Color(0xFF9A9AA2);
 Color _card = const Color(0xFFFFFFFF); // card / surface background
@@ -40,8 +51,8 @@ void _applyTheme(bool dark) {
   _darkMode = dark;
   _bg         = dark ? const Color(0xFF0F1014) : const Color(0xFFF1F1F4);
   _purpleSoft = dark ? const Color(0xFF251B41) : const Color(0xFFF3EEFE);
-  _muted      = dark ? const Color(0xFF8C8E9A) : const Color(0xFF8B8B93);
-  _faint      = dark ? const Color(0xFF585A66) : const Color(0xFFB6B6BE);
+  _muted      = dark ? const Color(0xFFAEB0BC) : const Color(0xFF48484F);
+  _faint      = dark ? const Color(0xFF6E7080) : const Color(0xFF9A9AA6);
   _ink        = dark ? const Color(0xFFEEF0F5) : const Color(0xFF16161A);
   _navOff     = dark ? const Color(0xFF585A66) : const Color(0xFF9A9AA2);
   _card       = dark ? const Color(0xFF1A1B23) : const Color(0xFFFFFFFF);
@@ -63,6 +74,13 @@ const _catColors = <String, Color>{
   'transfer': Color(0xFF6E6E86),
   'invest': Color(0xFFE0574F),
   'income': Color(0xFFF0A322),
+  // section-level keys the backend also emits (were falling back to grey)
+  'health': Color(0xFFEE7A3A),
+  'fitness': Color(0xFFEE7A3A),
+  'entertainment': Color(0xFF2E9BE6),
+  'finance': Color(0xFFE0574F),
+  'edu': Color(0xFF7C5CD6),
+  'other': Color(0xFF6E6E86),
 };
 const _catIcons = <String, IconData>{
   'cart': Icons.shopping_cart_rounded,
@@ -103,21 +121,6 @@ const _secIcon = <String, IconData>{
   'transfer': Icons.swap_horiz_rounded,
 };
 
-// merchant brand key (mirrors tools/gen_dash.py brandkey) for 'similar transactions'
-const _brands = [
-  'maxima', 'rimi', 'iki', 'lidl', 'aibe', 'aibė', 'norfa', 'circle k', 'viada', 'neste', '1-2-3',
-  'bolt rentals', 'bolt', 'royal smoke', 'mcdonald', 'hesburger', 'skoniai', 'senukai', 'kesko',
-  'danutes pocien', 'birzu duona', 'biržų duona', 'verslo vartai', 'epaslaug', 'artus', 'savasld', 'oanda',
-];
-String _brandKey(String n) {
-  final nl = n.toLowerCase();
-  for (final b in _brands) {
-    if (nl.contains(b)) return b;
-  }
-  final toks = nl.replaceAll(RegExp(r'[^a-zżąčęėįšųūž ]', unicode: true), ' ').split(' ').where((w) => w.length > 1).take(2).toList();
-  return toks.isNotEmpty ? toks.join(' ') : (nl.length > 8 ? nl.substring(0, 8) : nl);
-}
-
 // section label → glyph key (for the month-review category list + drill-down)
 const _secToIcon = <String, String>{
   'Maistas, gėrimai': 'food', 'Transportas': 'car', 'Apsipirkimas': 'bag',
@@ -145,6 +148,17 @@ Color _colOf(String? k) => _catColors[k] ?? const Color(0xFF6E6E86);
 IconData _iconOf(String? k) => _catIcons[k] ?? Icons.swap_horiz_rounded;
 String _eur(num v, {bool signed = false}) => Money.format(v.toDouble(), signed: signed);
 
+// Whole-euro format (no cents) for headline balances, e.g. "7 049 €".
+String _eur0(num v) {
+  final digits = v.abs().round().toString();
+  final b = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i != 0 && (digits.length - i) % 3 == 0) b.write(' ');
+    b.write(digits[i]);
+  }
+  return '${v < 0 ? '−' : ''}$b €';
+}
+
 // ── Canonical money rule — the ONE definition every screen uses so the same
 // concept shows the same number everywhere (mirrors functions/dashboard.py
 // _flow/_totals). Direction decides income vs expense; transfers/exchange are
@@ -167,6 +181,16 @@ double _sumExpenses(Iterable rows) =>
 
 double _sumIncome(Iterable rows) => rows.fold(0.0,
     (s, t) => s + (_flowOf(t as Map) == 'income' ? (t['a'] as num).toDouble() : 0.0));
+
+// Lowercase + strip Lithuanian diacritics so search matches "ivairus" ↔ "įvairūs".
+String _fold(String s) {
+  const m = {'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's', 'ų': 'u', 'ū': 'u', 'ž': 'z'};
+  final b = StringBuffer();
+  for (final ch in s.toLowerCase().split('')) {
+    b.write(m[ch] ?? ch);
+  }
+  return b.toString();
+}
 
 String _shortNm(String n) {
   // collapse an exactly-doubled name ("VMI prie LR FM VMI prie LR FM" → "VMI prie LR FM")
@@ -213,6 +237,24 @@ class _DashboardPreviewState extends State<DashboardPreview> {
   bool _hideBal = false;
   int? _weekSel; // tapped weekday bar
   int _shownPast = 2; // how many past months are shown below the current one
+  final _txFilter = _TxFilter(); // feed filter (type + sections)
+
+  // The transactions the feed shows — all, or filtered when the filter is active.
+  Iterable<Map<String, dynamic>> get _feedAll {
+    final all = (_d['all'] as List).cast<Map<String, dynamic>>();
+    return _txFilter.active ? all.where(_txFilter.matches) : all;
+  }
+
+  Future<void> _openDashFilter() async {
+    final avail = (_d['all'] as List).cast<Map<String, dynamic>>().map((t) => t['sec'] as String).toSet().toList()..sort();
+    final res = await _showFilterSheet(context, _txFilter, avail);
+    if (res == null) return;
+    setState(() {
+      _txFilter
+        ..type = res.type
+        ..secs = res.secs;
+    });
+  }
 
   // Cached non-dashboard tabs. They depend only on the immutable `_d` data, so
   // rebuilding them on every tab switch (setState) is wasted work that made tab
@@ -238,12 +280,27 @@ class _DashboardPreviewState extends State<DashboardPreview> {
   void initState() {
     super.initState();
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
+    // Let any detail/edit screen that mutates `_d['all']` (delete, edit,
+    // convert, recategorise) ask the dashboard to recompute + persist.
+    _dashRefresh = _refreshFromAll;
   }
 
   @override
   void dispose() {
     _themeVN.removeListener(_onTheme);
+    if (_dashRefresh == _refreshFromAll) _dashRefresh = null;
     super.dispose();
+  }
+
+  // Re-derive everything from `_d['all']` after an external mutation and persist.
+  void _refreshFromAll() {
+    if (!mounted) return;
+    setState(() {
+      _d.remove('totals'); // month/day headers recompute canonically from `all`
+      _d['week'] = _computeWeek((_d['all'] as List).cast<Map<String, dynamic>>());
+      _otherTabs = null; // Overview/Planning rebuild
+    });
+    _persist();
   }
 
   @override
@@ -262,7 +319,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
       ),
       bottomNavigationBar: _navBar(),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: _openAddMenu,
         backgroundColor: _purpleSoft,
         elevation: 2,
         shape: const CircleBorder(),
@@ -274,7 +331,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
 
   // ── DASHBOARD ──────────────────────────────────────────────────────────────
   Widget _dashboard() {
-    final all = (_d['all'] as List).cast<Map<String, dynamic>>();
+    final all = _feedAll;
     final keys = <String>{};
     for (final t in all) {
       keys.add((t['d'] as String).substring(0, 7));
@@ -318,7 +375,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
     );
   }
 
-  int _monthCount(String mk) => (_d['all'] as List).where((t) => (t['d'] as String).startsWith(mk)).length;
+  int _monthCount(String mk) => _feedAll.where((t) => (t['d'] as String).startsWith(mk)).length;
 
   // ── Canonical month figures — the SINGLE source of truth so the same concept
   // shows the same number everywhere. Prefer the backend `totals` block; fall
@@ -328,18 +385,25 @@ class _DashboardPreviewState extends State<DashboardPreview> {
   Map<String, dynamic>? _monthTotals(String mk) =>
       (_totalsBlock?['months'] as Map?)?[mk] as Map<String, dynamic>?;
 
-  Iterable<Map<String, dynamic>> _rowsForMonth(String mk) => (_d['all'] as List)
-      .cast<Map<String, dynamic>>()
-      .where((t) => (t['d'] as String).startsWith(mk));
+  Iterable<Map<String, dynamic>> _rowsForMonth(String mk) =>
+      _feedAll.where((t) => (t['d'] as String).startsWith(mk));
 
   double _monthExpenses(String mk) {
-    final m = _monthTotals(mk);
-    return m != null ? (m['expenses'] as num).toDouble() : _sumExpenses(_rowsForMonth(mk));
+    // Backend totals cover the whole month; when a filter is active they don't
+    // match the shown rows, so compute from the filtered rows instead.
+    if (!_txFilter.active) {
+      final m = _monthTotals(mk);
+      if (m != null) return (m['expenses'] as num).toDouble();
+    }
+    return _sumExpenses(_rowsForMonth(mk));
   }
 
   double _monthIncome(String mk) {
-    final m = _monthTotals(mk);
-    return m != null ? (m['income'] as num).toDouble() : _sumIncome(_rowsForMonth(mk));
+    if (!_txFilter.active) {
+      final m = _monthTotals(mk);
+      if (m != null) return (m['income'] as num).toDouble();
+    }
+    return _sumIncome(_rowsForMonth(mk));
   }
 
   // Canonical month net = income − expenses (NOT a raw sum of amounts, which
@@ -355,7 +419,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
   // Build a day-by-day feed for a month from the flat `all` list (merging same
   // merchant on the same day into an N× row, like the current-month feed).
   List<Map<String, dynamic>> _monthFeed(String mk) {
-    final rows = (_d['all'] as List).cast<Map<String, dynamic>>().where((t) => (t['d'] as String).startsWith(mk)).toList();
+    final rows = _feedAll.where((t) => (t['d'] as String).startsWith(mk)).toList();
     final byDate = <String, List<Map<String, dynamic>>>{};
     for (final t in rows) {
       byDate.putIfAbsent(t['d'] as String, () => []).add(t);
@@ -370,7 +434,11 @@ class _DashboardPreviewState extends State<DashboardPreview> {
         final m = merged.putIfAbsent(k, () => {
               'nm': t['nm'], 'cat': t['cat'], 'ic': t['ic'], 'col': t['col'],
               'a': 0.0, 'count': 0, 'badges': t['badges'], 'amb': t['amb'], 'pos': t['pos'],
+              // identity + fields so the detail screen can find/edit/delete the
+              // underlying row(s): a group shares (mkey, date).
+              'mkey': k, 'd': d, 'sec': t['sec'], 'secc': t['secc'], 'star': t['star'] == true,
             });
+        if (t['star'] == true) m['star'] = true;
         m['a'] = (m['a'] as double) + (t['a'] as num).toDouble();
         m['count'] = (m['count'] as int) + 1;
       }
@@ -410,18 +478,33 @@ class _DashboardPreviewState extends State<DashboardPreview> {
   }
 
   Widget _filters() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       child: Row(children: [
-        _Chip(icon: Icons.calendar_today_rounded, label: 'Visas laikas'),
-        SizedBox(width: 9),
-        _Chip(icon: Icons.tune_rounded, label: 'Filtras'),
+        GestureDetector(
+          onTap: () => ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(content: Text('Laikotarpio pasirinkimas — netrukus'), duration: Duration(milliseconds: 1500))),
+          child: const _Chip(icon: Icons.calendar_today_rounded, label: 'Visas laikas'),
+        ),
+        const SizedBox(width: 9),
+        GestureDetector(
+          onTap: _openDashFilter,
+          child: _Chip(
+            icon: Icons.tune_rounded,
+            label: _txFilter.active ? 'Filtras · ${_txFilter.count}' : 'Filtras',
+            active: _txFilter.active,
+          ),
+        ),
       ]),
     );
   }
 
   Widget _balanceCard() {
     final spark = (_d['spark'] as List).map((e) => (e as num).toDouble()).toList();
+    // Real bank balance from the payload (was hardcoded "7 049 €"). "—" if absent.
+    final cur = (_d['balance'] as Map?)?['current'];
+    final balStr = cur is num ? _eur0(cur) : '—';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: GestureDetector(
@@ -441,7 +524,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
                       const SizedBox(height: 3),
                       _hideBal
                           ? Text('••••••', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: 2))
-                          : Text('7 049 €',
+                          : Text(balStr,
                               style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
                     ],
                   ),
@@ -478,9 +561,19 @@ class _DashboardPreviewState extends State<DashboardPreview> {
   }
 
   Widget _syncedCard() {
+    // Real reserved (pending) count — was hardcoded "4". Rows carry the 'res'
+    // badge for PDNG transactions.
+    final reserved = (_d['all'] as List)
+        .where((t) => ((t['badges'] as List?) ?? const []).contains('res'))
+        .length;
+    final sub = reserved == 0
+        ? 'Viskas atnaujinta'
+        : reserved == 1
+            ? '1 rezervuotas sandoris'
+            : '$reserved rezervuoti sandoriai';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: AppCard(color: _card, border: _hair, 
+      child: AppCard(color: _card, border: _hair,
         padding: const EdgeInsets.all(16),
         child: Row(children: [
           Container(
@@ -492,10 +585,8 @@ class _DashboardPreviewState extends State<DashboardPreview> {
           const SizedBox(width: 12),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Sinchronizuota', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
-            Text('4 rezervuoti sandoriai', style: TextStyle(fontSize: 12.5, color: _muted)),
+            Text(sub, style: TextStyle(fontSize: 12.5, color: _muted)),
           ]),
-          const Spacer(),
-          Icon(Icons.keyboard_arrow_down_rounded, color: _faint),
         ]),
       ),
     );
@@ -570,7 +661,11 @@ class _DashboardPreviewState extends State<DashboardPreview> {
   }
 
   Widget _weekSection() {
-    final week = _d['week'] as Map<String, dynamic>;
+    // When a filter is active, recompute the week chart from the filtered rows
+    // so it stays consistent with the filtered feed and headers.
+    final week = _txFilter.active
+        ? _computeWeek(_feedAll.toList())
+        : _d['week'] as Map<String, dynamic>;
     final days = (week['days'] as List).cast<Map<String, dynamic>>();
     final total = (week['total'] as num).toDouble();
     double maxV = 1;
@@ -741,7 +836,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
                 padding: const EdgeInsets.only(left: 8),
                 child: GestureDetector(
                   onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ačiū! Įsiminta 👍'), duration: Duration(milliseconds: 1400)),
+                    const SnackBar(content: Text('Ačiū už atsiliepimą!'), duration: Duration(milliseconds: 1400)),
                   ),
                   child: Text(e, style: const TextStyle(fontSize: 26)),
                 ),
@@ -1048,6 +1143,797 @@ class _DashboardPreviewState extends State<DashboardPreview> {
       ),
     );
   }
+
+  // ── MANUAL TRANSACTION ENTRY (Bilance-style + FAB) ──────────────────────────
+  // The central + opens a small radial menu (Išlaida / Pajamos / Vidinis
+  // pervedimas); each pushes a form. A saved entry is appended to `_d['all']`,
+  // the canonical figures recompute from `all` (transfers stay out of both
+  // spent & earned via `_flowOf`), and the payload is persisted on-device.
+  Future<void> _openAddMenu() async {
+    // A short explainer screen first (Bilance can feel opaque to newcomers): it
+    // says what a manual entry is and what each of the three types does, then
+    // routes into the form. Returns the built transaction to append.
+    final tx = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(builder: (_) => const _AddEntryScreen()),
+    );
+    if (tx == null || !mounted) return;
+    _addManualTx(tx);
+  }
+
+  void _addManualTx(Map<String, dynamic> tx) {
+    setState(() {
+      (_d['all'] as List).add(tx);
+      // Drop the backend `totals` block so month/day headers recompute from
+      // `all` with the same canonical rule (fallback == backend by invariant).
+      _d.remove('totals');
+      _d['week'] = _computeWeek((_d['all'] as List).cast<Map<String, dynamic>>());
+      _otherTabs = null; // Overview/Planning rebuild with the new row
+    });
+    _persist();
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(content: Text('Įrašas pridėtas'), duration: Duration(seconds: 2)));
+    }
+  }
+
+  Future<void> _persist() async {
+    // Real app: the payload came from a bank scan and is stored on-device, so
+    // manual edits survive restart. Preview harness has no open Hive box —
+    // swallow that so the in-memory add still works for design testing.
+    try {
+      await DashboardStore.persist(_d);
+    } catch (_) {/* no store in preview */}
+  }
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  // Rebuild the "this week" bar chart from `all` (Mon..Sun of the latest date)
+  // so a manual entry in the current week shows up there too — same expenses-
+  // only rule as the day/month headers.
+  Map<String, dynamic> _computeWeek(List<Map<String, dynamic>> all) {
+    if (all.isEmpty) return {'total': 0.0, 'days': <Map<String, dynamic>>[], 'range': ''};
+    var maxD = '';
+    for (final t in all) {
+      final d = t['d'] as String;
+      if (d.compareTo(maxD) > 0) maxD = d;
+    }
+    final latest = DateTime.parse(maxD);
+    final monday = DateTime(latest.year, latest.month, latest.day)
+        .subtract(Duration(days: latest.weekday - 1));
+    const wdShort = ['Pr', 'An', 'Tr', 'Kt', 'Pn', 'Št', 'Sk'];
+    final days = <Map<String, dynamic>>[];
+    var weekTotal = 0.0;
+    for (var i = 0; i < 7; i++) {
+      final day = monday.add(Duration(days: i));
+      final ds = _ymd(day);
+      final rows = all.where((t) => t['d'] == ds);
+      final total = _sumExpenses(rows);
+      weekTotal += total;
+      final bySec = <String, double>{};
+      final secColor = <String, String>{};
+      for (final t in rows) {
+        final s = _spendOf(t);
+        if (s <= 0) continue;
+        final sec = t['sec'] as String;
+        bySec[sec] = (bySec[sec] ?? 0) + s;
+        secColor[sec] = t['secc'] as String;
+      }
+      final cats = bySec.entries
+          .map((e) => {
+                'label': e.key,
+                'color': secColor[e.key],
+                'icon': _secToIcon[e.key] ?? 'transfer',
+                'amount': e.value,
+              })
+          .toList()
+        ..sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
+      days.add({
+        'lbl': wdShort[i],
+        'total': total,
+        'cats': cats,
+        'dlabel': '${_monGen[day.month - 1]} ${day.day}',
+      });
+    }
+    return {
+      'total': weekTotal,
+      'days': days,
+      'range': '${_ymd(monday)}..${_ymd(monday.add(const Duration(days: 6)))}',
+    };
+  }
+}
+
+// ── MANUAL ENTRY: category table + radial menu + form ───────────────────────────
+// One row of manual-entry metadata. `sec`/`secc` mirror the backend section
+// (so the section screens group it right); `col`/`ic` drive the transaction
+// row's glyph. Kept aligned with the taxonomy in `_taxonomy` above.
+class _ManualCat {
+  const _ManualCat(this.cat, this.sec, this.secc, this.col, this.ic);
+  final String cat, sec, secc, col, ic;
+}
+
+const _expenseCats = <_ManualCat>[
+  _ManualCat('Maisto prekės', 'Maistas, gėrimai', 'green', 'food', 'cart'),
+  _ManualCat('Kavinės, restoranai', 'Maistas, gėrimai', 'green', 'food', 'dining'),
+  _ManualCat('Užkandžiai, kava', 'Maistas, gėrimai', 'green', 'food', 'coffee'),
+  _ManualCat('Alkoholis, tabakas', 'Maistas, gėrimai', 'green', 'food', 'bottle'),
+  _ManualCat('Kuras', 'Transportas', 'blue', 'fuel', 'fuel'),
+  _ManualCat('Taksi, pavėžėja', 'Transportas', 'blue', 'transport', 'taxi'),
+  _ManualCat('Paspirtukai, dalinimasis', 'Transportas', 'blue', 'transport', 'scooter'),
+  _ManualCat('Viešasis transportas', 'Transportas', 'blue', 'transport', 'taxi'),
+  _ManualCat('Automobilis', 'Transportas', 'blue', 'vehicle', 'car'),
+  _ManualCat('Drabužiai', 'Apsipirkimas', 'teal', 'shopping', 'bag'),
+  _ManualCat('Elektronika, prekės', 'Apsipirkimas', 'teal', 'shopping', 'monitor'),
+  _ManualCat('Namų prekės', 'Apsipirkimas', 'teal', 'shopping', 'bag'),
+  _ManualCat('Nuoma, būstas', 'Būstas, sąskaitos', 'olive', 'housing', 'house'),
+  _ManualCat('Komunaliniai', 'Būstas, sąskaitos', 'olive', 'housing', 'home'),
+  _ManualCat('Ryšys, internetas', 'Būstas, sąskaitos', 'olive', 'housing', 'home'),
+  _ManualCat('Draudimas', 'Būstas, sąskaitos', 'olive', 'housing', 'shield'),
+  _ManualCat('Sveikata', 'Sveikata, sportas', 'orange', 'health', 'health'),
+  _ManualCat('Sportas', 'Sveikata, sportas', 'orange', 'fitness', 'health'),
+  _ManualCat('Vaistinė', 'Sveikata, sportas', 'orange', 'health', 'health'),
+  _ManualCat('Pramogos', 'Pramogos', 'cyan', 'entertainment', 'fun'),
+  _ManualCat('Prenumeratos', 'Pramogos', 'cyan', 'entertainment', 'monitor'),
+  _ManualCat('Kelionės', 'Pramogos', 'cyan', 'entertainment', 'fun'),
+  _ManualCat('Mokesčiai', 'Finansai', 'red', 'taxes', 'doc'),
+  _ManualCat('Bankas, komisiniai', 'Finansai', 'red', 'finance', 'money'),
+  _ManualCat('Investicijos', 'Finansai', 'red', 'finance', 'doc'),
+  _ManualCat('Mokslas', 'Švietimas', 'purple', 'edu', 'edu'),
+  _ManualCat('Kursai, knygos', 'Švietimas', 'purple', 'edu', 'edu'),
+  _ManualCat('Kita', 'Kita', 'indigo', 'other', 'swap'),
+];
+const _incomeCats = <_ManualCat>[
+  _ManualCat('Atlyginimas', 'Pajamos', 'amber', 'income', 'income'),
+  _ManualCat('Pajamos', 'Pajamos', 'amber', 'income', 'income'),
+  _ManualCat('Dovana', 'Pajamos', 'amber', 'income', 'income'),
+];
+const _transferCats = <_ManualCat>[
+  _ManualCat('Pervedimas', 'Pervedimai', 'indigo', 'transfer', 'swap'),
+  _ManualCat('Grynieji', 'Pervedimai', 'indigo', 'transfer', 'swap'),
+  _ManualCat('Asmeninis pervedimas', 'Pervedimai', 'indigo', 'transfer', 'person'),
+  _ManualCat('Sąskaitos papildymas', 'Pervedimai', 'indigo', 'transfer', 'swap'),
+];
+List<_ManualCat> _catsFor(String kind) => kind == 'income'
+    ? _incomeCats
+    : kind == 'transfer'
+        ? _transferCats
+        : _expenseCats;
+
+// Look up full row metadata (sec/secc/col/ic) for a category label — used when
+// recategorising an existing transaction so it gets consistent colours/section.
+_ManualCat? _catMetaFor(String cat) {
+  for (final list in [_expenseCats, _incomeCats, _transferCats]) {
+    for (final c in list) {
+      if (c.cat == cat) return c;
+    }
+  }
+  return null;
+}
+
+// Saving streak: consecutive COMPLETED months (excluding the latest/current,
+// which may be partial) with a positive savings rate. Shared by the Overview
+// card and the savings-rate detail screen so both show the same number.
+int _streakOf(List<String> monthKeys, List<Map<String, dynamic>> Function(String) rowsOf,
+    int Function(List<Map<String, dynamic>>) savingsOf) {
+  var streak = 0;
+  for (var i = monthKeys.length - 2; i >= 0; i--) {
+    if (savingsOf(rowsOf(monthKeys[i])) > 0) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+// ── Transaction filter (shared by Overview + Dashboard) ─────────────────────────
+class _TxFilter {
+  _TxFilter({this.type = 'all', Set<String>? secs}) : secs = secs ?? <String>{};
+  String type; // 'all' | 'expense' | 'income' | 'transfer'
+  Set<String> secs; // selected section labels; empty = all
+
+  bool get active => type != 'all' || secs.isNotEmpty;
+  int get count => (type != 'all' ? 1 : 0) + secs.length;
+
+  bool matches(Map t) {
+    if (type != 'all') {
+      final f = _flowOf(t);
+      if (type == 'expense' && !(f == 'expense' || f == 'refund')) return false;
+      if (type == 'income' && f != 'income') return false;
+      if (type == 'transfer' && f != 'transfer') return false;
+    }
+    if (secs.isNotEmpty && !secs.contains(t['sec'])) return false;
+    return true;
+  }
+
+  List<Map<String, dynamic>> apply(Iterable rows) =>
+      rows.where((t) => matches(t as Map)).cast<Map<String, dynamic>>().toList();
+
+  _TxFilter copy() => _TxFilter(type: type, secs: {...secs});
+}
+
+// Bottom-sheet filter editor. Returns the applied filter, or null if dismissed.
+Future<_TxFilter?> _showFilterSheet(BuildContext context, _TxFilter current, List<String> availableSecs) {
+  var type = current.type;
+  final secs = <String>{...current.secs};
+  const types = [
+    ['all', 'Visi'],
+    ['expense', 'Išlaidos'],
+    ['income', 'Pajamos'],
+    ['transfer', 'Pervedimai'],
+  ];
+  return showModalBottomSheet<_TxFilter>(
+    context: context,
+    backgroundColor: _card,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSheet) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(2))),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+                child: Row(children: [
+                  Text('Filtras', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => setSheet(() {
+                      type = 'all';
+                      secs.clear();
+                    }),
+                    child: const Text('Išvalyti', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
+                  ),
+                ]),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                  children: [
+                    Text('TIPAS', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.6)),
+                    const SizedBox(height: 10),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final tp in types)
+                        GestureDetector(
+                          onTap: () => setSheet(() => type = tp[0]),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: type == tp[0] ? _purple : _soft,
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: Text(tp[1],
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: type == tp[0] ? Colors.white : _ink)),
+                          ),
+                        ),
+                    ]),
+                    if (availableSecs.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Text('KATEGORIJOS', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.6)),
+                      const SizedBox(height: 4),
+                      for (final s in availableSecs)
+                        InkWell(
+                          onTap: () => setSheet(() => secs.contains(s) ? secs.remove(s) : secs.add(s)),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            child: Row(children: [
+                              CategoryIcon(icon: _secIcon[_secToIcon[s]] ?? Icons.circle, color: _secColor[_secToIconColor(s)] ?? _muted, size: 34),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(s, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink))),
+                              Icon(secs.contains(s) ? Icons.check_circle_rounded : Icons.circle_outlined,
+                                  size: 24, color: secs.contains(s) ? _purple : _faint),
+                            ]),
+                          ),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(ctx, _TxFilter(type: type, secs: secs)),
+                  child: Container(
+                    height: 52,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(15)),
+                    child: const Text('Taikyti', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// Section label → its colour key (for the filter sheet icon tint).
+String _secToIconColor(String sec) {
+  for (final t in _taxonomy) {
+    if (t['sec'] == sec) return t['c'] as String;
+  }
+  // data sections not in the picker taxonomy
+  if (sec == 'Pajamos') return 'amber';
+  if (sec == 'Pervedimai' || sec == 'Kita') return 'indigo';
+  return 'indigo';
+}
+
+String _kindTitle(String kind) => kind == 'income'
+    ? 'Naujos pajamos'
+    : kind == 'transfer'
+        ? 'Vidinis pervedimas'
+        : 'Nauja išlaida';
+Color _kindColor(String kind) => kind == 'income'
+    ? _good
+    : kind == 'transfer'
+        ? const Color(0xFF6E6E86)
+        : const Color(0xFFE0574F);
+
+// The + chooser: an explainer screen (what a manual entry is + what each of the
+// three types does) that routes into the form. Returns the built transaction so
+// the dashboard can append it — pops itself as soon as the form saves.
+class _AddEntryScreen extends StatelessWidget {
+  const _AddEntryScreen();
+
+  Future<void> _pick(BuildContext context, String kind) async {
+    final tx = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(builder: (_) => _ManualTxScreen(kind: kind)),
+    );
+    if (tx != null && context.mounted) Navigator.of(context).pop(tx);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(Icons.arrow_back_rounded, color: _ink, size: 26),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text('Pridėti ranka',
+                style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.6)),
+            const SizedBox(height: 8),
+            Text.rich(
+              TextSpan(
+                style: TextStyle(fontSize: 15.5, color: _muted, height: 1.5),
+                children: [
+                  const TextSpan(text: 'Įrašyk tai, ko '),
+                  TextSpan(text: 'bankas nemato', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+                  const TextSpan(text: ' — grynuosius, skolą draugui, pervedimą tarp savo sąskaitų.'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            _choice(
+              context,
+              kind: 'expense',
+              color: const Color(0xFFE0574F),
+              icon: Icons.south_west_rounded,
+              title: 'Išlaida',
+              desc: 'Pinigai, kuriuos išleidai — pvz. sumokėjai grynais.',
+              effect: 'Didina mėnesio išlaidas',
+            ),
+            const SizedBox(height: 14),
+            _choice(
+              context,
+              kind: 'income',
+              color: _good,
+              icon: Icons.north_east_rounded,
+              title: 'Pajamos',
+              desc: 'Gauti pinigai — atlyginimas grynais, dovana, grąžinta skola.',
+              effect: 'Didina mėnesio pajamas',
+            ),
+            const SizedBox(height: 14),
+            _choice(
+              context,
+              kind: 'transfer',
+              color: const Color(0xFF6E6E86),
+              icon: Icons.swap_horiz_rounded,
+              title: 'Vidinis pervedimas',
+              desc: 'Perkėlei pinigus tarp savo sąskaitų arba išsiėmei grynųjų.',
+              effect: 'Neįskaičiuojama į išlaidas ar pajamas',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _choice(BuildContext context,
+      {required String kind,
+      required Color color,
+      required IconData icon,
+      required String title,
+      required String desc,
+      required String effect}) {
+    return Material(
+      color: _card,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: () => _pick(context, kind),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: 0.28), width: 1.5),
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.10), blurRadius: 16, offset: const Offset(0, 6))],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(17),
+                  boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 5))],
+                ),
+                child: Icon(icon, color: Colors.white, size: 27),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(
+                      child: Text(title,
+                          style: TextStyle(fontSize: 18.5, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: _faint, size: 24),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(desc, style: TextStyle(fontSize: 13.5, color: _muted, height: 1.4)),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(9)),
+                    child: Text(effect,
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.1)),
+                  ),
+                ]),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// The manual-entry form (amount + category + date + note). Also used to EDIT an
+// existing transaction when [initial] is passed (prefills the fields).
+class _ManualTxScreen extends StatefulWidget {
+  const _ManualTxScreen({required this.kind, this.initial});
+  final String kind; // 'expense' | 'income' | 'transfer'
+  final Map<String, dynamic>? initial; // when set → edit mode
+  @override
+  State<_ManualTxScreen> createState() => _ManualTxScreenState();
+}
+
+class _ManualTxScreenState extends State<_ManualTxScreen> {
+  final _amountCtl = TextEditingController();
+  final _noteCtl = TextEditingController();
+  late _ManualCat _cat = _catsFor(widget.kind).first;
+  late DateTime _date = _today();
+  bool get _isEdit => widget.initial != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final init = widget.initial;
+    if (init == null) return;
+    final a = (init['a'] as num?)?.toDouble() ?? 0;
+    if (a != 0) {
+      final abs = a.abs();
+      _amountCtl.text = abs == abs.roundToDouble() ? abs.toStringAsFixed(0) : abs.toStringAsFixed(2);
+    }
+    final cats = _catsFor(widget.kind);
+    _cat = cats.firstWhere((c) => c.cat == init['cat'], orElse: () => cats.first);
+    final d = init['d'] as String?;
+    if (d != null) {
+      final dt = DateTime.tryParse(d);
+      if (dt != null) _date = DateTime(dt.year, dt.month, dt.day);
+    }
+    // Prefill the note with the merchant name unless it's just the category label.
+    final nm = init['nm'] as String?;
+    if (nm != null && nm.trim().isNotEmpty && nm != init['cat']) _noteCtl.text = nm;
+  }
+
+  static DateTime _today() {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
+  }
+
+  double get _amount {
+    final raw = _amountCtl.text.trim().replaceAll(',', '.').replaceAll('€', '').replaceAll(' ', '');
+    return double.tryParse(raw) ?? 0;
+  }
+
+  bool get _valid => _amount > 0;
+
+  @override
+  void dispose() {
+    _amountCtl.dispose();
+    _noteCtl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickCat() async {
+    final cats = _catsFor(widget.kind);
+    final picked = await showModalBottomSheet<_ManualCat>(
+      context: context,
+      backgroundColor: _card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(2))),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                child: Align(alignment: Alignment.centerLeft, child: Text('Kategorija', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink))),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: cats.length,
+                  itemBuilder: (_, i) {
+                    final c = cats[i];
+                    final sel = c.cat == _cat.cat;
+                    return InkWell(
+                      onTap: () => Navigator.of(context).pop(c),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                        child: Row(children: [
+                          CategoryIcon(icon: _iconOf(c.ic), color: _colOf(c.col), size: 40, circle: false),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(c.cat, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+                              const SizedBox(height: 1),
+                              Text(c.sec, style: TextStyle(fontSize: 12, color: _muted)),
+                            ]),
+                          ),
+                          if (sel) const Icon(Icons.check_circle_rounded, color: _purple, size: 22),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null) setState(() => _cat = picked);
+  }
+
+  Future<void> _pickDate() async {
+    final now = _today();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(now.year - 3),
+      lastDate: now,
+      helpText: 'Data',
+    );
+    if (picked != null) setState(() => _date = DateTime(picked.year, picked.month, picked.day));
+  }
+
+  void _save() {
+    final signed = widget.kind == 'income' ? _amount.abs() : -_amount.abs();
+    final note = _noteCtl.text.trim();
+    final nm = note.isNotEmpty ? note : _cat.cat;
+    final tx = <String, dynamic>{
+      'nm': nm,
+      'mkey': 'manual-${DateTime.now().microsecondsSinceEpoch}',
+      'd': _DashboardPreviewState._ymd(_date),
+      // Same date fields bank rows carry, so search/detail don't show "· null".
+      'md': '${_monGen[_date.month - 1]} ${_date.day}',
+      'wd': const ['Pir', 'Ant', 'Tre', 'Ket', 'Pen', 'Šeš', 'Sek'][_date.weekday - 1],
+      'cat': _cat.cat,
+      'col': _cat.col,
+      'ic': _cat.ic,
+      'sec': _cat.sec,
+      'secc': _cat.secc,
+      'a': double.parse(signed.toStringAsFixed(2)),
+      'amb': false,
+      'badges': <String>[],
+      'pos': signed > 0,
+      'count': 0,
+      'manual': true,
+    };
+    Navigator.of(context).pop(tx);
+  }
+
+  String get _dateLabel {
+    final t = _today();
+    if (_date == t) return 'Šiandien';
+    if (_date == t.subtract(const Duration(days: 1))) return 'Vakar';
+    return '${_date.day} ${_monGen[_date.month - 1].toLowerCase()} ${_date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = _kindColor(widget.kind);
+    return Scaffold(
+      backgroundColor: _bg,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 16, 6),
+              child: Row(children: [
+                IconButton(icon: Icon(Icons.arrow_back_rounded, color: _ink), onPressed: () => Navigator.of(context).pop()),
+                Expanded(child: Text(_isEdit ? 'Redaguoti' : _kindTitle(widget.kind), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink))),
+              ]),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: [
+                  // amount
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+                    decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(18), border: Border.all(color: _hair)),
+                    child: Row(children: [
+                      Text(widget.kind == 'income' ? '+' : '−',
+                          style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: tint)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: TextField(
+                          controller: _amountCtl,
+                          autofocus: true,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+                          onChanged: (_) => setState(() {}),
+                          style: TextStyle(fontSize: 40, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -1),
+                          decoration: InputDecoration(
+                            isCollapsed: true,
+                            border: InputBorder.none,
+                            hintText: '0',
+                            hintStyle: TextStyle(fontSize: 40, fontWeight: FontWeight.w800, color: _faint),
+                          ),
+                        ),
+                      ),
+                      Text('€', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w700, color: _muted)),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                  // category
+                  _row(
+                    onTap: _pickCat,
+                    leading: CategoryIcon(icon: _iconOf(_cat.ic), color: _colOf(_cat.col), size: 40, circle: false),
+                    label: 'Kategorija',
+                    value: _cat.cat,
+                  ),
+                  const SizedBox(height: 10),
+                  // date
+                  _row(
+                    onTap: _pickDate,
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(11)),
+                      child: Icon(Icons.event_rounded, color: _muted, size: 21),
+                    ),
+                    label: 'Data',
+                    value: _dateLabel,
+                  ),
+                  const SizedBox(height: 10),
+                  // note
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
+                    child: Row(children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(11)),
+                        child: Icon(Icons.notes_rounded, color: _muted, size: 21),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _noteCtl,
+                          textCapitalization: TextCapitalization.sentences,
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink),
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            hintText: widget.kind == 'transfer' ? 'Pavadinimas (nebūtina)' : 'Pastaba (nebūtina)',
+                            hintStyle: TextStyle(fontSize: 15, color: _faint),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                  if (widget.kind == 'transfer')
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 14, 4, 0),
+                      child: Text('Vidiniai pervedimai neįskaičiuojami į išlaidas ar pajamas.',
+                          style: TextStyle(fontSize: 12.5, color: _muted, height: 1.3)),
+                    ),
+                ],
+              ),
+            ),
+            // save
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: GestureDetector(
+                onTap: _valid ? _save : null,
+                child: Container(
+                  height: 54,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _valid ? _purple : _faint,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Text('Išsaugoti', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row({required VoidCallback onTap, required Widget leading, required String label, required String value}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
+        child: Row(children: [
+          leading,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: TextStyle(fontSize: 12, color: _muted, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(value, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
+            ]),
+          ),
+          Icon(Icons.chevron_right_rounded, color: _faint, size: 22),
+        ]),
+      ),
+    );
+  }
 }
 
 // ── PAINTERS ──────────────────────────────────────────────────────────────────
@@ -1105,22 +1991,24 @@ class _MiniRingPainter extends CustomPainter {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({required this.icon, required this.label});
+  const _Chip({required this.icon, required this.label, this.active = false});
   final IconData icon;
   final String label;
+  final bool active;
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
       decoration: BoxDecoration(
-        color: _card,
+        color: active ? _purpleSoft : _card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _hair),
+        border: Border.all(color: active ? _purple : _hair, width: active ? 1.5 : 1),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 15, color: _purple),
         const SizedBox(width: 7),
-        Text(label, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _ink)),
+        Text(label,
+            style: TextStyle(fontSize: 13.5, fontWeight: active ? FontWeight.w800 : FontWeight.w600, color: active ? _purple : _ink)),
       ]),
     );
   }
@@ -1192,7 +2080,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
     final mx = vals.reduce((a, b) => a > b ? a : b);
     final startD = DateTime.parse(pts.first['d'] as String);
     final endD = DateTime.parse(pts.last['d'] as String);
-    final accounts = (widget.bal['accounts'] as List).cast<Map<String, dynamic>>();
+    final accounts = ((widget.bal['accounts'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.82,
@@ -1533,11 +2421,14 @@ class _AreaChartPainter extends CustomPainter {
 // TRANSACTION DETAIL — full screen
 // ══════════════════════════════════════════════════════════════════════════════
 class _TxDetailScreen extends StatefulWidget {
-  const _TxDetailScreen({required this.tx, required this.day, required this.all, required this.budgets});
+  const _TxDetailScreen({required this.tx, required this.day, required this.all, required this.budgets, this.single = false});
   final Map<String, dynamic> tx;
   final Map<String, dynamic> day;
   final List<Map<String, dynamic>> all;
   final Map<String, dynamic> budgets;
+  // Opened for ONE specific row (e.g. from search) → actions must not affect
+  // the whole merchant+day group. From the feed a row represents the group.
+  final bool single;
   @override
   State<_TxDetailScreen> createState() => _TxDetailScreenState();
 }
@@ -1546,13 +2437,132 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   late String _cat = widget.tx['cat'] as String;
   late Color _catColor = _colOf(widget.tx['col'] as String?);
   late IconData _catIcon = _iconOf(widget.tx['ic'] as String?);
-  late bool _isTransfer = widget.tx['col'] == 'transfer';
-  bool _starred = false;
+  late bool _isTransfer = widget.tx['sec'] == 'Pervedimai' || widget.tx['col'] == 'transfer';
+  late bool _starred = widget.tx['star'] == true;
 
   Map<String, dynamic> get tx => widget.tx;
   double get amount => (tx['a'] as num).toDouble();
   bool get isPos => tx['pos'] == true;
   String get merchant => _shortNm(tx['nm'] as String);
+
+  // The row(s) in `_d['all']` this detail represents. A merged N× feed row
+  // shares (mkey, date); a single/manual/search row is itself.
+  List<Map<String, dynamic>> get _underlying {
+    // Single-row mode (search): the tapped `tx` IS a real `all` element, so act
+    // only on that exact instance — never the whole (mkey, date) group.
+    if (widget.single) return [tx];
+    final mkey = tx['mkey'];
+    final d = tx['d'];
+    if (mkey == null || d == null) return [tx];
+    final rows = widget.all.where((r) => r['mkey'] == mkey && r['d'] == d).toList();
+    return rows.isEmpty ? [tx] : rows;
+  }
+
+  String get _kind {
+    if (_isTransfer) return 'transfer';
+    return amount > 0 ? 'income' : 'expense';
+  }
+
+  // ── Real actions (persist via the dashboard's _dashRefresh) ─────────────────
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Ištrinti sandorį?', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        content: Text('„$merchant" (${_eur(amount, signed: true)}) bus pašalintas. Šio veiksmo anuliuoti negalima.',
+            style: TextStyle(color: _muted, height: 1.4)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Ištrinti', style: TextStyle(color: Color(0xFFE0574F), fontWeight: FontWeight.w800))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final targets = _underlying;
+    widget.all.removeWhere(targets.contains);
+    _dashRefresh?.call();
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _edit() async {
+    final rows = _underlying;
+    if (rows.length > 1) {
+      _toast('Sujungtos operacijos — keisis pavadinimas ir kategorija visoms');
+    }
+    final edited = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(builder: (_) => _ManualTxScreen(kind: _kind, initial: tx)),
+    );
+    if (edited == null || !mounted) return;
+    // A merged N× row can't take a single amount; keep per-row amounts and only
+    // apply the shared fields (name/category/date). A single row takes all.
+    final single = rows.length == 1;
+    for (final r in rows) {
+      r['nm'] = edited['nm'];
+      r['cat'] = edited['cat'];
+      r['col'] = edited['col'];
+      r['ic'] = edited['ic'];
+      r['sec'] = edited['sec'];
+      r['secc'] = edited['secc'];
+      r['pos'] = edited['pos'];
+      if (single) {
+        r['a'] = edited['a'];
+        r['d'] = edited['d'];
+      }
+    }
+    // Reflect on the display object too.
+    tx['nm'] = edited['nm'];
+    tx['cat'] = edited['cat'];
+    tx['col'] = edited['col'];
+    tx['ic'] = edited['ic'];
+    tx['sec'] = edited['sec'];
+    tx['secc'] = edited['secc'];
+    tx['pos'] = edited['pos'];
+    if (single) {
+      tx['a'] = edited['a'];
+      tx['d'] = edited['d'];
+    }
+    setState(() {
+      _cat = edited['cat'] as String;
+      _catColor = _colOf(edited['col'] as String?);
+      _catIcon = _iconOf(edited['ic'] as String?);
+      _isTransfer = edited['sec'] == 'Pervedimai';
+    });
+    _dashRefresh?.call();
+    _toast('Pakeitimai išsaugoti');
+  }
+
+  void _toggleStar() {
+    setState(() => _starred = !_starred);
+    for (final r in _underlying) {
+      r['star'] = _starred;
+    }
+    tx['star'] = _starred;
+    _dashRefresh?.call();
+  }
+
+  void _convertTransfer() {
+    final toTransfer = !_isTransfer;
+    // → transfer: mark as internal (excluded from spent/earned).
+    // → normal: fall back to uncategorised spending ("Kita"); the user can then
+    //   pick a real category. There's no original category to restore.
+    final fields = toTransfer
+        ? {'sec': 'Pervedimai', 'secc': 'indigo', 'col': 'transfer', 'cat': 'Pervedimas', 'ic': 'swap'}
+        : {'sec': 'Kita', 'secc': 'indigo', 'col': 'other', 'cat': 'Kita', 'ic': 'swap'};
+    for (final r in [..._underlying, tx]) {
+      fields.forEach((k, v) => r[k] = v);
+    }
+    setState(() {
+      _isTransfer = toTransfer;
+      _cat = fields['cat']!;
+      _catColor = _colOf(fields['col']);
+      _catIcon = _iconOf(fields['ic']);
+    });
+    _dashRefresh?.call();
+    _toast(toTransfer ? 'Pažymėta kaip vidinis pervedimas' : 'Grąžinta į įprastą (kategorija „Kita")');
+  }
 
   String get _dateFull {
     final d = DateTime.parse(widget.day['date'] as String);
@@ -1561,16 +2571,29 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   }
 
   List<Map<String, dynamic>> get _similar {
-    final key = _brandKey(tx['nm'] as String);
+    // Group by the transaction's OWN merge key (set by the backend / feed), not
+    // a client-recomputed brand key — the two formulas don't agree on real data,
+    // which left "Similar" empty in production. Siblings share this key.
+    final key = tx['mkey'];
+    if (key == null) return const [];
     return widget.all.where((t) => t['mkey'] == key).toList();
   }
 
   double _catSpentThisMonth() {
-    if (widget.all.isEmpty) return 0;
-    final month = (widget.all.first['d'] as String).substring(0, 7);
+    // Spend in THIS transaction's month (was wrongly derived from the newest row).
+    final month = ((tx['d'] ?? widget.day['date']) as String?)?.substring(0, 7);
+    if (month == null) return 0;
     return widget.all
-        .where((t) => t['cat'] == _cat && !(t['pos'] as bool) && (t['d'] as String).startsWith(month))
+        .where((t) => t['cat'] == _cat && t['pos'] != true && (t['d'] as String).startsWith(month))
         .fold(0.0, (s, t) => s + (t['a'] as num).toDouble().abs());
+  }
+
+  // The genitive month name of this transaction (for the budget card header).
+  String get _txMonthGen {
+    final d = (tx['d'] ?? widget.day['date']) as String?;
+    if (d == null) return '';
+    final m = int.tryParse(d.substring(5, 7));
+    return (m != null && m >= 1 && m <= 12) ? _monGen[m - 1] : '';
   }
 
   void _toast(String m) => ScaffoldMessenger.of(context)
@@ -1585,14 +2608,30 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _SelectCategorySheet(current: _cat),
     ).then((res) {
-      if (res != null) {
-        setState(() {
-          _cat = res['cat'] as String;
-          _catColor = _secColor[res['c']] ?? _catColor;
-          _catIcon = _secIcon[res['i']] ?? _catIcon;
-        });
-        _toast('Kategorija pakeista į „$_cat"');
+      if (res == null || !mounted) return;
+      final cat = res['cat'] as String;
+      final meta = _catMetaFor(cat);
+      // Prefer the full metadata table (consistent per-tx col/ic + section);
+      // fall back to the sheet's section-level keys for any uncovered label.
+      final col = meta?.col;
+      final ic = meta?.ic;
+      final sec = meta?.sec;
+      final secc = meta?.secc ?? res['c'] as String?;
+      setState(() {
+        _cat = cat;
+        _catColor = meta != null ? _colOf(col) : (_secColor[res['c']] ?? _catColor);
+        _catIcon = meta != null ? _iconOf(ic) : (_secIcon[res['i']] ?? _catIcon);
+        _isTransfer = sec == 'Pervedimai';
+      });
+      for (final r in [..._underlying, tx]) {
+        r['cat'] = cat;
+        if (sec != null) r['sec'] = sec;
+        if (secc != null) r['secc'] = secc;
+        if (col != null) r['col'] = col;
+        if (ic != null) r['ic'] = ic;
       }
+      _dashRefresh?.call();
+      _toast('Kategorija pakeista į „$cat"');
     });
   }
 
@@ -1603,7 +2642,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => const _ReportIssueSheet(),
     ).then((res) {
-      if (res != null) _toast('Ačiū! Pranešta: $res');
+      if (res != null) _toast('Ačiū už pastabą!');
     });
   }
 
@@ -1650,12 +2689,12 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
             child: Text(_isTransfer ? 'Vidinis pervedimas' : 'Įprastas sandoris',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _ink)),
           ),
-          IconButton(onPressed: () => _toast('Ištrinti — ruošiama'), icon: Icon(Icons.delete_outline_rounded, size: 22, color: _muted)),
+          IconButton(onPressed: _delete, icon: Icon(Icons.delete_outline_rounded, size: 22, color: _muted)),
           IconButton(
-              onPressed: () => setState(() => _starred = !_starred),
+              onPressed: _toggleStar,
               icon: Icon(_starred ? Icons.star_rounded : Icons.star_border_rounded,
                   size: 24, color: _starred ? const Color(0xFFF5B301) : _muted)),
-          IconButton(onPressed: () => _toast('Redaguoti — ruošiama'), icon: const Icon(Icons.edit_outlined, size: 21, color: _purple)),
+          IconButton(onPressed: _edit, icon: const Icon(Icons.edit_outlined, size: 21, color: _purple)),
         ],
       ),
     );
@@ -1708,7 +2747,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                           Text(_cat, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
                           const SizedBox(height: 2),
                           Row(children: [
-                            Flexible(child: Text('Kategorizuota AI', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted))),
+                            Flexible(child: Text(widget.tx['manual'] == true ? 'Įvesta ranka' : 'Kategorizuota automatiškai', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted))),
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -1759,15 +2798,12 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
 
   Widget _actions() {
     final chips = <List<dynamic>>[
-      [Icons.edit_outlined, 'Redaguoti', () => _toast('Redaguoti — ruošiama')],
-      [Icons.tag_rounded, 'Žyma', () => _toast('Žyma — ruošiama')],
+      [Icons.edit_outlined, 'Redaguoti', _edit],
+      [_starred ? Icons.star_rounded : Icons.star_border_rounded, 'Žyma', _toggleStar],
       [Icons.repeat_rounded, 'Prie pasikartojančių', () => _toast('Prie pasikartojančių — netrukus')],
-      [Icons.swap_horiz_rounded, _isTransfer ? 'Į įprastą' : 'Į vidinį pervedimą', () => setState(() {
-            _isTransfer = !_isTransfer;
-            _toast(_isTransfer ? 'Konvertuota į vidinį pervedimą' : 'Konvertuota į įprastą');
-          })],
+      [Icons.swap_horiz_rounded, _isTransfer ? 'Į įprastą' : 'Į vidinį pervedimą', _convertTransfer],
       [Icons.flag_outlined, 'Pranešti klaidą', _reportIssue],
-      [Icons.attach_file_rounded, 'Priedas', () => _toast('Priedas — ruošiama')],
+      [Icons.delete_outline_rounded, 'Ištrinti', _delete],
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1780,12 +2816,16 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
               onTap: c[2] as VoidCallback,
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _ink, width: 1.5),
+                ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(c[0] as IconData, size: 16, color: _purple),
                   const SizedBox(width: 6),
-                  Text(c[1] as String, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
+                  Text(c[1] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
                 ]),
               ),
             ),
@@ -1804,7 +2844,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Liepos biudžetas', style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
+          Text('$_txMonthGen biudžetas', style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           AppCard(color: _card, border: _hair, 
             padding: const EdgeInsets.all(15),
@@ -1903,7 +2943,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(_eur((s['a'] as num).toDouble(), signed: true),
-                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: (s['pos'] as bool) ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: s['pos'] == true ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
               ]),
             ),
           if (items.length > show.length)
@@ -2123,6 +3163,13 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final earned = _sumIncome(_rows);
     final net = earned - spent;
     final savings = earned > 0 ? ((earned - spent) / earned * 100).round().clamp(0, 100) : 0;
+    // Real saving streak (was hardcoded "2 mėn."), derived from all months.
+    final mkeys = (widget.all.map((t) => (t['d'] as String).substring(0, 7)).toSet().toList()..sort());
+    int savOf(List<Map<String, dynamic>> r) {
+      final e = _sumIncome(r);
+      return e > 0 ? ((e - _sumExpenses(r)) / e * 100).round().clamp(0, 100) : 0;
+    }
+    final streak = _streakOf(mkeys, (mk) => widget.all.where((t) => (t['d'] as String).startsWith(mk)).toList(), savOf);
 
     return Scaffold(
       backgroundColor: _bg,
@@ -2142,7 +3189,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 _aiReport(spent, earned, expenseSecs, net),
                 _balanceChart(),
                 _calendar(),
-                _savingsClub(savings),
+                _savingsClub(savings, earned, streak),
                 _categoryList(secs),
                 _budgets(),
                 _insights(),
@@ -2253,7 +3300,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
         div(),
         stat('${net >= 0 ? '+' : '−'}${net.abs().round()} €', 'grynasis'),
         div(),
-        stat('$savings %', 'santaupų'),
+        stat(earned > 0 ? '$savings %' : '—', 'santaupų'),
       ]),
     );
   }
@@ -2283,7 +3330,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final top = expenseSecs.isNotEmpty ? expenseSecs.first : null;
     final body = '${widget.monthGen} mėnesį uždirbai ${earned.round()} €, o išleidai ${spent.round()} €. Grynasis rezultatas ${_eur(net, signed: true)}. '
         '${top != null ? 'Daugiausia išleidai kategorijoje „${top.label.split(',').first}" (${(-top.net).round()} €). ' : ''}'
-        'Santaupų norma šį mėnesį — $savings %.';
+        '${earned > 0 ? 'Santaupų norma šį mėnesį — $savings %.' : 'Šį mėnesį pajamų nebuvo, tad santaupų norma neskaičiuojama.'}';
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       padding: const EdgeInsets.all(18),
@@ -2353,7 +3400,8 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     );
   }
 
-  Widget _savingsClub(int savings) {
+  Widget _savingsClub(int savings, double earned, int streak) {
+    final noInc = earned <= 0;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       padding: const EdgeInsets.all(16),
@@ -2372,23 +3420,25 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     const Icon(Icons.military_tech_rounded, size: 16, color: _purple),
                     const SizedBox(width: 6),
-                    Text('$savings %', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _purple)),
-                    const SizedBox(width: 10),
-                    const Icon(Icons.local_fire_department_rounded, size: 16, color: _purple),
-                    const SizedBox(width: 4),
-                    const Text('2 mėn. iš eilės', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
+                    Text(noInc ? '—' : '$savings %', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _purple)),
+                    if (streak >= 2) ...[
+                      const SizedBox(width: 10),
+                      const Icon(Icons.local_fire_department_rounded, size: 16, color: _purple),
+                      const SizedBox(width: 4),
+                      Text('$streak mėn. iš eilės', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
+                    ],
                   ]),
                 ),
               ],
             ),
           ),
-          _clubBadge(savings),
+          _clubBadge(savings, earned),
         ],
       ),
     );
   }
 
-  Widget _clubBadge(int savings) {
+  Widget _clubBadge(int savings, double earned) {
     return Container(
       width: 76,
       height: 76,
@@ -2396,7 +3446,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('$savings', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
+          Text(earned > 0 ? '$savings' : '—', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
           const Text('% klubas', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
         ],
       ),
@@ -3006,13 +4056,82 @@ class _OverviewTab extends StatefulWidget {
 
 class _OverviewTabState extends State<_OverviewTab> {
   bool _merchantsOpen = false;
+  String? _selKey; // chosen month (null = latest / "Šis mėnuo")
+  bool _hide = false; // eye toggle → mask the headline amounts
+  final _filter = _TxFilter();
+
+  Future<void> _openFilter() async {
+    final avail = _rows.map((t) => t['sec'] as String).toSet().toList()..sort();
+    final res = await _showFilterSheet(context, _filter, avail);
+    if (res == null) return;
+    setState(() {
+      _filter
+        ..type = res.type
+        ..secs = res.secs;
+    });
+  }
 
   List<String> get _monthKeys {
     final s = widget.all.map((t) => (t['d'] as String).substring(0, 7)).toSet().toList()..sort();
     return s; // ascending
   }
 
-  String get _curKey => _monthKeys.last;
+  String get _curKey {
+    final keys = _monthKeys;
+    if (_selKey != null && keys.contains(_selKey)) return _selKey!;
+    return keys.last;
+  }
+
+  String get _monthLabel {
+    final keys = _monthKeys;
+    if (_selKey == null || _selKey == keys.last) return 'Šis mėnuo';
+    return _monNom[int.parse(_selKey!.substring(5, 7)) - 1];
+  }
+
+  void _pickMonth() {
+    final keys = _monthKeys.reversed.toList(); // newest first
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 12),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+            child: Align(alignment: Alignment.centerLeft, child: Text('Laikotarpis', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink))),
+          ),
+          Flexible(
+            child: ListView(shrinkWrap: true, children: [
+              for (final k in keys)
+                InkWell(
+                  onTap: () {
+                    setState(() => _selKey = k);
+                    Navigator.pop(ctx);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    child: Row(children: [
+                      Expanded(
+                        child: Text(
+                          k == _monthKeys.last
+                              ? 'Šis mėnuo'
+                              : '${_monNom[int.parse(k.substring(5, 7)) - 1]} ${k.substring(0, 4)}',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink),
+                        ),
+                      ),
+                      if (k == _curKey) const Icon(Icons.check_rounded, size: 22, color: _purple),
+                    ]),
+                  ),
+                ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ]),
+      ),
+    );
+  }
   int get _curMon => int.parse(_curKey.substring(5, 7));
   List<Map<String, dynamic>> _rowsOf(String mk) => widget.all.where((t) => (t['d'] as String).startsWith(mk)).toList();
   List<Map<String, dynamic>> get _rows => _rowsOf(_curKey);
@@ -3045,16 +4164,26 @@ class _OverviewTabState extends State<_OverviewTab> {
     return earned > 0 ? ((earned - spent) / earned * 100).round().clamp(0, 100) : 0;
   }
 
+  // Consecutive COMPLETED months (excluding the current, possibly-partial one)
+  // where you actually saved (rate > 0). Unfiltered — the streak reflects your
+  // saving history, not the on-screen filter, and a fresh month with no income
+  // yet shouldn't reset it.
+  int get _savingStreak => _streakOf(_monthKeys, _rowsOf, _savingsOf);
+
   @override
   Widget build(BuildContext context) {
-    final secs = _sections(_rows);
+    final rows = _filter.apply(_rows);
+    final secs = _sections(rows);
     final expenseSecs = secs.where((s) => !_isIncome(s.label) && !_isTransfer(s.label) && s.net < 0).toList();
-    final spent = _spentOf(_rows);
-    final earned = _earnedOf(_rows);
-    final net = _netOf(_rows);
-    final savings = _savingsOf(_rows);
+    final spent = _spentOf(rows);
+    final earned = _earnedOf(rows);
+    final net = _netOf(rows);
+    final savings = _savingsOf(rows);
+    // No income that month → a savings rate is undefined, so show "—" not "0 %".
+    final savStr = earned > 0 ? '$savings %' : '—';
     final prevKey = _monthKeys.length > 1 ? _monthKeys[_monthKeys.length - 2] : null;
-    final prevSavings = prevKey != null ? _savingsOf(_rowsOf(prevKey)) : 0;
+    final prevRows = prevKey != null ? _filter.apply(_rowsOf(prevKey)) : <Map<String, dynamic>>[];
+    final prevStr = _earnedOf(prevRows) > 0 ? '${_savingsOf(prevRows)} %' : '—';
 
     return SafeArea(
       bottom: false,
@@ -3065,7 +4194,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           _filters(),
           _donuts(spent, earned, expenseSecs),
           _totalCard(net),
-          _savingsCard(savings, prevSavings, prevKey),
+          _savingsCard(savStr, prevStr, _savingStreak),
           _categoryList(secs),
           _tags(),
           _analyticsLabel(),
@@ -3083,7 +4212,10 @@ class _OverviewTabState extends State<_OverviewTab> {
         child: Row(children: [
           Text('Overview', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
           const Spacer(),
-          Icon(Icons.visibility_outlined, size: 25, color: _ink),
+          GestureDetector(
+            onTap: () => setState(() => _hide = !_hide),
+            child: Icon(_hide ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 25, color: _ink),
+          ),
           const SizedBox(width: 14),
           GestureDetector(
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -3093,12 +4225,19 @@ class _OverviewTabState extends State<_OverviewTab> {
         ]),
       );
 
-  Widget _filters() => const Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+  Widget _filters() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
         child: Row(children: [
-          _Chip(icon: Icons.calendar_today_rounded, label: 'Šis mėnuo'),
-          SizedBox(width: 9),
-          _Chip(icon: Icons.tune_rounded, label: 'Filtras'),
+          GestureDetector(onTap: _pickMonth, child: _Chip(icon: Icons.calendar_today_rounded, label: _monthLabel)),
+          const SizedBox(width: 9),
+          GestureDetector(
+            onTap: _openFilter,
+            child: _Chip(
+              icon: Icons.tune_rounded,
+              label: _filter.active ? 'Filtras · ${_filter.count}' : 'Filtras',
+              active: _filter.active,
+            ),
+          ),
         ]),
       );
 
@@ -3119,7 +4258,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           Column(mainAxisSize: MainAxisSize.min, children: [
             Text(sign, style: TextStyle(fontSize: 20, color: _muted, height: 1)),
             const SizedBox(height: 2),
-            Text('${v.round()} €', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+            Text(_hide ? '••• €' : '${v.round()} €', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
             Text(label, style: TextStyle(fontSize: 13, color: _muted)),
           ]),
         ]),
@@ -3132,13 +4271,13 @@ class _OverviewTabState extends State<_OverviewTab> {
         child: Row(children: [
           Text('${_monGen[_curMon - 1]} suma', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
           const Spacer(),
-          Text(_eur(net, signed: true), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: net >= 0 ? _good : _ink)),
+          Text(_hide ? '••••' : _eur(net, signed: true), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: net >= 0 ? _good : _ink)),
         ]),
       );
 
-  Widget _savingsCard(int savings, int prevSavings, String? prevKey) => GestureDetector(
+  Widget _savingsCard(String savStr, String prevStr, int streak) => GestureDetector(
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => _SavingsRateScreen(all: widget.all, monthKeys: _monthKeys, savingsOf: _savingsOf, rowsOf: _rowsOf),
+          builder: (_) => _SavingsRateScreen(monthKeys: _monthKeys, savingsOf: _savingsOf, earnedOf: _earnedOf, rowsOf: _rowsOf),
         )),
         child: Container(
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
@@ -3151,17 +4290,19 @@ class _OverviewTabState extends State<_OverviewTab> {
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Icon(Icons.military_tech_rounded, size: 15, color: _purple),
                 const SizedBox(width: 4),
-                Text('$prevSavings %', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
-                const SizedBox(width: 8),
-                const Icon(Icons.local_fire_department_rounded, size: 15, color: _purple),
-                const SizedBox(width: 2),
-                const Text('2', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
+                Text(prevStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
+                if (streak >= 2) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.local_fire_department_rounded, size: 15, color: _purple),
+                  const SizedBox(width: 2),
+                  Text('$streak', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
+                ],
               ]),
             ),
             const SizedBox(width: 12),
-            Text('Santaupų norma', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
-            const Spacer(),
-            Text('$savings %', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+            Expanded(child: Text('Santaupų norma', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink), overflow: TextOverflow.ellipsis)),
+            const SizedBox(width: 8),
+            Text(savStr, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
             const SizedBox(width: 4),
             Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
           ]),
@@ -3444,10 +4585,10 @@ class _OverviewTabState extends State<_OverviewTab> {
 // SAVINGS RATE — detail screen
 // ══════════════════════════════════════════════════════════════════════════════
 class _SavingsRateScreen extends StatelessWidget {
-  const _SavingsRateScreen({required this.all, required this.monthKeys, required this.savingsOf, required this.rowsOf});
-  final List<Map<String, dynamic>> all;
+  const _SavingsRateScreen({required this.monthKeys, required this.savingsOf, required this.earnedOf, required this.rowsOf});
   final List<String> monthKeys;
   final int Function(List<Map<String, dynamic>>) savingsOf;
+  final double Function(List<Map<String, dynamic>>) earnedOf;
   final List<Map<String, dynamic>> Function(String) rowsOf;
 
   @override
@@ -3455,11 +4596,15 @@ class _SavingsRateScreen extends StatelessWidget {
     final curKey = monthKeys.last;
     final curMon = int.parse(curKey.substring(5, 7));
     final rows = rowsOf(curKey);
-    final earned = rows.where((t) => t['sec'] == 'Pajamos' && (t['a'] as num) > 0).fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
+    final earned = earnedOf(rows); // canonical income (matches Overview)
     final savings = savingsOf(rows);
+    final savStr = earned > 0 ? '$savings %' : '—';
     final prevKey = monthKeys.length > 1 ? monthKeys[monthKeys.length - 2] : null;
     final prevMon = prevKey != null ? int.parse(prevKey.substring(5, 7)) : 0;
-    final prevSavings = prevKey != null ? savingsOf(rowsOf(prevKey)) : 0;
+    final prevRows = prevKey != null ? rowsOf(prevKey) : <Map<String, dynamic>>[];
+    final prevSavings = savingsOf(prevRows);
+    final prevStr = earnedOf(prevRows) > 0 ? '$prevSavings %' : '—';
+    final streak = _streakOf(monthKeys, rowsOf, savingsOf);
     final last6 = monthKeys.length > 6 ? monthKeys.sublist(monthKeys.length - 6) : monthKeys;
 
     return Scaffold(
@@ -3498,13 +4643,13 @@ class _SavingsRateScreen extends StatelessWidget {
                         Row(children: [
                           Container(width: 26, height: 26, alignment: Alignment.center, decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.help_outline_rounded, size: 15, color: Colors.white)),
                           const SizedBox(width: 8),
-                          Text('${(earned * savings / 100).round()} €', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                          Text(earned > 0 ? '${(earned * savings / 100).round()} €' : '—', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                         ]),
                       ]),
                     ),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Text('Santaupų norma', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink)),
-                      Text('$savings %', style: TextStyle(fontSize: 52, fontWeight: FontWeight.w800, color: _ink, height: 1.1)),
+                      Text(savStr, style: TextStyle(fontSize: 52, fontWeight: FontWeight.w800, color: _ink, height: 1.1)),
                       Text('santaupos / pajamos', style: TextStyle(fontSize: 11.5, color: _muted)),
                     ]),
                   ]),
@@ -3526,11 +4671,13 @@ class _SavingsRateScreen extends StatelessWidget {
                             child: Row(mainAxisSize: MainAxisSize.min, children: [
                               const Icon(Icons.military_tech_rounded, size: 15, color: _purple),
                               const SizedBox(width: 4),
-                              Text('$prevSavings %', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
-                              const SizedBox(width: 10),
-                              const Icon(Icons.local_fire_department_rounded, size: 15, color: _purple),
-                              const SizedBox(width: 2),
-                              const Text('2 mėn.', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
+                              Text(prevStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
+                              if (streak >= 2) ...[
+                                const SizedBox(width: 10),
+                                const Icon(Icons.local_fire_department_rounded, size: 15, color: _purple),
+                                const SizedBox(width: 2),
+                                Text('$streak mėn.', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
+                              ],
                             ]),
                           ),
                         ]),
@@ -3539,7 +4686,7 @@ class _SavingsRateScreen extends StatelessWidget {
                         width: 76, height: 76, alignment: Alignment.center,
                         decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle),
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Text('$prevSavings', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
+                          Text(earnedOf(prevRows) > 0 ? '$prevSavings' : '—', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
                           const Text('% klubas', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: Colors.white)),
                         ]),
                       ),
@@ -3802,7 +4949,7 @@ class _PlanningTabState extends State<_PlanningTab> {
             ),
           ]),
           const SizedBox(height: 8),
-          Text('Limitus pasiūlėme pagal tavo tikrą 3 mėn. vidurkį. Redaguok pagal save arba pridėk daugiau.',
+          Text('Susikurk biudžetą kategorijai — limitą pasiūlysime pagal tavo realų mėnesių vidurkį.',
               style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
         ]),
       );
@@ -4321,7 +5468,11 @@ class _AccountTabState extends State<_AccountTab> {
   bool _promo = true;
 
   double get _netWorth => ((widget.balance['current'] ?? 0) as num).toDouble();
-  List<Map<String, dynamic>> get _accounts => (widget.balance['accounts'] as List).cast<Map<String, dynamic>>();
+  List<Map<String, dynamic>> get _accounts => ((widget.balance['accounts'] as List?) ?? const []).cast<Map<String, dynamic>>();
+
+  void _soon() => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(const SnackBar(content: Text('Netrukus'), duration: Duration(milliseconds: 1400)));
 
   @override
   Widget build(BuildContext context) {
@@ -4550,7 +5701,7 @@ class _AccountTabState extends State<_AccountTab> {
       );
 
   Widget _addRow(String label, {VoidCallback? onTap}) => InkWell(
-        onTap: onTap ?? () {},
+        onTap: onTap ?? _soon,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(children: [
@@ -4573,10 +5724,13 @@ class _AccountTabState extends State<_AccountTab> {
               Text('Pasakyk, ką galvoji', style: TextStyle(fontSize: 13.5, color: _muted)),
             ]),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _purple)),
-            child: const Text('Palikti atsiliepimą', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _purple)),
+          GestureDetector(
+            onTap: _soon,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _purple)),
+              child: const Text('Palikti atsiliepimą', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _purple)),
+            ),
           ),
         ]),
       );
@@ -4611,6 +5765,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   String _country = 'Lietuva';
   int _firstDay = 1;
   bool _pin = false, _faceId = false, _inactivity = false, _newTxn = false;
+  bool _busy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -4643,7 +5798,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           _group('Nustatymai', [
             _valueItem('€', 'Numatytoji valiuta', _currency, _pickCurrency),
             _valueItem('LT', 'Gyvenamoji šalis', _country, _pickCountry),
-            _valueItem('EN', 'Kalba', 'Keisti programos kalbą', () {}),
+            _valueItem('EN', 'Kalba', 'Keisti programos kalbą', _soon),
             _iconValueItem(Icons.brightness_6_rounded, 'Tema', _theme, _pickTheme),
             _iconValueItem(Icons.calendar_today_rounded, 'Mėnesio pradžia', 'Mėnuo prasideda $_firstDay d.', _pickFirstDay),
             _toggleItem(Icons.notifications_none_rounded, 'Neaktyvumo priminimas', 'Priminti pasitikrinti Vaultie', _inactivity, (v) => setState(() => _inactivity = v)),
@@ -4652,15 +5807,17 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           _group('Paskyra', [
             _navItem(Icons.workspace_premium_rounded, 'Vaultie prenumerata', 'Atsiskaitymo informacija', onTap: _subInfo),
             _navItem(Icons.grid_on_rounded, 'Eksportuoti sandorius', 'Atsisiųsk CSV ar kopijuok'),
-            _navItem(Icons.logout_rounded, 'Atsijungti', 'Grįžti į prisijungimą'),
-            _navItem(Icons.delete_outline_rounded, 'Ištrinti paskyrą', 'Ištrink savo Vaultie paskyrą'),
+            _navItem(Icons.logout_rounded, 'Atsijungti', 'Grįžti į prisijungimą', onTap: _signOut),
+            _navItem(Icons.delete_outline_rounded, 'Ištrinti paskyrą', 'Ištrink savo Vaultie paskyrą', onTap: _confirmDelete),
           ]),
           _group('Papildoma', [
             _navItem(Icons.delete_sweep_outlined, 'Ištrinti senus sandorius', 'Paliesk plačiau'),
           ]),
           _group('Dokumentai', [
-            _navItem(Icons.description_outlined, 'Naudojimo sąlygos', ''),
-            _navItem(Icons.privacy_tip_outlined, 'Privatumo politika', ''),
+            _navItem(Icons.description_outlined, 'Naudojimo sąlygos', '',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LegalScreen.terms(true)))),
+            _navItem(Icons.privacy_tip_outlined, 'Privatumo politika', '',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LegalScreen.privacy(true)))),
           ]),
           const SizedBox(height: 20),
           Padding(
@@ -4754,7 +5911,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       );
 
   Widget _navItem(IconData ic, String title, String sub, {VoidCallback? onTap}) => InkWell(
-        onTap: onTap ?? () {},
+        onTap: onTap ?? _soon,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           child: Row(children: [
@@ -4992,6 +6149,156 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       ),
     );
   }
+
+  // ── P0 account actions ──────────────────────────────────────────────────────
+  // The real app path runs these against Firebase; the design preview harness
+  // has no Firebase, so the auth/session calls are guarded and fall back to an
+  // honest note instead of crashing.
+  void _snack(String m) => ScaffoldMessenger.of(context)
+    ..clearSnackBars()
+    ..showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 2)));
+
+  void _soon() => _snack('Netrukus');
+
+  Future<void> _signOut() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Atsijungti?', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        content: Text('Grįši į prisijungimo ekraną. Tavo duomenys liks išsaugoti šiame telefone ir bus vėl matomi prisijungus.',
+            style: TextStyle(color: _muted, height: 1.45)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Atsijungti', style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await AuthService().signOut();
+      await onSignedOut();
+    } catch (_) {
+      if (mounted) _snack('Atsijungti galima tik tikroje programoje.');
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
+  }
+
+  Future<void> _confirmDelete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Ištrinti paskyrą?', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        content: Text(
+          'Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. '
+          'Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.',
+          style: TextStyle(color: _muted, height: 1.45),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Ištrinti', style: TextStyle(color: Color(0xFFE0574F), fontWeight: FontWeight.w800))),
+        ],
+      ),
+    );
+    if (ok == true) await _deleteAccount();
+  }
+
+  Future<void> _deleteAccount() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final auth = AuthService();
+      try {
+        await auth.deleteAccount();
+      } on FirebaseAuthException catch (e) {
+        // Firebase requires a fresh login before deletion — re-auth then retry.
+        if (e.code != 'requires-recent-login') rethrow;
+        if (!await _reauth(auth)) return;
+        await auth.deleteAccount();
+      }
+      try {
+        await wipeLocalDataAndForget();
+      } catch (_) {/* preview: no Hive/session */}
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
+    } catch (_) {
+      if (mounted) _snack('Ištrinti paskyrą galima tik tikroje programoje.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<bool> _reauth(AuthService auth) async {
+    try {
+      if (auth.isGoogleUser) return await auth.reauthenticateWithGoogle();
+      if (auth.isAppleUser) return await auth.reauthenticateWithApple();
+    } catch (_) {
+      return false;
+    }
+    // Email/password account — ask for the password to confirm identity.
+    final pw = await showDialog<String>(context: context, builder: (ctx) => _PasswordPrompt());
+    if (pw == null || pw.isEmpty) return false;
+    try {
+      await auth.reauthenticateWithPassword(pw);
+      return true;
+    } catch (_) {
+      if (mounted) _snack('Neteisingas slaptažodis.');
+      return false;
+    }
+  }
+}
+
+// Confirms identity with the account password before an irreversible delete.
+class _PasswordPrompt extends StatefulWidget {
+  @override
+  State<_PasswordPrompt> createState() => _PasswordPromptState();
+}
+
+class _PasswordPromptState extends State<_PasswordPrompt> {
+  final _ctl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: _card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text('Patvirtink slaptažodį', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+      content: TextField(
+        controller: _ctl,
+        autofocus: true,
+        obscureText: true,
+        cursorColor: _purple,
+        style: TextStyle(color: _ink, fontSize: 17),
+        decoration: InputDecoration(
+          hintText: 'Slaptažodis',
+          hintStyle: TextStyle(color: _faint),
+          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _hair)),
+          focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
+        ),
+        onSubmitted: (v) => Navigator.pop(context, v),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+        TextButton(onPressed: () => Navigator.pop(context, _ctl.text),
+            child: const Text('Patvirtinti', style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+      ],
+    );
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5009,12 +6316,12 @@ class _SearchScreenState extends State<_SearchScreen> {
   String _q = '';
 
   List<Map<String, dynamic>> get _results {
-    final q = _q.trim().toLowerCase();
+    final q = _fold(_q.trim());
     if (q.isEmpty) return const [];
     final r = widget.all.where((t) {
-      final nm = (t['nm'] as String).toLowerCase();
-      final cat = (t['cat'] as String).toLowerCase();
-      return nm.contains(q) || _shortNm(t['nm'] as String).toLowerCase().contains(q) || cat.contains(q);
+      // Match merchant (raw + shortened), category AND section, all diacritic-folded.
+      final hay = _fold('${t['nm']} ${_shortNm(t['nm'] as String)} ${t['cat']} ${t['sec'] ?? ''}');
+      return hay.contains(q);
     }).toList();
     r.sort((a, b) => (b['d'] as String).compareTo(a['d'] as String));
     return r;
@@ -5027,7 +6334,7 @@ class _SearchScreenState extends State<_SearchScreen> {
       'total': t['a'], 'tx': [t],
     };
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => _TxDetailScreen(tx: t, day: day, all: widget.all, budgets: widget.budgets),
+      builder: (_) => _TxDetailScreen(tx: t, day: day, all: widget.all, budgets: widget.budgets, single: true),
     ));
   }
 

@@ -191,12 +191,22 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     # data is always retrieved even on oldest-first banks, and the deeper history
     # feeds salary + subscription detection.
     #
-    # TEMP: 6 months (not 12). The function is stuck at the 60s default timeout —
-    # firebase-tools' Python discovery isn't applying the decorator's timeout_sec/
-    # memory, so a cold-start 12-month scan (~51 pages + classification) exceeds
-    # 60s → DEADLINE_EXCEEDED. 6 months fits. Restore 12 once the timeout is
-    # raised to 300s in the Cloud Console (Cloud Run → finish-bank-auth → Edit).
-    months_back = int(data.get("monthsBack", 6))
+    # 12 months. The service runs at 300s/512Mi so a cold-start 12-month scan
+    # fits. NOTE: `firebase deploy` resets Cloud Run back to 60s/256Mi (a
+    # firebase-tools Python-discovery bug), so ALWAYS restore it afterwards via
+    # `functions/deploy.sh` (gcloud run services update … --timeout=300 …), or a
+    # cold 12-month scan will DEADLINE_EXCEEDED.
+    # The Flutter callable SDK serialises a Dart int as a protobuf Int64Value
+    # wrapper — {"@type": ".../Int64Value", "value": "12"} — not a bare number,
+    # so a plain int() blew up ("int() argument … not 'dict'" → INTERNAL). Unwrap
+    # it, then coerce defensively.
+    _mb = data.get("monthsBack", 12)
+    if isinstance(_mb, dict):
+        _mb = _mb.get("value", 12)
+    try:
+        months_back = int(_mb)
+    except (TypeError, ValueError):
+        months_back = 12
 
     client = _client()
     # Creating the session is the one hard prerequisite — if it fails there is
@@ -253,7 +263,13 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     # Detection runs entirely on-server against the curated/crowdsourced merchant
     # DB and local keyword heuristics — no transaction-derived data is sent to any
     # third party, and nothing is persisted (privacy-first; see policy §6).
-    detection = detect_recurring(all_txns)
+    # Wrapped so a detection bug logs a full traceback (not just a bare INTERNAL)
+    # and still lets the dashboard build.
+    try:
+        detection = detect_recurring(all_txns)
+    except Exception:  # noqa: BLE001
+        logging.exception("detect_recurring failed")
+        detection = {"candidates": [], "frequent": []}
     candidates = detection["candidates"]
     frequent = detection["frequent"]
 

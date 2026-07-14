@@ -33,7 +33,11 @@ LT_WD = ["Pirmadienis", "Antradienis", "Trečiadienis", "Ketvirtadienis",
 CAT_MAP = {
     "groceries":     ("Maisto prekės",       "food",      "cart",    "Maistas, gėrimai",   "green"),
     "supermarket":   ("Maisto prekės",       "food",      "cart",    "Maistas, gėrimai",   "green"),
+    "grocery_store":     ("Maisto prekės",   "food",      "cart",    "Maistas, gėrimai",   "green"),  # Overture
+    "convenience_store": ("Maisto prekės",   "food",      "cart",    "Maistas, gėrimai",   "green"),  # Overture
     "restaurant":    ("Kavinės, restoranai", "food",      "dining",  "Maistas, gėrimai",   "green"),
+    "fast_food_restaurant": ("Kavinės, restoranai", "food", "dining", "Maistas, gėrimai",  "green"),  # Overture
+    "bakery":        ("Kavinės, restoranai", "food",      "dining",  "Maistas, gėrimai",   "green"),  # Overture (kepykla → maistas)
     "food":          ("Kavinės, restoranai", "food",      "dining",  "Maistas, gėrimai",   "green"),
     "cafe":          ("Kavinės, restoranai", "food",      "coffee",  "Maistas, gėrimai",   "green"),
     "alcohol":       ("Alkoholis, tabakas",  "food",      "bottle",  "Maistas, gėrimai",   "green"),
@@ -42,6 +46,7 @@ CAT_MAP = {
     "transport":     ("Transportas",         "transport", "taxi",    "Transportas",        "blue"),
     "taxi":          ("Taksi",               "transport", "taxi",    "Transportas",        "blue"),
     "automotive":    ("Automobilis",         "transport", "taxi",    "Transportas",        "blue"),
+    "car_wash":      ("Automobilis",         "transport", "taxi",    "Transportas",        "blue"),  # Overture (automobilio plovykla)
     "parking":       ("Parkavimas",          "transport", "taxi",    "Transportas",        "blue"),
     "retail":        ("Apsipirkimas",        "shopping",  "monitor", "Apsipirkimas",       "teal"),
     "shopping":      ("Apsipirkimas",        "shopping",  "monitor", "Apsipirkimas",       "teal"),
@@ -50,6 +55,7 @@ CAT_MAP = {
     "pharmacy":      ("Vaistinė",            "health",    "health",  "Sveikata, sportas",  "orange"),
     "health":        ("Sveikata",            "health",    "health",  "Sveikata, sportas",  "orange"),
     "fitness":       ("Sportas",             "fitness",   "health",  "Sveikata, sportas",  "orange"),
+    "gym":           ("Sportas",             "fitness",   "health",  "Sveikata, sportas",  "orange"),  # Overture
     "taxes":         ("Mokesčiai",           "taxes",     "doc",     "Finansai",           "red"),
     "banking":       ("Bankas, komisiniai",  "finance",   "money",   "Finansai",           "red"),
     "finance":       ("Bankas, komisiniai",  "finance",   "money",   "Finansai",           "red"),
@@ -143,9 +149,25 @@ _FINANCE_HINTS = ["mogo", "general financing", "sb lizing", "swedbank lizing",
 _HOUSING_HINTS = ["artus", "nuoma", "rent", "busto adm", "namu prieziur"]
 
 
+# Static FX → EUR base (approximate, MVP). A live rates source is future work.
+# Everything in the dashboard is normalised to EUR so a multi-currency consent
+# (e.g. an EUR account + a NOK salary account) yields a meaningful combined
+# balance / income / expenses instead of adding raw NOK and EUR numbers.
+_FX_TO_EUR = {
+    "EUR": 1.0, "NOK": 0.086, "SEK": 0.088, "DKK": 0.134, "PLN": 0.235,
+    "USD": 0.92, "GBP": 1.17, "CHF": 1.07, "CZK": 0.040, "ISK": 0.0066,
+}
+
+
+def _to_eur(v, currency):
+    return v * _FX_TO_EUR.get((currency or "EUR").upper(), 1.0)
+
+
 def _amt(t):
-    v = float((t.get("transaction_amount") or {}).get("amount") or 0)
-    return v if t.get("credit_debit_indicator") == "CRDT" else -v
+    ta = t.get("transaction_amount") or {}
+    v = float(ta.get("amount") or 0)
+    v = v if t.get("credit_debit_indicator") == "CRDT" else -v
+    return _to_eur(v, ta.get("currency"))
 
 
 def _name(t):
@@ -329,15 +351,8 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
 
     # ── flat `all` list ──
     all_rows = []
-    sample = []  # DEBUG: (name, code, final cat/section) to inspect sorting
     for t in sorted(txns, key=lambda x: x["booking_date"], reverse=True):
         canonical, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs)
-        if len(sample) < 30:
-            sample.append({
-                "nm": _name(t)[:28],
-                "code": (t.get("bank_transaction_code") or {}).get("code"),
-                "cat": cat, "sec": sec,
-            })
         y, m, day = map(int, t["booking_date"].split("-"))
         all_rows.append({
             "nm": _name(t), "mkey": (canonical or _name(t)).lower()[:24],
@@ -355,7 +370,17 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
     week = _week(txns, salary_refs, resolve_cat, today)
 
     # ── subscriptions & bills: reuse the recurring engine's confident candidates ──
-    subs = _subs(txns)
+    subs = _subs(txns, corpus)
+
+    # Stamp a "rec" badge on every row of a CONFIDENT recurring merchant (same
+    # ones surfaced in `subs`), so the client's subscription pill lights up on
+    # real data — previously only "res" (reserved) was ever set. Matched by the
+    # canonical merge key so it can't false-positive onto unrelated merchants.
+    rec_keys = {str(name).lower()[:24] for name, _cost in subs.get("items", [])}
+    if rec_keys:
+        for r in all_rows:
+            if r["mkey"] in rec_keys:
+                r["badges"] = r["badges"] + ["rec"]
 
     # ── balance ──
     balance = _balance_block(all_rows, accounts)
@@ -375,15 +400,11 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None):
         # come from?"). Budgets are user-created (Planning tab), with a suggested
         # limit from the user's real average spend they accept or edit.
         "budgets": {},
+        # Only non-sensitive counts here — the debug fields (sample rows, salary
+        # sources, income/incoming-transfer dumps) were removed so no
+        # transaction-derived data leaks in the payload.
         "meta": {"count": len(txns),
-                 "range": f"{min(t['booking_date'] for t in txns)}..{max(t['booking_date'] for t in txns)}",
-                 "sample": sample,
-                 # DEBUG: salary detection visibility
-                 "salarySources": sorted(salary_refs),
-                 "income": [{"nm": r["nm"], "a": r["a"], "cat": r["cat"], "d": r["d"]}
-                            for r in all_rows if r["sec"] == "Pajamos"][:12],
-                 "incomingTransfers": [{"nm": r["nm"], "a": r["a"], "d": r["d"]}
-                                       for r in all_rows if r["sec"] == "Pervedimai" and r["pos"]][:12]},
+                 "range": f"{min(t['booking_date'] for t in txns)}..{max(t['booking_date'] for t in txns)}"},
     }
 
 
@@ -412,7 +433,10 @@ def _month_feed(txns, salary_refs, resolve_cat):
         mkey = f"{y}-{m:02d}"
         months.setdefault(mkey, {"name": LT_MON[m], "y": y, "m": m, "total": 0.0, "days": []})
         merged = _merge_day(bydate[dtk], salary_refs, resolve_cat)
-        daytot = sum(x["a"] for x in merged.values())
+        # Canonical day "spent" (expenses only, refunds net down; transfers/income
+        # excluded) — a positive number, matching the client + month header. Was a
+        # raw signed sum that included transfers/income (the old "−2127" trap).
+        daytot = sum(-x["a"] for x in merged.values() if _flow(x) in ("expense", "refund"))
         wd = LT_WD[dt.date(y, m, day).weekday()]
         months[mkey]["days"].append({
             "date": dtk, "label": f"{wd}, {day} d.", "wd": wd, "day": day,
@@ -469,9 +493,11 @@ def _week(txns, salary_refs, resolve_cat, today):
             "range": f"{monday.isoformat()}..{(monday + dt.timedelta(days=6)).isoformat()}"}
 
 
-def _subs(txns):
+def _subs(txns, corpus=None):
     try:
-        det = detect_recurring(txns)
+        # Reuse build_dashboard's corpus (same filtered txns → same corpus) so
+        # detect_recurring doesn't rebuild it a third time. No output change.
+        det = detect_recurring(txns, corpus=corpus)
     except Exception:
         return {"items": [], "total": 0}
     items = []
@@ -555,7 +581,18 @@ def _totals(all_rows):
 
 
 def _balance_block(all_rows, accounts):
-    """Daily cumulative series anchored so the end == summed account balance."""
+    """Daily cumulative series anchored so the end == summed account balance.
+
+    Per-account balances are converted to EUR (see _to_eur) so a mixed-currency
+    consent sums correctly; the original currency is kept as `origCurrency`.
+    """
+    accounts = [
+        {**a,
+         "amount": round(_to_eur(float(a.get("amount") or 0), a.get("currency")), 2),
+         "origCurrency": a.get("currency"),
+         "currency": "EUR"}
+        for a in (accounts or [])
+    ]
     end = round(sum(float(a.get("amount") or 0) for a in accounts), 2) if accounts else 0.0
     by_day = OrderedDict()
     for r in sorted(all_rows, key=lambda x: x["d"]):

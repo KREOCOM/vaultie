@@ -35,6 +35,12 @@ class DashboardStore {
     }
   }
 
+  /// Overwrite just the dashboard payload, keeping the existing sync time/bank
+  /// label (used when the user edits data locally, e.g. a manual transaction —
+  /// the bank wasn't re-synced, so [syncedAt] must not move).
+  static Future<void> persist(Map<String, dynamic> dash) =>
+      _box.put(_kDash, jsonEncode(dash));
+
   static bool get hasData => _box.get(_kDash) != null;
 
   /// When the saved dashboard was last synced (for a "last updated" label).
