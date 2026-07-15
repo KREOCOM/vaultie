@@ -96,7 +96,10 @@ class EnableBankingClient:
         aspsp_country: str,
         redirect_url: str,
         *,
-        valid_days: int = 10,
+        valid_days: int = 90,  # PSD2 AIS consent lifetime — 10 was far too short
+                               # (bank access expired after ~10 days, silently
+                               # dropping that bank's data). 90 is the standard
+                               # re-consent window banks accept.
         psu_type: str = "personal",
     ):
         """Create a bank authorization URL. Returns ``(url, state)``."""
