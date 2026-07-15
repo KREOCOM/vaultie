@@ -303,6 +303,29 @@ List<String> _recStatusMeta(String? status) {
   }
 }
 
+String _recCycleLabel(String? cycle) {
+  switch (cycle) {
+    case 'weekly': return 'kas savaitę';
+    case 'quarterly': return 'kas ketvirtį';
+    case 'yearly': return 'kas metus';
+    default: return 'kas mėnesį';
+  }
+}
+
+const _recMonLt = ['', 'sausio', 'vasario', 'kovo', 'balandžio', 'gegužės', 'birželio',
+  'liepos', 'rugpjūčio', 'rugsėjo', 'spalio', 'lapkričio', 'gruodžio'];
+
+// "kas mėnesį · paskutinį kartą liepos 14 · ×6" — helps the user judge each row.
+String _recDetail(Map it) {
+  final parts = <String>[_recCycleLabel(it['cycle'] as String?)];
+  final last = it['lastCharge'] as String?;
+  final d = last != null ? DateTime.tryParse(last) : null;
+  if (d != null) parts.add('paskutinį kartą ${_recMonLt[d.month]} ${d.day}');
+  final occ = ((it['occ'] ?? 0) as num).toInt();
+  if (occ >= 2) parts.add('×$occ');
+  return parts.join(' · ');
+}
+
 // Lowercase + strip Lithuanian diacritics so search matches "ivairus" ↔ "įvairūs".
 String _fold(String s) {
   const m = {'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's', 'ų': 'u', 'ū': 'u', 'ž': 'z'};
@@ -5622,10 +5645,19 @@ class _RecurringScreenState extends State<_RecurringScreen> {
                   style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
             ]),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 12, 4, 10),
-            child: Text('Jungiklis nurodo, ar mokėjimas įskaičiuojamas į mėnesio sumą. Nebemoki ar tai ne pasikartojantis? Išjunk — ir jis dings iš sumos.',
-                style: TextStyle(fontSize: 12.5, color: _muted, height: 1.35)),
+          Container(
+            margin: const EdgeInsets.fromLTRB(2, 12, 2, 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
+            child: const Row(children: [
+              Icon(Icons.lightbulb_outline_rounded, size: 18, color: _purple),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                    'Pasikartojančius mokėjimus atpažinti sunku — patikrink. Įjungti (žali) skaičiuojami į mėnesio sumą; nebemoki arba tai ne sąskaita — išjunk.',
+                    style: TextStyle(fontSize: 12.5, color: _purpleDeep, height: 1.35)),
+              ),
+            ]),
           ),
           if (_ordered.isEmpty)
             Padding(padding: const EdgeInsets.all(16), child: Text('Pasikartojančių mokėjimų nerasta.', style: TextStyle(color: _muted))),
@@ -5664,16 +5696,20 @@ class _RecurringScreenState extends State<_RecurringScreen> {
       child: Row(children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_shortNm(name), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: counted ? _ink : _muted)),
-            const SizedBox(height: 3),
             Row(children: [
-              Text('$monthly € / mėn', style: TextStyle(fontSize: 12.5, color: _muted)),
+              Expanded(child: Text(_shortNm(name), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: counted ? _ink : _muted), overflow: TextOverflow.ellipsis)),
               const SizedBox(width: 8),
+              Text('$monthly € / mėn', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: counted ? _ink : _muted)),
+            ]),
+            const SizedBox(height: 4),
+            Row(children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(color: (live ? _good : _muted).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)),
                 child: Text(chip, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: live ? _good : _muted)),
               ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(_recDetail(it), style: TextStyle(fontSize: 11.5, color: _faint), overflow: TextOverflow.ellipsis)),
             ]),
           ]),
         ),
