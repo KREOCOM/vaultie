@@ -535,6 +535,16 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             else:
                 n_unknown += 1
 
+        # Person-to-person transfer (spouse, friend…) — money sent to an
+        # individual is NOT a bill/subscription and never belongs in recurring
+        # commitments. Only skip when NO merchant matched (a real brand that
+        # happens to look person-like still resolves via the DB and stays).
+        # Matches Wallet/Monarch: people aren't auto-recurring; the user adds one
+        # manually if they ever want to (e.g. rent to a private landlord).
+        if hit is None and (canon.get("counterparty") or {}).get("party_kind_hint") == "person_like":
+            n_skipped += 1
+            continue
+
         if hit is not None and hit[1] == "frequent":
             fk = hit[0].lower()
             freq_amounts[fk].append(amount)

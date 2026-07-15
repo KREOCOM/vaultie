@@ -31,6 +31,8 @@ merchant_db._cache = [
      "category": "finance", "logoDomain": None, "aliases": ["mogo"], "status": "active"},
     {"_key": "quartco", "displayName": "QuartCo", "type": "bill",
      "category": "utilities", "logoDomain": None, "aliases": ["quartco"], "status": "active"},
+    {"_key": "gymplius", "displayName": "GymPlius", "type": "subscription",
+     "category": "health", "logoDomain": None, "aliases": ["gymplius"], "status": "active"},
 ]
 
 TODAY = dt.date(2026, 7, 15)
@@ -70,6 +72,15 @@ def main() -> int:
         tx("2026-05-01", 500.0, "My Savings", OWN),
         tx("2026-06-01", 500.0, "My Savings", OWN),
         tx("2026-07-01", 500.0, "My Savings", OWN),
+        # CATCH-UP: gym is 35.90/mo, sometimes paid late as 71.80 (2 months).
+        # Must collapse to ONE ~35.90/mo obligation, and the recent 71.80 keeps
+        # it ACTIVE (not "late" from the older 35.90 charges).
+        tx("2025-11-05", 35.90, "gymplius"), tx("2025-12-05", 35.90, "gymplius"),
+        tx("2026-01-05", 35.90, "gymplius"), tx("2026-02-05", 35.90, "gymplius"),
+        tx("2026-05-10", 71.80, "gymplius"), tx("2026-07-08", 71.80, "gymplius"),
+        # PERSON-to-person transfer (spouse) → never recurring, at any amount.
+        tx("2026-05-03", 400.0, "Zivile Pavarde"), tx("2026-06-03", 400.0, "Zivile Pavarde"),
+        tx("2026-07-03", 400.0, "Zivile Pavarde"),
     ]
 
     subs = dashboard._subs(txns, own_ibans={OWN}, today=TODAY)
@@ -104,9 +115,19 @@ def main() -> int:
     # Own-account transfer never a recurring item
     check("My Savings" not in items, "own-account transfer wrongly recurring")
 
-    # TOTAL = Netflix 12.99 + QuartCo 100 + MOGO ~399  (VMI & own excluded)
-    expected = 12.99 + 100.0 + 399.0
-    check(abs(subs["total"] - expected) < 3.0,
+    # Person-to-person transfer never recurring, at any amount
+    check("Zivile Pavarde" not in items, "person transfer wrongly recurring")
+
+    # CATCH-UP: gym collapses to ONE ~35.90/mo, active (recent 71.80 catch-up)
+    gym = [it for it in subs["items"] if it["name"] == "GymPlius"]
+    check(len(gym) == 1, f"GymPlius not collapsed (got {len(gym)})")
+    check(gym and 34 <= gym[0]["monthly"] <= 38,
+          f"GymPlius monthly should be ~35.90 (unit, not 71.80): {gym and gym[0]['monthly']}")
+    check(gym and gym[0]["active"] is True, "GymPlius should be active (recent catch-up)")
+
+    # TOTAL = Netflix 12.99 + QuartCo 100 + MOGO ~399 + GymPlius ~35.90
+    expected = 12.99 + 100.0 + 399.0 + 35.90
+    check(abs(subs["total"] - expected) < 4.0,
           f"total off: got {subs['total']}, expected ~{expected}")
 
     print("items (status / monthly):")

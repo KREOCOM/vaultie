@@ -5471,6 +5471,13 @@ class _RecurringScreen extends StatefulWidget {
 class _RecurringScreenState extends State<_RecurringScreen> {
   late Set<String> _excl = DashboardStore.recurringExcluded();
   late Set<String> _incl = DashboardStore.recurringIncluded();
+  // A STABLE order fixed on entry — counted first, then by amount. Toggling never
+  // re-sorts (that made rows jump around and feel like the switch "sprang back").
+  late final List<Map<String, dynamic>> _ordered = [...widget.items]..sort((a, b) {
+        final ca = _recCounted(a, _excl, _incl), cb = _recCounted(b, _excl, _incl);
+        if (ca != cb) return ca ? -1 : 1;
+        return ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num);
+      });
 
   Future<void> _toggle(Map it, bool counted) async {
     final name = it['name'] as String;
@@ -5487,12 +5494,8 @@ class _RecurringScreenState extends State<_RecurringScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = widget.items;
-    final counted = items.where((it) => _recCounted(it, _excl, _incl)).toList()
-      ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
-    final other = items.where((it) => !_recCounted(it, _excl, _incl)).toList()
-      ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
-    final total = _recMonthlyTotal(items, _excl, _incl);
+    final total = _recMonthlyTotal(_ordered, _excl, _incl);
+    final countedN = _ordered.where((it) => _recCounted(it, _excl, _incl)).length;
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
@@ -5513,36 +5516,45 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${_eur(total)} / mėn', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
               const SizedBox(height: 2),
-              Text('= ${_eur(total * 12)} per metus · ${counted.length} aktyvūs',
+              Text('= ${_eur(total * 12)} per metus · $countedN įskaičiuota',
                   style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
             ]),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 12, 4, 10),
-            child: Text('Įskaičiuota į mėnesio sumą. Jei nebemoki arba tai ne pasikartojantis mokėjimas — išjunk, ir jis dings iš sumos.',
+            child: Text('Jungiklis nurodo, ar mokėjimas įskaičiuojamas į mėnesio sumą. Nebemoki ar tai ne pasikartojantis? Išjunk — ir jis dings iš sumos.',
                 style: TextStyle(fontSize: 12.5, color: _muted, height: 1.35)),
           ),
-          if (counted.isEmpty)
-            Padding(padding: const EdgeInsets.all(16), child: Text('Nėra aktyvių pasikartojančių mokėjimų.', style: TextStyle(color: _muted))),
-          for (final it in counted) _row(it, true),
-          if (other.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-              child: Text('NEĮSKAIČIUOTA (baigėsi · vėluoja · išjungta)',
-                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.6)),
-            ),
-            for (final it in other) _row(it, false),
-          ],
+          if (_ordered.isEmpty)
+            Padding(padding: const EdgeInsets.all(16), child: Text('Pasikartojančių mokėjimų nerasta.', style: TextStyle(color: _muted))),
+          for (final it in _ordered) _row(it),
         ],
       ),
     );
   }
 
-  Widget _row(Map<String, dynamic> it, bool counted) {
-    final meta = _recStatusMeta(it['status'] as String?);
+  Widget _row(Map<String, dynamic> it) {
+    final counted = _recCounted(it, _excl, _incl);
+    final backendActive = it['active'] == true && it['type'] != 'transfer';
     final name = it['name'] as String;
     final monthly = ((it['monthly'] ?? 0) as num).round();
+    // The chip shows the EFFECTIVE state, so it can never contradict the switch:
+    //  on  → "Įskaičiuota"; off → why it's out (detected status, or "Išjungta"
+    //  when the user turned off a stream the app thought was active).
+    final String chip;
+    final bool live;
+    if (counted) {
+      chip = 'Įskaičiuota';
+      live = true;
+    } else {
+      live = false;
+      if (backendActive) {
+        chip = 'Išjungta';
+      } else {
+        final m = _recStatusMeta(it['status'] as String?);
+        chip = m[0].isNotEmpty ? m[0] : 'Neįskaičiuota';
+      }
+    }
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
@@ -5554,14 +5566,12 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             const SizedBox(height: 3),
             Row(children: [
               Text('$monthly € / mėn', style: TextStyle(fontSize: 12.5, color: _muted)),
-              if (meta[0].isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(color: (meta[1] == '1' ? _good : _muted).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)),
-                  child: Text(meta[0], style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: meta[1] == '1' ? _good : _muted)),
-                ),
-              ],
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(color: (live ? _good : _muted).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)),
+                child: Text(chip, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: live ? _good : _muted)),
+              ),
             ]),
           ]),
         ),

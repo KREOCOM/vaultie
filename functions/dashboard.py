@@ -514,26 +514,59 @@ def _week(txns, salary_refs, resolve_cat, today, own_ibans=None):
             "range": f"{monday.isoformat()}..{(monday + dt.timedelta(days=6)).isoformat()}"}
 
 
+def _fold_name(s):
+    """Group key for a payee: lowercased, de-accented, collapsed whitespace, with
+    an exactly-repeated tail dropped ("Zivile Sulajeva Sulajeva" → "…sulajeva")."""
+    s = re.sub(r"\s+", " ", str(s or "").strip().lower())
+    w = s.split(" ")
+    if len(w) >= 2 and w[-1] == w[-2]:
+        w = w[:-1]
+    return "".join(w).translate(str.maketrans("ąčęėįšųūž", "aceeisuuz"))
+
+
 def _collapse_recurring(cands):
-    """Merge near-duplicate streams of the SAME payee — a loan/bill booked as
-    399 & 398 is ONE obligation, not two — while keeping genuinely distinct
-    amounts under one payee (e.g. Apple 9.99 + 2.99) separate. Folds within ~8%.
+    """Fold multiple streams of the SAME payee into one real obligation:
+
+      * near-equal amounts — a loan/bill booked as 399 & 398 is ONE payment
+        (within ~8%);
+      * INTEGER-MULTIPLE amounts — a €35.90 gym membership paid late as €71.80
+        (2 months at once) is still one €35.90/mo obligation, not €71.80. The
+        larger charge is treated as covering N periods.
+
+    Genuinely distinct amounts under one payee (Apple 9.99 + 2.99 — not near-equal
+    and not a clean multiple) stay separate. Any ACTIVE leg keeps the merged
+    stream active (a recent catch-up proves a "late" base is still live), and the
+    unit (smallest) amount becomes the monthly.
     """
     by_name = defaultdict(list)
     for c in cands:
-        by_name[str(c.get("name", "—")).strip().lower()].append(c)
+        by_name[_fold_name(c.get("name", "—"))].append(c)
     out = []
-    for _name, group in by_name.items():
-        group.sort(key=lambda c: -c.get("occurrences", 0))  # fullest stream wins
-        kept = []  # [representative_dict, monthly]
+    for _key, group in by_name.items():
+        # smallest amount first → the unit/base is kept, multiples fold into it
+        group.sort(key=lambda c: float(c.get("monthlyAmount") or c.get("cost") or 0))
+        kept = []  # [dict, base_monthly]
         for c in group:
             m = float(c.get("monthlyAmount") or c.get("cost") or 0)
-            dupe = next((k for k in kept
-                         if k[1] > 0 and abs(m - k[1]) <= k[1] * 0.08), None)
-            if dupe is not None:
-                dupe[0]["occ"] += int(c.get("occurrences", 0))
-                if c.get("status") == "active":   # any active leg keeps it live
-                    dupe[0]["status"], dupe[0]["active"] = "active", True
+            folded = False
+            for k in kept:
+                base = k[1]
+                if base <= 0:
+                    continue
+                ratio = m / base
+                mult = round(ratio)
+                near_equal = abs(ratio - 1) <= 0.08
+                catch_up = 2 <= mult <= 6 and abs(ratio - mult) <= 0.08
+                if near_equal or catch_up:
+                    # a 2× charge covers ~2 periods
+                    k[0]["occ"] += int(c.get("occurrences", 0)) * max(1, mult)
+                    if c.get("status") == "active":
+                        k[0]["status"], k[0]["active"] = "active", True
+                    if (c.get("lastChargeDate") or "") > (k[0]["lastCharge"] or ""):
+                        k[0]["lastCharge"] = c.get("lastChargeDate")
+                    folded = True
+                    break
+            if folded:
                 continue
             kept.append([{
                 "name": c.get("name", "—"),
