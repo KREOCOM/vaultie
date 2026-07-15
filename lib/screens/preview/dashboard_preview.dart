@@ -825,7 +825,14 @@ class _DashboardPreviewState extends State<DashboardPreview> {
                       style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.9)),
                 ),
                 const Spacer(),
-                Icon(Icons.chevron_right_rounded, size: 20, color: Colors.white.withValues(alpha: 0.7)),
+                Container(
+                  padding: const EdgeInsets.only(left: 10, right: 6, top: 4, bottom: 4),
+                  decoration: BoxDecoration(color: _card.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(20)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: const [
+                    Text('Tvarkyti', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                    Icon(Icons.chevron_right_rounded, size: 17, color: Colors.white),
+                  ]),
+                ),
               ]),
               const SizedBox(height: 12),
               Row(
