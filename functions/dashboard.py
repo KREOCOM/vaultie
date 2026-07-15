@@ -189,8 +189,14 @@ def _norm(n):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z ]", "", n.lower())).strip()[:16]
 
 
-_COMPANY_MARKERS = ["uab", "mb", "ab", "vsi", "všį", "grupe", "grupė", "ltd", "llc",
-                    "oy", "oü", " as ", "inc", "gmbh", "sia", "ou", "corp", ".lt", ".com"]
+# Legal-form / company markers matched as WHOLE TOKENS (word boundary), so the
+# same letters buried in a person's name ("ab" in "Fabijonas", "ou" in "Roubaite")
+# don't misflag them as a company. Domain suffixes stay substrings by nature.
+_COMPANY_WORD_MARKERS = frozenset((
+    "uab", "mb", "ab", "vsi", "všį", "grupe", "grupė", "ltd", "llc", "oy", "oü",
+    "as", "inc", "gmbh", "sia", "ou", "corp"))
+_COMPANY_AFFIX_MARKERS = (".lt", ".com")
+_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 
 def _is_person_name(n):
@@ -200,7 +206,10 @@ def _is_person_name(n):
     parts = n.split()
     if len(parts) not in (2, 3):
         return False
-    if any(k in n.lower() for k in _COMPANY_MARKERS):
+    low = n.lower()
+    if set(_TOKEN_RE.findall(low)) & _COMPANY_WORD_MARKERS:
+        return False
+    if any(a in low for a in _COMPANY_AFFIX_MARKERS):
         return False
     return all(re.sub(r"[-']", "", p).isalpha() and len(p) > 1 for p in parts)
 
