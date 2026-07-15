@@ -35,8 +35,15 @@ _CATEGORIES = [
 ]
 _CATSET = set(_CATEGORIES)
 
-_COMPANY_MARKERS = ("uab", "mb", "ab", "vsi", "ltd", "llc", "gmbh", "oy", "as",
-                    "inc", "sia", "ou", "corp", ".lt", ".com", ".eu", "*")
+# Legal-form markers matched as WHOLE TOKENS (word boundary) — must NOT trigger
+# on the same letters buried inside a name ("as" in "Jonas", "ab" in "Fabijonas",
+# "ou" in "Roubaite"), which used to let those people bypass the person-guard.
+_WORD_MARKERS = frozenset((
+    "uab", "mb", "ab", "vsi", "ltd", "llc", "gmbh", "oy", "as", "inc", "sia",
+    "ou", "corp", "as", "oe"))
+# Affix / symbol markers are substrings by nature (domain suffix, processor star).
+_AFFIX_MARKERS = (".lt", ".com", ".eu", "*")
+_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 _mem = {}   # in-instance positive memo (per warm instance)
 _neg = set()  # in-instance negative memo: keys that failed / were unclassifiable
@@ -63,7 +70,10 @@ def _looks_person(name):
     parts = name.split()
     if len(parts) not in (2, 3):
         return False
-    if any(m in low for m in _COMPANY_MARKERS) or any(c.isdigit() for c in name):
+    # legal forms: whole-token match (so "Firma AS" is a company, "Jonas" is not)
+    if set(_TOKEN_RE.findall(low)) & _WORD_MARKERS:
+        return False
+    if any(a in low for a in _AFFIX_MARKERS) or any(c.isdigit() for c in name):
         return False
     return all(re.sub(r"[-']", "", p).isalpha() and len(p) > 1 for p in parts)
 
@@ -104,17 +114,38 @@ def _cache_put(key, val):
         pass
 
 
-def classify(surface, api_key):
+def _cache_key(surface, cache_key):
+    """Cache key: prefer the resolver's conservative identity_key (collapses a
+    business's processor-prefix / store-number / legal-form descriptor variants
+    to ONE key, so the same merchant is classified — and paid for — once, not
+    once per descriptor variant across users). Fall back to the plain normalized
+    surface when no usable key is supplied or it is too short to be a safe
+    identity (avoids over-merging degenerate 1-3 char stubs)."""
+    ck = re.sub(r"[^a-z0-9]", "", (cache_key or "").lower())
+    return ck if len(ck) >= 4 else _norm(surface)
+
+
+def classify(surface, api_key, cache_key=None, merchant_context=False):
     """Return (canonical_name, category) for a business merchant name, or None.
 
     ``surface`` MUST be a merchant name only (no user/transaction data).
+    ``cache_key`` is the resolver's identity_key for that merchant (optional):
+    the Firestore/in-memory cache is keyed on it so descriptor variants of one
+    business share a single classification. It carries no extra data — it is a
+    stripped form of the same merchant name, so the privacy contract is intact.
+    ``merchant_context`` — the CALLER has POSITIVE proof this counterparty is a
+    merchant, not a person (e.g. a card-purchase code CCRD: card payments never
+    go to a person). Only then is the name-shape person-guard skipped, so genuine
+    2–3-word business names ("Trattoria da Enzo") are no longer mistaken for
+    people and dropped. Default False keeps the guard FAIL-CLOSED for any
+    ambiguous / P2P / unknown-code caller.
     """
     if not surface or not api_key:
         return None
     surface = surface.strip()
-    if _looks_person(surface):   # never classify a person via the API
+    if not merchant_context and _looks_person(surface):  # fail-closed unless proven merchant
         return None
-    key = _norm(surface)
+    key = _cache_key(surface, cache_key)
     if not key:
         return None
 

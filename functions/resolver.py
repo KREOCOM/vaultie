@@ -27,7 +27,8 @@ import kb
 from entity import (
     _BANK_PRIORS, _COUNTRY, _LEGAL, _PROCESSOR_PRIORS, _amount, _creditor,
     _debtor, _fold, _looks_like_person, _remittance, build_corpus,
-    classify_type, normalize, parse_remittance, processor_probability,
+    classify_type, identity_key, normalize, parse_remittance,
+    processor_probability,
 )
 
 # ── resolution status (P6) ──
@@ -505,6 +506,12 @@ def _finalize(ev, roles, ranked):
         "raw_descriptor": ev["raw_descriptor"],
         "surface": ev["surface"],
         "fingerprint": ev["matching_fingerprint"],
+        # Conservative cross-merchant identity for AI-cache clustering (Feature A):
+        # collapses processor-prefix / store-number / legal-form descriptor
+        # variants of ONE business to a single key, without merging distinct
+        # merchants. Keyed on the clean surface so it inherits card/remittance
+        # parsing (city already dropped where the bank sent it structured).
+        "identity_key": identity_key(ev["surface"]),
         "candidates": ranked[:5],
     }
 

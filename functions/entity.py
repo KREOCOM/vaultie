@@ -184,6 +184,25 @@ def normalize(name):
     }
 
 
+def identity_key(name):
+    """Conservative cross-merchant identity for CACHE clustering (not matching).
+
+    Strips only NOISE — legal forms, country codes, www, and store/terminal
+    codes (tokens containing a digit) — and keeps EVERY remaining brand token
+    (no head-truncation). So a business's descriptor variants that differ only by
+    processor prefix / store number / legal suffix collapse to one key
+    ("SumUp *Trattoria Enzo", "TRATTORIA ENZO 02" -> "trattoriaenzo"), while two
+    DISTINCT businesses that merely share a descriptive prefix stay separate
+    ("Escuela Infantil Privada Alce" != "...Alicia"). Unlike matching_fingerprint
+    this is deliberately NON-aggressive: it must never merge different merchants.
+    Reuses the same tokenizer + LEGAL/COUNTRY sets as normalize(); no parallel
+    normaliser. Returns "" when nothing identifying remains (caller falls back)."""
+    toks = [t for t in _tokens(name)
+            if t not in _LEGAL and t not in _COUNTRY and t != "www"
+            and not any(ch.isdigit() for ch in t)]
+    return "".join(toks)
+
+
 # ── 5. PROCESSOR DETECTOR (corpus-aware, hybrid) ──
 def build_corpus(txns):
     """Per-creditor stats used to detect processors: how many distinct remittance

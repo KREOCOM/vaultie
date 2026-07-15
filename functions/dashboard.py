@@ -215,6 +215,11 @@ _CASH_CODES = {"CWDL", "ATM", "CSHW"}
 _FEE_CODES = {"MDOP", "MCOP", "CHRG", "COMM"}
 # credit transfers in/out (P2P, SEPA) — NOT card purchases
 _XFER_CODES = {"ICDT", "RCDT", "MSCT", "ISCT", "RSCT", "ICHQ", "RCHQ", "TRANSFER", "SCT"}
+# Positive-proof card-purchase codes: the counterparty is a merchant, never a
+# person (card payments don't go P2P). Lets the AI person-guard be safely skipped
+# for these — and ONLY these — so real 2–3-word merchant names aren't dropped.
+# Deliberately narrow (fail-closed); widen only after observing real bank codes.
+_CARD_CODES = {"CCRD"}
 _FEE_HINTS = ["komisin", "aptarnavim", "paslaugų planas", "paslaugu planas",
               "mokestis už", "sąskaitos mokest", "account fee", "service fee"]
 
@@ -359,6 +364,7 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
             return cached
         result = None
         weak = False
+        res = {}
         # Stage 2: deterministic resolver (KB → offline global index).
         try:
             _, hit, res = resolver.resolve_hit(t, corpus)
@@ -374,10 +380,19 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
         # weakest matches. resolve_cat is reached ONLY from the merchant branch,
         # so this is never a person/P2P name; ai_enrichment also guards against
         # person names + caches. AI's answer overrides a weak resolver guess.
+        # Feed the resolver's CLEAN surface (processor-prefix/card-line stripped),
+        # not the raw descriptor, and key the AI cache on its identity_key so
+        # descriptor variants of one business are classified — and paid for —
+        # once (Feature A: cache cardinality tracks real merchants, not bank
+        # descriptor variants). Falls back to the raw name if the resolver threw.
         if (result is None or weak) and ai_key:
             try:
                 import ai_enrichment
-                res_ai = ai_enrichment.classify(_name(t), ai_key)
+                surface = (res or {}).get("surface") or _name(t)
+                code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
+                res_ai = ai_enrichment.classify(
+                    surface, ai_key, cache_key=(res or {}).get("identity_key"),
+                    merchant_context=(code in _CARD_CODES))
                 if res_ai:
                     result = res_ai
             except Exception:
