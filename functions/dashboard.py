@@ -87,6 +87,7 @@ _SUBS = ("Prenumeratos", "entertainment", "monitor", "Pramogos", "cyan")
 _ENTM = ("Pramogos", "entertainment", "fun", "Pramogos", "cyan")
 _TRAVEL = ("Kelionės", "entertainment", "fun", "Pramogos", "cyan")
 _TAXI = ("Taksi", "transport", "taxi", "Transportas", "blue")
+_AUTO = ("Automobilis", "transport", "taxi", "Transportas", "blue")
 _SHARE = ("Paspirtukai, dalinimasis", "transport", "scooter", "Transportas", "blue")
 _PARK = ("Parkavimas", "transport", "taxi", "Transportas", "blue")
 _GYM = ("Sportas", "fitness", "health", "Sveikata, sportas", "orange")
@@ -122,8 +123,16 @@ NAME_OVERRIDES = [
       "mokesciu inspekcija"), _TAX),
     (("telia", "bite", "tele2", "pildyk", "ignitis", "eso ", "vandenys",
       "elektros skyr", "teo ", "cgates", "init"), _UTIL),
-    (("senukai", "kesko", "verslo vartai", "varlė", "varle", "pigu", "technorama",
-      "avitela", "kilobaitas", "elektromarkt", "topocentras", "media markt"), _ELEC),
+    # NOTE: keep this list to UNAMBIGUOUS electronics retailers only. Senukai /
+    # Kesko = home-improvement/DIY, "Verslo vartai" = generic — they were wrongly
+    # pinned here; now they fall through to the resolver → AI, which categorises
+    # them correctly instead of forcing "electronics".
+    (("varlė", "varle", "technorama", "avitela", "kilobaitas", "elektromarkt",
+      "topocentras", "media markt"), _ELEC),
+    # Car services (wash / detailing / service / tyres) — a clear name keyword is
+    # enough; "Ainava auto SPA" shouldn't land in generic shopping.
+    (("auto spa", "autospa", "plovykl", "autoservis", "auto servis", "autocentr",
+      "padangos", "padangu", "detailing", "car wash", "automobiliu dal"), _AUTO),
     (("gympl", "lemon gym", "impuls klub", "impuls sport", "fitness", "wellness",
       "sporto klub", "gym "), _GYM),
     (("vaistin", "pharm", "benu", "camelia", "gintarine", "eurovaistine", "klinik",
@@ -345,22 +354,28 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
         if cached is not None:
             return cached
         result = None
+        weak = False
         # Stage 2: deterministic resolver (KB → offline global index).
         try:
-            _, hit, _ = resolver.resolve_hit(t, corpus)
+            _, hit, res = resolver.resolve_hit(t, corpus)
             if hit:
                 result = (hit[0], hit[2])  # canonical_name, category
+                # A low-coverage RESOLVED match may still be WRONG (e.g. a fuzzy
+                # global-index hit that lands Senukai in "electronics"). Flag the
+                # weakest ones so AI can re-check them below.
+                weak = float((res or {}).get("explanation_coverage") or 1.0) < 0.5
         except Exception:
             pass
-        # Stage 3: AI enrichment (opt-in only) for the unresolved business tail.
-        # resolve_cat is reached ONLY from the merchant branch, so this is never a
-        # person/P2P name; ai_enrichment also guards against person names + caches.
-        if result is None and ai_key:
+        # Stage 3: AI enrichment (opt-in only) for the unresolved tail AND the
+        # weakest matches. resolve_cat is reached ONLY from the merchant branch,
+        # so this is never a person/P2P name; ai_enrichment also guards against
+        # person names + caches. AI's answer overrides a weak resolver guess.
+        if (result is None or weak) and ai_key:
             try:
                 import ai_enrichment
-                res = ai_enrichment.classify(_name(t), ai_key)
-                if res:
-                    result = res
+                res_ai = ai_enrichment.classify(_name(t), ai_key)
+                if res_ai:
+                    result = res_ai
             except Exception:
                 pass
         if result is None:

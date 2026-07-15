@@ -215,12 +215,14 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         await DashboardStore.save(dash, bank: bank.name);
       }
       // Kick off the FULL 12-month backfill in the background (not awaited): the
-      // dashboard opens on the fast data and swaps this in — with complete
-      // recurring history + reminders — when it lands.
+      // dashboard opens on the fast (heuristic) data and swaps this in — with
+      // complete recurring history, AI-refined categories, and reminders — when
+      // it lands. AI runs ONLY here (background), so the fast first paint stays
+      // quick while categorisation quality is upgraded a few seconds later.
       final Future<Map<String, dynamic>?>? deeper = (dash != null)
           ? BankingService.instance.refreshDashboard(
               DashboardStore.accountRefs(),
-              aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 12)
+              aiEnrichment: true, monthsBack: 12)
           : null;
       _stopStages();
       if (!mounted) return;
