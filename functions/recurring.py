@@ -535,15 +535,23 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             else:
                 n_unknown += 1
 
-        # Person-to-person transfer (spouse, friend…) — money sent to an
-        # individual is NOT a bill/subscription and never belongs in recurring
-        # commitments. Only skip when NO merchant matched (a real brand that
-        # happens to look person-like still resolves via the DB and stays).
-        # Matches Wallet/Monarch: people aren't auto-recurring; the user adds one
-        # manually if they ever want to (e.g. rent to a private landlord).
-        if hit is None and (canon.get("counterparty") or {}).get("party_kind_hint") == "person_like":
-            n_skipped += 1
-            continue
+        # NOTE: we do NOT skip "person-like" counterparties here. _looks_like_person
+        # is a weak heuristic that also flags 2-word BUSINESS names (e.g. "Artus
+        # Grupe", "Verslo Vartai") — skipping them dropped real recurring bills
+        # like rent. People are instead kept as candidates; a genuine one-off P2P
+        # transfer is demoted to "transfer" below (excluded from the total), while
+        # a CONFIDENT regular payment stays a bill/commitment. The user is the
+        # final authority via the recurring manager (toggle off what isn't real).
+
+        # A "frequent-spending" match only makes sense for small everyday amounts
+        # (groceries, coffee). A LARGE payment that fuzzy-matched a frequent brand
+        # on a shared token — e.g. rent "Artus Grupė MB" wrongly hitting a
+        # supermarket "Artus" — is a BILL, not everyday spending. Drop the bogus
+        # frequent match so it flows into recurring with its real name instead of
+        # silently vanishing.
+        if hit is not None and hit[1] == "frequent" and (amount or 0) >= 150:
+            hit = None
+            n_unknown += 1
 
         if hit is not None and hit[1] == "frequent":
             fk = hit[0].lower()
@@ -608,11 +616,14 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             typ = "bill" if category in ("housing", "finance") else "subscription"
             if stable and typ == "subscription":
                 typ = "bill"       # deliberate transfers lean bill, not subscription
-            # Weak person-like hint: a repeated transfer to a non-merchant party
-            # keeps its temporal-recurrence signal but must NOT be classified as a
-            # subscription/bill purely from a stable IBAN + recurrence. Fall back
-            # to "transfer" (not a final government/tax semantic — just safer).
-            if (canon_g.get("counterparty") or {}).get("party_kind_hint") == "person_like":
+            # Weak person-like hint: demote to "transfer" ONLY when this is NOT a
+            # confident regular stream. A CONFIDENT, regular payment is a real
+            # commitment (rent to a private landlord, a monthly allowance) and
+            # stays a bill so it counts — the person-name heuristic is too weak to
+            # override a strong recurrence signal (it also fires on 2-word
+            # business names). One-off / irregular person payments still become
+            # transfers (excluded from the total).
+            if not confident and (canon_g.get("counterparty") or {}).get("party_kind_hint") == "person_like":
                 typ = "transfer"
             disp = cp_name if stable else _clean_name(st_items[0][2])
             cand = _build_candidate(disp, typ, category, None, st_items, dates,

@@ -78,9 +78,15 @@ def main() -> int:
         tx("2025-11-05", 35.90, "gymplius"), tx("2025-12-05", 35.90, "gymplius"),
         tx("2026-01-05", 35.90, "gymplius"), tx("2026-02-05", 35.90, "gymplius"),
         tx("2026-05-10", 71.80, "gymplius"), tx("2026-07-08", 71.80, "gymplius"),
-        # PERSON-to-person transfer (spouse) → never recurring, at any amount.
+        # PERSON-to-person transfer (spouse) → appears as a candidate the user can
+        # toggle off (Bilance model); NOT auto-dropped (that also dropped rent).
         tx("2026-05-03", 400.0, "Zivile Pavarde"), tx("2026-06-03", 400.0, "Zivile Pavarde"),
         tx("2026-07-03", 400.0, "Zivile Pavarde"),
+        # RENT to a business whose 2-word name fuzzy-matches a frequent brand
+        # ("Artus Grupe" → "Artus" supermarket). Must NOT be dropped as frequent
+        # spending — a €1197 regular payment is a bill.
+        tx("2026-05-05", 1197.0, "Artus Grupe"), tx("2026-06-05", 1197.0, "Artus Grupe"),
+        tx("2026-07-05", 1197.0, "Artus Grupe"),
     ]
 
     subs = dashboard._subs(txns, own_ibans={OWN}, today=TODAY)
@@ -115,8 +121,15 @@ def main() -> int:
     # Own-account transfer never a recurring item
     check("My Savings" not in items, "own-account transfer wrongly recurring")
 
-    # Person-to-person transfer never recurring, at any amount
-    check("Zivile Pavarde" not in items, "person transfer wrongly recurring")
+    # People are NOT auto-dropped (that dropped rent too) — they appear as
+    # candidates the user curates.
+    check("Zivile Pavarde" in items, "person candidate wrongly dropped")
+
+    # RENT that fuzzy-matches a frequent brand must SURVIVE (the regression fix).
+    rent = [it for it in subs["items"] if it["name"] == "Artus Grupe"]
+    check(len(rent) == 1 and rent[0]["monthly"] > 1000,
+          f"rent 'Artus Grupe' wrongly dropped/mis-sized: {[(r['name'], r['monthly']) for r in rent]}")
+    check(rent and rent[0]["active"] is True, "rent should be active")
 
     # CATCH-UP: gym collapses to ONE ~35.90/mo, active (recent 71.80 catch-up)
     gym = [it for it in subs["items"] if it["name"] == "GymPlius"]
@@ -126,7 +139,8 @@ def main() -> int:
     check(gym and gym[0]["active"] is True, "GymPlius should be active (recent catch-up)")
 
     # TOTAL = Netflix 12.99 + QuartCo 100 + MOGO ~399 + GymPlius ~35.90
-    expected = 12.99 + 100.0 + 399.0 + 35.90
+    #         + Zivile 400 + rent 1197 (both counted by default; user curates)
+    expected = 12.99 + 100.0 + 399.0 + 35.90 + 400.0 + 1197.0
     check(abs(subs["total"] - expected) < 4.0,
           f"total off: got {subs['total']}, expected ~{expected}")
 
