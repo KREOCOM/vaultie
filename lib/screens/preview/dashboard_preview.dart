@@ -39,8 +39,8 @@ bool _darkMode = false;
 void Function()? _dashRefresh;
 Color _bg = const Color(0xFFF1F1F4);
 Color _purpleSoft = const Color(0xFFF3EEFE);
-Color _muted = const Color(0xFF48484F); // darker → secondary text stays readable
-Color _faint = const Color(0xFF9A9AA6);
+Color _muted = const Color(0xFF2B2B31); // near-black → secondary text clearly readable
+Color _faint = const Color(0xFF57575F); // darker grey → captions readable, not washed out
 Color _ink = const Color(0xFF16161A);
 Color _navOff = const Color(0xFF9A9AA2);
 Color _card = const Color(0xFFFFFFFF); // card / surface background
@@ -53,8 +53,8 @@ void _applyTheme(bool dark) {
   _darkMode = dark;
   _bg         = dark ? const Color(0xFF0F1014) : const Color(0xFFF1F1F4);
   _purpleSoft = dark ? const Color(0xFF251B41) : const Color(0xFFF3EEFE);
-  _muted      = dark ? const Color(0xFFAEB0BC) : const Color(0xFF48484F);
-  _faint      = dark ? const Color(0xFF6E7080) : const Color(0xFF9A9AA6);
+  _muted      = dark ? const Color(0xFFC2C4CE) : const Color(0xFF2B2B31);
+  _faint      = dark ? const Color(0xFF868898) : const Color(0xFF57575F);
   _ink        = dark ? const Color(0xFFEEF0F5) : const Color(0xFF16161A);
   _navOff     = dark ? const Color(0xFF585A66) : const Color(0xFF9A9AA2);
   _card       = dark ? const Color(0xFF1A1B23) : const Color(0xFFFFFFFF);
@@ -782,7 +782,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Bendras likutis', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w500)),
+                      Text('Bendras likutis', style: TextStyle(fontSize: 13.5, color: _ink, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 3),
                       _hideBal
                           ? Text('••••••', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: 2))
@@ -5931,8 +5931,15 @@ class _AccountTab extends StatefulWidget {
 
 class _AccountTabState extends State<_AccountTab> {
   bool _promo = true;
+  late List<Map<String, dynamic>> _assets = DashboardStore.manualAssets();
 
-  double get _netWorth => ((widget.balance['current'] ?? 0) as num).toDouble();
+  // Bank balance = the live truth from Enable Banking (never touched by cash).
+  double get _bankBalance => ((widget.balance['current'] ?? 0) as num).toDouble();
+  // Manually-added cash / savings the bank can't see.
+  double get _assetsSum =>
+      _assets.fold(0.0, (s, a) => s + ((a['amount'] as num?)?.toDouble() ?? 0));
+  // Net worth = bank + cash. Spending analytics still use the bank balance only.
+  double get _netWorth => _bankBalance + _assetsSum;
   List<Map<String, dynamic>> get _accounts => ((widget.balance['accounts'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
   void _soon() => ScaffoldMessenger.of(context)
@@ -6054,7 +6061,7 @@ class _AccountTabState extends State<_AccountTab> {
         child: Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Grynasis turtas', style: TextStyle(fontSize: 14, color: _muted, fontWeight: FontWeight.w500)),
+              Text('Grynasis turtas', style: TextStyle(fontSize: 14, color: _ink, fontWeight: FontWeight.w700)),
               const SizedBox(height: 3),
               Text(_eur(_netWorth), style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
             ]),
@@ -6063,8 +6070,44 @@ class _AccountTabState extends State<_AccountTab> {
         ]),
       );
 
+  Widget _assetRow(IconData icon, Color color, String label, double value,
+          {VoidCallback? onTap}) =>
+      InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(children: [
+            CategoryIcon(icon: icon, color: color, size: 40),
+            const SizedBox(width: 13),
+            Expanded(child: Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
+            Text(_eur(value), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
+            if (onTap != null) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right_rounded, size: 18, color: _faint),
+            ],
+          ]),
+        ),
+      );
+
   Widget _assetsCard() {
-    final assets = _netWorth; // all cash for now
+    final rows = <Widget>[
+      // Bank accounts — the live component from Enable Banking (never edited here).
+      _assetRow(Icons.account_balance_rounded, _purple, 'Banko sąskaitos', _bankBalance),
+    ];
+    for (var i = 0; i < _assets.length; i++) {
+      final a = _assets[i];
+      final label = ((a['label'] as String?)?.trim().isNotEmpty ?? false)
+          ? a['label'] as String
+          : 'Grynieji';
+      rows
+        ..add(const RowDivider(indent: 66))
+        ..add(_assetRow(Icons.savings_rounded, _good, label,
+            ((a['amount'] as num?) ?? 0).toDouble(),
+            onTap: () => _assetDialog(index: i)));
+    }
+    rows
+      ..add(const RowDivider(indent: 66))
+      ..add(_addRow('Pridėti grynų ar santaupų', onTap: () => _assetDialog()));
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -6072,23 +6115,88 @@ class _AccountTabState extends State<_AccountTab> {
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
           child: Row(children: [Text('Turto kategorija', style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text('Vertė', style: TextStyle(fontSize: 13.5, color: _muted))]),
         ),
-        AppCard(color: _card, border: _hair, 
-          child: Column(children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-              child: Row(children: [
-                const CategoryIcon(icon: Icons.savings_rounded, color: _good, size: 40),
-                const SizedBox(width: 13),
-                Expanded(child: Text('Grynieji ir santaupos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
-                Text(_eur(assets), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
-              ]),
-            ),
-            const RowDivider(indent: 66),
-            _addRow('Pridėti turtą'),
-          ]),
-        ),
+        AppCard(color: _card, border: _hair, child: Column(children: rows)),
       ]),
     );
+  }
+
+  Future<void> _assetDialog({int? index}) async {
+    final editing = index != null;
+    final a = editing ? _assets[index] : null;
+    final amountCtl = TextEditingController(
+        text: a != null ? ((a['amount'] as num?) ?? 0).toString() : '');
+    final labelCtl = TextEditingController(text: (a?['label'] as String?) ?? '');
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(editing ? 'Redaguoti' : 'Pridėti grynų ar santaupų',
+            style: TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 18)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: amountCtl,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            style: TextStyle(color: _ink, fontSize: 22, fontWeight: FontWeight.w700),
+            decoration: InputDecoration(
+              prefixText: '€ ',
+              prefixStyle: TextStyle(color: _ink, fontSize: 22, fontWeight: FontWeight.w700),
+              hintText: '0',
+              hintStyle: TextStyle(color: _faint),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: labelCtl,
+            style: TextStyle(color: _ink),
+            decoration: InputDecoration(
+              hintText: 'Pavadinimas (pvz. Grynieji, Santaupos)',
+              hintStyle: TextStyle(color: _faint),
+            ),
+          ),
+        ]),
+        actions: [
+          if (editing)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Ištrinti',
+                  style: TextStyle(color: Color(0xFFD1453B), fontWeight: FontWeight.w600))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: Text('Atšaukti', style: TextStyle(color: _muted))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Išsaugoti',
+                  style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (saved == false && editing) {
+      // "Ištrinti" → remove this asset.
+      setState(() => _assets = [..._assets]..removeAt(index));
+      await DashboardStore.setManualAssets(_assets);
+      return;
+    }
+    if (saved != true) return; // cancelled
+    final amount = double.tryParse(
+            amountCtl.text.replaceAll('€', '').replaceAll(',', '.').trim()) ??
+        0;
+    if (amount <= 0) return;
+    final label = labelCtl.text.trim();
+    setState(() {
+      final entry = <String, dynamic>{
+        'id': a?['id'] ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        'label': label.isEmpty ? 'Grynieji' : label,
+        'amount': amount,
+      };
+      if (editing) {
+        _assets[index] = entry;
+      } else {
+        _assets = [..._assets, entry];
+      }
+    });
+    await DashboardStore.setManualAssets(_assets);
   }
 
   Widget _totalBalanceCard(List<double> spark) => Padding(
@@ -6107,9 +6215,9 @@ class _AccountTabState extends State<_AccountTab> {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Bendras likutis', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w500)),
+                  Text('Bendras likutis', style: TextStyle(fontSize: 13.5, color: _ink, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 3),
-                  Text(_eur(_netWorth), style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+                  Text(_eur(_bankBalance), style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
                 ]),
               ),
               Container(

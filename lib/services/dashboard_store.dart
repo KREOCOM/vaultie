@@ -159,5 +159,30 @@ class DashboardStore {
     }
   }
 
+  // ── Manual assets (cash / savings the bank can't see) ────────────────────
+  // These count toward NET WORTH only — never the live bank balance or spending
+  // analytics. Each entry: {id, label, amount}. Kept on-device.
+  static const _kAssets = 'manualAssets';
+
+  static List<Map<String, dynamic>> manualAssets() {
+    try {
+      final raw = _box.get(_kAssets) as String?;
+      if (raw == null) return [];
+      return (jsonDecode(raw) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> setManualAssets(List<Map<String, dynamic>> assets) async {
+    try {
+      await _box.put(_kAssets, jsonEncode(assets));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   static Future<void> clear() => _box.clear();
 }
