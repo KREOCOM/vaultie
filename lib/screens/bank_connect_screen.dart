@@ -7,6 +7,7 @@ import '../content_theme.dart';
 import '../main.dart';
 import '../services/banking_service.dart';
 import '../services/dashboard_store.dart';
+import '../services/notification_service.dart';
 import 'bank_import_screen.dart';
 import 'preview/dashboard_preview.dart';
 
@@ -175,6 +176,19 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       // launch (no re-connect) — and so a refresh overwrites the old data.
       if (dash != null) {
         await DashboardStore.save(dash, bank: bank.name);
+        // Refresh payment reminders from the freshly-scanned bills right away
+        // (don't wait for the next cold launch).
+        final subs = (dash['subs'] as Map?)?.cast<String, dynamic>();
+        final items = ((subs?['items'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        await NotificationService.instance.scheduleFromRecurring(
+          items,
+          excluded: DashboardStore.recurringExcluded(),
+          included: DashboardStore.recurringIncluded(),
+          isLithuanian: _isLt,
+        );
       }
       if (!mounted) return;
       // Land straight in the new dashboard with the classified transactions.

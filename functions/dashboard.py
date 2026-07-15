@@ -573,6 +573,7 @@ def _collapse_recurring(cands):
                 "monthly": round(m, 2),
                 "cost": round(float(c.get("cost", 0)), 2),
                 "cycle": c.get("billingCycle", "monthly"),
+                "cadence": c.get("cadenceLabel"),   # weekly/monthly/… or "~Nd"/"once"
                 "status": c.get("status", "active"),
                 "active": c.get("status") == "active",
                 "type": c.get("type", "subscription"),

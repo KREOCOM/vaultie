@@ -10,6 +10,7 @@ import 'content_theme.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'models/subscription.dart';
+import 'services/dashboard_store.dart';
 import 'services/feature_flags.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
@@ -105,12 +106,13 @@ Future<void> main() async {
   // reactively when the flags arrive.
   FeatureFlags.instance.init();
 
-  // Roll any lapsed renewal dates forward to their next cycle and (re)schedule
-  // every subscription's reminders. Runs on each launch so reminders survive
-  // past renewals, app reinstalls, and OS-cleared notifications.
+  // (Re)schedule payment reminders from the LIVE recurring bills (dashboard
+  // `subs`), not the old stale imported-subscription records. Runs on each launch
+  // so reminders survive past renewals, reinstalls, and OS-cleared notifications,
+  // and always reflect the latest scan (next due from the real last charge).
   // Same language rule as the UI: manual choice, else device Region.
   final isLithuanian = effectiveLocale().languageCode == 'lt';
-  await _rescheduleReminders(subsBox, isLithuanian: isLithuanian);
+  await _rescheduleFromDashboard(isLithuanian: isLithuanian);
 
   // Snapshot this month's spend so the Monthly Recap has data to show later.
   RecapService.recordCurrentMonth(subsBox.values.toList());
@@ -119,28 +121,26 @@ Future<void> main() async {
       VaultieApp(hasOnboarded: settings.get('onboarded', defaultValue: false)));
 }
 
-/// Launch-time pass: advances elapsed billing dates and (re)schedules reminders
-/// for every subscription. Failures are swallowed per-subscription so a single
-/// bad record can never block app startup.
-Future<void> _rescheduleReminders(
-  Box<Subscription> box, {
-  required bool isLithuanian,
-}) async {
-  final now = DateTime.now();
-  for (final sub in box.values.toList()) {
-    try {
-      final rolled = sub.rolledForwardBillingDate(now);
-      final effective = rolled.isAtSameMomentAs(sub.nextBillingDate)
-          ? sub
-          : sub.copyWith(nextBillingDate: rolled);
-      if (!identical(effective, sub)) {
-        await box.put(sub.id, effective);
-      }
-      await NotificationService.instance
-          .scheduleForSubscription(effective, isLithuanian: isLithuanian);
-    } catch (_) {
-      // Never let one subscription's scheduling failure abort startup.
-    }
+/// Launch-time pass: (re)schedules payment reminders from the persisted dashboard
+/// recurring bills. Cancels every prior reminder (including the old stale
+/// imported-subscription ones) and re-schedules only the live, active,
+/// user-kept bills with a real next-due date. Never blocks startup.
+Future<void> _rescheduleFromDashboard({required bool isLithuanian}) async {
+  try {
+    final dash = DashboardStore.load();
+    final subs = (dash?['subs'] as Map?)?.cast<String, dynamic>();
+    final items = ((subs?['items'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    await NotificationService.instance.scheduleFromRecurring(
+      items,
+      excluded: DashboardStore.recurringExcluded(),
+      included: DashboardStore.recurringIncluded(),
+      isLithuanian: isLithuanian,
+    );
+  } catch (_) {
+    // Never let reminder scheduling abort startup.
   }
 }
 

@@ -140,6 +140,98 @@ class NotificationService {
     }
   }
 
+  static const _cleanCadence = {'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'};
+
+  DateTime _addMonths(DateTime d, int months) {
+    final zb = d.month - 1 + months;
+    final y = d.year + zb ~/ 12;
+    final m = zb % 12 + 1;
+    final lastDay = DateTime(y, m + 1, 0).day;
+    return DateTime(y, m, d.day < lastDay ? d.day : lastDay);
+  }
+
+  DateTime _advance(DateTime d, String cycle) {
+    switch (cycle) {
+      case 'weekly':
+        return d.add(const Duration(days: 7));
+      case 'quarterly':
+        return _addMonths(d, 3);
+      case 'yearly':
+        return _addMonths(d, 12);
+      default:
+        return _addMonths(d, 1);
+    }
+  }
+
+  /// (Re)schedules reminders from the LIVE recurring bills (dashboard `subs`),
+  /// replacing the old stale-import path. For each ACTIVE, user-kept bill/
+  /// subscription with a regular cadence, the next due date is computed from the
+  /// REAL last charge (last + one cycle, rolled forward), so a bill you just paid
+  /// reminds ~a cycle out, never "tomorrow". Reminds 2 days BEFORE, at 10:00.
+  /// Skips: transfers, people, ad-hoc top-ups (irregular cadence, e.g. Pildyk),
+  /// user-excluded streams, and trivial amounts. Deduplicated by name.
+  ///
+  /// [excluded]/[included] are the user's manager overrides (DashboardStore).
+  Future<void> scheduleFromRecurring(
+    List<Map<String, dynamic>> items, {
+    required Set<String> excluded,
+    required Set<String> included,
+    required bool isLithuanian,
+  }) async {
+    await init();
+    // One clean slate — clears every prior reminder, including the stale
+    // imported-subscription ones that used to fire wrongly.
+    await _plugin.cancelAll();
+    if (!AppPrefs.notificationsEnabled) return;
+
+    final now = tz.TZDateTime.now(tz.local);
+    final today = DateTime(now.year, now.month, now.day);
+    final seen = <String>{};
+    for (final it in items) {
+      final name = (it['name'] as String? ?? '').trim();
+      if (name.isEmpty) continue;
+      final key = name.toLowerCase();
+
+      // Respect the user's manager verdict; default to the backend's active bills.
+      final backendActive = it['active'] == true && it['type'] != 'transfer';
+      final counted = included.contains(key) || (backendActive && !excluded.contains(key));
+      if (!counted) continue;
+
+      final type = (it['type'] as String?) ?? 'subscription';
+      if (type != 'subscription' && type != 'bill') continue; // never a transfer
+      final cadence = ((it['cadence'] as String?) ?? '').toLowerCase();
+      if (!_cleanCadence.contains(cadence)) continue; // skip ad-hoc/irregular
+      final monthly = ((it['monthly'] ?? 0) as num).toDouble();
+      if (monthly < 5) continue; // ignore trivial amounts
+      if (!seen.add(key)) continue; // one reminder per payee
+
+      final lastStr = it['lastCharge'] as String?;
+      final last = lastStr != null ? DateTime.tryParse(lastStr) : null;
+      if (last == null) continue;
+      final cycle = (it['cycle'] as String?) ?? 'monthly';
+      var due = _advance(last, cycle);
+      var guard = 0;
+      while (due.isBefore(today) && guard++ < 24) {
+        due = _advance(due, cycle);
+      }
+      final remindDay = due.subtract(const Duration(days: 2));
+      final scheduled = tz.TZDateTime(
+          tz.local, remindDay.year, remindDay.month, remindDay.day, _remindHour);
+      if (!scheduled.isAfter(now)) continue; // already passed → skip
+
+      await _plugin.zonedSchedule(
+        id: key.hashCode & 0x3FFFFFFF,
+        scheduledDate: scheduled,
+        notificationDetails: _details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        title: 'Vaultie 🔔',
+        body: isLithuanian
+            ? '$name · ${formatMoney(monthly)} – mokėjimas po 2 d.'
+            : '$name · ${formatMoney(monthly)} – due in 2 days',
+      );
+    }
+  }
+
   /// Cancels all reminders previously scheduled for a subscription id. Covers
   /// legacy offsets (older versions scheduled 3/2/1-day reminders) so upgrading
   /// to the single 24h reminder doesn't leave stale notifications behind.
