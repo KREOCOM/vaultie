@@ -829,7 +829,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         .where((t) => ((t['badges'] as List?) ?? const []).contains('res'))
         .length;
     final sub = _deepening
-        ? 'Įkeliame 12 mėn. istoriją…'
+        ? 'Įkeliame 6 mėn. istoriją…'
         : reserved == 0
             ? 'Viskas atnaujinta'
             : reserved == 1

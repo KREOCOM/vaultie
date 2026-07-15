@@ -233,7 +233,7 @@ class BankingService {
   /// Exchanges the redirect [code] for the scan result: importable recurring
   /// candidates plus frequent-spending merchants (never recurring, feed-only).
   Future<BankScanResult> finishBankAuth(String code,
-      {bool aiEnrichment = false, String? bank, int monthsBack = 12}) {
+      {bool aiEnrichment = false, String? bank, int monthsBack = 6}) {
     return _call('finish_bank_auth',
         // AI enrichment flows through from the user's setting (was hardcoded
         // false, which left the toggle dead). It is still OFF by default; turning
@@ -319,7 +319,7 @@ class BankingService {
   /// won't appear until reconnected.
   Future<Map<String, dynamic>?> refreshDashboard(
       List<Map<String, dynamic>> accounts,
-      {bool aiEnrichment = false, int monthsBack = 12}) {
+      {bool aiEnrichment = false, int monthsBack = 6}) {
     return _call('refresh_dashboard',
         {'accounts': accounts, 'aiEnrichment': aiEnrichment, 'monthsBack': monthsBack},
         (m) {
