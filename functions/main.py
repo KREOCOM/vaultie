@@ -192,7 +192,7 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     if len(all_txns) != raw:
         logging.info("scan: deduped %d -> %d transactions", raw, len(all_txns))
     try:
-        detection = detect_recurring(all_txns)
+        detection = detect_recurring(all_txns, own_ibans=own_ibans)
     except Exception:  # noqa: BLE001
         logging.exception("detect_recurring failed")
         detection = {"candidates": [], "frequent": []}

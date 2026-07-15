@@ -117,5 +117,47 @@ class DashboardStore {
   /// Number of connected banks (0 before any connection).
   static int get bankCount => connections().length;
 
+  // ── Recurring lifecycle overrides (Monarch/Copilot-style) ────────────────
+  // The backend classifies each recurring stream active/ended, but the user is
+  // the final authority. These sets (keyed by the stream's lowercased name) let
+  // them force a stream OUT of the monthly commitment ("not recurring" / "I
+  // stopped paying") or back IN ("still active"), overriding the heuristic.
+  static const _kRecExcluded = 'recExcluded';
+  static const _kRecIncluded = 'recIncluded';
+
+  static Set<String> _loadSet(String key) {
+    try {
+      final raw = _box.get(key) as String?;
+      if (raw == null) return <String>{};
+      return (jsonDecode(raw) as List).map((e) => e as String).toSet();
+    } catch (_) {
+      // No Hive box (e.g. the standalone preview) → no overrides.
+      return <String>{};
+    }
+  }
+
+  /// Names the user marked "not recurring / ended" — dropped from the total.
+  static Set<String> recurringExcluded() => _loadSet(_kRecExcluded);
+
+  /// Names the user marked "still active" — kept in the total even if the
+  /// heuristic thinks the stream ended.
+  static Set<String> recurringIncluded() => _loadSet(_kRecIncluded);
+
+  /// Set the user's verdict for a stream. [counted] true → force-include;
+  /// false → force-exclude; null → clear the override (back to the heuristic).
+  static Future<void> setRecurringOverride(String name, bool? counted) async {
+    final key = name.trim().toLowerCase();
+    final excl = recurringExcluded()..remove(key);
+    final incl = recurringIncluded()..remove(key);
+    if (counted == false) excl.add(key);
+    if (counted == true) incl.add(key);
+    try {
+      await _box.put(_kRecExcluded, jsonEncode(excl.toList()));
+      await _box.put(_kRecIncluded, jsonEncode(incl.toList()));
+    } catch (_) {
+      // No Hive box (standalone preview) → override is in-memory only.
+    }
+  }
+
   static Future<void> clear() => _box.clear();
 }

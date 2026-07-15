@@ -20,6 +20,7 @@ import re
 from collections import defaultdict
 
 import canonical
+import fx
 import merchant_db
 import resolver
 from resolver import NEEDS_EXTERNAL, RESOLVED, UNKNOWN
@@ -64,12 +65,16 @@ def counterparty_name(t: dict):
 
 
 def amount_value(t: dict):
+    """Absolute transaction amount, normalized to EUR so multi-currency
+    (multi-bank) streams aggregate correctly — a Revolut NOK charge and a SEB EUR
+    charge must be comparable before we cluster or sum them."""
     amt = t.get("transaction_amount") or t.get("amount")
     if isinstance(amt, dict):
         try:
-            return abs(float(amt.get("amount")))
+            v = abs(float(amt.get("amount")))
         except (TypeError, ValueError):
             return None
+        return fx.to_eur(v, amt.get("currency"))
     try:
         return abs(float(amt))
     except (TypeError, ValueError):
@@ -383,8 +388,46 @@ def _category_for_unknown(raw_name: str, avg: float) -> str:
     return "other"
 
 
+# ── Recurring stream LIFECYCLE (Plaid/Tink-style) ───────────────────────────
+# A historical recurring pattern is NOT an active future commitment forever. A
+# finished tax plan / paid-off loan / cancelled subscription keeps its history
+# but must drop out of the monthly & annual projection once the expected charges
+# stop arriving. Tolerances scale with each stream's OWN cadence, so a yearly
+# bill isn't declared dead after two months.
+_CYCLE_DAYS = {"weekly": 7, "monthly": 30, "quarterly": 91, "yearly": 365}
+# per-charge cost → monthly-equivalent, so the projection is a true monthly sum
+# regardless of billing frequency (a €600 yearly bill counts as €50/mo, not €600).
+_CYCLE_PER_MONTH = {"weekly": 4.345, "monthly": 1.0,
+                    "quarterly": 1 / 3.0, "yearly": 1 / 12.0}
+
+
+def _lifecycle(last: dt.date, cycle: str, occ: int, today: dt.date):
+    """Return ``(status, days_since_last)`` for a recurring stream.
+
+      early  — <2 sightings: detected but unproven (Plaid EARLY_DETECTION).
+      active — last charge within ~2 cycles: at most the current expected
+               charge is pending/late. ONLY active streams feed the projection.
+      late   — 2–3.5 cycles since last: one clearly-missed cycle (ending?).
+      ended  — >3.5 cycles: the stream has stopped (Plaid TOMBSTONED).
+
+    Uncertain by nature (a paused sub may resume), so nothing is deleted — the
+    status just steers whether it counts as a future commitment; the user can
+    always override it.
+    """
+    cd = _CYCLE_DAYS.get(cycle, 30)
+    days = (today - last).days
+    if occ < 2:
+        return "early", days
+    if days <= cd * 2.0:
+        return "active", days
+    if days <= cd * 3.5:
+        return "late", days
+    return "ended", days
+
+
 def _build_candidate(display, mtype, category, logo, items, dates, *,
-                     needs_review, auto_detected, confident):
+                     needs_review, auto_detected, confident, today=None):
+    today = today or dt.date.today()
     amounts = [a for _, a, _ in items]
     avg = round(sum(amounts) / len(amounts), 2)
     occ = len(items)
@@ -396,16 +439,23 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
         # inflated the totals). Mark it a single sighting for the user to
         # confirm; billing math still needs a cycle, so keep monthly internally.
         gap, cycle, label = 30.0, "monthly", "once"
-    last = dates[-1] if dates else dt.date.today()
+    last = dates[-1] if dates else today
+    status, days_since = _lifecycle(last, cycle, occ, today)
+    # Monthly-equivalent of this stream's typical charge (the projection unit).
+    monthly = round(avg * _CYCLE_PER_MONTH.get(cycle, 1.0), 2)
     return {
         "name": display,
-        "type": mtype,                      # subscription | bill
+        "type": mtype,                      # subscription | bill | transfer
         "autoDetected": auto_detected,      # known merchant vs user-review
-        "confident": confident,             # ≥2 sightings → safe to count
-        "cost": avg,
+        "confident": confident,             # ≥2 sightings → a real pattern
+        "cost": avg,                        # typical per-charge amount
+        "monthlyAmount": monthly,           # per-charge normalized to a month
         "currency": "EUR",
         "billingCycle": cycle,
         "cadenceLabel": label,
+        "status": status,                   # early | active | late | ended
+        "active": status == "active",       # only these feed the projection
+        "daysSinceLast": days_since,
         "category": category,
         "logoDomain": logo,
         "occurrences": occ,
@@ -417,7 +467,8 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
 
 
 def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNOWN,
-                     classify_unknown=None, corpus=None):
+                     classify_unknown=None, corpus=None, today=None,
+                     own_ibans=None):
     """Return ``{"candidates": [...], "frequent": [...], "debug": {...}}``.
 
     Every outgoing merchant becomes a candidate (even seen once), tagged
@@ -432,6 +483,11 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
     detection stays fully on-server with no third-party data flow; the hook
     exists only so tests can inject a local stub.
     """
+    today = today or dt.date.today()
+    # The user's OWN account IBANs (multi-bank). A recurring transfer between the
+    # user's own accounts (e.g. a monthly SEB→Revolut top-up) is NOT a bill and
+    # must never become a recurring commitment.
+    own = {str(i).replace(" ", "").upper() for i in (own_ibans or []) if i}
     groups = defaultdict(list)
     group_hit = {}
     group_canon = {}
@@ -463,6 +519,12 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             continue
         # Stage 1 — stable counterparty identity from structured fields.
         canon = canonical.build_canonical(t)
+        # Own-account transfer (SEB↔Revolut etc.): never a recurring bill.
+        if own:
+            cpi = (canon.get("counterparty") or {}).get("iban")
+            if cpi and str(cpi).replace(" ", "").upper() in own:
+                n_skipped += 1
+                continue
         id_src[canon["identity_source"]] += 1
         # Stage 2 — optional brand/merchant enrichment (KB string resolver). Used
         # for display/category/routing only; identity does NOT depend on it.
@@ -526,7 +588,7 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             cand = _build_candidate(
                 display, typ, category, logo, st_items, dates,
                 needs_review=(mtype == "possible" or not confident),
-                auto_detected=True, confident=confident)
+                auto_detected=True, confident=confident, today=today)
         else:
             cp_name = (canon_g.get("counterparty") or {}).get("name")
             if not stable and not _include_unknown(st_items[0][2], st_items):
@@ -545,7 +607,7 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             disp = cp_name if stable else _clean_name(st_items[0][2])
             cand = _build_candidate(disp, typ, category, None, st_items, dates,
                                     needs_review=True, auto_detected=False,
-                                    confident=confident)
+                                    confident=confident, today=today)
         if force_unconfident:
             cand["cadenceLabel"] = "irregular"   # no fake cadence for a residual
         cand["identitySource"] = src

@@ -253,6 +253,54 @@ Widget _breakdownRow(Color color, String title, String sub, double amount) {
   ]);
 }
 
+// ── Recurring lifecycle (client side) ───────────────────────────────────────
+// The backend now tags each recurring stream with a lifecycle status and a
+// monthly-normalized amount, and only ACTIVE bills feed the projection (a
+// finished tax plan / paid-off loan drops out). These helpers read that shape
+// and layer the user's manual overrides on top (Monarch/Copilot-style).
+
+/// The backend `subs.items` as typed maps
+/// ({name, monthly, cost, cycle, status, active, type, occ, lastCharge}).
+/// Tolerant of the legacy baked-preview shape (a `[name, cost]` pair) so the
+/// standalone design preview keeps rendering.
+List<Map<String, dynamic>> _recItems(Map subs) {
+  final raw = (subs['items'] as List?) ?? const [];
+  return raw.map<Map<String, dynamic>>((e) {
+    if (e is Map) return e.cast<String, dynamic>();
+    if (e is List && e.length >= 2) {
+      return {
+        'name': e[0], 'monthly': e[1], 'cost': e[1], 'cycle': 'monthly',
+        'status': 'active', 'active': true, 'type': 'subscription', 'occ': 0,
+      };
+    }
+    return {'name': '—', 'monthly': 0, 'active': false, 'type': 'subscription'};
+  }).toList();
+}
+
+/// Whether a stream counts toward the monthly commitment: the backend says it's
+/// an ACTIVE bill (not a transfer), unless the user overrode that verdict.
+bool _recCounted(Map it, Set<String> excl, Set<String> incl) {
+  final name = (it['name'] as String? ?? '').toLowerCase();
+  if (excl.contains(name)) return false;
+  if (incl.contains(name)) return true;
+  return it['active'] == true && it['type'] != 'transfer';
+}
+
+double _recMonthlyTotal(List<Map<String, dynamic>> items, Set<String> excl, Set<String> incl) =>
+    items.fold(0.0, (s, it) =>
+        s + (_recCounted(it, excl, incl) ? ((it['monthly'] ?? 0) as num).toDouble() : 0.0));
+
+List<String> _recStatusMeta(String? status) {
+  // label + whether it reads as "live"
+  switch (status) {
+    case 'active': return ['Aktyvus', '1'];
+    case 'late': return ['Vėluoja', '0'];
+    case 'ended': return ['Baigėsi', '0'];
+    case 'early': return ['Naujas', '0'];
+    default: return ['', '0'];
+  }
+}
+
 // Lowercase + strip Lithuanian diacritics so search matches "ivairus" ↔ "įvairūs".
 String _fold(String s) {
   const m = {'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's', 'ų': 'u', 'ū': 'u', 'ž': 'z'};
@@ -694,67 +742,87 @@ class _DashboardPreviewState extends State<DashboardPreview> {
 
   Widget _subsCard() {
     final subs = _d['subs'] as Map<String, dynamic>;
-    final items = (subs['items'] as List).cast<List>();
-    final total = (subs['total'] as num).toDouble();
+    final items = _recItems(subs);
+    final excl = DashboardStore.recurringExcluded();
+    final incl = DashboardStore.recurringIncluded();
+    final counted = items.where((it) => _recCounted(it, excl, incl)).toList()
+      ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
+    final total = _recMonthlyTotal(items, excl, incl);
+    final endedCount = items.length - counted.length;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A22C6), Color(0xFF7C3AED)]),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-              decoration: BoxDecoration(color: _card.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(8)),
-              child: const Text('PRENUMERATOS IR SĄSKAITOS',
-                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.9)),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${_eur(total)} / mėn',
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
-                      const SizedBox(height: 2),
-                      Text('= ${_eur(total * 12)} per metus',
-                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
-                      const SizedBox(height: 3),
-                      Text('${items.length} pasikartojantys mokėjimai · sąskaitos',
-                          style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
-                    ],
-                  ),
+      child: GestureDetector(
+        onTap: () async {
+          await Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => _RecurringScreen(items: items)));
+          if (mounted) setState(() {});
+        },
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A22C6), Color(0xFF7C3AED)]),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(color: _card.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(8)),
+                  child: const Text('PRENUMERATOS IR SĄSKAITOS',
+                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.9)),
                 ),
-                SizedBox(width: 52, height: 52, child: CustomPaint(painter: _MiniRingPainter())),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final it in items.take(3))
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(color: _card.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.circle, size: 7, color: Colors.white),
-                      const SizedBox(width: 7),
-                      Text('${_shortNm(it[0] as String)} · ${(it[1] as num).round()} €',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
-                    ]),
+                const Spacer(),
+                Icon(Icons.chevron_right_rounded, size: 20, color: Colors.white.withValues(alpha: 0.7)),
+              ]),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${_eur(total)} / mėn',
+                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+                        const SizedBox(height: 2),
+                        Text('= ${_eur(total * 12)} per metus',
+                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
+                        const SizedBox(height: 3),
+                        Text(
+                            '${counted.length} aktyvūs mokėjimai'
+                            '${endedCount > 0 ? ' · $endedCount baigėsi' : ''}',
+                            style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
+                      ],
+                    ),
                   ),
+                  SizedBox(width: 52, height: 52, child: CustomPaint(painter: _MiniRingPainter())),
+                ],
+              ),
+              if (counted.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final it in counted.take(3))
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(color: _card.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.circle, size: 7, color: Colors.white),
+                          const SizedBox(width: 7),
+                          Text('${_shortNm(it['name'] as String)} · ${((it['monthly'] ?? 0) as num).round()} €',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+                        ]),
+                      ),
+                  ],
+                ),
               ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -5331,47 +5399,173 @@ class _PlanningTabState extends State<_PlanningTab> {
 
   // ── recurring block (reuses detected subscriptions) ──────────────────────────
   Widget _recurringCard() {
-    final items = (widget.subs['items'] as List).cast<List>();
-    final total = (widget.subs['total'] as num).toDouble();
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-      padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A22C6), Color(0xFF7C3AED)]),
+    final items = _recItems(widget.subs);
+    final excl = DashboardStore.recurringExcluded();
+    final incl = DashboardStore.recurringIncluded();
+    final counted = items.where((it) => _recCounted(it, excl, incl)).toList()
+      ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
+    final total = _recMonthlyTotal(items, excl, incl);
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => _RecurringScreen(items: items)));
+        if (mounted) setState(() {});
+      },
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+        padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A22C6), Color(0xFF7C3AED)]),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${_eur(total)} / mėn', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+                const SizedBox(height: 2),
+                Text('= ${_eur(total * 12)} per metus',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
+                const SizedBox(height: 3),
+                Text('${counted.length} aktyvūs mokėjimai — bakstelėk tvarkyti',
+                    style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
+              ]),
+            ),
+            Container(
+              width: 52, height: 52,
+              decoration: BoxDecoration(color: _card.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(16)),
+              child: const Icon(Icons.event_repeat_rounded, color: Colors.white, size: 26),
+            ),
+          ]),
+          if (counted.isNotEmpty) const SizedBox(height: 14),
+          for (final it in counted.take(5)) ...[
+            Row(children: [
+              const Icon(Icons.circle, size: 7, color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(child: Text(_shortNm(it['name'] as String), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Colors.white))),
+              Text('${((it['monthly'] ?? 0) as num).round()} € / mėn', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.92))),
+            ]),
+            if (it != counted.take(5).last) Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              child: Container(height: 1, color: Colors.white.withValues(alpha: 0.14)),
+            ),
+          ],
+        ]),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
+    );
+  }
+}
+
+// ── Recurring manager (Monarch/Copilot-style) ───────────────────────────────
+// Lists every detected recurring stream with its lifecycle status, and lets the
+// user confirm the heuristic: keep a stream in the monthly commitment or drop it
+// ("I stopped paying" / "not recurring"). Overrides persist in DashboardStore
+// and re-apply after every re-sync (keyed by name), so a correction sticks.
+class _RecurringScreen extends StatefulWidget {
+  const _RecurringScreen({required this.items});
+  final List<Map<String, dynamic>> items;
+  @override
+  State<_RecurringScreen> createState() => _RecurringScreenState();
+}
+
+class _RecurringScreenState extends State<_RecurringScreen> {
+  late Set<String> _excl = DashboardStore.recurringExcluded();
+  late Set<String> _incl = DashboardStore.recurringIncluded();
+
+  Future<void> _toggle(Map it, bool counted) async {
+    final name = it['name'] as String;
+    final backendActive = it['active'] == true && it['type'] != 'transfer';
+    // Match the heuristic → clear the override; differ → store the user's choice.
+    final bool? override = (counted == backendActive) ? null : counted;
+    await DashboardStore.setRecurringOverride(name, override);
+    if (!mounted) return;
+    setState(() {
+      _excl = DashboardStore.recurringExcluded();
+      _incl = DashboardStore.recurringIncluded();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.items;
+    final counted = items.where((it) => _recCounted(it, _excl, _incl)).toList()
+      ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
+    final other = items.where((it) => !_recCounted(it, _excl, _incl)).toList()
+      ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
+    final total = _recMonthlyTotal(items, _excl, _incl);
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: _bg,
+        elevation: 0,
+        foregroundColor: _ink,
+        title: Text('Pasikartojantys', style: TextStyle(color: _ink, fontWeight: FontWeight.w800)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 30),
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A22C6), Color(0xFF7C3AED)]),
+            ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${_eur(total)} / mėn', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+              Text('${_eur(total)} / mėn', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
               const SizedBox(height: 2),
-              Text('= ${_eur(total * 12)} per metus',
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
-              const SizedBox(height: 3),
-              Text('${items.length} pasikartojantys mokėjimai — aptikti automatiškai',
-                  style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
+              Text('= ${_eur(total * 12)} per metus · ${counted.length} aktyvūs',
+                  style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
             ]),
           ),
-          Container(
-            width: 52, height: 52,
-            decoration: BoxDecoration(color: _card.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(16)),
-            child: const Icon(Icons.event_repeat_rounded, color: Colors.white, size: 26),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 12, 4, 10),
+            child: Text('Įskaičiuota į mėnesio sumą. Jei nebemoki arba tai ne pasikartojantis mokėjimas — išjunk, ir jis dings iš sumos.',
+                style: TextStyle(fontSize: 12.5, color: _muted, height: 1.35)),
           ),
-        ]),
-        const SizedBox(height: 14),
-        for (final it in items.take(5)) ...[
-          Row(children: [
-            const Icon(Icons.circle, size: 7, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(child: Text(_shortNm(it[0] as String), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Colors.white))),
-            Text('${(it[1] as num).round()} € / mėn', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.92))),
-          ]),
-          if (it != items.take(5).last) Padding(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            child: Container(height: 1, color: Colors.white.withValues(alpha: 0.14)),
-          ),
+          if (counted.isEmpty)
+            Padding(padding: const EdgeInsets.all(16), child: Text('Nėra aktyvių pasikartojančių mokėjimų.', style: TextStyle(color: _muted))),
+          for (final it in counted) _row(it, true),
+          if (other.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+              child: Text('NEĮSKAIČIUOTA (baigėsi · vėluoja · išjungta)',
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.6)),
+            ),
+            for (final it in other) _row(it, false),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _row(Map<String, dynamic> it, bool counted) {
+    final meta = _recStatusMeta(it['status'] as String?);
+    final name = it['name'] as String;
+    final monthly = ((it['monthly'] ?? 0) as num).round();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_shortNm(name), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: counted ? _ink : _muted)),
+            const SizedBox(height: 3),
+            Row(children: [
+              Text('$monthly € / mėn', style: TextStyle(fontSize: 12.5, color: _muted)),
+              if (meta[0].isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(color: (meta[1] == '1' ? _good : _muted).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)),
+                  child: Text(meta[0], style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: meta[1] == '1' ? _good : _muted)),
+                ),
+              ],
+            ]),
+          ]),
+        ),
+        Switch.adaptive(value: counted, activeThumbColor: _purple, onChanged: (v) => _toggle(it, v)),
       ]),
     );
   }

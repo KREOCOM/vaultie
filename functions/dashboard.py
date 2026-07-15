@@ -152,15 +152,9 @@ _HOUSING_HINTS = ["artus", "nuoma", "rent", "busto adm", "namu prieziur"]
 # Static FX → EUR base (approximate, MVP). A live rates source is future work.
 # Everything in the dashboard is normalised to EUR so a multi-currency consent
 # (e.g. an EUR account + a NOK salary account) yields a meaningful combined
-# balance / income / expenses instead of adding raw NOK and EUR numbers.
-_FX_TO_EUR = {
-    "EUR": 1.0, "NOK": 0.086, "SEK": 0.088, "DKK": 0.134, "PLN": 0.235,
-    "USD": 0.92, "GBP": 1.17, "CHF": 1.07, "CZK": 0.040, "ISK": 0.0066,
-}
-
-
-def _to_eur(v, currency):
-    return v * _FX_TO_EUR.get((currency or "EUR").upper(), 1.0)
+# balance / income / expenses instead of adding raw NOK and EUR numbers. The FX
+# table lives in fx.py so the recurring engine normalises the same way.
+from fx import to_eur as _to_eur  # noqa: E402
 
 
 def _amt(t):
@@ -395,13 +389,15 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
     week = _week(txns, salary_refs, resolve_cat, today, own_ibans)
 
     # ── subscriptions & bills: reuse the recurring engine's confident candidates ──
-    subs = _subs(txns, corpus)
+    subs = _subs(txns, corpus, own_ibans, today)
 
-    # Stamp a "rec" badge on every row of a CONFIDENT recurring merchant (same
-    # ones surfaced in `subs`), so the client's subscription pill lights up on
-    # real data — previously only "res" (reserved) was ever set. Matched by the
-    # canonical merge key so it can't false-positive onto unrelated merchants.
-    rec_keys = {str(name).lower()[:24] for name, _cost in subs.get("items", [])}
+    # Stamp a "rec" badge on every row of an ACTIVE recurring merchant (same ones
+    # feeding the projection), so the client's subscription pill lights up on
+    # real data — but a finished/ended stream (paid-off loan, closed tax plan)
+    # does NOT get the badge. Matched by the canonical merge key so it can't
+    # false-positive onto unrelated merchants.
+    rec_keys = {str(it["name"]).lower()[:24] for it in subs.get("items", [])
+                if it.get("active")}
     if rec_keys:
         for r in all_rows:
             if r["mkey"] in rec_keys:
@@ -518,20 +514,70 @@ def _week(txns, salary_refs, resolve_cat, today, own_ibans=None):
             "range": f"{monday.isoformat()}..{(monday + dt.timedelta(days=6)).isoformat()}"}
 
 
-def _subs(txns, corpus=None):
+def _collapse_recurring(cands):
+    """Merge near-duplicate streams of the SAME payee — a loan/bill booked as
+    399 & 398 is ONE obligation, not two — while keeping genuinely distinct
+    amounts under one payee (e.g. Apple 9.99 + 2.99) separate. Folds within ~8%.
+    """
+    by_name = defaultdict(list)
+    for c in cands:
+        by_name[str(c.get("name", "—")).strip().lower()].append(c)
+    out = []
+    for _name, group in by_name.items():
+        group.sort(key=lambda c: -c.get("occurrences", 0))  # fullest stream wins
+        kept = []  # [representative_dict, monthly]
+        for c in group:
+            m = float(c.get("monthlyAmount") or c.get("cost") or 0)
+            dupe = next((k for k in kept
+                         if k[1] > 0 and abs(m - k[1]) <= k[1] * 0.08), None)
+            if dupe is not None:
+                dupe[0]["occ"] += int(c.get("occurrences", 0))
+                if c.get("status") == "active":   # any active leg keeps it live
+                    dupe[0]["status"], dupe[0]["active"] = "active", True
+                continue
+            kept.append([{
+                "name": c.get("name", "—"),
+                "monthly": round(m, 2),
+                "cost": round(float(c.get("cost", 0)), 2),
+                "cycle": c.get("billingCycle", "monthly"),
+                "status": c.get("status", "active"),
+                "active": c.get("status") == "active",
+                "type": c.get("type", "subscription"),
+                "occ": int(c.get("occurrences", 0)),
+                "lastCharge": c.get("lastChargeDate"),
+                "category": c.get("category"),
+            }, m])
+        out.extend(k[0] for k in kept)
+    return out
+
+
+def _subs(txns, corpus=None, own_ibans=None, today=None):
+    """Confident recurring streams + the ACTIVE monthly projection.
+
+    ``total`` is the real monthly COMMITMENT: the sum of the monthly-equivalent
+    amount of every stream that is still ACTIVE (recent enough for its own
+    cadence) AND a genuine bill/subscription — never a transfer, never a
+    finished/late stream. A paid-off loan or a finished tax plan stays in
+    ``items`` (flagged ``status``) but drops out of the total, so the projection
+    reflects future commitments — not history (Plaid/Tink lifecycle model). Each
+    item is monthly-normalized (a yearly bill counts as /12), so the total is a
+    true €/month figure whatever the billing frequency.
+    """
     try:
         # Reuse build_dashboard's corpus (same filtered txns → same corpus) so
         # detect_recurring doesn't rebuild it a third time. No output change.
-        det = detect_recurring(txns, corpus=corpus)
+        det = detect_recurring(txns, corpus=corpus, own_ibans=own_ibans, today=today)
     except Exception:
-        return {"items": [], "total": 0}
-    items = []
-    for c in det.get("candidates", []):
-        # only confident, money-out recurring (not one-off residuals)
-        if c.get("confident") and c.get("cost", 0) > 0 and c.get("occurrences", 0) >= 2:
-            items.append([c.get("name", "—"), round(float(c["cost"]), 2)])
-    items.sort(key=lambda x: -x[1])
-    return {"items": items, "total": round(sum(a for _, a in items), 2)}
+        return {"items": [], "total": 0, "activeCount": 0}
+    raw = [c for c in det.get("candidates", [])
+           if c.get("confident") and c.get("occurrences", 0) >= 2
+           and c.get("cost", 0) > 0]
+    items = _collapse_recurring(raw)
+    active = [it for it in items if it["active"] and it["type"] != "transfer"]
+    total = round(sum(it["monthly"] for it in active), 2)
+    # active first, then by monthly cost
+    items.sort(key=lambda x: (not x["active"], -x["monthly"]))
+    return {"items": items, "total": total, "activeCount": len(active)}
 
 
 def _flow(r):
