@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -560,12 +561,20 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     return true;
   }
 
-  // Manual pull-to-refresh: same fetch as the auto-sync but ALWAYS runs (no
-  // 30-min throttle) so the user can force an update and see it happen. Returns
-  // a Future so RefreshIndicator shows its spinner until the fetch completes.
+  // Manual pull-to-refresh. A full multi-month, multi-account bank scan is
+  // network-bound (~20-30s), so DON'T hold the pull spinner that long — it reads
+  // as frozen. Release it quickly and let the scan run in the background, where
+  // its progress shows in the 'Sinchronizuojama' card until fresh data lands.
   Future<void> _forceSync() async {
+    if (DashboardStore.bankCount == 0 || _deepening) return;
+    unawaited(_runSync());
+    // A brief, honest beat so the pull gesture feels acknowledged before the
+    // spinner closes and the 'Sinchronizuojama' card takes over.
+    await Future<void>.delayed(const Duration(milliseconds: 650));
+  }
+
+  Future<void> _runSync() async {
     try {
-      if (DashboardStore.bankCount == 0) return;
       final refs = DashboardStore.accountRefs();
       if (refs.isEmpty) return;
       if (!mounted) return;
