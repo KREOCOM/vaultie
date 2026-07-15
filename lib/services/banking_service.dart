@@ -314,12 +314,16 @@ class BankingService {
   /// Re-fetches ALL connected banks by stored account uid (no re-login) and
   /// returns ONE combined dashboard payload. [accounts] is
   /// [DashboardStore.accountRefs] — {uid, bank, iban, name, currency} per
-  /// account. Returns null if the backend couldn't build a dashboard. A bank
-  /// whose consent expired simply drops out (surfaced in scanDiag); its accounts
-  /// won't appear until reconnected.
+  /// account. Returns null if the backend couldn't build a dashboard. An account
+  /// the backend couldn't fetch (expired consent, rate limit) drops out of the
+  /// payload entirely; [onDiag] receives that scan's per-account diagnostics so
+  /// the caller can tell WHY a bank is missing — a rate-limited bank needs a
+  /// wait, an expired one needs a reconnect — instead of guessing.
   Future<Map<String, dynamic>?> refreshDashboard(
       List<Map<String, dynamic>> accounts,
-      {bool aiEnrichment = false, int monthsBack = 6}) {
+      {bool aiEnrichment = false,
+      int monthsBack = 6,
+      void Function(List<dynamic> scanDiag)? onDiag}) {
     return _call('refresh_dashboard',
         {'accounts': accounts, 'aiEnrichment': aiEnrichment, 'monthsBack': monthsBack},
         (m) {
@@ -329,6 +333,7 @@ class BankingService {
             'dash=${m['dash'] != null}');
         debugPrint('SCAN DIAG: ${m['scanDiag']}');
       }
+      onDiag?.call((m['scanDiag'] as List?) ?? const []);
       final rawDash = m['dash'];
       if (rawDash == null) return null;
       try {

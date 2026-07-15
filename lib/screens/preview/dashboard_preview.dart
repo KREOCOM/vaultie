@@ -501,6 +501,14 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       _deepening = true;
       deeper.then((full) {
         if (!mounted) return;
+        // The deeper scan re-fetches EVERY connected bank, so it can come back
+        // missing one (a bank that rate-limited us during the connect burst).
+        // It gets the same guard as a manual refresh: never trade complete data
+        // for a fuller-but-holed one.
+        if (_refreshLostABank(full)) {
+          setState(() => _deepening = false);
+          return;
+        }
         setState(() {
           if (full != null) {
             _d = full;
@@ -542,22 +550,34 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         .toSet();
   }
 
+  // Per-account diagnostics from the last refresh — says WHY a bank dropped out.
+  List<dynamic> _lastDiag = const [];
+
+  // True when the last scan failed to fetch [bank] because the bank was rate-
+  // limiting us. That's a "try again in a bit", not a broken connection.
+  bool _wasRateLimited(Set<String> banks) => _lastDiag.any((e) =>
+      e is Map &&
+      e['rateLimited'] == true &&
+      banks.contains((e['bank'] as String?)?.toLowerCase().trim()));
+
   // A refresh must NEVER make a bank silently vanish. If the fresh result lost a
-  // bank the current view shows (its fetch was skipped, or it isn't in the
-  // stored connection list), keep the last-known data and tell the user instead
-  // of overwriting with a bank-less result.
+  // bank the current view shows, keep the last-known data and tell the user
+  // instead of overwriting with a bank-less result.
   bool _refreshLostABank(Map<String, dynamic>? fresh) {
     if (fresh == null) return false;
     final lost = _banksIn(_d).difference(_banksIn(fresh));
     if (lost.isEmpty) return false;
     final names = lost.map((b) => b.toUpperCase()).join(', ');
+    // Reconnecting a rate-limited bank spends more of the quota that ran out —
+    // exactly the wrong advice. Tell the user to wait instead.
+    final msg = _wasRateLimited(lost)
+        ? '$names laikinai riboja užklausas. Rodomi paskutiniai duomenys — '
+            'pabandyk po 15–20 min.'
+        : 'Nepavyko atnaujinti: $names. Rodomi paskutiniai duomenys — '
+            'perjunk banką, jei kartojasi.';
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text('Nepavyko atnaujinti: $names. Rodomi paskutiniai duomenys — '
-            'perjunk banką, jei kartojasi.'),
-        duration: const Duration(seconds: 5),
-      ));
+      ..showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 5)));
     return true;
   }
 
@@ -565,8 +585,24 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // network-bound (~20-30s), so DON'T hold the pull spinner that long — it reads
   // as frozen. Release it quickly and let the scan run in the background, where
   // its progress shows in the 'Sinchronizuojama' card until fresh data lands.
+  // Banks rate-limit per hour, and one pull = a full multi-account scan. Pulling
+  // again while the last scan is barely cold spends that quota for data that
+  // cannot have changed — and a rate-limited bank comes back with no payments at
+  // all. Say when the data is already fresh instead of burning the budget.
+  static const _minBetweenManualSyncs = Duration(minutes: 2);
+
   Future<void> _forceSync() async {
     if (DashboardStore.bankCount == 0 || _deepening) return;
+    final last = DashboardStore.syncedAt;
+    if (last != null && DateTime.now().difference(last) < _minBetweenManualSyncs) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('Duomenys ką tik atnaujinti.'),
+          duration: Duration(seconds: 2),
+        ));
+      return;
+    }
     unawaited(_runSync());
     // A brief, honest beat so the pull gesture feels acknowledged before the
     // spinner closes and the 'Sinchronizuojama' card takes over.
@@ -579,8 +615,8 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       if (refs.isEmpty) return;
       if (!mounted) return;
       setState(() => _deepening = true);
-      final fresh = await BankingService.instance
-          .refreshDashboard(refs, aiEnrichment: true, monthsBack: 6);
+      final fresh = await BankingService.instance.refreshDashboard(refs,
+          aiEnrichment: true, monthsBack: 6, onDiag: (d) => _lastDiag = d);
       if (!mounted) return;
       if (_refreshLostABank(fresh)) {
         setState(() => _deepening = false);
@@ -611,8 +647,8 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       if (refs.isEmpty) return;
       if (!mounted) return;
       setState(() => _deepening = true);
-      final fresh = await BankingService.instance
-          .refreshDashboard(refs, aiEnrichment: true, monthsBack: 6);
+      final fresh = await BankingService.instance.refreshDashboard(refs,
+          aiEnrichment: true, monthsBack: 6, onDiag: (d) => _lastDiag = d);
       if (!mounted) return;
       if (_refreshLostABank(fresh)) {
         setState(() => _deepening = false);

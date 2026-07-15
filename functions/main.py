@@ -27,6 +27,12 @@ from enable_banking import DEFAULT_COUNTRY, EnableBankingClient, EnableBankingEr
 from recurring import detect_recurring
 from seed_merchants import seed as _run_seed
 
+# Cloud Run leaves the root logger at WARNING, so every logging.info() below —
+# including the per-scan "accounts=… txns=… scan_diag=…" line that is the only
+# record of what a bank actually returned — was silently dropped. Diagnosing a
+# scan without it means guessing.
+logging.getLogger().setLevel(logging.INFO)
+
 
 def _pick_balance(balances: list) -> float:
     """Choose the most 'spendable' balance from an account's balance list.
@@ -178,7 +184,13 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
         except EnableBankingError as e:
             logging.warning("scan: account %r (%s) failed, skipping: %s",
                             m.get("name"), bank, e)
-            scan_diag.append({"account": m["name"], "bank": bank, "error": str(e)})
+            # A rate-limited bank is a "come back in a bit", not a broken
+            # connection — the client must say so rather than send the user to
+            # reconnect (which would burn even more of the bank's quota).
+            scan_diag.append({
+                "account": m["name"], "bank": bank, "error": str(e),
+                "rateLimited": getattr(e, "status", None) == 429,
+            })
     return all_txns, summaries, scan_diag, own_ibans
 
 

@@ -7,6 +7,7 @@ Secret and never lives in source or on the device.
 
 import datetime as dt
 import json
+import logging
 import time
 import uuid
 
@@ -161,7 +162,13 @@ class EnableBankingClient:
                 rate_limited = True
                 time.sleep(1.5 * (attempt + 1))
             if resp.status_code == 429:
-                return txns, pages, rate_limited, True  # still limited — bail out
+                # Still limited after the retries. This is a FAILURE, not a
+                # result: returning the pages fetched so far would be
+                # indistinguishable from "this window is fully fetched", and the
+                # caller would publish a window with a hole in it.
+                raise EnableBankingError(
+                    429, f"/accounts/{account_uid}/transactions",
+                    "rate limited — retries exhausted")
             if not resp.ok:
                 raise EnableBankingError(
                     resp.status_code, f"/accounts/{account_uid}/transactions",
@@ -212,13 +219,25 @@ class EnableBankingClient:
                     page_budget=page_budget - pages_used,
                 )
             except EnableBankingError as e:
-                # The most-recent window failing for a real reason is a genuine
-                # error — surface it. An OLDER window failing (bank has no data
-                # that far back, e.g. WRONG_TRANSACTIONS_PERIOD) just ends the
-                # backward walk; the recent windows we already have are kept.
-                if windows_fetched == 0 and not _is_period_error(e):
+                # The freshest window is the one the whole dashboard is built on.
+                # If it fails for ANY reason — rate limit, expired consent, the
+                # bank refusing the period — we have nothing trustworthy for this
+                # account, and an empty list here is indistinguishable from "this
+                # account had no activity": the caller would publish the bank's
+                # BALANCE with none of its PAYMENTS. Surface it so the caller can
+                # keep the last-known data instead.
+                if windows_fetched == 0:
                     raise
-                history_exhausted = True
+                # An OLDER window failing just ends the backward walk — the fresh
+                # windows already fetched are real and are kept.
+                if _is_period_error(e):
+                    history_exhausted = True  # bank has no data that far back
+                else:
+                    truncated = True  # history is short of what we asked for
+                    logging.warning(
+                        "transactions: window %d (%s..%s) failed, keeping the %d "
+                        "txns already fetched: %s",
+                        i, d_from, d_to, len(all_txns), e)
                 break
             all_txns.extend(txns)
             pages_used += pages
