@@ -4,6 +4,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/subscription.dart';
+import 'dashboard_store.dart';
 
 /// Custom-scheme deep link the app itself listens for. The bank redirects to
 /// [kBankingRedirectUrl] (an https bridge page), which then forwards to this.
@@ -233,8 +234,12 @@ class BankingService {
   /// Exchanges the redirect [code] for the scan result: importable recurring
   /// candidates plus frequent-spending merchants (never recurring, feed-only).
   Future<BankScanResult> finishBankAuth(String code,
-      {bool aiEnrichment = false, String? bank, int monthsBack = 6}) {
-    return _call('finish_bank_auth',
+      {bool aiEnrichment = false, String? bank, int monthsBack = 6}) async {
+    // Hand the backend the last-known raw scan and keep whatever it gives back.
+    // A connect only fetches the bank being connected, so this cache is what
+    // keeps the user's OTHER banks whole in the combined dashboard.
+    Map<String, dynamic>? known;
+    final res = await _call('finish_bank_auth',
         // AI enrichment flows through from the user's setting (was hardcoded
         // false, which left the toggle dead). It is still OFF by default; turning
         // it on only does anything once the backend has ANTHROPIC_API_KEY mounted
@@ -244,7 +249,9 @@ class BankingService {
         // `bank` labels the connection so the stored record + Account breakdown
         // name the right bank.
         {'code': code, 'debug': kDebugMode, 'aiEnrichment': aiEnrichment,
-         'monthsBack': monthsBack, if (bank != null) 'bank': bank}, (m) {
+         'monthsBack': monthsBack, if (bank != null) 'bank': bank,
+         'known': DashboardStore.knownScan()}, (m) {
+      known = _known(m);
       final cands = (m['candidates'] as List?) ?? const [];
       final freq = (m['frequent'] as List?) ?? const [];
       if (kDebugMode) {
@@ -309,6 +316,20 @@ class BankingService {
       // The 12-month windowed scan can take well over the default ~70s callable
       // timeout on a cold start, so give it a generous ceiling.
     }, timeout: const Duration(minutes: 5));
+    await DashboardStore.mergeKnown(known);
+    return res;
+  }
+
+  /// The `known` block (last-known raw scan) from a scan response, deep-converted
+  /// out of Firebase's Map<Object?,Object?> so it can be stored and sent back.
+  static Map<String, dynamic>? _known(Map<Object?, Object?> m) {
+    final raw = m['known'];
+    if (raw == null) return null;
+    try {
+      return jsonDecode(jsonEncode(raw)) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Re-fetches ALL connected banks by stored account uid (no re-login) and
@@ -323,10 +344,13 @@ class BankingService {
       List<Map<String, dynamic>> accounts,
       {bool aiEnrichment = false,
       int monthsBack = 6,
-      void Function(List<dynamic> scanDiag)? onDiag}) {
-    return _call('refresh_dashboard',
-        {'accounts': accounts, 'aiEnrichment': aiEnrichment, 'monthsBack': monthsBack},
+      void Function(List<dynamic> scanDiag)? onDiag}) async {
+    Map<String, dynamic>? known;
+    final dash = await _call('refresh_dashboard',
+        {'accounts': accounts, 'aiEnrichment': aiEnrichment,
+         'monthsBack': monthsBack, 'known': DashboardStore.knownScan()},
         (m) {
+      known = _known(m);
       if (kDebugMode) {
         debugPrint('=== REFRESH DASHBOARD ===');
         debugPrint('accounts=${m['accountCount']} txns=${m['transactionCount']} '
@@ -342,6 +366,8 @@ class BankingService {
         return null;
       }
     }, timeout: const Duration(minutes: 5));
+    await DashboardStore.mergeKnown(known);
+    return dash;
   }
 
   /// Extracts the `code` query parameter from an incoming callback [uri], or

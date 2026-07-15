@@ -65,7 +65,10 @@
       "WebFetch(domain:www.anthropic.com)",
       "WebFetch(domain:claude.com)",
       "WebFetch(domain:docs.claude.com)",
-      "Bash(shuf)"
+      "Bash(shuf)",
+      "WebFetch(domain:eur-lex.europa.eu)",
+      "WebFetch(domain:developer.baltics.sebgroup.com)",
+      "WebFetch(domain:developer.revolut.com)"
     ]
   }
 }

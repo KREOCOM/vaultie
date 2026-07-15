@@ -569,10 +569,12 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     if (lost.isEmpty) return false;
     final names = lost.map((b) => b.toUpperCase()).join(', ');
     // Reconnecting a rate-limited bank spends more of the quota that ran out —
-    // exactly the wrong advice. Tell the user to wait instead.
+    // exactly the wrong advice. Nor is it minutes: Enable Banking's guidance for
+    // a bank that has cut us off is to come back in ~6 hours, so promising a
+    // quick retry would just send the user back to pull again, and again.
     final msg = _wasRateLimited(lost)
-        ? '$names laikinai riboja užklausas. Rodomi paskutiniai duomenys — '
-            'pabandyk po 15–20 min.'
+        ? '$names kol kas neatiduoda naujų duomenų. Rodomi paskutiniai — '
+            'atsinaujins savaime, kai bankas vėl leis.'
         : 'Nepavyko atnaujinti: $names. Rodomi paskutiniai duomenys — '
             'perjunk banką, jei kartojasi.';
     ScaffoldMessenger.of(context)

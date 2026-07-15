@@ -20,8 +20,61 @@ class DashboardStore {
   static const _kSyncedAt = 'syncedAt';
   static const _kBank = 'bank';
   static const _kBanks = 'banks';
+  static const _kKnown = 'knownScan';
 
   static Box get _box => Hive.box(HiveBoxes.dashboard);
+
+  // ── Last-known raw scan (the safety net) ────────────────────────────────
+  // A bank can go quiet at any moment — a rate limit, a timeout, a consent that
+  // expired. The backend rebuilds the whole dashboard from whatever it managed
+  // to fetch, so without a copy of the last good raw data, a quiet bank means
+  // its rent and its loan simply cease to exist on screen. This is that copy:
+  // the phone hands it back with every scan, and the backend uses it ONLY for
+  // banks that didn't answer. It's what makes a bank's payments disappearing
+  // impossible rather than merely unlikely.
+  //
+  // Kept raw (not the built dashboard) because only the backend's engine can
+  // turn transactions into a dashboard — and keeping the merge logic in exactly
+  // one place is what stops the two from ever disagreeing.
+
+  /// The last-known raw scan to hand back to the backend ({txns, accounts}).
+  static Map<String, dynamic> knownScan() {
+    final raw = _box.get(_kKnown) as String?;
+    if (raw == null) return const {};
+    try {
+      return (jsonDecode(raw) as Map).cast<String, dynamic>();
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Merge a scan's `known` block into the cache, PER BANK.
+  ///
+  /// A connect scan only ever covers the bank being connected, so replacing the
+  /// cache wholesale would drop every other bank out of it — and the next time
+  /// one of those went quiet there would be nothing to fall back on. Only the
+  /// banks present in [known] are replaced; the rest are left exactly as they
+  /// were.
+  static Future<void> mergeKnown(Map<String, dynamic>? known) async {
+    if (known == null) return;
+    final txns = (known['txns'] as List?) ?? const [];
+    final accounts = (known['accounts'] as List?) ?? const [];
+    if (txns.isEmpty && accounts.isEmpty) return;
+    String? bankOf(dynamic e) =>
+        e is Map ? (e['_bank'] ?? e['bank']) as String? : null;
+    final fresh = {...txns.map(bankOf), ...accounts.map(bankOf)}..remove(null);
+    final old = knownScan();
+    final keptTxns = ((old['txns'] as List?) ?? const [])
+        .where((t) => !fresh.contains(bankOf(t)));
+    final keptAccounts = ((old['accounts'] as List?) ?? const [])
+        .where((a) => !fresh.contains(bankOf(a)));
+    await _box.put(
+        _kKnown,
+        jsonEncode({
+          'txns': [...txns, ...keptTxns],
+          'accounts': [...accounts, ...keptAccounts],
+        }));
+  }
 
   /// Save the dashboard payload from a successful scan (overwrites the previous).
   static Future<void> save(Map<String, dynamic> dash, {String? bank}) async {

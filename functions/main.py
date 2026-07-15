@@ -24,6 +24,7 @@ from firebase_functions.params import SecretParam
 
 from dashboard import build_dashboard
 from enable_banking import DEFAULT_COUNTRY, EnableBankingClient, EnableBankingError
+from known_cache import merge_known as _merge_known
 from recurring import detect_recurring
 from seed_merchants import seed as _run_seed
 
@@ -144,7 +145,46 @@ def _account_meta(acc: dict, bank: str | None) -> dict:
             "iban": iban, "bank": bank}
 
 
-def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int):
+def _psu_available(req) -> dict:
+    """The PSU headers we can honestly supply for THIS call, from the phone's own
+    request to us.
+
+    These say "the user is right here, asking" — the difference between an
+    uncapped request and one that counts against the bank's 4-a-day unattended
+    limit. They must describe the END USER, so the IP comes from the phone's
+    request (X-Forwarded-For's first hop), never from this function's egress IP,
+    which is a datacenter address the bank has every reason to distrust.
+
+    Every caller we have — connect, pull-to-refresh, opening the app — is a real
+    user action, so claiming user-presence here is accurate. A future scheduled
+    background sync must NOT use these.
+    """
+    try:
+        raw = getattr(req, "raw_request", None)
+        if raw is None:
+            return {}
+        h = raw.headers
+        fwd = (h.get("X-Forwarded-For") or "").split(",")[0].strip()
+        ip = fwd or (raw.remote_addr or "")
+        if not ip:
+            return {}
+        out = {"Psu-Ip-Address": ip, "Psu-Http-Method": "GET"}
+        for src, dst in (("User-Agent", "Psu-User-Agent"),
+                         ("Accept", "Psu-Accept"),
+                         ("Accept-Charset", "Psu-Accept-Charset"),
+                         ("Accept-Encoding", "Psu-Accept-Encoding"),
+                         ("Accept-Language", "Psu-Accept-Language")):
+            v = h.get(src)
+            if v:
+                out[dst] = v
+        return {k: v for k, v in out.items() if v}
+    except Exception:  # noqa: BLE001 — never let header plumbing break a scan
+        logging.exception("psu: could not read the caller's headers")
+        return {}
+
+
+def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int,
+                   psu_available: dict | None = None):
     """Fetch transactions + current balance for each account BY UID (no session
     needed — Enable Banking addresses accounts directly, so this works for a
     freshly-created session AND for a stored multi-bank refresh weeks later).
@@ -171,10 +211,17 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
         bank = m.get("bank")
         is_revolut = "revolut" in str(m.get("name", "")).lower() \
             or "revolut" in str(bank or "").lower()
+        psu = client.psu_headers_for(bank, DEFAULT_COUNTRY, psu_available or {}) \
+            if psu_available else {}
         try:
-            acc_txns, diag = client.transactions(uid, months_back=months_back)
+            acc_txns, diag = client.transactions(uid, months_back=months_back,
+                                                 psu=psu)
+            # Tag every entry with the bank it came from: it's what lets the
+            # phone's cache be merged back per-bank when one bank goes quiet.
+            for t in acc_txns:
+                t["_bank"] = bank
             all_txns.extend(acc_txns)
-            bal = _pick_balance(client.balances(uid))
+            bal = _pick_balance(client.balances(uid, psu=psu))
             summaries.append({
                 "name": m["name"], "amount": bal, "sub": None,
                 "icon": "R" if is_revolut else "bank",
@@ -195,7 +242,7 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
 
 
 def _build_result(all_txns: list, summaries: list, own_ibans: set,
-                  scan_diag: list, ai_enabled: bool) -> dict:
+                  scan_diag: list, ai_enabled: bool, stale_banks=None) -> dict:
     """Shared tail for finish_bank_auth + refresh_dashboard: dedupe, detect
     recurring, build the (multi-bank-aware) dashboard, and package the response.
     Nothing is persisted server-side (privacy-first)."""
@@ -226,6 +273,16 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
         "frequent": detection["frequent"],
         "dash": dash,
         "scanDiag": scan_diag,
+        # What the phone should keep and hand back on the next scan, so a bank
+        # that goes quiet then can be filled in from here instead of vanishing.
+        # Booked only: pending entries still move, and a cancelled one must not
+        # be able to live on in a cache.
+        "known": {
+            "txns": [t for t in all_txns if t.get("status") == "BOOK"],
+            "accounts": summaries,
+        },
+        # Banks whose data in THIS payload came from that cache, not the bank.
+        "staleBanks": stale_banks or [],
     }
 
 
@@ -338,9 +395,15 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
         )
     metas = [_account_meta(a, bank) for a in session.get("accounts", [])]
     all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
-        client, metas, months_back=months_back)
+        client, metas, months_back=months_back, psu_available=_psu_available(req))
     ai_enabled = bool(data.get("aiEnrichment"))
-    result = _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled)
+    # This scan only covers the bank being connected, so the phone's cache of the
+    # OTHER banks is what keeps them whole in the combined payload.
+    all_txns, summaries, own_ibans, stale = _merge_known(
+        all_txns, summaries, own_ibans, scan_diag, data.get("known") or {},
+        months_back)
+    result = _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled,
+                           stale_banks=stale)
     # `connection` lets the client STORE this bank (session id + account uids +
     # IBANs) so it can be re-fetched later — without another login — and merged
     # with other banks by refresh_dashboard. The account IBANs are the user's own
@@ -387,8 +450,12 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
     metas = [_account_meta(a, a.get("bank")) for a in accounts_in
              if isinstance(a, dict)]
     all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
-        _client(), metas, months_back=months_back)
-    return _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled)
+        _client(), metas, months_back=months_back, psu_available=_psu_available(req))
+    all_txns, summaries, own_ibans, stale = _merge_known(
+        all_txns, summaries, own_ibans, scan_diag, data.get("known") or {},
+        months_back)
+    return _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled,
+                         stale_banks=stale)
 
 
 @https_fn.on_request(region=_REGION, secrets=[SEED_TOKEN])

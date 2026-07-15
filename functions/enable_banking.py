@@ -56,23 +56,81 @@ def _build_jwt(private_key: str) -> str:
     return jwt.encode(payload, private_key, algorithm="RS256", headers=headers)
 
 
+# Per-instance cache of each bank's required PSU headers (static reference data).
+_PSU_REQ_CACHE: dict = {}
+
+
 class EnableBankingClient:
     """Stateless-ish client; holds one signed token for the life of a request."""
 
     def __init__(self, private_key: str):
         self._token = _build_jwt(private_key)
 
-    def _headers(self) -> dict:
-        return {
+    def _headers(self, psu: dict | None = None) -> dict:
+        h = {
             "Authorization": f"Bearer {self._token}",
             "Content-Type": "application/json",
         }
+        if psu:
+            h.update(psu)
+        return h
 
-    def _request(self, method: str, path: str, *, params=None, body=None):
+    def psu_headers_for(self, aspsp_name: str, country: str, available: dict) -> dict:
+        """The PSU headers to send this bank, or {} if we can't satisfy it.
+
+        PSD2 (RTS 2018/389 art. 36(5)) lets a bank cap UNATTENDED account access
+        at 4×/24h, while access the user actively asks for is uncapped. PSU
+        headers are how a bank is told the user is right there — Enable Banking
+        forwards them and the ASPSP's background limits then don't apply. Sending
+        NONE is what put every one of our scans in SEB's 4-a-day bucket, which a
+        single 6-window scan blows on its own.
+
+        It's all-or-nothing per bank: sending SOME of the headers a bank requires
+        earns a 422 PSU_HEADER_NOT_PROVIDED. So we send the bank's required set
+        only when we can supply ALL of it, and otherwise send nothing and stay in
+        the (correct, if capped) background lane rather than breaking the scan.
+        """
+        try:
+            required = self.required_psu_headers(aspsp_name, country)
+        except EnableBankingError as e:
+            logging.warning("psu: couldn't read requirements for %s/%s: %s",
+                            aspsp_name, country, e)
+            return {}
+        have = {k.lower() for k in available}
+        missing = [h for h in required if h not in have]
+        if missing:
+            logging.warning(
+                "psu: %s/%s requires %s — we can't supply %s, so this scan counts "
+                "against the bank's unattended daily cap", aspsp_name, country,
+                required, missing)
+            return {}
+        # Supply everything we have, not just the required minimum: any PSU header
+        # marks the request as user-present, and the extras are harmless.
+        return {k: v for k, v in available.items() if v}
+
+    def required_psu_headers(self, aspsp_name: str, country: str) -> list:
+        """``required_psu_headers`` for one bank, from the ASPSP catalogue.
+
+        Cached for the life of the instance: it's static reference data, and it
+        costs a request that would otherwise repeat on every account.
+        """
+        key = (aspsp_name or "", country or "")
+        if key in _PSU_REQ_CACHE:
+            return _PSU_REQ_CACHE[key]
+        out: list = []
+        for a in self.list_aspsps(country):
+            if str(a.get("name", "")).lower() == str(aspsp_name or "").lower():
+                out = [str(h).lower() for h in (a.get("required_psu_headers") or [])]
+                break
+        _PSU_REQ_CACHE[key] = out
+        logging.info("psu: %s/%s requires %s", aspsp_name, country, out or "nothing")
+        return out
+
+    def _request(self, method: str, path: str, *, params=None, body=None, psu=None):
         resp = requests.request(
             method,
             f"{BASE_URL}{path}",
-            headers=self._headers(),
+            headers=self._headers(psu),
             params=params,
             data=json.dumps(body) if body is not None else None,
             timeout=_TIMEOUT,
@@ -122,7 +180,7 @@ class EnableBankingClient:
         """Exchange the redirect ``code`` for a session (+ its accounts)."""
         return self._request("POST", "/sessions", body={"code": code})
 
-    def balances(self, account_uid: str) -> list:
+    def balances(self, account_uid: str, *, psu: dict | None = None) -> list:
         """Current balances for an account (list of balance objects).
 
         Each item carries ``balance_amount`` ({amount, currency}) and a
@@ -131,12 +189,14 @@ class EnableBankingClient:
         transaction scan.
         """
         try:
-            data = self._request("GET", f"/accounts/{account_uid}/balances")
+            data = self._request("GET", f"/accounts/{account_uid}/balances",
+                                 psu=psu)
             return data.get("balances", [])
         except EnableBankingError:
             return []
 
-    def _fetch_window(self, account_uid, *, date_from, date_to, page_budget):
+    def _fetch_window(self, account_uid, *, date_from, date_to, page_budget,
+                      psu=None):
         """Page through ONE [date_from, date_to] window (default strategy).
 
         Returns ``(txns, pages_used, rate_limited, hit_budget)``. Raises
@@ -155,7 +215,7 @@ class EnableBankingClient:
             for attempt in range(3):  # retry the SAME page on 429 with backoff
                 resp = requests.get(
                     f"{BASE_URL}/accounts/{account_uid}/transactions",
-                    headers=self._headers(), params=params, timeout=_TIMEOUT,
+                    headers=self._headers(psu), params=params, timeout=_TIMEOUT,
                 )
                 if resp.status_code != 429:
                     break
@@ -183,7 +243,8 @@ class EnableBankingClient:
         return txns, pages, rate_limited, True  # hit the page budget
 
     def transactions(self, account_uid: str, *, months_back: int = 12,
-                     page_budget: int = 90, window_days: int = 30, today=None):
+                     page_budget: int = 90, window_days: int = 30, today=None,
+                     psu: dict | None = None):
         """Fetch up to ``months_back`` months of transactions, NEWEST WINDOW FIRST.
 
         Oldest-first banks (SEB) return a long ``date_from``-only window starting
@@ -217,6 +278,7 @@ class EnableBankingClient:
                     account_uid,
                     date_from=d_from.isoformat(), date_to=d_to.isoformat(),
                     page_budget=page_budget - pages_used,
+                    psu=psu,
                 )
             except EnableBankingError as e:
                 # The freshest window is the one the whole dashboard is built on.
