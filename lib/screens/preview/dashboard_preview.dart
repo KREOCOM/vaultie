@@ -531,6 +531,35 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // silently re-fetch all connected banks (6-month window + AI) and swap the
   // fresher data in. No-op in the standalone preview (no connected banks).
   static const _autoSyncEvery = Duration(minutes: 30);
+  // Bank names currently represented in a dashboard payload's accounts.
+  Set<String> _banksIn(Map<String, dynamic>? d) {
+    final accts = ((d?['balance'] as Map?)?['accounts'] as List?) ?? const [];
+    return accts
+        .map((a) => ((a as Map)['bank'] as String?)?.toLowerCase().trim())
+        .whereType<String>()
+        .where((b) => b.isNotEmpty)
+        .toSet();
+  }
+
+  // A refresh must NEVER make a bank silently vanish. If the fresh result lost a
+  // bank the current view shows (its fetch was skipped, or it isn't in the
+  // stored connection list), keep the last-known data and tell the user instead
+  // of overwriting with a bank-less result.
+  bool _refreshLostABank(Map<String, dynamic>? fresh) {
+    if (fresh == null) return false;
+    final lost = _banksIn(_d).difference(_banksIn(fresh));
+    if (lost.isEmpty) return false;
+    final names = lost.map((b) => b.toUpperCase()).join(', ');
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('Nepavyko atnaujinti: $names. Rodomi paskutiniai duomenys — '
+            'perjunk banką, jei kartojasi.'),
+        duration: const Duration(seconds: 5),
+      ));
+    return true;
+  }
+
   // Manual pull-to-refresh: same fetch as the auto-sync but ALWAYS runs (no
   // 30-min throttle) so the user can force an update and see it happen. Returns
   // a Future so RefreshIndicator shows its spinner until the fetch completes.
@@ -544,6 +573,10 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       final fresh = await BankingService.instance
           .refreshDashboard(refs, aiEnrichment: true, monthsBack: 6);
       if (!mounted) return;
+      if (_refreshLostABank(fresh)) {
+        setState(() => _deepening = false);
+        return; // keep the complete last-known data; don't save the partial
+      }
       setState(() {
         if (fresh != null) {
           _d = fresh;
@@ -572,6 +605,10 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       final fresh = await BankingService.instance
           .refreshDashboard(refs, aiEnrichment: true, monthsBack: 6);
       if (!mounted) return;
+      if (_refreshLostABank(fresh)) {
+        setState(() => _deepening = false);
+        return; // keep the complete last-known data; don't save the partial
+      }
       setState(() {
         if (fresh != null) {
           _d = fresh;
