@@ -184,5 +184,36 @@ class DashboardStore {
     }
   }
 
+  // ── Subscription aliases (user-given names for anonymous recurring series) ──
+  // Maps a recurring series id (sid, from the dashboard payload) → a display
+  // name, e.g. an unnameable "APPLE.COM/BILL" stream → "ChatGPT". Attached to the
+  // SERIES, not a merchant+amount, so it only renames that stream's charges.
+  static const _kSubAlias = 'subAliases';
+
+  static Map<String, String> subscriptionAliases() {
+    try {
+      final raw = _box.get(_kSubAlias) as String?;
+      if (raw == null) return {};
+      return (jsonDecode(raw) as Map)
+          .map((k, v) => MapEntry(k as String, v as String));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> setSubscriptionAlias(String sid, String? name) async {
+    final m = subscriptionAliases();
+    if (name == null || name.trim().isEmpty) {
+      m.remove(sid);
+    } else {
+      m[sid] = name.trim();
+    }
+    try {
+      await _box.put(_kSubAlias, jsonEncode(m));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   static Future<void> clear() => _box.clear();
 }

@@ -261,6 +261,36 @@ Widget _breakdownRow(Color color, String title, String sub, double amount) {
 // finished tax plan / paid-off loan drops out). These helpers read that shape
 // and layer the user's manual overrides on top (Monarch/Copilot-style).
 
+// User-given names for anonymous recurring series (e.g. an "APPLE.COM/BILL"
+// stream the user labelled "ChatGPT"), keyed by the series id (sid). Cached so
+// rendering doesn't re-read Hive per row; reloaded after an edit.
+Map<String, String>? _subAliasCache;
+Map<String, String> _subAliases() =>
+    _subAliasCache ??= DashboardStore.subscriptionAliases();
+void _reloadSubAliases() => _subAliasCache = DashboardStore.subscriptionAliases();
+
+/// Display name for a recurring item — the user's alias if the series is named,
+/// otherwise the (shortened) merchant name.
+String _recName(Map it) {
+  final sid = it['sid'] as String?;
+  if (sid != null) {
+    final a = _subAliases()[sid];
+    if (a != null && a.isNotEmpty) return a;
+  }
+  return _shortNm((it['name'] as String?) ?? '—');
+}
+
+/// Display name for a transaction feed row — the subscription alias if this row
+/// belongs to a named recurring series (by sid), otherwise the merchant name.
+String _txDisplayName(Map r) {
+  final sid = r['sid'] as String?;
+  if (sid != null) {
+    final a = _subAliases()[sid];
+    if (a != null && a.isNotEmpty) return a;
+  }
+  return (r['nm'] as String?) ?? '—';
+}
+
 /// The backend `subs.items` as typed maps
 /// ({name, monthly, cost, cycle, status, active, type, occ, lastCharge}).
 /// Tolerant of the legacy baked-preview shape (a `[name, cost]` pair) so the
@@ -939,7 +969,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           const Icon(Icons.circle, size: 7, color: Colors.white),
                           const SizedBox(width: 7),
-                          Text('${_shortNm(it['name'] as String)} · ${((it['monthly'] ?? 0) as num).round()} €',
+                          Text('${_recName(it)} · ${((it['monthly'] ?? 0) as num).round()} €',
                               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
                         ]),
                       ),
@@ -1236,7 +1266,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_shortNm(t['nm'] as String),
+                  Text(_txDisplayName(t),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink, letterSpacing: -0.2)),
@@ -2729,7 +2759,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   Map<String, dynamic> get tx => widget.tx;
   double get amount => (tx['a'] as num).toDouble();
   bool get isPos => tx['pos'] == true;
-  String get merchant => _shortNm(tx['nm'] as String);
+  String get merchant => _txDisplayName(tx);
 
   // The row(s) in `_d['all']` this detail represents. A merged N× feed row
   // shares (mkey, date); a single/manual/search row is itself.
@@ -5567,7 +5597,7 @@ class _PlanningTabState extends State<_PlanningTab> {
             Row(children: [
               const Icon(Icons.circle, size: 7, color: Colors.white),
               const SizedBox(width: 10),
-              Expanded(child: Text(_shortNm(it['name'] as String), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Colors.white))),
+              Expanded(child: Text(_recName(it), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Colors.white))),
               Text('${((it['monthly'] ?? 0) as num).round()} € / mėn', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.92))),
             ]),
             if (it != counted.take(5).last) Padding(
@@ -5615,6 +5645,66 @@ class _RecurringScreenState extends State<_RecurringScreen> {
       _excl = DashboardStore.recurringExcluded();
       _incl = DashboardStore.recurringIncluded();
     });
+  }
+
+  // Name an anonymous recurring series (e.g. an "APPLE.COM/BILL" stream the bank
+  // won't identify → "ChatGPT"). Stored against the series id (sid), so it only
+  // renames THIS stream's charges — not one-off purchases at other amounts.
+  Future<void> _rename(Map<String, dynamic> it) async {
+    final sid = it['sid'] as String?;
+    if (sid == null) return; // legacy/preview item without a series id
+    final merchant = _shortNm((it['name'] as String?) ?? '—');
+    final monthly = ((it['monthly'] ?? 0) as num).round();
+    final ctl = TextEditingController(
+        text: DashboardStore.subscriptionAliases()[sid] ?? '');
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Pavadinti prenumeratą',
+            style: TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 18)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text('$merchant · $monthly € / mėn',
+                style: TextStyle(color: _muted, fontSize: 13)),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Bankas nepasako, kas tai. Pavadink, kad atpažintum.',
+                style: TextStyle(color: _faint, fontSize: 12)),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: ctl,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            style: TextStyle(color: _ink, fontSize: 16, fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              hintText: 'pvz. ChatGPT, iCloud, Spotify',
+              hintStyle: TextStyle(color: _faint),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, 'clear'),
+              child: Text('Palikti kaip $merchant',
+                  style: TextStyle(color: _muted, fontSize: 13))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, 'save'),
+              child: const Text('Išsaugoti',
+                  style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (action == null) return;
+    await DashboardStore.setSubscriptionAlias(
+        sid, action == 'clear' ? null : ctl.text);
+    _reloadSubAliases();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -5670,7 +5760,6 @@ class _RecurringScreenState extends State<_RecurringScreen> {
   Widget _row(Map<String, dynamic> it) {
     final counted = _recCounted(it, _excl, _incl);
     final backendActive = it['active'] == true && it['type'] != 'transfer';
-    final name = it['name'] as String;
     final monthly = ((it['monthly'] ?? 0) as num).round();
     // The chip shows the EFFECTIVE state, so it can never contradict the switch:
     //  on  → "Įskaičiuota"; off → why it's out (detected status, or "Išjungta"
@@ -5697,7 +5786,19 @@ class _RecurringScreenState extends State<_RecurringScreen> {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Expanded(child: Text(_shortNm(name), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: counted ? _ink : _muted), overflow: TextOverflow.ellipsis)),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _rename(it),
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(children: [
+                    Flexible(child: Text(_recName(it), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: counted ? _ink : _muted), overflow: TextOverflow.ellipsis)),
+                    if (it['sid'] != null) ...[
+                      const SizedBox(width: 5),
+                      Icon(Icons.edit_outlined, size: 13, color: _faint),
+                    ],
+                  ]),
+                ),
+              ),
               const SizedBox(width: 8),
               Text('$monthly € / mėn', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: counted ? _ink : _muted)),
             ]),

@@ -446,6 +446,22 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
             if r["mkey"] in rec_keys:
                 r["badges"] = r["badges"] + ["rec"]
 
+    # Stamp each row with the SERIES id (sid) of the active recurring stream it
+    # belongs to — matched by merchant key AND per-charge amount (±8%) — so a
+    # user-assigned subscription name (e.g. an anonymous Apple stream → "ChatGPT")
+    # is applied ONLY to that stream's charges, never to a one-off Apple purchase
+    # at a different amount that merely shares the merchant.
+    active_series = [(str(it["name"]).lower()[:24], float(it.get("cost") or 0),
+                      it.get("sid")) for it in subs.get("items", [])
+                     if it.get("active") and it.get("sid")]
+    if active_series:
+        for r in all_rows:
+            amt = abs(r["a"])
+            for mk, cost, sid in active_series:
+                if r["mkey"] == mk and cost > 0 and abs(amt - cost) <= cost * 0.08:
+                    r["sid"] = sid
+                    break
+
     # ── balance ──
     balance = _balance_block(all_rows, accounts)
     recent = [p["v"] for p in balance["series"]][-26:]
@@ -628,6 +644,18 @@ def _collapse_recurring(cands):
     return out
 
 
+def _series_id(name, cadence, cost):
+    """Stable identity for ONE recurring stream, so a user-assigned name (e.g.
+    labelling an anonymous 'APPLE.COM/BILL' stream as 'ChatGPT') sticks across
+    re-fetches. Keyed by merchant + cadence + per-charge amount (cents): two Apple
+    subscriptions at DIFFERENT prices get different ids and are named separately;
+    two at the SAME price are genuinely indistinguishable from bank data and
+    share one id by design. Deterministic → same stream → same id every scan."""
+    key = re.sub(r"\s+", " ", str(name or "—").strip().lower())[:24]
+    cents = int(round(float(cost or 0) * 100))
+    return f"{key}|{cadence or ''}|{cents}"
+
+
 def _subs(txns, corpus=None, own_ibans=None, today=None):
     """Confident recurring streams + the ACTIVE monthly projection.
 
@@ -650,6 +678,8 @@ def _subs(txns, corpus=None, own_ibans=None, today=None):
            if c.get("confident") and c.get("occurrences", 0) >= 2
            and c.get("cost", 0) > 0]
     items = _collapse_recurring(raw)
+    for it in items:
+        it["sid"] = _series_id(it.get("name"), it.get("cadence"), it.get("cost"))
     active = [it for it in items if it["active"] and it["type"] != "transfer"]
     total = round(sum(it["monthly"] for it in active), 2)
     # active first, then by monthly cost
