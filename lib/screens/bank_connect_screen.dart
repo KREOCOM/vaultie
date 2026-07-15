@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
@@ -7,7 +9,6 @@ import '../content_theme.dart';
 import '../main.dart';
 import '../services/banking_service.dart';
 import '../services/dashboard_store.dart';
-import '../services/notification_service.dart';
 import 'bank_import_screen.dart';
 import 'preview/dashboard_preview.dart';
 
@@ -39,6 +40,39 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   _Country _country = _countries.first; // Lithuania by default
   final _countrySearch = TextEditingController();
+
+  // A cycling "we're working" progress while the scan runs, so a 40–80s scan
+  // never feels frozen. Advances every few seconds and holds on the last stage.
+  Timer? _stageTimer;
+  int _stage = 0;
+  static const _stagesLt = [
+    'Saugiai jungiamės prie banko…',
+    'Traukiame tavo sandorius…',
+    'Analizuojame išlaidas, pajamas ir sąskaitas…',
+    'Beveik baigėm…',
+  ];
+  static const _stagesEn = [
+    'Securely connecting to your bank…',
+    'Fetching your transactions…',
+    'Analysing spending, income and bills…',
+    'Almost done…',
+  ];
+
+  void _startStages() {
+    _stage = 0;
+    _stageTimer?.cancel();
+    _stageTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_stage < 3) _stage++;
+      });
+    });
+  }
+
+  void _stopStages() {
+    _stageTimer?.cancel();
+    _stageTimer = null;
+  }
 
   // Enable Banking coverage — Baltics + Nordics first, then the rest of Europe.
   static const _countries = <_Country>[
@@ -76,6 +110,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   @override
   void dispose() {
+    _stopStages();
     _countrySearch.dispose();
     super.dispose();
   }
@@ -140,8 +175,12 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       }
       if (!mounted) return;
       setState(() => _phase = _Phase.analysing);
-      final scan = await BankingService.instance
-          .finishBankAuth(code, aiEnrichment: AppPrefs.aiEnrichment, bank: bank.name);
+      _startStages();
+      // RECENT-FIRST: fetch a fast 3-month window so the dashboard appears in
+      // ~15–20s instead of 60–80s. The full 12-month history is backfilled in
+      // the background (below) and swapped in when ready.
+      final scan = await BankingService.instance.finishBankAuth(
+          code, aiEnrichment: AppPrefs.aiEnrichment, bank: bank.name, monthsBack: 3);
       if (!mounted) return;
       // Record this bank's accounts (session id + uids + IBANs) so it can be
       // re-fetched and merged with other banks later — without another login.
@@ -155,53 +194,47 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               .toList()),
         );
       }
-      // With more than one bank connected, rebuild ONE combined dashboard across
-      // all of them (own-account SEB↔Revolut transfers are neutralised in the
-      // merge). With a single bank, this scan's dashboard already is the whole
-      // picture. If the combined refresh fails, fall back to this scan's data so
-      // the user is never left with nothing.
+      // With more than one bank connected, rebuild ONE combined (still 3-month)
+      // dashboard across all of them for the fast first paint. If the combined
+      // refresh fails, fall back to this scan's data so the user is never left
+      // with nothing.
       Map<String, dynamic>? dash = scan.dash;
       if (DashboardStore.bankCount > 1) {
         try {
           final combined = await BankingService.instance.refreshDashboard(
               DashboardStore.accountRefs(),
-              aiEnrichment: AppPrefs.aiEnrichment);
+              aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 3);
           if (combined != null) dash = combined;
         } on BankingException {
           // keep the single-bank dash as a fallback
         }
       }
       if (!mounted) return;
-      // Persist the dashboard payload so the app opens straight into it next
-      // launch (no re-connect) — and so a refresh overwrites the old data.
+      // Persist the fast dashboard so a restart mid-backfill still has data.
       if (dash != null) {
         await DashboardStore.save(dash, bank: bank.name);
-        // Refresh payment reminders from the freshly-scanned bills right away
-        // (don't wait for the next cold launch).
-        final subs = (dash['subs'] as Map?)?.cast<String, dynamic>();
-        final items = ((subs?['items'] as List?) ?? const [])
-            .whereType<Map>()
-            .map((e) => e.cast<String, dynamic>())
-            .toList();
-        await NotificationService.instance.scheduleFromRecurring(
-          items,
-          excluded: DashboardStore.recurringExcluded(),
-          included: DashboardStore.recurringIncluded(),
-          isLithuanian: _isLt,
-        );
       }
+      // Kick off the FULL 12-month backfill in the background (not awaited): the
+      // dashboard opens on the fast data and swaps this in — with complete
+      // recurring history + reminders — when it lands.
+      final Future<Map<String, dynamic>?>? deeper = (dash != null)
+          ? BankingService.instance.refreshDashboard(
+              DashboardStore.accountRefs(),
+              aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 12)
+          : null;
+      _stopStages();
       if (!mounted) return;
-      // Land straight in the new dashboard with the classified transactions.
-      // Fall back to the legacy import screen only if the backend couldn't
-      // build the dashboard payload.
+      // Land straight in the new dashboard. Fall back to the legacy import screen
+      // only if the backend couldn't build the dashboard payload.
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => dash != null
-              ? DashboardPreview(data: dash)
+              ? DashboardPreview(data: dash, deeper: deeper)
               : BankImportScreen(result: scan),
         ),
       );
     } on PlatformException catch (e) {
+      _stopStages();
       if (!mounted) return;
       if (e.code == 'CANCELED') {
         setState(() => _phase = _Phase.list);
@@ -214,6 +247,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         });
       }
     } on BankingException catch (e) {
+      _stopStages();
       if (!mounted) return;
       setState(() {
         _error = e.message;
@@ -258,9 +292,13 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             ? 'Atveriamas ${_connectingBank ?? 'banko'} puslapis…\nPatvirtink prisijungimą ir grįžk į programėlę.'
             : 'Opening ${_connectingBank ?? 'the bank'}…\nApprove access, then return to the app.');
       case _Phase.analysing:
-        return _busy(_isLt
-            ? 'Ieškome pasikartojančių mokėjimų…'
-            : 'Finding your recurring payments…');
+        final stages = _isLt ? _stagesLt : _stagesEn;
+        return _busy(
+          stages[_stage.clamp(0, stages.length - 1)],
+          hint: _isLt
+              ? 'Tai gali užtrukti iki minutės — analizuojame visus tavo sandorius. Neuždaryk programėlės.'
+              : 'This can take up to a minute — we\'re analysing all your transactions. Keep the app open.',
+        );
       case _Phase.error:
         return _errorView();
       case _Phase.list:
@@ -268,7 +306,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     }
   }
 
-  Widget _busy(String message) {
+  Widget _busy(String message, {String? hint}) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -277,11 +315,24 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: 20),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: cSubtle, fontSize: 15, height: 1.4),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              child: Text(
+                message,
+                key: ValueKey(message),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: cInk, fontSize: 16, fontWeight: FontWeight.w600, height: 1.4),
+              ),
             ),
+            if (hint != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                hint,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+              ),
+            ],
           ],
         ),
       ),

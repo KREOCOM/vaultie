@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../../services/auth_service.dart';
 import '../../services/dashboard_store.dart';
+import '../../services/notification_service.dart';
 import '../../ui/design_system.dart';
 import '../../user_session.dart';
 import '../bank_connect_screen.dart';
@@ -372,15 +373,20 @@ Widget _acctGlyph(Map a, {double diameter = 40, double fontSize = 18}) {
 class DashboardPreview extends StatefulWidget {
   /// [data] is the live dashboard payload from a bank connection. When null the
   /// screen falls back to the baked sample data (standalone design preview).
-  const DashboardPreview({super.key, this.data});
+  /// [deeper] is an optional in-flight fuller (12-month) scan: the screen opens
+  /// instantly on the fast (3-month) [data] and quietly swaps in the deeper
+  /// result when it arrives (recent-first loading).
+  const DashboardPreview({super.key, this.data, this.deeper});
   final Map<String, dynamic>? data;
+  final Future<Map<String, dynamic>?>? deeper;
   @override
   State<DashboardPreview> createState() => _DashboardPreviewState();
 }
 
 class _DashboardPreviewState extends State<DashboardPreview> {
-  late final Map<String, dynamic> _d =
+  late Map<String, dynamic> _d =
       widget.data ?? jsonDecode(utf8.decode(base64Decode(_dashB64))) as Map<String, dynamic>;
+  bool _deepening = false; // a fuller 12-month scan is still loading in the background
   int _tab = 0;
   bool _hideBal = false;
   int? _weekSel; // tapped weekday bar
@@ -431,6 +437,46 @@ class _DashboardPreviewState extends State<DashboardPreview> {
     // Let any detail/edit screen that mutates `_d['all']` (delete, edit,
     // convert, recategorise) ask the dashboard to recompute + persist.
     _dashRefresh = _refreshFromAll;
+    // Recent-first: the fast 3-month scan is already showing; when the deeper
+    // 12-month scan lands, swap it in (fuller history + complete recurring),
+    // persist it, and refresh reminders. Failures leave the fast scan in place.
+    final deeper = widget.deeper;
+    if (deeper != null) {
+      _deepening = true;
+      deeper.then((full) {
+        if (!mounted) return;
+        setState(() {
+          if (full != null) {
+            _d = full;
+            _otherTabs = null; // Overview/Planning rebuild from the fuller data
+          }
+          _deepening = false;
+        });
+        if (full != null) {
+          _persist();
+          _rescheduleReminders(full);
+        }
+      }).catchError((_) {
+        if (mounted) setState(() => _deepening = false);
+      });
+    }
+  }
+
+  Future<void> _rescheduleReminders(Map<String, dynamic> dash) async {
+    try {
+      final subs = (dash['subs'] as Map?)?.cast<String, dynamic>();
+      final items = ((subs?['items'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      final isLt = Localizations.localeOf(context).languageCode == 'lt';
+      await NotificationService.instance.scheduleFromRecurring(
+        items,
+        excluded: DashboardStore.recurringExcluded(),
+        included: DashboardStore.recurringIncluded(),
+        isLithuanian: isLt,
+      );
+    } catch (_) {/* reminders are best-effort */}
   }
 
   @override
@@ -714,11 +760,13 @@ class _DashboardPreviewState extends State<DashboardPreview> {
     final reserved = (_d['all'] as List)
         .where((t) => ((t['badges'] as List?) ?? const []).contains('res'))
         .length;
-    final sub = reserved == 0
-        ? 'Viskas atnaujinta'
-        : reserved == 1
-            ? '1 rezervuotas sandoris'
-            : '$reserved rezervuoti sandoriai';
+    final sub = _deepening
+        ? 'Įkeliame 12 mėn. istoriją…'
+        : reserved == 0
+            ? 'Viskas atnaujinta'
+            : reserved == 1
+                ? '1 rezervuotas sandoris'
+                : '$reserved rezervuoti sandoriai';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: AppCard(color: _card, border: _hair,
@@ -728,11 +776,13 @@ class _DashboardPreviewState extends State<DashboardPreview> {
             width: 34,
             height: 34,
             decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _purpleSoft, width: 2)),
-            child: const Icon(Icons.check_rounded, size: 18, color: _purple),
+            child: _deepening
+                ? const Padding(padding: EdgeInsets.all(7), child: CircularProgressIndicator(strokeWidth: 2, color: _purple))
+                : const Icon(Icons.check_rounded, size: 18, color: _purple),
           ),
           const SizedBox(width: 12),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Sinchronizuota', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+            Text(_deepening ? 'Sinchronizuojama' : 'Sinchronizuota', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
             Text(sub, style: TextStyle(fontSize: 12.5, color: _muted)),
           ]),
         ]),

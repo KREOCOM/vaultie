@@ -233,7 +233,7 @@ class BankingService {
   /// Exchanges the redirect [code] for the scan result: importable recurring
   /// candidates plus frequent-spending merchants (never recurring, feed-only).
   Future<BankScanResult> finishBankAuth(String code,
-      {bool aiEnrichment = false, String? bank}) {
+      {bool aiEnrichment = false, String? bank, int monthsBack = 12}) {
     return _call('finish_bank_auth',
         // AI enrichment flows through from the user's setting (was hardcoded
         // false, which left the toggle dead). It is still OFF by default; turning
@@ -244,7 +244,7 @@ class BankingService {
         // `bank` labels the connection so the stored record + Account breakdown
         // name the right bank.
         {'code': code, 'debug': kDebugMode, 'aiEnrichment': aiEnrichment,
-         'monthsBack': 12, if (bank != null) 'bank': bank}, (m) {
+         'monthsBack': monthsBack, if (bank != null) 'bank': bank}, (m) {
       final cands = (m['candidates'] as List?) ?? const [];
       final freq = (m['frequent'] as List?) ?? const [];
       if (kDebugMode) {
@@ -319,9 +319,9 @@ class BankingService {
   /// won't appear until reconnected.
   Future<Map<String, dynamic>?> refreshDashboard(
       List<Map<String, dynamic>> accounts,
-      {bool aiEnrichment = false}) {
+      {bool aiEnrichment = false, int monthsBack = 12}) {
     return _call('refresh_dashboard',
-        {'accounts': accounts, 'aiEnrichment': aiEnrichment, 'monthsBack': 12},
+        {'accounts': accounts, 'aiEnrichment': aiEnrichment, 'monthsBack': monthsBack},
         (m) {
       if (kDebugMode) {
         debugPrint('=== REFRESH DASHBOARD ===');
