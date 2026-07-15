@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/banking_service.dart';
 import '../../services/dashboard_store.dart';
 import '../../services/notification_service.dart';
 import '../../ui/design_system.dart';
@@ -383,7 +384,7 @@ class DashboardPreview extends StatefulWidget {
   State<DashboardPreview> createState() => _DashboardPreviewState();
 }
 
-class _DashboardPreviewState extends State<DashboardPreview> {
+class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBindingObserver {
   late Map<String, dynamic> _d =
       widget.data ?? jsonDecode(utf8.decode(base64Decode(_dashB64))) as Map<String, dynamic>;
   bool _deepening = false; // a fuller 12-month scan is still loading in the background
@@ -433,13 +434,14 @@ class _DashboardPreviewState extends State<DashboardPreview> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     // Let any detail/edit screen that mutates `_d['all']` (delete, edit,
     // convert, recategorise) ask the dashboard to recompute + persist.
     _dashRefresh = _refreshFromAll;
     // Recent-first: the fast 3-month scan is already showing; when the deeper
-    // 12-month scan lands, swap it in (fuller history + complete recurring),
-    // persist it, and refresh reminders. Failures leave the fast scan in place.
+    // scan lands, swap it in (fuller history + complete recurring), persist it,
+    // and refresh reminders. Failures leave the fast scan in place.
     final deeper = widget.deeper;
     if (deeper != null) {
       _deepening = true;
@@ -459,6 +461,48 @@ class _DashboardPreviewState extends State<DashboardPreview> {
       }).catchError((_) {
         if (mounted) setState(() => _deepening = false);
       });
+    } else {
+      // Opened from the persisted dashboard (not a fresh connect) → auto-sync in
+      // the background if the data is stale.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoSync());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _maybeAutoSync();
+  }
+
+  // Background auto-sync (Bilance-style ~30-min freshness): when the dashboard is
+  // shown or the app returns to the foreground and the last sync is stale,
+  // silently re-fetch all connected banks (6-month window + AI) and swap the
+  // fresher data in. No-op in the standalone preview (no connected banks).
+  static const _autoSyncEvery = Duration(minutes: 30);
+  Future<void> _maybeAutoSync() async {
+    try {
+      if (_deepening || DashboardStore.bankCount == 0) return;
+      final last = DashboardStore.syncedAt;
+      if (last != null && DateTime.now().difference(last) < _autoSyncEvery) return;
+      final refs = DashboardStore.accountRefs();
+      if (refs.isEmpty) return;
+      if (!mounted) return;
+      setState(() => _deepening = true);
+      final fresh = await BankingService.instance
+          .refreshDashboard(refs, aiEnrichment: true, monthsBack: 6);
+      if (!mounted) return;
+      setState(() {
+        if (fresh != null) {
+          _d = fresh;
+          _otherTabs = null;
+        }
+        _deepening = false;
+      });
+      if (fresh != null) {
+        await DashboardStore.save(fresh); // updates syncedAt → resets the timer
+        _rescheduleReminders(fresh);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _deepening = false);
     }
   }
 
@@ -481,6 +525,7 @@ class _DashboardPreviewState extends State<DashboardPreview> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _themeVN.removeListener(_onTheme);
     if (_dashRefresh == _refreshFromAll) _dashRefresh = null;
     super.dispose();

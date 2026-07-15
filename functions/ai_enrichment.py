@@ -28,9 +28,10 @@ _TIMEOUT = 12
 # Category vocabulary — must line up with dashboard.CAT_MAP.
 _CATEGORIES = [
     "groceries", "restaurant", "cafe", "fuel", "transport", "taxi", "parking",
-    "retail", "clothing", "electronics", "pharmacy", "health", "fitness",
-    "taxes", "banking", "finance", "insurance", "connectivity", "utilities",
-    "housing", "entertainment", "software", "travel", "education", "other",
+    "automotive", "retail", "clothing", "electronics", "home_improvement",
+    "pharmacy", "health", "fitness", "taxes", "banking", "finance", "insurance",
+    "connectivity", "utilities", "housing", "rent", "entertainment", "software",
+    "travel", "education", "other",
 ]
 _CATSET = set(_CATEGORIES)
 
