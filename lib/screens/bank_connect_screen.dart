@@ -538,7 +538,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                     color: cHiBg,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text('TEST',
+                  child: Text('TESTAS',
                       style: TextStyle(
                           color: cSubtle,
                           fontWeight: FontWeight.w700,

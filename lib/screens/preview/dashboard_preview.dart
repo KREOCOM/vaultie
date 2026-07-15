@@ -719,7 +719,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
       child: Row(
         children: [
-          Text('Dashboard',
+          Text('Pradžia',
               style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
           const Spacer(),
           GestureDetector(
@@ -1350,7 +1350,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               decoration: BoxDecoration(color: _card.withValues(alpha: 0.12)),
               child: Row(children: [
-                Text('Donut\'ai · kategorijos · kalendorius',
+                Text('Skrituliai · kategorijos · kalendorius',
                     style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9))),
                 const Spacer(),
                 const Text('Peržiūrėti →', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white)),
@@ -1403,11 +1403,11 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
 
   Widget _navBar() {
     const items = [
-      ['Dashboard', Icons.dashboard_rounded],
-      ['Overview', Icons.donut_large_rounded],
-      ['AI Chat', Icons.auto_awesome_rounded],
-      ['Planning', Icons.event_note_rounded],
-      ['Account', Icons.person_outline_rounded],
+      ['Pradžia', Icons.dashboard_rounded],
+      ['Apžvalga', Icons.donut_large_rounded],
+      ['AI pokalbis', Icons.auto_awesome_rounded],
+      ['Planavimas', Icons.event_note_rounded],
+      ['Paskyra', Icons.person_outline_rounded],
     ];
     final bottomPad = MediaQuery.of(context).padding.bottom;
     return Container(
@@ -4517,7 +4517,7 @@ class _OverviewTabState extends State<_OverviewTab> {
   Widget _header() => Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
         child: Row(children: [
-          Text('Overview', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+          Text('Apžvalga', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
           const Spacer(),
           GestureDetector(
             onTap: () => setState(() => _hide = !_hide),
@@ -5971,7 +5971,7 @@ class _AccountTabState extends State<_AccountTab> {
   Widget _header() => Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
         child: Row(children: [
-          Text('Account', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+          Text('Paskyra', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
