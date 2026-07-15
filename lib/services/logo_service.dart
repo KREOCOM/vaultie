@@ -102,26 +102,144 @@ const Map<String, String> _serviceDomains = {
   '15min': '15min.lt',
   'bite': 'bite.lt',
   'tele2': 'tele2.lt',
+  'pildyk': 'pildyk.lt',
+  'ezys': 'ezys.lt',
+  // ── Everyday merchants (bank feeds are mostly these, not subscriptions) ──
+  // Groceries
+  'maxima': 'maxima.lt',
+  'iki': 'iki.lt',
+  'rimi': 'rimi.lt',
+  'lidl': 'lidl.lt',
+  'norfa': 'norfa.lt',
+  'aibe': 'aibe.lt',
+  'barbora': 'barbora.lt',
+  'lastmile': 'lastmile.lt',
+  // Food / drink
+  'mcdonalds': 'mcdonalds.com',
+  'hesburger': 'hesburger.lt',
+  'kfc': 'kfc.lt',
+  'subway': 'subway.com',
+  'starbucks': 'starbucks.com',
+  'caffeine': 'caffeine.lt',
+  'vero': 'verocafe.lt',
+  'verocafe': 'verocafe.lt',
+  'wolt': 'wolt.com',
+  'bolt': 'bolt.eu',
+  'boltfood': 'bolt.eu',
+  'uber': 'uber.com',
+  'ubereats': 'ubereats.com',
+  // Fuel / transport
+  'circlek': 'circlek.lt',
+  'neste': 'neste.lt',
+  'viada': 'viada.lt',
+  'orlen': 'orlen.lt',
+  'lukoil': 'lukoil.lt',
+  'ignitis': 'ignitis.lt',
+  'esoshop': 'eso.lt',
+  'trafi': 'trafi.com',
+  'ryanair': 'ryanair.com',
+  'wizzair': 'wizzair.com',
+  'airbaltic': 'airbaltic.com',
+  'booking': 'booking.com',
+  'airbnb': 'airbnb.com',
+  // Pharmacy / health
+  'eurovaistine': 'eurovaistine.lt',
+  'benuvaistine': 'benu.lt',
+  'benu': 'benu.lt',
+  'gintarine': 'gintarine.lt',
+  'gintarinevaistine': 'gintarine.lt',
+  'camelia': 'camelia.lt',
+  // Retail / home / electronics
+  'ikea': 'ikea.lt',
+  'senukai': 'senukai.lt',
+  'kesko': 'kesko.lt',
+  'topocentras': 'topocentras.lt',
+  'avitela': 'avitela.lt',
+  'pigu': 'pigu.lt',
+  'varle': 'varle.lt',
+  'kilobaitas': 'kilobaitas.lt',
+  'ermitazas': 'ermitazas.lt',
+  'jysk': 'jysk.lt',
+  'hm': 'hm.com',
+  'zara': 'zara.com',
+  'reserved': 'reserved.com',
+  'lpp': 'lpp.com',
+  'sportlandas': 'sportland.lt',
+  'sportland': 'sportland.lt',
+  'decathlon': 'decathlon.lt',
+  'aliexpress': 'aliexpress.com',
+  'temu': 'temu.com',
+  'ebay': 'ebay.com',
+  // Finance / lending / insurance
+  'mogo': 'mogo.lt',
+  'seb': 'seb.lt',
+  'swedbank': 'swedbank.lt',
+  'luminor': 'luminor.lt',
+  'citadele': 'citadele.lt',
+  'revolut': 'revolut.com',
+  'paysera': 'paysera.com',
+  'wise': 'wise.com',
+  'paypal': 'paypal.com',
+  'inbank': 'inbank.lt',
+  'general': 'gjensidige.lt',
+  'gjensidige': 'gjensidige.lt',
+  'lietuvosdraudimas': 'ld.lt',
+  'sodra': 'sodra.lt',
+  'vmi': 'vmi.lt',
+  // Gyms
+  'lemonhym': 'lemongym.lt',
+  'lemongym': 'lemongym.lt',
+  'gymplius': 'gymplius.lt',
+  'impuls': 'impuls.lt',
 };
 
-String _normalize(String s) =>
-    s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+// Bank feeds spell Lithuanian merchants both ways ("Eurovaistinė" and
+// "EUROVAISTINE"), so diacritics are folded before matching — otherwise the
+// accented spelling silently loses its letters ("eurovaistinė" → "eurovaistin")
+// and never matches anything.
+const _fold = {
+  'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's',
+  'ų': 'u', 'ū': 'u', 'ž': 'z',
+  'ä': 'a', 'ö': 'o', 'õ': 'o', 'ü': 'u', 'å': 'a', 'æ': 'a', 'ø': 'o',
+  'é': 'e', 'è': 'e', 'ó': 'o', 'ñ': 'n', 'ç': 'c',
+};
 
-/// Best-effort domain for a service name, or null if nothing matches.
+String _foldDiacritics(String s) {
+  final b = StringBuffer();
+  for (final ch in s.toLowerCase().split('')) {
+    b.write(_fold[ch] ?? ch);
+  }
+  return b.toString();
+}
+
+String _normalize(String s) =>
+    _foldDiacritics(s).replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+/// Best-effort domain for a merchant name, or null if nothing matches.
+///
+/// Matches on WHOLE WORDS, never on loose substrings. Bank feeds are full of
+/// names that happen to contain a brand's letters — "vaikiškas" contains "iki",
+/// "Sebastijonas" contains "seb" — and a substring match would proudly stamp a
+/// supermarket's logo on a toy shop. A wrong logo is worse than none: it reads
+/// as the app being confidently wrong about the user's own spending.
+///
+/// Runs of adjacent words are tried longest-first, so "YouTube Premium" beats
+/// "YouTube" and "Topo Centras" resolves at all.
 String? domainForName(String name) {
-  final key = _normalize(name);
-  if (key.length < 2) return null;
-  final exact = _serviceDomains[key];
+  final full = _normalize(name);
+  if (full.length < 2) return null;
+  final exact = _serviceDomains[full];
   if (exact != null) return exact;
-  // Partial match (e.g. "netflix family" → netflix). Longest known keys first
-  // so "youtubepremium" wins over "youtube", and short keys don't false-match.
-  if (key.length >= 3) {
-    final keys = _serviceDomains.keys.toList()
-      ..sort((a, b) => b.length - a.length);
-    for (final k in keys) {
-      if (k.length >= 3 && (key.contains(k) || k.contains(key))) {
-        return _serviceDomains[k];
-      }
+  final words = _foldDiacritics(name)
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  for (var n = words.length; n >= 1; n--) {
+    for (var i = 0; i + n <= words.length; i++) {
+      final joined = words.sublist(i, i + n).join();
+      if (joined.length < 2) continue;
+      final hit = _serviceDomains[joined];
+      if (hit != null) return hit;
     }
   }
   return null;

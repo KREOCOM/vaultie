@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gcloud logging read *)",
+      "Bash(~/google-cloud-sdk/bin/gcloud logging read *)",
+      "Bash(gcloud run services describe *)",
+      "Bash(gcloud run services list *)",
+      "Bash(~/google-cloud-sdk/bin/gcloud run services list *)",
+      "Bash(firebase functions:log *)",
+      "Bash(flutter devices *)",
+      "Bash(flutter devices)",
+      "Bash(flutter doctor *)",
+      "Bash(xcrun simctl list *)",
+      "Bash(xcrun devicectl list *)"
+    ]
+  }
+}

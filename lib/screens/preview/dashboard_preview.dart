@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../services/banking_service.dart';
 import '../../services/dashboard_store.dart';
+import '../../services/logo_service.dart';
 import '../../services/notification_service.dart';
 import '../../ui/design_system.dart';
 import '../../user_session.dart';
@@ -149,6 +151,13 @@ const String _dashB64 = 'eyJtb250aHMiOiBbeyJuYW1lIjogIkxpZXBhIiwgInkiOiAyMDI2LCA
 
 Color _colOf(String? k) => _catColors[k] ?? const Color(0xFF6E6E86);
 IconData _iconOf(String? k) => _catIcons[k] ?? Icons.swap_horiz_rounded;
+
+// The brand domain for a feed row, from the merchant the backend resolved it to
+// (`mkey`, e.g. "chatgpt") and falling back to the raw bank name. Null for
+// anything unrecognised — most of a real feed — and the row keeps its category
+// tile. Never guessed loosely: see logo_service.domainForName.
+String? _logoOf(Map row) =>
+    domainForName((row['mkey'] ?? row['nm'] ?? '').toString());
 String _eur(num v, {bool signed = false}) => Money.format(v.toDouble(), signed: signed);
 
 // Whole-euro format (no cents) for headline balances, e.g. "7 049 €".
@@ -414,6 +423,21 @@ Widget _acctGlyph(Map a, {double diameter = 40, double fontSize = 18}) {
     final letter = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '•';
     child = Text(letter, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: _ink));
   }
+  // The bank's own logo when we know it (SEB, Revolut, Swedbank…), keyed off the
+  // backend's `bank` label — never a hardcoded bank, since which one is
+  // connected varies per user. The letter above stays as the fallback.
+  final domain = isCash ? null : domainForName((a['bank'] as String?) ?? name);
+  if (domain != null) {
+    child = Padding(
+      padding: EdgeInsets.all(diameter * 0.18),
+      child: CachedNetworkImage(
+        imageUrl: logoUrlForDomain(domain),
+        fit: BoxFit.contain,
+        placeholder: (_, __) => Center(child: child),
+        errorWidget: (_, __, ___) => Center(child: child),
+      ),
+    );
+  }
   return Container(
     width: diameter, height: diameter, alignment: Alignment.center,
     decoration: BoxDecoration(
@@ -421,6 +445,7 @@ Widget _acctGlyph(Map a, {double diameter = 40, double fontSize = 18}) {
       color: isCash ? _purpleSoft : _card,
       border: Border.all(color: _hair, width: 1.5),
     ),
+    clipBehavior: Clip.antiAlias,
     child: child,
   );
 }
@@ -1359,7 +1384,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
             Stack(
               clipBehavior: Clip.none,
               children: [
-                CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 38, circle: false),
+                CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 38, circle: false, logoDomain: _logoOf(t)),
                 if (count > 1)
                   Positioned(
                     top: -6,
@@ -3137,7 +3162,15 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   Widget _hero() {
     return Column(
       children: [
-        CategoryIcon(icon: _isTransfer ? Icons.swap_horiz_rounded : _catIcon, color: _isTransfer ? const Color(0xFF3E3B54) : _catColor, size: 76, circle: false),
+        CategoryIcon(
+          icon: _isTransfer ? Icons.swap_horiz_rounded : _catIcon,
+          color: _isTransfer ? const Color(0xFF3E3B54) : _catColor,
+          size: 76,
+          circle: false,
+          // A transfer is a movement, not a merchant — a brand logo on it would
+          // be claiming the money went somewhere it didn't.
+          logoDomain: _isTransfer ? null : _logoOf(widget.tx),
+        ),
         const SizedBox(height: 14),
         Text(merchant, style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
         const SizedBox(height: 4),
@@ -3362,7 +3395,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
               decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
               child: Row(children: [
-                CategoryIcon(icon: _iconOf(s['ic'] as String?), color: _colOf(s['col'] as String?), size: 40, circle: false),
+                CategoryIcon(icon: _iconOf(s['ic'] as String?), color: _colOf(s['col'] as String?), size: 40, circle: false, logoDomain: _logoOf(s)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -4311,7 +4344,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Row(children: [
-                    CategoryIcon(icon: _iconOf(top[i]['ic'] as String?), color: _colOf(top[i]['col'] as String?), size: 40, circle: false),
+                    CategoryIcon(icon: _iconOf(top[i]['ic'] as String?), color: _colOf(top[i]['col'] as String?), size: 40, circle: false, logoDomain: _logoOf(top[i])),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -7205,7 +7238,7 @@ class _SearchScreenState extends State<_SearchScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
                           child: Row(children: [
-                            CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 40),
+                            CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 40, logoDomain: _logoOf(t)),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -1,6 +1,9 @@
 import 'dart:ui' show FontFeature;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+
+import '../services/logo_service.dart';
 
 /// Vaultie design system — centralized tokens + primitive components.
 ///
@@ -125,6 +128,13 @@ class MoneyText extends StatelessWidget {
 
 /// A flat category tile — solid colour, white glyph. Circle or squircle. No
 /// gradient, no coloured shadow (those read as "toy / AI-generated").
+///
+/// Give it a [logoDomain] (e.g. "netflix.com") and it shows that brand's real
+/// logo instead of the category glyph. The glyph is not a placeholder to be
+/// replaced — it's the resting state: most of a real bank feed is merchants no
+/// logo service has ever heard of, so the fallback is the common case and has to
+/// look deliberate rather than broken. A logo that fails to load, loads slowly,
+/// or was never known all land on the same coloured tile.
 class CategoryIcon extends StatelessWidget {
   const CategoryIcon({
     super.key,
@@ -132,21 +142,55 @@ class CategoryIcon extends StatelessWidget {
     required this.color,
     this.size = 38,
     this.circle = true,
+    this.logoDomain,
   });
   final IconData icon;
   final Color color;
   final double size;
   final bool circle;
+  final String? logoDomain;
+
+  Widget _glyph() =>
+      Center(child: Icon(icon, color: Colors.white, size: size * 0.52));
+
   @override
   Widget build(BuildContext context) {
+    final domain = logoDomain;
+    final shape = circle ? const CircleBorder() : squircle(size * 0.32);
+    if (domain == null || domain.isEmpty) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Material(
+          color: color,
+          shape: shape,
+          clipBehavior: Clip.antiAlias,
+          child: _glyph(),
+        ),
+      );
+    }
     return SizedBox(
       width: size,
       height: size,
       child: Material(
-        color: color,
-        shape: circle ? const CircleBorder() : squircle(size * 0.32),
+        // Brand marks are drawn for a light background and many are transparent
+        // PNGs; on the category colour they'd smear into it.
+        color: Colors.white,
+        shape: shape,
         clipBehavior: Clip.antiAlias,
-        child: Center(child: Icon(icon, color: Colors.white, size: size * 0.52)),
+        child: CachedNetworkImage(
+          imageUrl: logoUrlForDomain(domain),
+          fit: BoxFit.contain,
+          // Padding keeps a square brand mark from touching the tile's edges.
+          imageBuilder: (_, img) => Padding(
+            padding: EdgeInsets.all(size * 0.16),
+            child: Image(image: img, fit: BoxFit.contain),
+          ),
+          // Never flash a spinner for a 5KB icon — hold the tile we'd fall back
+          // to anyway, so the row doesn't twitch while it loads.
+          placeholder: (_, __) => Material(color: color, child: _glyph()),
+          errorWidget: (_, __, ___) => Material(color: color, child: _glyph()),
+        ),
       ),
     );
   }
