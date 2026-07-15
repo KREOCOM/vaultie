@@ -531,6 +531,35 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // silently re-fetch all connected banks (6-month window + AI) and swap the
   // fresher data in. No-op in the standalone preview (no connected banks).
   static const _autoSyncEvery = Duration(minutes: 30);
+  // Manual pull-to-refresh: same fetch as the auto-sync but ALWAYS runs (no
+  // 30-min throttle) so the user can force an update and see it happen. Returns
+  // a Future so RefreshIndicator shows its spinner until the fetch completes.
+  Future<void> _forceSync() async {
+    try {
+      if (DashboardStore.bankCount == 0) return;
+      final refs = DashboardStore.accountRefs();
+      if (refs.isEmpty) return;
+      if (!mounted) return;
+      setState(() => _deepening = true);
+      final fresh = await BankingService.instance
+          .refreshDashboard(refs, aiEnrichment: true, monthsBack: 6);
+      if (!mounted) return;
+      setState(() {
+        if (fresh != null) {
+          _d = fresh;
+          _otherTabs = null;
+        }
+        _deepening = false;
+      });
+      if (fresh != null) {
+        await DashboardStore.save(fresh);
+        _rescheduleReminders(fresh);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _deepening = false);
+    }
+  }
+
   Future<void> _maybeAutoSync() async {
     try {
       if (_deepening || DashboardStore.bankCount == 0) return;
@@ -631,7 +660,12 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     final monthKeys = keys.toList()..sort((a, b) => b.compareTo(a));
     final shown = monthKeys.take(1 + _shownPast).toList(); // current + N past months
 
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: _forceSync,
+      color: _purple,
+      backgroundColor: _card,
+      child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 28),
       children: [
         _header(),
@@ -664,7 +698,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           ),
         const SizedBox(height: 16),
       ],
-    );
+    ));
   }
 
   int _monthCount(String mk) => _feedAll.where((t) => (t['d'] as String).startsWith(mk)).length;
