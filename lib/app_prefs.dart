@@ -25,8 +25,9 @@ class AppPrefs {
   static final ValueNotifier<double?> budget = ValueNotifier<double?>(null);
 
   /// Whether the content screens (dashboard, analytics, settings, add) use the
-  /// dark theme. false = light. Auth/splash are unaffected.
-  static final ValueNotifier<bool> darkMode = ValueNotifier<bool>(false);
+  /// dark theme. Defaults to true — dark is the app's primary look; the user can
+  /// switch to light in Settings. Auth/splash are unaffected.
+  static final ValueNotifier<bool> darkMode = ValueNotifier<bool>(true);
 
   static Box get _box => Hive.box(HiveBoxes.settings);
 
@@ -37,7 +38,8 @@ class AppPrefs {
     locale.value = code.isEmpty ? null : Locale(code);
     currency.value = _box.get(_kCurrency, defaultValue: '€') as String;
     budget.value = (_box.get(_kBudget) as num?)?.toDouble();
-    darkMode.value = _box.get(_kDarkMode, defaultValue: false) as bool;
+    // Dark is the primary theme — the app opens dark unless the user chose light.
+    darkMode.value = _box.get(_kDarkMode, defaultValue: true) as bool;
   }
 
   static Future<void> setDarkMode(bool value) async {

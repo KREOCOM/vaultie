@@ -54,15 +54,17 @@ Color _warnLine = const Color(0xFFF6E4B8); // amber notice card border
 
 void _applyTheme(bool dark) {
   _darkMode = dark;
-  _bg         = dark ? const Color(0xFF0F1014) : const Color(0xFFF1F1F4);
-  _purpleSoft = dark ? const Color(0xFF251B41) : const Color(0xFFF3EEFE);
-  _muted      = dark ? const Color(0xFFC2C4CE) : const Color(0xFF2B2B31);
-  _faint      = dark ? const Color(0xFF868898) : const Color(0xFF57575F);
-  _ink        = dark ? const Color(0xFFEEF0F5) : const Color(0xFF16161A);
-  _navOff     = dark ? const Color(0xFF585A66) : const Color(0xFF9A9AA2);
-  _card       = dark ? const Color(0xFF1A1B23) : const Color(0xFFFFFFFF);
-  _hair       = dark ? const Color(0xFF282A36) : const Color(0xFFE8ECE7);
-  _soft       = dark ? const Color(0xFF14151C) : const Color(0xFFF4F2FA);
+  // Dark = a violet-biased near-black (matches the neon balance banner), not a
+  // neutral graphite — the whole app reads as one dark surface with the banner.
+  _bg         = dark ? const Color(0xFF0B0912) : const Color(0xFFF1F1F4);
+  _purpleSoft = dark ? const Color(0xFF241650) : const Color(0xFFF3EEFE);
+  _muted      = dark ? const Color(0xFFB9B4CE) : const Color(0xFF2B2B31);
+  _faint      = dark ? const Color(0xFF8B84A6) : const Color(0xFF57575F);
+  _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF16161A);
+  _navOff     = dark ? const Color(0xFF6B6480) : const Color(0xFF9A9AA2);
+  _card       = dark ? const Color(0xFF16121F) : const Color(0xFFFFFFFF);
+  _hair       = dark ? const Color(0xFF241C36) : const Color(0xFFE8ECE7);
+  _soft       = dark ? const Color(0xFF120E1C) : const Color(0xFFF4F2FA);
   _warnBg     = dark ? const Color(0xFF2A2410) : const Color(0xFFFEF7E4);
   _warnLine   = dark ? const Color(0xFF3C3520) : const Color(0xFFF6E4B8);
   _themeVN.value = dark;
@@ -522,6 +524,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   @override
   void initState() {
     super.initState();
+    // Sync the dashboard's colour tokens to the saved theme on every launch —
+    // otherwise they'd sit at their light defaults until the user toggled.
+    _applyTheme(AppPrefs.darkMode.value);
     _homeScroll.addListener(_onHomeScroll);
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
@@ -750,19 +755,24 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       backgroundColor: _bg,
       // No top SafeArea here: the home banner paints its own dark strip behind
       // the status bar (edge-to-edge, Deriv-style). The other tabs keep their
-      // top inset via their own SafeArea below.
-      body: IndexedStack(
-        index: _tab,
-        children: [
-          AnnotatedRegion<SystemUiOverlayStyle>(
-            value: (_lightStatus || AppPrefs.darkMode.value)
-                ? SystemUiOverlayStyle.light
-                : SystemUiOverlayStyle.dark,
-            child: _dashboard(),
-          ),
-          for (final w in (_otherTabs ??= _buildOtherTabs()))
-            SafeArea(bottom: false, child: w),
-        ],
+      // top inset via their own SafeArea below. Outer overlay style = light
+      // icons on the dark theme; the home's inner region overrides it while the
+      // (dark) banner covers the top in light theme.
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: AppPrefs.darkMode.value ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        child: IndexedStack(
+          index: _tab,
+          children: [
+            AnnotatedRegion<SystemUiOverlayStyle>(
+              value: (_lightStatus || AppPrefs.darkMode.value)
+                  ? SystemUiOverlayStyle.light
+                  : SystemUiOverlayStyle.dark,
+              child: _dashboard(),
+            ),
+            for (final w in (_otherTabs ??= _buildOtherTabs()))
+              SafeArea(bottom: false, child: w),
+          ],
+        ),
       ),
       bottomNavigationBar: _navBar(),
     );
