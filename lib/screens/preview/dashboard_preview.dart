@@ -1380,9 +1380,11 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   Widget _weekSection() {
     // When a filter is active, recompute the week chart from the filtered rows
     // so it stays consistent with the filtered feed and headers.
+    // `_d['week']` is null when the account has no transactions in the window —
+    // fall back to computing an (empty) week so the home never crashes.
     final week = _txFilter.active
         ? _computeWeek(_feedAll.toList())
-        : _d['week'] as Map<String, dynamic>;
+        : (_d['week'] as Map<String, dynamic>?) ?? _computeWeek(_feedAll.toList());
     final days = (week['days'] as List).cast<Map<String, dynamic>>();
     final total = (week['total'] as num).toDouble();
     double maxV = 1;
@@ -2945,6 +2947,21 @@ class _BalanceSheetState extends State<_BalanceSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // No balance history yet (e.g. a connected account with no transactions) —
+    // show a gentle empty sheet instead of reducing/indexing an empty series.
+    if (_all.length < 2) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.show_chart_rounded, size: 34, color: _faint),
+          const SizedBox(height: 12),
+          Text('Balanso istorijos dar nėra', style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: _ink)),
+          const SizedBox(height: 6),
+          Text('Kai atsiras operacijų, čia matysi kaip keitėsi tavo likutis.',
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, color: _muted, height: 1.4)),
+        ]),
+      );
+    }
     final pts = _filtered;
     final vals = pts.map((p) => (p['v'] as num).toDouble()).toList();
     final mn = vals.reduce((a, b) => a < b ? a : b);
@@ -4986,12 +5003,14 @@ class _OverviewTabState extends State<_OverviewTab> {
   String get _curKey {
     final keys = _monthKeys;
     if (_selKey != null && keys.contains(_selKey)) return _selKey!;
-    return keys.last;
+    if (keys.isNotEmpty) return keys.last;
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}';
   }
 
   String get _monthLabel {
     final keys = _monthKeys;
-    if (_selKey == null || _selKey == keys.last) return 'Šis mėnuo';
+    if (_selKey == null || keys.isEmpty || _selKey == keys.last) return 'Šis mėnuo';
     return _monNom[int.parse(_selKey!.substring(5, 7)) - 1];
   }
 
@@ -5695,7 +5714,15 @@ class _PlanningTabState extends State<_PlanningTab> {
     return s;
   }
 
-  String get _curKey => _selKey ?? _monthKeys.last;
+  String get _curKey {
+    final keys = _monthKeys;
+    if (_selKey != null && keys.contains(_selKey)) return _selKey!;
+    if (keys.isNotEmpty) return keys.last;
+    // No transactions yet → fall back to the current calendar month so month math
+    // never indexes an empty list.
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}';
+  }
   int get _curMon => int.parse(_curKey.substring(5, 7));
   int get _curYear => int.parse(_curKey.substring(0, 4));
   List<Map<String, dynamic>> get _rows => widget.all.where((t) => (t['d'] as String).startsWith(_curKey)).toList();

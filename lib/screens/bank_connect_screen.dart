@@ -222,7 +222,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       final Future<Map<String, dynamic>?>? deeper = (dash != null)
           ? BankingService.instance.refreshDashboard(
               DashboardStore.accountRefs(),
-              aiEnrichment: true, monthsBack: 6)
+              aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6)
           : null;
       _stopStages();
       if (!mounted) return;
