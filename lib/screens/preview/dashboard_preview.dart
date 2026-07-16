@@ -1203,6 +1203,17 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       final t = (d['total'] as num).toDouble();
       if (t > maxV) maxV = t;
     }
+    // Average per ELAPSED day: the week is usually still in progress, so dividing
+    // by 7 would understate it. Count days up to today and divide the total by
+    // that — "your typical day so far".
+    final now = DateTime.now();
+    String p(int n) => n.toString().padLeft(2, '0');
+    final todayStr = '${now.year}-${p(now.month)}-${p(now.day)}';
+    final elapsed = days.where((d) {
+      final ds = d['date'] as String? ?? '';
+      return ds.isNotEmpty && ds.compareTo(todayStr) <= 0;
+    }).length.clamp(1, days.length);
+    final avg = total / elapsed;
     return Column(
       children: [
         Padding(
@@ -1236,6 +1247,17 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                       children: [
                         for (var i = 0; i < days.length; i++) _bar(days[i], maxV, i),
                       ],
+                    ),
+                  ),
+                  // "vidurkis X €/d." reference line over the bars.
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _WeekAvgPainter(
+                          avg: avg, maxV: maxV, barMax: 118,
+                          label: 'vidurkis ${avg.round()} €/d.',
+                        ),
+                      ),
                     ),
                   ),
                   if (sel != null)
@@ -2529,6 +2551,43 @@ class _NeonSparkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_NeonSparkPainter old) => old.pts != pts;
+}
+
+/// A dashed "average per day" reference line drawn over the weekly bars, so the
+/// otherwise-empty background carries a benchmark: you see at a glance which days
+/// sit above your typical spend. Geometry matches `_bar`: bars grow up to
+/// [barMax] px from the bottom baseline, scaled by [maxV].
+class _WeekAvgPainter extends CustomPainter {
+  _WeekAvgPainter({required this.avg, required this.maxV, required this.barMax, required this.label});
+  final double avg, maxV, barMax;
+  final String label;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (avg <= 0 || maxV <= 0) return;
+    final y = (size.height - (avg / maxV * barMax)).clamp(10.0, size.height);
+    // Dashed cyan line across the plot.
+    const dash = 5.0, gap = 4.0;
+    final paint = Paint()
+      ..color = const Color(0xFF6EE7FF).withValues(alpha: 0.65)
+      ..strokeWidth = 1.3;
+    for (double x = 2; x < size.width - 2; x += dash + gap) {
+      canvas.drawLine(Offset(x, y), Offset((x + dash).clamp(0, size.width - 2), y), paint);
+    }
+    // Label sitting just above the line, left-aligned.
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: Color(0xFF6EE7FF)),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final ty = (y - tp.height - 2).clamp(0.0, size.height - tp.height);
+    tp.paint(canvas, Offset(2, ty));
+  }
+
+  @override
+  bool shouldRepaint(_WeekAvgPainter old) => old.avg != avg || old.maxV != maxV || old.label != label;
 }
 
 class _MiniRingPainter extends CustomPainter {
