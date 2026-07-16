@@ -5783,11 +5783,15 @@ class _PlanningTabState extends State<_PlanningTab> {
           _header(),
           _monthFilter(),
           _sectionTitle('Biudžetai'),
-          if (_showBanner) _banner(),
-          if (_budgets.isNotEmpty) _summaryCard(spentSoFar, totalLimit),
-          if (_budgets.isEmpty) _budgetsEmpty(),
-          for (final b in _budgets) _budgetRow(b),
-          _addButton(),
+          if (_budgets.isEmpty)
+            // One self-contained card: intro + empty state + the add action.
+            _budgetsEmpty()
+          else ...[
+            if (_showBanner) _banner(),
+            _summaryCard(spentSoFar, totalLimit),
+            for (final b in _budgets) _budgetRow(b),
+            _addButton(),
+          ],
           const SizedBox(height: 10),
           _sectionTitle('Pasikartojantys'),
           _recurringCard(),
@@ -6099,18 +6103,55 @@ class _PlanningTabState extends State<_PlanningTab> {
         ),
       );
 
+  // The whole "no budgets yet" state as ONE card: what budgets are for, the
+  // empty illustration, and the primary add action — not three stacked blocks.
   Widget _budgetsEmpty() => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
-          child: Column(children: [
-            Icon(Icons.savings_outlined, size: 30, color: _muted),
-            const SizedBox(height: 8),
-            Text('Dar neturi biudžetų', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
-            const SizedBox(height: 4),
-            Text('Pridėk kategoriją — pasiūlysim limitą pagal tavo tikras išlaidas, o tu patvirtinsi ar pakeisi.',
-                textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: _muted, height: 1.35)),
+          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(18), border: Border.all(color: _hair), boxShadow: DS.e1),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Biudžetai padeda suvaldyti išlaidas',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink, height: 1.25)),
+                const SizedBox(height: 8),
+                Text('Susikurk biudžetą kategorijai — limitą pasiūlysime pagal tavo realų mėnesių vidurkį.',
+                    style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
+              ]),
+            ),
+            Divider(height: 1, thickness: 1, color: _hair),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+              child: Column(children: [
+                Container(
+                  width: 52, height: 52, alignment: Alignment.center,
+                  decoration: BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
+                  child: const Icon(Icons.savings_outlined, size: 26, color: _purple),
+                ),
+                const SizedBox(height: 12),
+                Text('Dar neturi biudžetų', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                const SizedBox(height: 5),
+                Text('Pridėk kategoriją — pasiūlysim limitą pagal tavo tikras išlaidas, o tu patvirtinsi ar pakeisi.',
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: _muted, height: 1.4)),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: GestureDetector(
+                onTap: _openAddSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(14)),
+                  child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.add_rounded, size: 22, color: Colors.white),
+                    SizedBox(width: 9),
+                    Text('Pridėti biudžetą', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                  ]),
+                ),
+              ),
+            ),
           ]),
         ),
       );
