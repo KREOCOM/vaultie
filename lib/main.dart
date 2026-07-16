@@ -7,6 +7,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_prefs.dart';
 import 'content_theme.dart';
+import 'services/app_lock.dart';
+import 'screens/lock_screen.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'models/subscription.dart';
@@ -184,6 +186,8 @@ class VaultieApp extends StatelessWidget {
         return MaterialApp(
           title: 'Vaultie',
           debugShowCheckedModeBanner: false,
+          // Gate every route behind the PIN/Face ID lock when the user set one.
+          builder: (context, child) => _LockGate(child: child ?? const SizedBox.shrink()),
           // Localization: ships English (default) and Lithuanian. The language is
           // the manual Settings choice if set, otherwise the device Region (LT →
           // Lithuanian, anywhere else → English).
@@ -280,6 +284,57 @@ class VaultieApp extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+/// Wraps the whole app: shows the [LockScreen] over everything while a PIN is
+/// set and the app is "locked" — on cold start, and again after it returns from
+/// the background. Unlocking just hides the overlay; the app underneath was
+/// there all along.
+class _LockGate extends StatefulWidget {
+  const _LockGate({required this.child});
+  final Widget child;
+  @override
+  State<_LockGate> createState() => _LockGateState();
+}
+
+class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
+  bool _locked = AppLock.isPinSet;
+  bool _wasBackgrounded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _wasBackgrounded = true;
+    } else if (state == AppLifecycleState.resumed) {
+      if (_wasBackgrounded && AppLock.isPinSet && !_locked) {
+        setState(() => _locked = true);
+      }
+      _wasBackgrounded = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        widget.child,
+        if (_locked)
+          LockScreen(onUnlocked: () => setState(() => _locked = false)),
+      ],
     );
   }
 }

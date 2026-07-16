@@ -113,6 +113,18 @@ class AppPrefs {
     await _box.put(_kAiChatConsent, value);
   }
 
+  // The user's display name (Settings → profile). Persisted so it survives
+  // reopening the app (was a local field that reset to "Vartotojas").
+  static const _kUserName = 'userName';
+
+  static String get userName => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _box.get(_kUserName, defaultValue: '') as String
+      : '';
+
+  static Future<void> setUserName(String value) async {
+    await _box.put(_kUserName, value.trim());
+  }
+
   static const _kOnboardingComplete = 'onboardingComplete';
 
   /// Whether the post-login "How would you like to start?" choice has been made.

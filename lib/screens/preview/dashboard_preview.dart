@@ -1,14 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/auth_service.dart';
 import '../../app_prefs.dart';
 import '../../content_theme.dart';
+import '../../services/app_lock.dart';
 import '../../services/banking_service.dart';
 import '../../services/dashboard_store.dart';
 import '../../services/logo_service.dart';
@@ -17,6 +22,7 @@ import '../../ui/design_system.dart';
 import '../../user_session.dart';
 import '../bank_connect_screen.dart';
 import '../legal_screen.dart';
+import '../lock_screen.dart';
 import '../login_screen.dart';
 
 /// Bilance-style Dashboard preview, on the user's REAL computed Revolut data.
@@ -3307,17 +3313,6 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     });
   }
 
-  void _reportIssue() {
-    showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: _card,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => const _ReportIssueSheet(),
-    ).then((res) {
-      if (res != null) _toast('Ačiū už pastabą!');
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final similar = _similar;
@@ -3480,9 +3475,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     final chips = <List<dynamic>>[
       [Icons.edit_outlined, 'Redaguoti', _edit],
       [_starred ? Icons.star_rounded : Icons.star_border_rounded, 'Žyma', _toggleStar],
-      [Icons.repeat_rounded, 'Prie pasikartojančių', () => _toast('Prie pasikartojančių — netrukus')],
       [Icons.swap_horiz_rounded, _isTransfer ? 'Į įprastą' : 'Į vidinį pervedimą', _convertTransfer],
-      [Icons.flag_outlined, 'Pranešti klaidą', _reportIssue],
       [Icons.delete_outline_rounded, 'Ištrinti', _delete],
     ];
     return Padding(
@@ -3740,53 +3733,6 @@ class _SelectCategorySheetState extends State<_SelectCategorySheet> {
 // ══════════════════════════════════════════════════════════════════════════════
 // REPORT AN ISSUE sheet
 // ══════════════════════════════════════════════════════════════════════════════
-class _ReportIssueSheet extends StatelessWidget {
-  const _ReportIssueSheet();
-  static const _issues = [
-    [Icons.copy_rounded, 'Sandoris dubliuojasi'],
-    [Icons.payments_outlined, 'Neteisinga suma'],
-    [Icons.exposure_rounded, 'Neteisingas tipas'],
-    [Icons.calendar_today_rounded, 'Neteisinga data'],
-    [Icons.category_outlined, 'Neteisinga kategorija'],
-    [Icons.edit_note_rounded, 'Problema su pavadinimu'],
-    [Icons.repeat_rounded, 'Problema su pasikartojimu'],
-    [Icons.more_horiz_rounded, 'Kažkas kita'],
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Row(children: [
-              GestureDetector(onTap: () => Navigator.pop(context), child: Padding(padding: const EdgeInsets.only(right: 14), child: Icon(Icons.close_rounded, size: 24, color: _ink))),
-              Text('Pranešti apie klaidą', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
-            ]),
-          ),
-          for (final it in _issues) ...[
-            InkWell(
-              onTap: () => Navigator.pop(context, it[1] as String),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                child: Row(children: [
-                  Icon(it[0] as IconData, size: 22, color: _purple),
-                  const SizedBox(width: 16),
-                  Text(it[1] as String, style: TextStyle(fontSize: 16, color: _ink)),
-                ]),
-              ),
-            ),
-            Divider(height: 1, thickness: 1, color: _hair, indent: 20, endIndent: 20),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // MONTH IN REVIEW — full screen (opened from the dashboard review card)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3901,7 +3847,6 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             children: [
               IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.white)),
               Expanded(child: Text('${widget.monthGen} apžvalga', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white))),
-              const Icon(Icons.help_outline_rounded, size: 24, color: Colors.white),
             ],
           ),
         ),
@@ -4705,18 +4650,6 @@ class _CategoryDetailScreen extends StatelessWidget {
                       ),
                       if (i != subList.length - 1) const RowDivider(indent: 66),
                     ],
-                    InkWell(
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Kategorijų tvarkymas — netrukus'), duration: Duration(milliseconds: 1500))),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        child: Row(children: [
-                          Icon(Icons.create_new_folder_outlined, size: 22, color: _purple),
-                          SizedBox(width: 14),
-                          Text('Redaguoti / pridėti kategorijas', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _purple)),
-                        ]),
-                      ),
-                    ),
                   ]),
                 ),
                 const SizedBox(height: 14),
@@ -5048,18 +4981,6 @@ class _OverviewTabState extends State<_OverviewTab> {
               ),
               if (i != secs.length - 1) const RowDivider(indent: 66),
             ],
-            InkWell(
-              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Kategorijų tvarkymas — netrukus'), duration: Duration(milliseconds: 1500))),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                child: Row(children: [
-                  Icon(Icons.create_new_folder_outlined, size: 22, color: _purple),
-                  SizedBox(width: 14),
-                  Text('Redaguoti / pridėti kategorijas', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _purple)),
-                ]),
-              ),
-            ),
           ]),
         ),
       ]),
@@ -5327,7 +5248,6 @@ class _SavingsRateScreen extends StatelessWidget {
             child: Row(children: [
               IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: _ink)),
               Expanded(child: Text('Santaupų norma', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _ink))),
-              Icon(Icons.help_outline_rounded, size: 24, color: _muted),
             ]),
           ),
           Expanded(
@@ -5351,7 +5271,7 @@ class _SavingsRateScreen extends StatelessWidget {
                         Text('${_monNom[curMon - 1]} santaupos', style: TextStyle(fontSize: 13, color: _muted)),
                         const SizedBox(height: 6),
                         Row(children: [
-                          Container(width: 26, height: 26, alignment: Alignment.center, decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.help_outline_rounded, size: 15, color: Colors.white)),
+                          Container(width: 26, height: 26, alignment: Alignment.center, decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.savings_outlined, size: 15, color: Colors.white)),
                           const SizedBox(width: 8),
                           Text(earned > 0 ? '${(earned * savings / 100).round()} €' : '—', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                         ]),
@@ -5567,8 +5487,6 @@ class _PlanningTabState extends State<_PlanningTab> {
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
         child: Row(children: [
           Text('Planavimas', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-          const Spacer(),
-          Icon(Icons.visibility_outlined, size: 25, color: _ink),
         ]),
       );
 
@@ -6407,9 +6325,11 @@ class _AccountTabState extends State<_AccountTab> {
   double get _netWorth => _bankBalance + _assetsSum;
   List<Map<String, dynamic>> get _accounts => ((widget.balance['accounts'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
-  void _soon() => ScaffoldMessenger.of(context)
+  void _soon() => _snack('Netrukus');
+
+  void _snack(String m) => ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(const SnackBar(content: Text('Netrukus'), duration: Duration(milliseconds: 1400)));
+    ..showSnackBar(SnackBar(content: Text(m), duration: const Duration(milliseconds: 1600)));
 
   @override
   Widget build(BuildContext context) {
@@ -6434,7 +6354,6 @@ class _AccountTabState extends State<_AccountTab> {
           _totalBalanceCard(thin),
           _accountsCard(),
           _feedbackCard(),
-          _socialFooter(),
         ],
       ),
     );
@@ -6444,20 +6363,6 @@ class _AccountTabState extends State<_AccountTab> {
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
         child: Row(children: [
           Text('Paskyra', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(20)),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.card_giftcard_rounded, size: 15, color: Colors.white),
-              SizedBox(width: 6),
-              Text('Kviesk draugus', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
-            ]),
-          ),
-          const SizedBox(width: 12),
-          Icon(Icons.visibility_outlined, size: 24, color: _ink),
-          const SizedBox(width: 12),
-          Icon(Icons.help_outline_rounded, size: 24, color: _ink),
         ]),
       );
 
@@ -6784,7 +6689,7 @@ class _AccountTabState extends State<_AccountTab> {
             ]),
           ),
           GestureDetector(
-            onTap: _soon,
+            onTap: _feedback,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _purple)),
@@ -6794,20 +6699,20 @@ class _AccountTabState extends State<_AccountTab> {
         ]),
       );
 
-  Widget _socialFooter() => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-        child: Column(children: [
-          Text('Sek naujienas apie Vaultie', textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, color: _muted)),
-          const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.camera_alt_outlined, size: 22, color: _muted),
-            const SizedBox(width: 22),
-            Icon(Icons.work_outline_rounded, size: 22, color: _muted),
-            const SizedBox(width: 22),
-            Icon(Icons.facebook_rounded, size: 22, color: _muted),
-          ]),
-        ]),
-      );
+  Future<void> _feedback() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'labas@vaultie.app',
+      queryParameters: {'subject': 'Vaultie atsiliepimas'},
+    );
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (mounted) _snack('Parašyk mums: labas@vaultie.app');
+      }
+    } catch (_) {
+      if (mounted) _snack('Parašyk mums: labas@vaultie.app');
+    }
+  }
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
@@ -6818,13 +6723,42 @@ class _SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<_SettingsScreen> {
-  String _name = 'Vartotojas';
-  String _currency = 'Euras (EUR)';
+  String _name = AppPrefs.userName.isEmpty ? 'Vartotojas' : AppPrefs.userName;
+  String _currency = _currencyLabel(AppPrefs.currency.value);
   String _theme = _darkMode ? 'Tamsi' : 'Šviesi';
-  String _country = 'Lietuva';
-  int _firstDay = 1;
-  bool _pin = false, _faceId = false, _inactivity = false, _newTxn = false;
+  bool _pin = AppLock.isPinSet;
+  bool _faceId = AppLock.faceIdEnabled;
+  bool _faceAvailable = false;
+  bool _notif = AppPrefs.notificationsEnabled;
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Hide the Face ID toggle where the device can't do biometrics.
+    AppLock.canUseBiometrics().then((ok) {
+      if (mounted) setState(() => _faceAvailable = ok);
+    });
+  }
+
+  // The label shown for a stored currency symbol.
+  static String _currencyLabel(String symbol) {
+    switch (symbol) {
+      case 'kr':
+        return 'Norvegijos krona (NOK)';
+      case '\$':
+        return 'JAV doleris (USD)';
+      default:
+        return 'Euras (EUR)';
+    }
+  }
+
+  String get _langLabel {
+    final code = AppPrefs.locale.value?.languageCode;
+    if (code == 'lt') return 'Lietuvių';
+    if (code == 'en') return 'English';
+    return 'Sistemos numatytoji';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -6842,35 +6776,25 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         padding: const EdgeInsets.only(bottom: 30),
         children: [
           _profile(),
-          _group('Bendrinimas', [
-            _navItem(Icons.card_giftcard_rounded, 'Rekomendacijos', 'Kviesk draugus ir gauk dovanų'),
-            _navItem(Icons.group_rounded, 'Bendri finansai', 'Susisiek su kitais'),
-          ]),
           _group('Privatumas', [
-            _toggleItem(Icons.lock_outline_rounded, 'PIN kodas', 'Atrakink Vaultie su PIN', _pin, (v) => setState(() => _pin = v)),
-            _toggleItem(Icons.face_retouching_natural_rounded, 'Face ID atrakinimas', 'Įjunk PIN, kad naudotum Face ID', _faceId && _pin, _pin ? (v) => setState(() => _faceId = v) : null),
-          ]),
-          _group('Pagalba', [
-            _navItem(Icons.help_outline_rounded, 'Pagalba', 'Pagalbos centras'),
-            _navItem(Icons.chat_bubble_outline_rounded, 'Atsiliepimai', 'Pasakyk, ką galvoji'),
+            _toggleItem(Icons.lock_outline_rounded, 'PIN kodas', 'Atrakink Vaultie su PIN', _pin, _togglePin),
+            if (_faceAvailable)
+              _toggleItem(Icons.face_retouching_natural_rounded, 'Face ID atrakinimas',
+                  _pin ? 'Atrakink Vaultie veidu' : 'Įjunk PIN, kad naudotum Face ID',
+                  _faceId && _pin, _pin ? _toggleFaceId : null),
           ]),
           _group('Nustatymai', [
             _valueItem('€', 'Numatytoji valiuta', _currency, _pickCurrency),
-            _valueItem('LT', 'Gyvenamoji šalis', _country, _pickCountry),
-            _valueItem('EN', 'Kalba', 'Keisti programos kalbą', _soon),
+            _valueItem('LT', 'Kalba', _langLabel, _pickLanguage),
             _iconValueItem(Icons.brightness_6_rounded, 'Tema', _theme, _pickTheme),
-            _iconValueItem(Icons.calendar_today_rounded, 'Mėnesio pradžia', 'Mėnuo prasideda $_firstDay d.', _pickFirstDay),
-            _toggleItem(Icons.notifications_none_rounded, 'Neaktyvumo priminimas', 'Priminti pasitikrinti Vaultie', _inactivity, (v) => setState(() => _inactivity = v)),
-            _toggleItem(Icons.notifications_active_outlined, 'Naujų sandorių pranešimai', 'Periodiškai pranešti apie naujus', _newTxn, (v) => setState(() => _newTxn = v)),
+            _toggleItem(Icons.notifications_none_rounded, 'Pranešimai', 'Priminimai apie mokėjimus', _notif, _toggleNotif),
           ]),
           _group('Paskyra', [
             _navItem(Icons.workspace_premium_rounded, 'Vaultie prenumerata', 'Atsiskaitymo informacija', onTap: _subInfo),
-            _navItem(Icons.grid_on_rounded, 'Eksportuoti sandorius', 'Atsisiųsk CSV ar kopijuok'),
+            _navItem(Icons.grid_on_rounded, 'Eksportuoti sandorius', 'Atsisiųsk CSV', onTap: _exportCsv),
+            _navItem(Icons.chat_bubble_outline_rounded, 'Atsiliepimai', 'Pasakyk, ką galvoji', onTap: _sendFeedback),
             _navItem(Icons.logout_rounded, 'Atsijungti', 'Grįžti į prisijungimą', onTap: _signOut),
             _navItem(Icons.delete_outline_rounded, 'Ištrinti paskyrą', 'Ištrink savo Vaultie paskyrą', onTap: _confirmDelete),
-          ]),
-          _group('Papildoma', [
-            _navItem(Icons.delete_sweep_outlined, 'Ištrinti senus sandorius', 'Paliesk plačiau'),
           ]),
           _group('Dokumentai', [
             _navItem(Icons.description_outlined, 'Naudojimo sąlygos', '',
@@ -6946,6 +6870,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
 
   void _saveName(BuildContext ctx, String v) {
     final n = v.trim();
+    AppPrefs.setUserName(n);
     setState(() => _name = n.isEmpty ? 'Vartotojas' : n);
     Navigator.pop(ctx);
   }
@@ -7047,15 +6972,29 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     ];
     _sheet('Numatytoji valiuta', [
       for (final o in opts)
-        _radioRow(o[0], o[2], o[1], _currency == o[0], () => setState(() { _currency = o[0]; Navigator.pop(context); })),
+        _radioRow(o[0], o[2], o[1], _currency == o[0], () {
+          AppPrefs.setCurrency(o[1]);
+          setState(() => _currency = o[0]);
+          Navigator.pop(context);
+        }),
     ]);
   }
 
-  void _pickCountry() {
-    const opts = ['Lietuva', 'Latvija', 'Estija', 'Norvegija'];
-    _sheet('Gyvenamoji šalis', [
-      for (final c in opts)
-        _radioRow(c, '', '', _country == c, () => setState(() { _country = c; Navigator.pop(context); })),
+  void _pickLanguage() {
+    // Manual choice wins over the device Region default; the app rebuilds via
+    // the AppPrefs.locale notifier.
+    final opts = <List<dynamic>>[
+      ['Sistemos numatytoji', null],
+      ['Lietuvių', const Locale('lt')],
+      ['English', const Locale('en')],
+    ];
+    _sheet('Kalba', [
+      for (final o in opts)
+        _radioRow(o[0] as String, '', '', _langLabel == o[0], () {
+          AppPrefs.setLocale(o[1] as Locale?);
+          setState(() {});
+          Navigator.pop(context);
+        }),
     ]);
   }
 
@@ -7091,55 +7030,101 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     ]);
   }
 
-  void _pickFirstDay() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: _card,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
-      builder: (_) => StatefulBuilder(builder: (ctx, setSheet) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              GestureDetector(onTap: () => Navigator.pop(ctx), child: Icon(Icons.close_rounded, color: _ink)),
-              const SizedBox(width: 14),
-              Text('Mėnesio pirma diena', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => Navigator.pop(ctx),
-                child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: _purpleSoft, shape: BoxShape.circle), child: const Icon(Icons.check_rounded, size: 20, color: _purple)),
-              ),
-            ]),
-            const SizedBox(height: 14),
-            Text('Pasirink, kada prasideda tavo išlaidų ir pajamų sekimas — pvz. atlyginimo dieną.',
-                style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
-            const SizedBox(height: 18),
-            GridView.count(
-              crossAxisCount: 7,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 6,
-              crossAxisSpacing: 6,
-              children: [
-                for (var d = 1; d <= 31; d++)
-                  GestureDetector(
-                    onTap: () { setSheet(() {}); setState(() => _firstDay = d); },
-                    child: Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _firstDay == d ? _ink : Colors.transparent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text('$d', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _firstDay == d ? Colors.white : _ink)),
-                    ),
-                  ),
-              ],
-            ),
-          ]),
-        );
-      }),
+  // ── PIN / Face ID ────────────────────────────────────────────────────────
+  Future<void> _togglePin(bool on) async {
+    if (on) {
+      // Set a new PIN: enter + confirm on the dedicated pad.
+      final pin = await Navigator.of(context).push<String>(
+        MaterialPageRoute(fullscreenDialog: true, builder: (_) => const PinSetupScreen()),
+      );
+      if (pin == null || pin.isEmpty) return; // cancelled
+      await AppLock.setPin(pin);
+      if (mounted) setState(() => _pin = true);
+    } else {
+      // Removing the PIN also disables Face ID. The user already passed the lock
+      // to reach Settings, so a plain confirm is enough here.
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: _card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Išjungti PIN?', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+          content: Text('Vaultie nebebus užrakinta. Galėsi bet kada vėl įjungti PIN.',
+              style: TextStyle(color: _muted, height: 1.45)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Išjungti', style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      await AppLock.clearPin();
+      if (mounted) setState(() { _pin = false; _faceId = false; });
+    }
+  }
+
+  Future<void> _toggleFaceId(bool on) async {
+    await AppLock.setFaceId(on);
+    if (mounted) setState(() => _faceId = on && _pin);
+  }
+
+  Future<void> _toggleNotif(bool on) async {
+    await AppPrefs.setNotificationsEnabled(on);
+    if (mounted) setState(() => _notif = on);
+  }
+
+  // ── CSV export + feedback ────────────────────────────────────────────────
+  Future<void> _exportCsv() async {
+    final dash = DashboardStore.load();
+    final all = ((dash?['all'] as List?) ?? const [])
+        .whereType<Map>()
+        .toList();
+    if (all.isEmpty) {
+      _snack('Nėra sandorių eksportui');
+      return;
+    }
+    String cell(Object? v) {
+      final s = (v ?? '').toString().replaceAll('"', '""');
+      return '"$s"';
+    }
+    final buf = StringBuffer('Data,Pavadinimas,Suma,Kategorija,Pakategorė\n');
+    final rows = List<Map>.from(all)
+      ..sort((a, b) => (b['d'] ?? '').toString().compareTo((a['d'] ?? '').toString()));
+    for (final t in rows) {
+      buf.writeln([
+        cell(t['d']),
+        cell(t['nm']),
+        cell((t['a'] as num?)?.toStringAsFixed(2) ?? ''),
+        cell(t['sec']),
+        cell(t['sub']),
+      ].join(','));
+    }
+    try {
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/vaultie_sandoriai.csv');
+      await file.writeAsString(buf.toString());
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], subject: 'Vaultie sandoriai'),
+      );
+    } catch (_) {
+      if (mounted) _snack('Nepavyko eksportuoti');
+    }
+  }
+
+  Future<void> _sendFeedback() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'labas@vaultie.app',
+      queryParameters: {'subject': 'Vaultie atsiliepimas'},
     );
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (mounted) _snack('Parašyk mums: labas@vaultie.app');
+      }
+    } catch (_) {
+      if (mounted) _snack('Parašyk mums: labas@vaultie.app');
+    }
   }
 
   void _subInfo() {
