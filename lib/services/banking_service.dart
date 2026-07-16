@@ -187,6 +187,18 @@ class BankingService {
   final FirebaseFunctions _functions =
       FirebaseFunctions.instanceFor(region: 'europe-west1');
 
+  /// Ask the AI finance assistant a question. [summary] is a compact, PII-free
+  /// snapshot of the user's finances built on-device; [messages] is the
+  /// conversation so far as `{role, text}` maps. Returns the assistant's reply.
+  Future<String> financeChat({
+    required String summary,
+    required List<Map<String, String>> messages,
+  }) {
+    return _call('finance_chat', {'summary': summary, 'messages': messages},
+        (m) => (m['reply'] as String?)?.trim() ?? '',
+        timeout: const Duration(seconds: 60));
+  }
+
   Future<T> _call<T>(String name, Map<String, dynamic> data,
       T Function(Map<Object?, Object?>) parse, {Duration? timeout}) async {
     try {

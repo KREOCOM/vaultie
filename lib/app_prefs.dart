@@ -98,6 +98,19 @@ class AppPrefs {
     await _box.put(_kAiEnrichment, value);
   }
 
+  // Whether the user accepted the one-time AI-chat disclosure (their finance
+  // summary is sent to the AI provider to answer questions; not used for
+  // training; not financial advice). Gates the first use of the AI chat.
+  static const _kAiChatConsent = 'aiChatConsent';
+
+  static bool get aiChatConsent => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _box.get(_kAiChatConsent, defaultValue: false) as bool
+      : false;
+
+  static Future<void> setAiChatConsent(bool value) async {
+    await _box.put(_kAiChatConsent, value);
+  }
+
   static const _kOnboardingComplete = 'onboardingComplete';
 
   /// Whether the post-login "How would you like to start?" choice has been made.

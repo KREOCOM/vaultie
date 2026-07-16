@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/auth_service.dart';
+import '../../app_prefs.dart';
 import '../../services/banking_service.dart';
 import '../../services/dashboard_store.dart';
 import '../../services/logo_service.dart';
@@ -497,7 +498,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           balance: _d['balance'] as Map<String, dynamic>,
           budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
         ),
-        _placeholder('AI Chat'),
+        _AiChatTab(data: _d),
         _PlanningTab(
           all: (_d['all'] as List).cast<Map<String, dynamic>>(),
           subs: _d['subs'] as Map<String, dynamic>,
@@ -1547,29 +1548,6 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   }
 
   // ── PLACEHOLDER ──────────────────────────────────────────────────────────────
-  Widget _placeholder(String name) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 44),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 66,
-              height: 66,
-              decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(20)),
-              child: const Icon(Icons.auto_awesome_rounded, size: 32, color: _purple),
-            ),
-            const SizedBox(height: 14),
-            Text(name, style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink)),
-            const SizedBox(height: 6),
-            Text('Šis ekranas dar projektuojamas.\nKitas žingsnis — po Dashboard patvirtinimo.',
-                textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: _muted, height: 1.45)),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _navBar() {
     const items = [
@@ -7252,6 +7230,371 @@ class _SearchScreenState extends State<_SearchScreen> {
                       ),
                   ],
                 ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AI FINANCE CHAT — the "AI pokalbis" tab
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Builds a compact, PRIVACY-SAFE summary of the user's finances to send to the
+/// AI. Only aggregates leave the phone: category totals, subscription names +
+/// amounts, and per-bank balances. NEVER raw transactions, IBANs, or the names
+/// of people the user paid — transfers are summed as one anonymous line, never
+/// itemised. This is the whole payload the assistant ever sees.
+String buildFinanceSummary(Map<String, dynamic> d) {
+  final b = StringBuffer();
+  num n(v) => (v is num) ? v : 0;
+
+  // ── Balances (per bank, no IBANs) ──
+  final bal = (d['balance'] as Map?) ?? const {};
+  final accts = ((bal['accounts'] as List?) ?? const []).whereType<Map>().toList();
+  b.writeln('BALANSAS: ${_eur(n(bal['current']))} iš viso.');
+  for (final a in accts) {
+    final bank = (a['bank'] ?? a['name'] ?? 'Sąskaita').toString();
+    b.writeln('  - $bank: ${_eur(n(a['amount']))}');
+  }
+
+  // ── This month's spending by category (canonical: outflow, non-transfer) ──
+  final all = ((d['all'] as List?) ?? const []).whereType<Map>().toList();
+  String monthOf(Map t) => (t['d'] as String? ?? '').padRight(7).substring(0, 7);
+  final months = all.map(monthOf).where((m) => m.trim().isNotEmpty).toList()..sort();
+  final month = months.isNotEmpty ? months.last : '';
+  final byCat = <String, double>{};
+  double income = 0, spent = 0;
+  for (final t in all) {
+    if (monthOf(t) != month) continue;
+    final sec = (t['sec'] as String? ?? '');
+    final isTransfer = sec == 'Pervedimai' || t['col'] == 'transfer';
+    if (isTransfer) continue;
+    final a = n(t['a']).toDouble();
+    if (a < 0) {
+      spent += -a;
+      final cat = (t['cat'] as String? ?? 'Kita');
+      byCat[cat] = (byCat[cat] ?? 0) + -a;
+    } else if (a > 0 && t['pos'] == true) {
+      income += a;
+    }
+  }
+  if (month.isNotEmpty) {
+    b.writeln('\nŠIS MĖNUO ($month):');
+    b.writeln('  Išlaidos: ${_eur(spent)}');
+    if (income > 0) b.writeln('  Pajamos: ${_eur(income)}');
+    final cats = byCat.entries.toList()..sort((x, y) => y.value.compareTo(x.value));
+    if (cats.isNotEmpty) {
+      b.writeln('  Išlaidos pagal kategoriją:');
+      for (final e in cats.take(12)) {
+        b.writeln('    - ${e.key}: ${_eur(e.value)}');
+      }
+    }
+  }
+
+  // ── Recurring commitments (active, non-transfer; names are merchants) ──
+  final subs = (d['subs'] as Map?) ?? const {};
+  final items = ((subs['items'] as List?) ?? const []).whereType<Map>()
+      .where((it) => it['active'] == true && it['type'] != 'transfer')
+      .toList()
+    ..sort((x, y) => n(y['monthly']).compareTo(n(x['monthly'])));
+  if (items.isNotEmpty) {
+    final total = items.fold<double>(0, (s, it) => s + n(it['monthly']).toDouble());
+    b.writeln('\nPRENUMERATOS IR SĄSKAITOS (${_eur(total)} per mėn.):');
+    for (final it in items.take(20)) {
+      final name = (it['name'] ?? '—').toString();
+      final cycle = (it['cycle'] ?? 'monthly').toString();
+      b.writeln('  - $name: ${_eur(n(it['monthly']))}/mėn (ciklas: $cycle)');
+    }
+  }
+
+  return b.toString().trim();
+}
+
+class _AiChatTab extends StatefulWidget {
+  const _AiChatTab({required this.data});
+  final Map<String, dynamic> data;
+  @override
+  State<_AiChatTab> createState() => _AiChatTabState();
+}
+
+class _ChatMsg {
+  _ChatMsg(this.role, this.text);
+  final String role; // 'user' | 'assistant'
+  final String text;
+}
+
+class _AiChatTabState extends State<_AiChatTab> {
+  final _input = TextEditingController();
+  final _scroll = ScrollController();
+  final _msgs = <_ChatMsg>[];
+  bool _sending = false;
+
+  // A few tappable starters so the empty state isn't a blank box.
+  static const _starters = [
+    'Kiek išleidau šį mėnesį?',
+    'Kokia mano brangiausia prenumerata?',
+    'Kur galėčiau sutaupyti?',
+    'Į ką daugiausiai išleidžiu?',
+  ];
+
+  @override
+  void dispose() {
+    _input.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _ensureConsent() async {
+    if (AppPrefs.aiChatConsent) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text('AI pokalbis apie tavo finansus',
+            style: TextStyle(fontWeight: FontWeight.w800, color: _ink, fontSize: 19)),
+        content: Text(
+          'Kad atsakytų į klausimus, appsas siunčia mūsų AI tiekėjui (Anthropic) '
+          'TAVO finansų SANTRAUKĄ — kategorijų sumas, prenumeratas ir banko '
+          'likučius.\n\n'
+          '• Nesiunčiami atskiri sandoriai, IBAN‑ai ar žmonių vardai.\n'
+          '• Duomenys NENAUDOJAMI dirbtinio intelekto treniravimui.\n'
+          '• Tai nėra finansinė konsultacija.',
+          style: TextStyle(color: _muted, height: 1.5, fontSize: 14.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Atšaukti', style: TextStyle(color: _muted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sutinku ir tęsiu',
+                style: TextStyle(color: _purple, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await AppPrefs.setAiChatConsent(true);
+  }
+
+  Future<void> _send(String raw) async {
+    final text = raw.trim();
+    if (text.isEmpty || _sending) return;
+    await _ensureConsent();
+    if (!AppPrefs.aiChatConsent || !mounted) return;
+
+    setState(() {
+      _msgs.add(_ChatMsg('user', text));
+      _sending = true;
+      _input.clear();
+    });
+    _scrollToEnd();
+
+    try {
+      final history = _msgs.map((m) => {'role': m.role, 'text': m.text}).toList();
+      final reply = await BankingService.instance.financeChat(
+        summary: buildFinanceSummary(widget.data),
+        messages: history,
+      );
+      if (!mounted) return;
+      setState(() => _msgs.add(_ChatMsg('assistant',
+          reply.isEmpty ? 'Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą.' : reply)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _msgs.add(_ChatMsg('assistant',
+          'Nepavyko susisiekti su serveriu. Patikrink ryšį ir bandyk dar kartą.')));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+      _scrollToEnd();
+    }
+  }
+
+  void _scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.animateTo(_scroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBank = DashboardStore.bankCount > 0 || (widget.data['all'] as List?)?.isNotEmpty == true;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          child: Row(children: [
+            Container(
+              width: 40, height: 40, alignment: Alignment.center,
+              decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(13)),
+              child: const Icon(Icons.auto_awesome_rounded, color: _purple, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('AI pokalbis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+                Text('Klausk apie savo pinigus', style: TextStyle(fontSize: 13, color: _muted)),
+              ]),
+            ),
+          ]),
+        ),
+        Expanded(
+          child: _msgs.isEmpty
+              ? _emptyState(hasBank)
+              : ListView.builder(
+                  controller: _scroll,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  itemCount: _msgs.length + (_sending ? 1 : 0),
+                  itemBuilder: (_, i) {
+                    if (i >= _msgs.length) return _typing();
+                    return _bubble(_msgs[i]);
+                  },
+                ),
+        ),
+        _composer(hasBank),
+      ],
+    );
+  }
+
+  Widget _emptyState(bool hasBank) {
+    if (!hasBank) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text('Prijunk banką, kad galėčiau atsakyti apie tavo finansus.',
+              textAlign: TextAlign.center, style: TextStyle(color: _muted, height: 1.5, fontSize: 15)),
+        ),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      children: [
+        Text('Pabandyk paklausti:',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _muted)),
+        const SizedBox(height: 12),
+        for (final s in _starters)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: GestureDetector(
+              onTap: () => _send(s),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: _card,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _hair),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.chat_bubble_outline_rounded, size: 17, color: _purple),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(s, style: TextStyle(fontSize: 15, color: _ink))),
+                ]),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _bubble(_ChatMsg m) {
+    final isUser = m.role == 'user';
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+        decoration: BoxDecoration(
+          color: isUser ? _purple : _card,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isUser ? 18 : 5),
+            bottomRight: Radius.circular(isUser ? 5 : 18),
+          ),
+          border: isUser ? null : Border.all(color: _hair),
+        ),
+        child: Text(m.text,
+            style: TextStyle(
+                fontSize: 15,
+                height: 1.42,
+                color: isUser ? Colors.white : _ink)),
+      ),
+    );
+  }
+
+  Widget _typing() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _hair),
+        ),
+        child: SizedBox(
+          width: 34,
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            for (var i = 0; i < 3; i++)
+              Container(width: 7, height: 7,
+                  decoration: BoxDecoration(color: _muted.withValues(alpha: 0.5), shape: BoxShape.circle)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _composer(bool hasBank) {
+    final bottomPad = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(14, 8, 14, 8 + (bottomPad > 0 ? 8 : 0)),
+      decoration: BoxDecoration(
+        color: _card,
+        border: Border(top: BorderSide(color: _hair)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _input,
+              enabled: hasBank && !_sending,
+              minLines: 1,
+              maxLines: 4,
+              textInputAction: TextInputAction.send,
+              onSubmitted: _send,
+              style: TextStyle(fontSize: 15, color: _ink),
+              decoration: InputDecoration(
+                hintText: hasBank ? 'Klausk apie savo finansus…' : 'Pirma prijunk banką',
+                hintStyle: TextStyle(color: _muted),
+                filled: true,
+                fillColor: _bg,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: (hasBank && !_sending) ? () => _send(_input.text) : null,
+            child: Container(
+              width: 46, height: 46, alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: (hasBank && !_sending) ? _purple : _muted.withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 22),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }

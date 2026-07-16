@@ -24,6 +24,7 @@ from firebase_functions.params import SecretParam
 
 from dashboard import build_dashboard
 from enable_banking import DEFAULT_COUNTRY, EnableBankingClient, EnableBankingError
+from finance_chat import chat as _finance_chat
 from known_cache import merge_known as _merge_known
 from recurring import detect_recurring
 from seed_merchants import seed as _run_seed
@@ -456,6 +457,31 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
         months_back)
     return _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled,
                          stale_banks=stale)
+
+
+@https_fn.on_call(
+    region=_REGION,
+    secrets=[ANTHROPIC_API_KEY],
+    timeout_sec=60,
+    memory=options.MemoryOption.MB_256,
+)
+def finance_chat(req: https_fn.CallableRequest) -> dict:
+    """Answer a signed-in user's question about their own finances.
+
+    The client sends ``{summary, messages}`` — a compact, PII-free finance
+    summary it built from the on-device dashboard, plus the conversation so far.
+    Nothing is persisted; the summary lives only for this request. Uses Haiku
+    (cheap) with the ANTHROPIC secret; if the key/credits are unavailable the
+    chat module returns a graceful fallback rather than raising.
+    """
+    _require_auth(req)
+    data = req.data or {}
+    reply = _finance_chat(
+        summary=str(data.get("summary") or ""),
+        history=data.get("messages") or [],
+        api_key=ANTHROPIC_API_KEY.value,
+    )
+    return {"reply": reply}
 
 
 @https_fn.on_request(region=_REGION, secrets=[SEED_TOKEN])
