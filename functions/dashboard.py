@@ -542,10 +542,9 @@ SEC_ORDER = ["Maistas, gėrimai", "Transportas", "Apsipirkimas", "Būstas, sąsk
 
 
 def _week(txns, salary_refs, resolve_cat, today, own_ibans=None):
-    latest = max(t["booking_date"] for t in txns)
-    ly, lm, ld = map(int, latest.split("-"))
-    d0 = dt.date(ly, lm, ld)
-    monday = d0 - dt.timedelta(days=d0.weekday())
+    # Anchor to the CURRENT calendar week (today's Monday) so "this week's
+    # spending" is genuinely this week, not the week of the latest transaction.
+    monday = today - dt.timedelta(days=today.weekday())
     bydate = defaultdict(list)
     for t in txns:
         bydate[t["booking_date"]].append(t)

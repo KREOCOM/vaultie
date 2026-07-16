@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -1900,15 +1902,12 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // so a manual entry in the current week shows up there too — same expenses-
   // only rule as the day/month headers.
   Map<String, dynamic> _computeWeek(List<Map<String, dynamic>> all) {
-    if (all.isEmpty) return {'total': 0.0, 'days': <Map<String, dynamic>>[], 'range': ''};
-    var maxD = '';
-    for (final t in all) {
-      final d = t['d'] as String;
-      if (d.compareTo(maxD) > 0) maxD = d;
-    }
-    final latest = DateTime.parse(maxD);
-    final monday = DateTime(latest.year, latest.month, latest.day)
-        .subtract(Duration(days: latest.weekday - 1));
+    // Anchor to the CURRENT calendar week (today's Monday) so "Šios savaitės
+    // išlaidos" is genuinely this week — even if there's been no spending yet —
+    // rather than the week of the most recent transaction.
+    final now = DateTime.now();
+    final monday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
     const wdShort = ['Pr', 'An', 'Tr', 'Kt', 'Pn', 'Št', 'Sk'];
     final days = <Map<String, dynamic>>[];
     var weekTotal = 0.0;
@@ -4712,11 +4711,12 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
   // ── AVERAGE DAILY SPENDING ──
   int get _elapsedDays {
-    final latest = widget.all.map((t) => t['d'] as String).reduce((a, b) => a.compareTo(b) > 0 ? a : b);
-    if (latest.startsWith(widget.month)) {
-      return (int.parse(latest.substring(8, 10)) + 1).clamp(1, _daysInMonth); // current month → days elapsed
-    }
-    return _daysInMonth; // completed month → full month
+    final now = DateTime.now();
+    final curCal = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    // Current calendar month → days elapsed so far (today's day); any earlier
+    // month is complete → full month. (Was latest-tx-day + 1, off by one.)
+    if (widget.month == curCal) return now.day.clamp(1, _daysInMonth);
+    return _daysInMonth;
   }
 
   Widget _avgDaily(List<_SecAgg> expenseSecs) {
@@ -5473,8 +5473,10 @@ class _OverviewTabState extends State<_OverviewTab> {
   Widget _avgDaily(List<_SecAgg> exp) {
     final y = int.parse(_curKey.substring(0, 4));
     final daysInMonth = DateTime(y, _curMon + 1, 0).day;
-    final latestDay = _rows.map((t) => int.parse((t['d'] as String).substring(8, 10))).fold(1, (a, b) => b > a ? b : a);
-    final days = (latestDay + 1).clamp(1, daysInMonth);
+    final now = DateTime.now();
+    final curCal = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    // Current month → days elapsed so far; earlier month → full month.
+    final days = (_curKey == curCal ? now.day : daysInMonth).clamp(1, daysInMonth);
     final totalAvg = exp.fold(0.0, (s, x) => s - x.net) / days;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
@@ -5729,8 +5731,11 @@ class _PlanningTabState extends State<_PlanningTab> {
 
   int get _daysInMonth => DateTime(_curYear, _curMon + 1, 0).day;
   int get _elapsedDays {
-    final latest = _rows.map((t) => int.parse((t['d'] as String).substring(8, 10))).fold(1, (a, b) => b > a ? b : a);
-    return (latest + 1).clamp(1, _daysInMonth);
+    final now = DateTime.now();
+    final curCal = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    // Current month → days elapsed so far; earlier month → full month.
+    if (_curKey == curCal) return now.day.clamp(1, _daysInMonth);
+    return _daysInMonth;
   }
 
   // section label → colour key / icon (looked up from any tx in that section)
@@ -7171,7 +7176,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           ]),
           _group('Paskyra', [
             _navItem(Icons.workspace_premium_rounded, 'Vaultie prenumerata', 'Atsiskaitymo informacija', onTap: _subInfo),
-            _navItem(Icons.grid_on_rounded, 'Eksportuoti sandorius', 'Atsisiųsk CSV', onTap: _exportCsv),
+            _navItem(Icons.grid_on_rounded, 'Eksportuoti sandorius', 'Atsisiųsk CSV ar PDF', onTap: _exportChooser),
             _navItem(Icons.chat_bubble_outline_rounded, 'Atsiliepimai', 'Pasakyk, ką galvoji', onTap: _sendFeedback),
             _navItem(Icons.logout_rounded, 'Atsijungti', 'Grįžti į prisijungimą', onTap: _signOut),
             _navItem(Icons.delete_outline_rounded, 'Ištrinti paskyrą', 'Ištrink savo Vaultie paskyrą', onTap: _confirmDelete),
@@ -7459,6 +7464,83 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   }
 
   // ── CSV export + feedback ────────────────────────────────────────────────
+  void _exportChooser() {
+    _sheet('Eksportuoti sandorius', [
+      _navItem(Icons.grid_on_rounded, 'CSV', 'Skaičiuoklei (Excel, Numbers)',
+          onTap: () { Navigator.pop(context); _exportCsv(); }),
+      const RowDivider(indent: 62),
+      _navItem(Icons.picture_as_pdf_outlined, 'PDF', 'Spausdinti ar dalintis ataskaita',
+          onTap: () { Navigator.pop(context); _exportPdf(); }),
+    ]);
+  }
+
+  List<Map> _exportRows() {
+    final dash = DashboardStore.load();
+    final all = ((dash?['all'] as List?) ?? const []).whereType<Map>().toList();
+    return List<Map>.from(all)
+      ..sort((a, b) => (b['d'] ?? '').toString().compareTo((a['d'] ?? '').toString()));
+  }
+
+  Future<void> _exportPdf() async {
+    final rows = _exportRows();
+    if (rows.isEmpty) {
+      _snack('Nėra sandorių eksportui');
+      return;
+    }
+    try {
+      // Load Lato (bundled) so Lithuanian diacritics render — the PDF built-in
+      // fonts don't cover ą/č/ę/ė/į/š/ų/ū/ž.
+      final base = pw.Font.ttf(await rootBundle.load('assets/fonts/Lato-Regular.ttf'));
+      final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/Lato-Bold.ttf'));
+      final doc = pw.Document();
+      final total = rows.fold<double>(
+          0, (s, t) => s + ((t['a'] as num?)?.toDouble() ?? 0));
+      doc.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        theme: pw.ThemeData.withFont(base: base, bold: bold),
+        build: (ctx) => [
+          pw.Text('Vaultie — sandoriai',
+              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF2F6BFF))),
+          pw.SizedBox(height: 4),
+          pw.Text('${rows.length} sandorių · bendra suma ${total.toStringAsFixed(2)} €',
+              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+          pw.SizedBox(height: 14),
+          pw.TableHelper.fromTextArray(
+            headers: const ['Data', 'Pavadinimas', 'Suma €', 'Kategorija'],
+            data: [
+              for (final t in rows)
+                [
+                  (t['d'] ?? '').toString(),
+                  (t['nm'] ?? '').toString(),
+                  ((t['a'] as num?)?.toStringAsFixed(2) ?? ''),
+                  (t['sec'] ?? '').toString(),
+                ],
+            ],
+            headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+            headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF2F6BFF)),
+            cellStyle: const pw.TextStyle(fontSize: 8.5),
+            cellAlignments: {2: pw.Alignment.centerRight},
+            oddRowDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF2F5FA)),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(1.4),
+              1: const pw.FlexColumnWidth(3),
+              2: const pw.FlexColumnWidth(1.2),
+              3: const pw.FlexColumnWidth(2),
+            },
+          ),
+        ],
+      ));
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/vaultie_sandoriai.pdf');
+      await file.writeAsBytes(await doc.save());
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], subject: 'Vaultie sandoriai'),
+      );
+    } catch (_) {
+      if (mounted) _snack('Nepavyko eksportuoti');
+    }
+  }
+
   Future<void> _exportCsv() async {
     final dash = DashboardStore.load();
     final all = ((dash?['all'] as List?) ?? const [])
@@ -7869,7 +7951,6 @@ String buildFinanceSummary(Map<String, dynamic> d) {
   final months = all.map(monthOf).where((m) => m.trim().isNotEmpty).toList()..sort();
   final month = months.isNotEmpty ? months.last : '';
   final byCat = <String, double>{};
-  final byCatMerch = <String, Map<String, double>>{};
   double income = 0, spent = 0;
   for (final t in all) {
     if (monthOf(t) != month) continue;
@@ -7881,14 +7962,10 @@ String buildFinanceSummary(Map<String, dynamic> d) {
       spent += -a;
       final cat = (t['cat'] as String? ?? 'Kita');
       byCat[cat] = (byCat[cat] ?? 0) + -a;
-      // Track which merchant drives each category, so the assistant can name it
-      // ("būstas — MB Artus Grupė") instead of leaving the user to guess. Only
-      // business merchants reach here — transfers (people) are excluded above.
-      final merch = (t['nm'] as String? ?? '').trim();
-      if (merch.isNotEmpty) {
-        (byCatMerch[cat] ??= <String, double>{})
-            .update(merch, (v) => v + -a, ifAbsent: () => -a);
-      }
+      // NOTE: we deliberately do NOT track per-category payee names here. An
+      // individual's name (e.g. a rent/loan paid to a person, which the engine
+      // classifies as Būstas/Finansai, not Pervedimai) could otherwise slip into
+      // the AI summary. Only category TOTALS leave the device.
     } else if (a > 0 && t['pos'] == true) {
       income += a;
     }
@@ -7899,15 +7976,9 @@ String buildFinanceSummary(Map<String, dynamic> d) {
     if (income > 0) b.writeln('  Pajamos: ${_eur(income)}');
     final cats = byCat.entries.toList()..sort((x, y) => y.value.compareTo(x.value));
     if (cats.isNotEmpty) {
-      b.writeln('  Išlaidos pagal kategoriją (skliaustuose — pagrindinis pirkėjas):');
+      b.writeln('  Išlaidos pagal kategoriją:');
       for (final e in cats.take(12)) {
-        final top = (byCatMerch[e.key]?.entries.toList()
-              ?..sort((x, y) => y.value.compareTo(x.value)))
-            ?.take(2)
-            .map((m) => m.key)
-            .join(', ');
-        final who = (top != null && top.isNotEmpty) ? ' ($top)' : '';
-        b.writeln('    - ${e.key}: ${_eur(e.value)}$who');
+        b.writeln('    - ${e.key}: ${_eur(e.value)}');
       }
     }
   }
@@ -7977,9 +8048,9 @@ class _AiChatTabState extends State<_AiChatTab> {
             style: TextStyle(fontWeight: FontWeight.w800, color: _ink, fontSize: 19)),
         content: Text(
           'Kad atsakytų į klausimus, appsas siunčia mūsų AI tiekėjui (Anthropic) '
-          'TAVO finansų SANTRAUKĄ — kategorijų sumas, prenumeratas ir banko '
-          'likučius.\n\n'
-          '• Nesiunčiami atskiri sandoriai, IBAN‑ai ar žmonių vardai.\n'
+          'TAVO finansų SANTRAUKĄ — banko likučius, išlaidas pagal kategoriją ir '
+          'tavo pasikartojančių mokėjimų pavadinimus (pvz. „Netflix").\n\n'
+          '• Nesiunčiami atskiri sandoriai, IBAN‑ai ar kortelių numeriai.\n'
           '• Duomenys NENAUDOJAMI dirbtinio intelekto treniravimui.\n'
           '• Tai nėra finansinė konsultacija.',
           style: TextStyle(color: _muted, height: 1.5, fontSize: 14.5),

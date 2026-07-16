@@ -106,6 +106,32 @@ class LegalScreen extends StatelessWidget {
                   'your data.',
         ),
         LegalSection(
+          isLt ? 'AI funkcijos' : 'AI features',
+          isLt
+              ? 'AI pokalbis ir mėnesio santraukos naudoja „Anthropic" AI paslaugą. '
+                  'Kad atsakytų į klausimus ar parašytų santrauką, siunčiame TIK '
+                  'suvestinę: banko likučius, išlaidas pagal kategoriją ir tavo '
+                  'pasikartojančių mokėjimų pavadinimus (pvz. „Netflix"). '
+                  'NESIUNČIAME atskirų sandorių, IBAN‑ų ar kortelių numerių. '
+                  'AI pokalbis įjungiamas tik po tavo aiškaus sutikimo. „Anthropic" '
+                  'nenaudoja šių duomenų dirbtinio intelekto treniravimui, o mes '
+                  'jų nesaugome — jie egzistuoja tik tos vienos užklausos metu. '
+                  'Jei prijungei banką, gali papildomai leisti verslo prekybininkų '
+                  'pavadinimus siųsti AI geresnei kategorizacijai (įjungiama '
+                  'nustatymuose); tai neapima žmonių vardų, sumų ar IBAN‑ų.'
+              : 'The AI chat and monthly summaries use the Anthropic AI service. '
+                  'To answer questions or write a summary we send ONLY a summary: '
+                  'bank balances, spending by category, and the names of your '
+                  'recurring payments (e.g. "Netflix"). We do NOT send individual '
+                  'transactions, IBANs, or card numbers. The AI chat is enabled '
+                  'only after your explicit consent. Anthropic does not use this '
+                  'data to train AI models, and we do not store it — it exists only '
+                  'for that single request. If you connect a bank, you may '
+                  'additionally allow business merchant names to be sent to the AI '
+                  'for better categorisation (opt-in in Settings); this never '
+                  'includes people\'s names, amounts, or IBANs.',
+        ),
+        LegalSection(
           isLt ? 'Pranešimai' : 'Notifications',
           isLt
               ? 'Su tavo sutikimu siunčiame vietinius pranešimus prieš prenumeratų atsinaujinimą. Juos gali išjungti nustatymuose arba įrenginio nustatymuose.'

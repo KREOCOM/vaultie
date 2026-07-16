@@ -142,7 +142,56 @@ class AuthService {
   /// is too old — the caller should re-authenticate (see the methods below)
   /// and retry, or ask the user to sign in again.
   Future<void> deleteAccount() async {
-    await _auth.currentUser?.delete();
+    final user = _auth.currentUser;
+    if (user == null) return;
+    // Apple requires the app to REVOKE the user's token when the account is
+    // deleted (App Store Guideline 5.1.1(v)). Re-authorize to get a fresh
+    // authorization code, revoke it, then delete. If the user cancels the Apple
+    // sheet we abort (throw) rather than delete without revoking.
+    if (isAppleUser) {
+      final code = await _reauthAppleForDelete(user);
+      if (code == null) {
+        throw FirebaseAuthException(
+          code: 'apple-reauth-cancelled',
+          message: 'Apple re-authentication was cancelled.',
+        );
+      }
+      try {
+        await _auth.revokeTokenWithAuthorizationCode(code);
+      } catch (_) {
+        // Best-effort: proceed with deletion even if revocation errors.
+      }
+      await _auth.currentUser?.delete();
+      return;
+    }
+    await user.delete();
+  }
+
+  /// Re-authenticates the Apple user (fresh authorization) and returns the new
+  /// authorization code for token revocation. Returns null if the user cancels.
+  Future<String?> _reauthAppleForDelete(User user) async {
+    final rawNonce = _generateNonce();
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+    final AuthorizationCredentialAppleID apple;
+    try {
+      apple = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) return null;
+      rethrow;
+    }
+    final credential = OAuthProvider('apple.com').credential(
+      idToken: apple.identityToken,
+      rawNonce: rawNonce,
+      accessToken: apple.authorizationCode,
+    );
+    await user.reauthenticateWithCredential(credential);
+    return apple.authorizationCode;
   }
 
   /// True when the signed-in user authenticated via Google.
