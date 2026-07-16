@@ -5360,6 +5360,42 @@ class _SavingsRateScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
               children: [
+                // Plain-language explainer so the number isn't a mystery: what it
+                // is, how it's worked out, and how to read it.
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(16)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      const Icon(Icons.savings_outlined, size: 18, color: _purple),
+                      const SizedBox(width: 8),
+                      Text('Kas tai?', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
+                    ]),
+                    const SizedBox(height: 8),
+                    Text('Santaupų norma rodo, kokią dalį gautų pajamų per mėnesį NEišleidai.',
+                        style: TextStyle(fontSize: 13.5, color: _ink, height: 1.45)),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(10), border: Border.all(color: _hair)),
+                      child: Text('(pajamos − išlaidos) ÷ pajamos',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _purple)),
+                    ),
+                    const SizedBox(height: 10),
+                    Text('Pvz. uždirbai 1 000 €, išleidai 750 € → norma 25 %. Kuo didesnė, tuo daugiau atsidedi. Neblogas tikslas — 20 % ar daugiau.',
+                        style: TextStyle(fontSize: 13, color: _muted, height: 1.45)),
+                    const SizedBox(height: 8),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.info_outline_rounded, size: 15, color: _faint),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text('Skaičiuojama tik iš mėnesių, kuriuose matomos pajamos. Jei atlyginimo ar kitų pajamų neaptikta — rodoma „—".',
+                            style: TextStyle(fontSize: 12, color: _faint, height: 1.4)),
+                      ),
+                    ]),
+                  ]),
+                ),
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(18), border: Border.all(color: _hair)),
