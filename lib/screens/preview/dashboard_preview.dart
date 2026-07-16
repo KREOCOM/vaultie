@@ -3862,8 +3862,77 @@ class _MonthReviewScreen extends StatefulWidget {
   State<_MonthReviewScreen> createState() => _MonthReviewScreenState();
 }
 
+// Session cache for AI month summaries, keyed by month (e.g. "2026-06"), so
+// re-opening the same review doesn't pay for another AI call.
+final Map<String, String> _monthAiCache = {};
+
 class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   List<Map<String, dynamic>> get _rows => widget.all.where((t) => (t['d'] as String).startsWith(widget.month)).toList();
+
+  // AI-written month narrative: null until it arrives; falls back to a templated
+  // summary if the AI is unavailable.
+  String? _aiText;
+  bool _aiLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAiSummary();
+  }
+
+  Future<void> _fetchAiSummary() async {
+    final cached = _monthAiCache[widget.month];
+    if (cached != null && cached.isNotEmpty) {
+      setState(() => _aiText = cached);
+      return;
+    }
+    setState(() => _aiLoading = true);
+    try {
+      final text = await BankingService.instance.monthSummary(stats: _buildStats());
+      if (!mounted) return;
+      if (text.isNotEmpty) _monthAiCache[widget.month] = text;
+      setState(() {
+        _aiText = text.isNotEmpty ? text : null;
+        _aiLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _aiLoading = false);
+    }
+  }
+
+  /// A compact, PII-free block of this month's figures for the AI to narrate —
+  /// only aggregates and category labels, never merchant names or single txns.
+  String _buildStats() {
+    final spent = _sumExpenses(_rows);
+    final earned = _sumIncome(_rows);
+    final net = earned - spent;
+    final secs = _sections();
+    final expenseSecs =
+        secs.where((s) => !_isIncome(s.label) && !_isTransfer(s.label) && s.net < 0).toList();
+    final b = StringBuffer()
+      ..writeln('Mėnuo: ${widget.monthNom}')
+      ..writeln('Pajamos: ${earned.round()} €')
+      ..writeln('Išlaidos: ${spent.round()} €')
+      ..writeln('Grynasis rezultatas: ${net.round()} €');
+    if (earned > 0) {
+      b.writeln('Santaupų norma: ${((earned - spent) / earned * 100).round().clamp(0, 100)} %');
+    } else {
+      b.writeln('Pajamų šį mėnesį neaptikta.');
+    }
+    if (expenseSecs.isNotEmpty) {
+      b.writeln('Didžiausios išlaidų kategorijos:');
+      for (final s in expenseSecs.take(4)) {
+        b.writeln('- ${s.label}: ${(-s.net).round()} €');
+      }
+    }
+    final prevRows =
+        widget.all.where((t) => (t['d'] as String).startsWith(_prevMonth)).toList();
+    if (prevRows.isNotEmpty) {
+      b.writeln('Praėjęs mėnuo ($_prevMonthNom): pajamos ${_sumIncome(prevRows).round()} €, '
+          'išlaidos ${_sumExpenses(prevRows).round()} €.');
+    }
+    return b.toString();
+  }
 
   String get _prevMonth {
     final y = int.parse(widget.month.substring(0, 4));
@@ -4077,9 +4146,12 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   Widget _aiReport(double spent, double earned, List<_SecAgg> expenseSecs, double net) {
     final savings = earned > 0 ? ((earned - spent) / earned * 100).round().clamp(0, 100) : 0;
     final top = expenseSecs.isNotEmpty ? expenseSecs.first : null;
-    final body = '${widget.monthGen} mėnesį uždirbai ${earned.round()} €, o išleidai ${spent.round()} €. Grynasis rezultatas ${_eur(net, signed: true)}. '
+    // Templated fallback used while the AI writes, or if it's unavailable.
+    final fallback = '${widget.monthGen} mėnesį uždirbai ${earned.round()} €, o išleidai ${spent.round()} €. Grynasis rezultatas ${_eur(net, signed: true)}. '
         '${top != null ? 'Daugiausia išleidai kategorijoje „${top.label.split(',').first}" (${(-top.net).round()} €). ' : ''}'
         '${earned > 0 ? 'Santaupų norma šį mėnesį — $savings %.' : 'Šį mėnesį pajamų nebuvo, tad santaupų norma neskaičiuojama.'}';
+    final isAi = _aiText != null && _aiText!.isNotEmpty;
+    final body = isAi ? _aiText! : fallback;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       padding: const EdgeInsets.all(18),
@@ -4090,20 +4162,26 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
           Row(children: [
             const Text('SANTRAUKA', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.8)),
             const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(color: _bg, borderRadius: BorderRadius.circular(5)),
-              child: Text('kol kas ne AI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _muted)),
-            ),
+            if (isAi)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(5)),
+                child: const Text('AI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.5)),
+              ),
             const Spacer(),
             const Icon(Icons.auto_awesome_rounded, size: 20, color: _purple),
           ]),
           const SizedBox(height: 12),
           Text('${widget.monthGen} finansų momentas 📸', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
           const SizedBox(height: 10),
-          Text(body, style: TextStyle(fontSize: 15.5, color: _ink, height: 1.45)),
-          const SizedBox(height: 8),
-          Text('Tikras AI report (Gemini) — implementacijos fazėje.', style: TextStyle(fontSize: 12, color: _muted)),
+          if (_aiLoading && !isAi)
+            Row(children: [
+              SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: _purple)),
+              const SizedBox(width: 10),
+              Text('AI rašo santrauką…', style: TextStyle(fontSize: 14.5, color: _muted)),
+            ])
+          else
+            Text(body, style: TextStyle(fontSize: 15.5, color: _ink, height: 1.45)),
         ],
       ),
     );

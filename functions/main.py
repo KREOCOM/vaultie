@@ -25,6 +25,7 @@ from firebase_functions.params import SecretParam
 from dashboard import build_dashboard
 from enable_banking import DEFAULT_COUNTRY, EnableBankingClient, EnableBankingError
 from finance_chat import chat as _finance_chat
+from finance_chat import month_report as _month_report
 from known_cache import merge_known as _merge_known
 from recurring import detect_recurring
 from seed_merchants import seed as _run_seed
@@ -482,6 +483,29 @@ def finance_chat(req: https_fn.CallableRequest) -> dict:
         api_key=ANTHROPIC_API_KEY.value,
     )
     return {"reply": reply}
+
+
+@https_fn.on_call(
+    region=_REGION,
+    secrets=[ANTHROPIC_API_KEY],
+    timeout_sec=60,
+    memory=options.MemoryOption.MB_256,
+)
+def month_summary(req: https_fn.CallableRequest) -> dict:
+    """Write a short AI narrative for one month's review card.
+
+    The client sends ``{stats}`` — a compact, PII-free block of numbers it
+    computed on-device (income, spending, net, top categories, savings rate,
+    vs last month). Returns ``{text}`` (empty on failure so the client falls
+    back to its own templated summary). Nothing is persisted.
+    """
+    _require_auth(req)
+    data = req.data or {}
+    text = _month_report(
+        stats=str(data.get("stats") or ""),
+        api_key=ANTHROPIC_API_KEY.value,
+    )
+    return {"text": text}
 
 
 @https_fn.on_request(region=_REGION, secrets=[SEED_TOKEN])

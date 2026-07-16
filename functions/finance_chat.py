@@ -51,6 +51,71 @@ _SYSTEM = (
 )
 
 
+# Summary-writing persona for the monthly review card. Same privacy contract as
+# the chat: it only ever sees pre-aggregated figures the phone computed, never
+# raw transactions or names.
+_REPORT_SYSTEM = (
+    "Tu esi „Vaultie“ asistentas. Parašyk TRUMPĄ, draugišką vieno mėnesio "
+    "finansų santrauką lietuviškai pagal žemiau pateiktus skaičius. "
+    "3–5 sakiniai, šiltas bet neutralus tonas. Natūraliai paminėk pajamas, "
+    "išlaidas, grynąjį rezultatą, didžiausią išlaidų kategoriją ir santaupų "
+    "normą, jei tie skaičiai pateikti. Gali trumpai palyginti su praėjusiu "
+    "mėnesiu, jei duomenų yra.\n\n"
+    "GRIEŽTOS TAISYKLĖS:\n"
+    "1. Remkis TIK pateiktais skaičiais — nieko neišgalvok (nei sumų, nei "
+    "kategorijų, nei sandorių).\n"
+    "2. Nemoralizuok ir nesmerk išlaidų — būk neutralus ir palaikantis.\n"
+    "3. Neteik investicinių ar teisinių patarimų.\n"
+    "4. Rašyk paprastu tekstu. NENAUDOK Markdown (jokių „**“, „#“ ar kitų "
+    "formatavimo simbolių)."
+)
+
+
+def month_report(stats: str, api_key: str) -> str:
+    """Write a short Lithuanian narrative for a month's figures.
+
+    ``stats`` is a compact, PII-free block of pre-computed numbers. Returns the
+    narrative text, or "" on any failure so the client can fall back to its own
+    templated summary (never raises)."""
+    stats = (stats or "").strip()[:_MAX_SUMMARY_CHARS]
+    if not stats:
+        return ""
+    payload = json.dumps({
+        "model": _MODEL,
+        "max_tokens": 400,
+        "system": [{"type": "text", "text": _REPORT_SYSTEM}],
+        "messages": [{"role": "user", "content": "Mėnesio skaičiai:\n\n" + stats}],
+    })
+    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
+               "content-type": "application/json"}
+    for attempt in range(3):
+        try:
+            r = requests.post(_URL, timeout=_TIMEOUT, headers=headers, data=payload)
+        except Exception as e:  # noqa: BLE001
+            logging.warning("month_report request failed: %s", e)
+            time.sleep(0.8 * (attempt + 1))
+            continue
+        if r.status_code == 429:
+            time.sleep(1.5 * (attempt + 1))
+            continue
+        if not r.ok:
+            logging.warning("month_report http %s: %s", r.status_code, r.text[:200])
+            break
+        try:
+            data = r.json()
+            parts = [b.get("text", "") for b in data.get("content", [])
+                     if b.get("type") == "text"]
+            reply = "".join(parts).strip()
+            if data.get("usage"):
+                logging.info("month_report usage=%s", data["usage"])
+            if reply:
+                return reply
+        except Exception as e:  # noqa: BLE001
+            logging.warning("month_report parse failed: %s", e)
+        break
+    return ""
+
+
 def _sanitize_history(raw):
     """Coerce the client's message list into a clean, bounded alternating chat."""
     out = []
