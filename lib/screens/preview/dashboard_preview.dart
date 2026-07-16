@@ -50,8 +50,6 @@ Color _navOff = const Color(0xFF9A9AA2);
 Color _card = const Color(0xFFFFFFFF); // card / surface background
 Color _hair = const Color(0xFFE8ECE7); // hairline / dividers
 Color _soft = const Color(0xFFF4F2FA); // recessed surface (input / inner boxes)
-Color _warnBg = const Color(0xFFFEF7E4); // amber notice card bg
-Color _warnLine = const Color(0xFFF6E4B8); // amber notice card border
 
 void _applyTheme(bool dark) {
   _darkMode = dark;
@@ -66,8 +64,6 @@ void _applyTheme(bool dark) {
   _card       = dark ? const Color(0xFF16121F) : const Color(0xFFFFFFFF);
   _hair       = dark ? const Color(0xFF241C36) : const Color(0xFFE8ECE7);
   _soft       = dark ? const Color(0xFF120E1C) : const Color(0xFFF4F2FA);
-  _warnBg     = dark ? const Color(0xFF2A2410) : const Color(0xFFFEF7E4);
-  _warnLine   = dark ? const Color(0xFF3C3520) : const Color(0xFFF6E4B8);
   _themeVN.value = dark;
 }
 
@@ -808,10 +804,8 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         _topBanner(),
         const SizedBox(height: 12),
         _filters(),
-        _syncedCard(),
         _subsCard(),
         _weekSection(),
-        _aiPrompt(),
         // Bilance-style interleaved feed: transactions top→bottom; at each past-month
         // boundary a purple review card, then that month's transactions continue.
         for (var i = 0; i < shown.length; i++) ...[
@@ -1014,11 +1008,23 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                 Text('Bendras likutis',
                     style: TextStyle(fontSize: 12.5, color: _neonDim, fontWeight: FontWeight.w600, letterSpacing: 0.2)),
                 const Spacer(),
-                Row(children: [
-                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF22D3EE), shape: BoxShape.circle)),
-                  const SizedBox(width: 5),
-                  Text('gyvai', style: TextStyle(fontSize: 11, color: const Color(0xFF6EE7FF))),
-                ]),
+                // Sync status shrunk to a tiny inline indicator (was a big card):
+                // a small spinner + "Sinchronizuojama" while a scan runs, else a
+                // quiet "gyvai" dot.
+                if (_deepening)
+                  Row(children: const [
+                    SizedBox(width: 11, height: 11,
+                        child: CircularProgressIndicator(strokeWidth: 1.6, color: Color(0xFF6EE7FF))),
+                    SizedBox(width: 6),
+                    Text('Sinchronizuojama', style: TextStyle(fontSize: 11, color: Color(0xFF6EE7FF))),
+                  ])
+                else
+                  Row(children: const [
+                    SizedBox(width: 6, height: 6,
+                        child: DecoratedBox(decoration: BoxDecoration(color: Color(0xFF22D3EE), shape: BoxShape.circle))),
+                    SizedBox(width: 5),
+                    Text('gyvai', style: TextStyle(fontSize: 11, color: Color(0xFF6EE7FF))),
+                  ]),
               ]),
               const SizedBox(height: 5),
               _hideBal
@@ -1081,42 +1087,6 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _BalanceSheet(bal: _d['balance'] as Map<String, dynamic>),
-    );
-  }
-
-  Widget _syncedCard() {
-    // Real reserved (pending) count — was hardcoded "4". Rows carry the 'res'
-    // badge for PDNG transactions.
-    final reserved = (_d['all'] as List)
-        .where((t) => ((t['badges'] as List?) ?? const []).contains('res'))
-        .length;
-    final sub = _deepening
-        ? 'Įkeliame 6 mėn. istoriją…'
-        : reserved == 0
-            ? 'Viskas atnaujinta'
-            : reserved == 1
-                ? '1 rezervuotas sandoris'
-                : '$reserved rezervuoti sandoriai';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: AppCard(color: _card, border: _hair,
-        padding: const EdgeInsets.all(16),
-        child: Row(children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _purpleSoft, width: 2)),
-            child: _deepening
-                ? const Padding(padding: EdgeInsets.all(7), child: CircularProgressIndicator(strokeWidth: 2, color: _purple))
-                : const Icon(Icons.check_rounded, size: 18, color: _purple),
-          ),
-          const SizedBox(width: 12),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_deepening ? 'Sinchronizuojama' : 'Sinchronizuota', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
-            Text(sub, style: TextStyle(fontSize: 12.5, color: _muted)),
-          ]),
-        ]),
-      ),
     );
   }
 
@@ -1371,38 +1341,6 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
             ],
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _aiPrompt() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: _warnBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _warnLine),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text('Ar tenkina AI kategorizavimas?',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink, height: 1.25)),
-          ),
-          Row(children: [
-            for (final e in ['😞', '😐', '😃'])
-              Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: GestureDetector(
-                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ačiū už atsiliepimą!'), duration: Duration(milliseconds: 1400)),
-                  ),
-                  child: Text(e, style: const TextStyle(fontSize: 26)),
-                ),
-              ),
-          ]),
-        ],
       ),
     );
   }
@@ -6048,13 +5986,13 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             margin: const EdgeInsets.fromLTRB(2, 12, 2, 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
-            child: const Row(children: [
-              Icon(Icons.lightbulb_outline_rounded, size: 18, color: _purple),
-              SizedBox(width: 10),
+            child: Row(children: [
+              const Icon(Icons.lightbulb_outline_rounded, size: 18, color: Color(0xFF8B5CF6)),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                     'Pasikartojančius mokėjimus atpažinti sunku — patikrink. Įjungti (žali) skaičiuojami į mėnesio sumą; nebemoki arba tai ne sąskaita — išjunk.',
-                    style: TextStyle(fontSize: 12.5, color: _purpleDeep, height: 1.35)),
+                    style: TextStyle(fontSize: 12.5, color: _muted, height: 1.35)),
               ),
             ]),
           ),
