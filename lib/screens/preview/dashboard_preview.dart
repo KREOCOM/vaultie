@@ -7154,6 +7154,10 @@ class _SettingsScreenState extends State<_SettingsScreen> {
             final dark = label == 'Tamsi' ||
                 (label == 'Sistemos numatytoji' &&
                     MediaQuery.of(context).platformBrightness == Brightness.dark);
+            // Persist the choice (Hive) AND update the app-wide notifier so the
+            // base theme rebuilds — otherwise the pick only changed the dashboard
+            // tokens in memory and reverted to the saved value on next launch.
+            AppPrefs.setDarkMode(dark);
             _applyTheme(dark);
             setState(() => _theme = label);
             Navigator.pop(context);
