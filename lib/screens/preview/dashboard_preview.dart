@@ -1028,10 +1028,13 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       spark.add(rawSpark.last);
     }
     final cur = (_d['balance'] as Map?)?['current'];
+    final curVal = cur is num ? cur.toDouble() : null;
     final balStr = cur is num ? _eur0(cur) : '—';
     final accounts = (((_d['balance'] as Map?)?['accounts'] as List?) ?? const [])
         .whereType<Map>()
         .toList();
+    final acctTotal =
+        accounts.fold(0.0, (s, a) => s + ((a['amount'] ?? 0) as num).toDouble());
     // € labels for the chart (max/min of the balance) so the line isn't just a
     // shape — the user asked to see the monetary values.
     String? hi, lo;
@@ -1039,6 +1042,12 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       hi = _eur0(spark.reduce((a, b) => a > b ? a : b));
       lo = _eur0(spark.reduce((a, b) => a < b ? a : b));
     }
+    // Dated balance points → month-over-month change + x-axis date labels.
+    final seriesRaw = (((_d['balance'] as Map?)?['series'] as List?) ?? const [])
+        .whereType<Map>()
+        .toList();
+    final (delta, deltaPct) = _balanceDelta(seriesRaw, curVal);
+    final dateLabels = _sparkDateLabels(seriesRaw);
     final topInset = MediaQuery.of(context).padding.top;
     return Padding(
       // Transparent: the header sits directly on the page's violet gradient
@@ -1116,12 +1125,34 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                             ? const [Shadow(color: Color(0x808B5CF6), blurRadius: 18)]
                             : null,
                       )),
-              const SizedBox(height: 12),
-              // Chart + € labels overlaid on the right.
+              // Month-over-month change: green up / red down, "% | € nuo praėjusio mėn."
+              if (!_hideBal && delta != null && deltaPct != null && delta.abs() >= 1) ...[
+                const SizedBox(height: 6),
+                Row(children: [
+                  Icon(delta >= 0 ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                      size: 15, color: delta >= 0 ? _good : const Color(0xFFE0574F)),
+                  const SizedBox(width: 3),
+                  Text(
+                    '${delta >= 0 ? '+' : '−'}${deltaPct.abs().toStringAsFixed(1).replaceAll('.', ',')} %'
+                    '   |   ${delta >= 0 ? '+' : '−'}${_eur0(delta.abs())}',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800,
+                        color: delta >= 0 ? _good : const Color(0xFFE0574F)),
+                  ),
+                  const SizedBox(width: 6),
+                  Text('nuo praėjusio mėn.',
+                      style: TextStyle(fontSize: 12.5, color: _heroDim, fontWeight: FontWeight.w500)),
+                ]),
+              ],
+              const SizedBox(height: 14),
+              // Chart with a soft fill, the balance pill at the endpoint, and € max/min.
               SizedBox(
-                height: 68,
-                child: Stack(children: [
-                  Positioned.fill(child: _Sparkline(pts: spark, dark: _darkMode)),
+                height: 78,
+                child: Stack(clipBehavior: Clip.none, children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _NeonSparkPainter(spark, dark: _darkMode, endLabel: _hideBal ? null : balStr),
+                    ),
+                  ),
                   if (hi != null)
                     Positioned(top: -2, right: 0,
                         child: Text(hi, style: TextStyle(fontSize: 10.5, color: _heroDim, fontWeight: FontWeight.w600))),
@@ -1130,44 +1161,58 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                         child: Text(lo, style: TextStyle(fontSize: 10.5, color: _heroDim, fontWeight: FontWeight.w600))),
                 ]),
               ),
-              if (accounts.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                // Each connected bank in its own framed tile, with the balance set
-                // off in a coloured pill — reads more like a fintech account card.
-                for (final a in accounts)
-                  Container(
-                    margin: const EdgeInsets.only(top: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: _darkMode ? Colors.white.withValues(alpha: 0.06) : _card,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                          color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _hair),
-                      boxShadow: _darkMode ? null : DS.e1,
-                    ),
-                    child: Row(children: [
-                      _acctGlyph(a, diameter: 32, fontSize: 14),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Text((a['bank'] ?? a['name'] ?? 'Sąskaita').toString(),
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 14, color: _heroInk, fontWeight: FontWeight.w700)),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _purpleSoft,
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: Text(_hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
-                            style: TextStyle(
-                                fontSize: 14,
-                                color: _darkMode ? _heroInk : _purpleDeep,
-                                fontWeight: FontWeight.w800,
-                                fontFeatures: const [FontFeature.tabularFigures()])),
-                      ),
-                    ]),
+              if (dateLabels.length >= 2) ...[
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.only(right: 66),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (final d in dateLabels)
+                        Text(d, style: TextStyle(fontSize: 10, color: _heroDim, fontWeight: FontWeight.w500)),
+                    ],
                   ),
+                ),
+              ],
+              if (accounts.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                // One card, one row per connected bank: logo + name, then the
+                // balance and its share of the total (e.g. Revolut 94,5 %).
+                Container(
+                  decoration: BoxDecoration(
+                    color: _darkMode ? Colors.white.withValues(alpha: 0.06) : _card,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _hair),
+                    boxShadow: _darkMode ? null : DS.e1,
+                  ),
+                  child: Column(children: [
+                    for (var i = 0; i < accounts.length; i++) ...[
+                      if (i > 0)
+                        Divider(height: 1, thickness: 1,
+                            color: _darkMode ? Colors.white.withValues(alpha: 0.08) : _hair, indent: 14, endIndent: 14),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                        child: Row(children: [
+                          _acctGlyph(accounts[i], diameter: 34, fontSize: 14),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text((accounts[i]['bank'] ?? accounts[i]['name'] ?? 'Sąskaita').toString(),
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 15.5, color: _heroInk, fontWeight: FontWeight.w700)),
+                          ),
+                          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                            Text(_hideBal ? '••••' : _eur0(((accounts[i]['amount'] ?? 0) as num).toDouble()),
+                                style: TextStyle(fontSize: 15.5, color: _heroInk, fontWeight: FontWeight.w800,
+                                    fontFeatures: const [FontFeature.tabularFigures()])),
+                            if (!_hideBal && acctTotal > 0)
+                              Text('${(((accounts[i]['amount'] ?? 0) as num).toDouble() / acctTotal * 100).toStringAsFixed(1).replaceAll('.', ',')} %',
+                                  style: TextStyle(fontSize: 12, color: _heroDim, fontWeight: FontWeight.w600)),
+                          ]),
+                        ]),
+                      ),
+                    ],
+                  ]),
+                ),
               ],
               const SizedBox(height: 12),
               Text('Likutis iš banko · grafikas = likučio kitimas laike',
@@ -1178,6 +1223,44 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         ],
       ),
     );
+  }
+
+  /// Balance change vs ~a month ago (the last dated point ≥30 days back, else the
+  /// series start): returns (absolute €, percent). Nulls when there isn't data.
+  (double?, double?) _balanceDelta(List<Map> series, double? cur) {
+    if (cur == null || series.length < 2) return (null, null);
+    double? prev;
+    final lastD = DateTime.tryParse((series.last['d'] ?? '').toString());
+    if (lastD != null) {
+      final target = lastD.subtract(const Duration(days: 30));
+      for (final p in series) {
+        final d = DateTime.tryParse((p['d'] ?? '').toString());
+        if (d != null && !d.isAfter(target)) prev = (p['v'] as num?)?.toDouble();
+      }
+    }
+    prev ??= (series.first['v'] as num?)?.toDouble();
+    if (prev == null) return (null, null);
+    final delta = cur - prev;
+    final pct = prev.abs() > 1e-6 ? delta / prev.abs() * 100 : null;
+    return (delta, pct);
+  }
+
+  /// ~5 evenly-spaced "dd-MM" labels spanning the balance series, for the chart's
+  /// x-axis. Empty when there aren't enough dated points.
+  List<String> _sparkDateLabels(List<Map> series) {
+    final dates = series
+        .map((p) => (p['d'] ?? '').toString())
+        .where((s) => s.length >= 10)
+        .toList();
+    if (dates.length < 2) return const [];
+    const n = 5;
+    final out = <String>[];
+    for (var i = 0; i < n; i++) {
+      final idx = ((dates.length - 1) * i / (n - 1)).round();
+      final s = dates[idx];
+      out.add('${s.substring(8, 10)}-${s.substring(5, 7)}');
+    }
+    return out;
   }
 
   void _showBalance() {
@@ -2597,17 +2680,18 @@ class _SparkPainter extends CustomPainter {
 /// against. Leaves right padding so the overlaid value labels don't collide with
 /// the line's endpoint. [pulse] is a 0→1 animation value from the host widget.
 class _NeonSparkPainter extends CustomPainter {
-  _NeonSparkPainter(this.pts, {this.dark = true, this.pulse = 0});
+  _NeonSparkPainter(this.pts, {this.dark = true, this.endLabel});
   final List<double> pts;
   final bool dark;
-  final double pulse;
-  // Room on the right so the overlaid € labels never touch the line's endpoint.
-  static const double rightPad = 44;
+  // Current balance, shown in a coloured pill at the line's endpoint (null hides it).
+  final String? endLabel;
+  // Room on the right so the endpoint pill + € labels don't touch the line.
+  static const double rightPad = 66;
 
-  // One solid line colour (violet on dark, Frost blue on light) — no gradient.
+  // One solid line colour (violet on dark, Frost blue on light).
   Color get _line => dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
   Color get _gridColor =>
-      dark ? const Color(0xFFFFFFFF).withValues(alpha: 0.07) : const Color(0xFF14203A).withValues(alpha: 0.07);
+      (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A)).withValues(alpha: 0.07);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2633,7 +2717,22 @@ class _NeonSparkPainter extends CustomPainter {
       line.lineTo(at(i).dx, at(i).dy);
     }
 
-    // Crisp solid line — nothing behind it.
+    // Soft area fill under the line — a clean colour tint (no blur haze).
+    final area = Path.from(line)
+      ..lineTo(at(pts.length - 1).dx, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      area,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_line.withValues(alpha: dark ? 0.26 : 0.16), _line.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+
+    // Crisp line on top.
     canvas.drawPath(
       line,
       Paint()
@@ -2644,49 +2743,30 @@ class _NeonSparkPainter extends CustomPainter {
         ..color = _line,
     );
 
-    // Endpoint: a solid dot with a clean expanding-then-fading ring (opacity only,
-    // no blur) so it reads as "live" without adding haze.
+    // Endpoint dot (white halo for contrast against the fill), then the balance pill.
     final end = at(pts.length - 1);
-    final ringR = 4.0 + pulse * 6.0;
-    canvas.drawCircle(end, ringR, Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = _line.withValues(alpha: (1 - pulse) * 0.45));
+    canvas.drawCircle(end, 5, Paint()..color = (dark ? const Color(0xFF201545) : const Color(0xFFEEF1F7)));
     canvas.drawCircle(end, 3.4, Paint()..color = _line);
+
+    if (endLabel != null && endLabel!.isNotEmpty) {
+      final tp = TextPainter(
+        text: TextSpan(text: endLabel, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Colors.white)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      const padH = 8.0, padV = 4.0;
+      final pillW = tp.width + padH * 2;
+      final pillH = tp.height + padV * 2;
+      final px = (end.dx + 8).clamp(0.0, size.width - pillW);
+      final py = (end.dy - pillH / 2).clamp(0.0, size.height - pillH);
+      final rr = RRect.fromRectAndRadius(Rect.fromLTWH(px, py, pillW, pillH), const Radius.circular(8));
+      canvas.drawRRect(rr, Paint()..color = _line);
+      tp.paint(canvas, Offset(px + padH, py + padV));
+    }
   }
 
   @override
-  bool shouldRepaint(_NeonSparkPainter old) => old.pts != pts || old.dark != dark || old.pulse != pulse;
-}
-
-/// Hosts the balance sparkline and drives its pulsing endpoint.
-class _Sparkline extends StatefulWidget {
-  const _Sparkline({required this.pts, required this.dark});
-  final List<double> pts;
-  final bool dark;
-  @override
-  State<_Sparkline> createState() => _SparklineState();
-}
-
-class _SparklineState extends State<_Sparkline> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1800))..repeat();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) => CustomPaint(
-        painter: _NeonSparkPainter(widget.pts, dark: widget.dark, pulse: _c.value),
-      ),
-    );
-  }
+  bool shouldRepaint(_NeonSparkPainter old) =>
+      old.pts != pts || old.dark != dark || old.endLabel != endLabel;
 }
 
 /// The weekly chart's background: faint € gridlines (so a bar's height reads as
@@ -4545,21 +4625,35 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final diff = junV - mayV;
     final color = _labelColor(label);
     final more = diff >= 0;
+    // Spending more = warning red; spending less = good green (the amount only).
+    final diffColor = more ? const Color(0xFFE0574F) : _good;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(18)),
+        // White Frost card; the category colour is an ACCENT (icon, dots, button),
+        // not the whole background — matches the rest of the app.
+        decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(18), border: Border.all(color: _hair), boxShadow: DS.e1),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(_labelIcon(label), size: 30, color: Colors.white),
+              Container(
+                width: 40, height: 40, alignment: Alignment.center,
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
+                child: Icon(_labelIcon(label), size: 22, color: color),
+              ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  'Kategorijai „${label.split(',').first}" išleidai ${diff.abs().round()} € ${more ? 'daugiau' : 'mažiau'} nei praėjusį mėnesį.',
-                  style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: Colors.white, height: 1.3),
+                child: Text.rich(
+                  TextSpan(
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink, height: 1.35),
+                    children: [
+                      TextSpan(text: 'Kategorijai „${label.split(',').first}" išleidai '),
+                      TextSpan(text: '${diff.abs().round()} €', style: TextStyle(fontWeight: FontWeight.w800, color: diffColor)),
+                      TextSpan(text: ' ${more ? 'daugiau' : 'mažiau'} nei praėjusį mėnesį.'),
+                    ],
+                  ),
                 ),
               ),
             ]),
@@ -4569,15 +4663,15 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
               const SizedBox(width: 10),
               Expanded(child: _insightBox(color, junV, widget.monthNom)),
             ]),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             GestureDetector(
               onTap: widget.onGoToBudgets,
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 alignment: Alignment.center,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white54)),
-                child: const Text('Nusistatyti biudžetą', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _purple)),
+                child: const Text('Nusistatyti biudžetą', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
               ),
             ),
           ],
@@ -4589,9 +4683,9 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   Widget _insightBox(Color color, double v, String label) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
       child: Row(children: [
-        Container(width: 30, height: 30, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(width: 26, height: 26, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 10),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('−${_eur(v)}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _ink)),
