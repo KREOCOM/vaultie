@@ -151,18 +151,6 @@ class VaultieApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: VaultieColors.primary,
-        primary: VaultieColors.primary,
-        secondary: VaultieColors.primaryLight,
-        surface: VaultieColors.card,
-        brightness: Brightness.light,
-      ),
-      scaffoldBackgroundColor: VaultieColors.surface,
-    );
-
     // Rebuild the app when the user changes language, currency or the light/dark
     // content theme in Settings.
     return AnimatedBuilder(
@@ -175,7 +163,24 @@ class VaultieApp extends StatelessWidget {
       builder: (context, _) {
         // Refresh the content palette (dashboard/analytics/settings/add) for the
         // current choice before building; auth/splash keep their own colours.
-        applyContentTheme(AppPrefs.darkMode.value);
+        final isDark = AppPrefs.darkMode.value;
+        applyContentTheme(isDark);
+        // Dark is the primary theme, so the app's BASE ThemeData must follow the
+        // dark preference — otherwise dialogs, bottom sheets and text fields
+        // (which read the app theme, not the dashboard's private tokens) stay
+        // light: a white field with light text that vanishes. Build with the
+        // right brightness + surfaces AFTER applyContentTheme sets the palette.
+        final base = ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: VaultieColors.primary,
+            primary: VaultieColors.primary,
+            secondary: VaultieColors.primaryLight,
+            surface: isDark ? cCard : VaultieColors.card,
+            brightness: isDark ? Brightness.dark : Brightness.light,
+          ),
+          scaffoldBackgroundColor: isDark ? cBg : VaultieColors.surface,
+        );
         return MaterialApp(
           title: 'Vaultie',
           debugShowCheckedModeBanner: false,
@@ -187,17 +192,17 @@ class VaultieApp extends StatelessWidget {
           supportedLocales: AppLocalizations.supportedLocales,
           theme: base.copyWith(
             textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
-              bodyColor: VaultieColors.ink,
-              displayColor: VaultieColors.ink,
+              bodyColor: cInk,
+              displayColor: cInk,
             ),
-            appBarTheme: const AppBarTheme(
-              backgroundColor: VaultieColors.surface,
-              foregroundColor: VaultieColors.ink,
+            appBarTheme: AppBarTheme(
+              backgroundColor: cBg,
+              foregroundColor: cInk,
               elevation: 0,
               centerTitle: false,
             ),
             cardTheme: CardThemeData(
-              color: VaultieColors.card,
+              color: cCard,
               elevation: 0,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20)),
@@ -220,17 +225,17 @@ class VaultieApp extends StatelessWidget {
             ),
             inputDecorationTheme: InputDecorationTheme(
               filled: true,
-              fillColor: VaultieColors.card,
-              hintStyle: const TextStyle(color: VaultieColors.subtle),
+              fillColor: cCard,
+              hintStyle: TextStyle(color: cSubtle),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: VaultieColors.line),
+                borderSide: BorderSide(color: cLine),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: VaultieColors.line),
+                borderSide: BorderSide(color: cLine),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -240,7 +245,7 @@ class VaultieApp extends StatelessWidget {
             ),
             // Date picker: dark surface, filled green OK, outlined Cancel.
             datePickerTheme: DatePickerThemeData(
-              backgroundColor: VaultieColors.card,
+              backgroundColor: cCard,
               confirmButtonStyle: TextButton.styleFrom(
                 backgroundColor: VaultieColors.primary,
                 foregroundColor: Colors.white,
@@ -251,8 +256,8 @@ class VaultieApp extends StatelessWidget {
                 ),
               ),
               cancelButtonStyle: TextButton.styleFrom(
-                foregroundColor: VaultieColors.subtle,
-                side: const BorderSide(color: VaultieColors.line),
+                foregroundColor: cSubtle,
+                side: BorderSide(color: cLine),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                 shape: RoundedRectangleBorder(
@@ -260,10 +265,8 @@ class VaultieApp extends StatelessWidget {
                 ),
               ),
             ),
-            dialogTheme:
-                const DialogThemeData(backgroundColor: VaultieColors.card),
-            bottomSheetTheme:
-                const BottomSheetThemeData(backgroundColor: VaultieColors.card),
+            dialogTheme: DialogThemeData(backgroundColor: cCard),
+            bottomSheetTheme: BottomSheetThemeData(backgroundColor: cCard),
           ),
           // Always launch into the branded splash; it decides where to go next.
           home: SplashScreen(hasOnboarded: hasOnboarded),

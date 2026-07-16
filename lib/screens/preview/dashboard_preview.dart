@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../../services/auth_service.dart';
 import '../../app_prefs.dart';
+import '../../content_theme.dart';
 import '../../services/banking_service.dart';
 import '../../services/dashboard_store.dart';
 import '../../services/logo_service.dart';
@@ -751,7 +752,13 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // Wrap the whole dashboard in the content theme so every dialog, bottom
+    // sheet and text field pushed from here inherits the dark surfaces — without
+    // this they fell back to the app's base (light) theme, so an input field
+    // stayed white and its text (styled with the now-light ink colour) vanished.
+    return Theme(
+      data: contentTheme(Theme.of(context)),
+      child: Scaffold(
       backgroundColor: _bg,
       // No top SafeArea here: the home banner paints its own dark strip behind
       // the status bar (edge-to-edge, Deriv-style). The other tabs keep their
@@ -775,6 +782,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         ),
       ),
       bottomNavigationBar: _navBar(),
+      ),
     );
   }
 
@@ -1133,8 +1141,13 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
-                begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A22C6), Color(0xFF7C3AED)]),
+            // Deep violet that sits IN the dark theme (was a bright purple that
+            // clashed with the near-black surfaces). White-alpha inner chips read
+            // cleanly on it, and a thin violet edge lifts it off the background.
+            gradient: const RadialGradient(
+                center: Alignment(-0.5, -1), radius: 1.6,
+                colors: [Color(0xFF2E1D63), Color(0xFF150E2C)]),
+            border: Border.all(color: const Color(0xFF3A2A66)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1142,14 +1155,14 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               Row(children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(color: _card.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(8)),
                   child: const Text('PRENUMERATOS IR SĄSKAITOS',
                       style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.9)),
                 ),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.only(left: 10, right: 6, top: 4, bottom: 4),
-                  decoration: BoxDecoration(color: _card.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(20)),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(20)),
                   child: const Row(mainAxisSize: MainAxisSize.min, children: [
                     Text('Tvarkyti', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
                     Icon(Icons.chevron_right_rounded, size: 17, color: Colors.white),
@@ -1189,9 +1202,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                     for (final it in counted.take(3))
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                        decoration: BoxDecoration(color: _card.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
+                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(11)),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.circle, size: 7, color: Colors.white),
+                          const Icon(Icons.circle, size: 7, color: Color(0xFF6EE7FF)),
                           const SizedBox(width: 7),
                           Text('${_recName(it)} · ${((it['monthly'] ?? 0) as num).round()} €',
                               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
