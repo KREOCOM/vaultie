@@ -7,20 +7,20 @@ import 'package:flutter/material.dart';
 /// `const`). Auth, splash and the paywall keep their own fixed colours and do
 /// NOT use these — the toggle never touches them.
 
-// ── Light ───────────────────────────────────────────────────────────────────
-const _lBg = Color(0xFFF4F8F5);
+// ── Light ("Frost") — the primary look: airy blue-tinted page, dark ink ───────
+const _lBg = Color(0xFFEEF1F7);
 const _lCard = Color(0xFFFFFFFF);
-const _lInk = Color(0xFF11231A);
-const _lSubtle = Color(0xFF6B7E74);
-const _lLine = Color(0xFFE1E8E3);
-const _lHiBg = Color(0xFFFFF6E5);
-const _lHiBorder = Color(0xFFF0C674);
-const _lFeatTop = Color(0xFFEDF6F0); // mint hero
-const _lFeatBottom = Color(0xFFDFEEE6);
-const _lFeatBorder = Color(0xFFCFE3D6);
-const _lFeatInk = Color(0xFF123024); // text on the mint/featured card
-const _lFeatSubtle = Color(0xFF5B7365);
-const _lAccent = Color(0xFF2E7D4F); // green foreground on light
+const _lInk = Color(0xFF14203A);
+const _lSubtle = Color(0xFF5C6A85);
+const _lLine = Color(0xFFE3E9F2);
+const _lHiBg = Color(0xFFEAF1FF);
+const _lHiBorder = Color(0xFFBBD0F5);
+const _lFeatTop = Color(0xFFEAF1FF); // soft blue hero
+const _lFeatBottom = Color(0xFFE1EAFB);
+const _lFeatBorder = Color(0xFFCFDDF6);
+const _lFeatInk = Color(0xFF14203A); // text on the featured card
+const _lFeatSubtle = Color(0xFF5C6A85);
+const _lAccent = Color(0xFF2F6BFF); // electric royal blue on light
 
 // ── Dark (violet twilight — matches the home gradient) ──────────────────────
 const _dBg = Color(0xFF201545);

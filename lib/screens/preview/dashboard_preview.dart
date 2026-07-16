@@ -36,8 +36,10 @@ import '../login_screen.dart';
 
 // ── Vaultie preview palette — light + Charcoal dark (runtime-switchable) ─────
 // Brand + semantic colours stay constant across themes.
-const _purple = Color(0xFF6D28D9);
-const _purpleDeep = Color(0xFF4A1C9C);
+// Brand accent. Frost = an electric royal blue (was violet). Named `_purple`
+// for historical reasons — it's the single accent used across the app.
+const _purple = Color(0xFF2F6BFF);
+const _purpleDeep = Color(0xFF1E50C8);
 const _good = Color(0xFF2FA34E);
 
 // Theme-dependent tokens: reassigned by _applyTheme; _themeVN drives rebuilds.
@@ -47,30 +49,32 @@ bool _darkMode = false;
 // Set by the live dashboard; a transaction-detail/edit screen calls this after
 // mutating the shared `_d['all']` list so totals recompute and data persists.
 void Function()? _dashRefresh;
-Color _bg = const Color(0xFFF1F1F4);
-Color _purpleSoft = const Color(0xFFF3EEFE);
-Color _muted = const Color(0xFF2B2B31); // near-black → secondary text clearly readable
-Color _faint = const Color(0xFF57575F); // darker grey → captions readable, not washed out
-Color _ink = const Color(0xFF16161A);
-Color _navOff = const Color(0xFF9A9AA2);
+// Defaults = the light "Frost" palette (the primary look): a soft airy page
+// with dark ink, so text is always legible.
+Color _bg = const Color(0xFFEEF1F7);
+Color _purpleSoft = const Color(0xFFE4EDFD);
+Color _muted = const Color(0xFF5C6A85); // secondary text — readable on light
+Color _faint = const Color(0xFF7C879E); // captions — lighter, still legible
+Color _ink = const Color(0xFF14203A);
+Color _navOff = const Color(0xFF97A2B5);
 Color _card = const Color(0xFFFFFFFF); // card / surface background
-Color _hair = const Color(0xFFE8ECE7); // hairline / dividers
-Color _soft = const Color(0xFFF4F2FA); // recessed surface (input / inner boxes)
+Color _hair = const Color(0xFFE3E9F2); // hairline / dividers
+Color _soft = const Color(0xFFEEF2F8); // recessed surface (input / inner boxes)
 
 void _applyTheme(bool dark) {
   _darkMode = dark;
-  // Dark = a violet twilight (not near-black): the whole home sits on one smooth
-  // top-dark→bottom-lighter violet gradient (see _dashboard), and these solid
-  // tokens are the card/surface violets that sit on it.
-  _bg         = dark ? const Color(0xFF201545) : const Color(0xFFF1F1F4);
-  _purpleSoft = dark ? const Color(0xFF2E2160) : const Color(0xFFF3EEFE);
-  _muted      = dark ? const Color(0xFFC0B8DA) : const Color(0xFF2B2B31);
-  _faint      = dark ? const Color(0xFF9A93B8) : const Color(0xFF57575F);
-  _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF16161A);
-  _navOff     = dark ? const Color(0xFF7A72A0) : const Color(0xFF9A9AA2);
+  // Light = "Frost": airy blue-tinted page, dark ink, white cards. Dark keeps the
+  // violet twilight as the alternate look (one smooth top-dark→bottom-lighter
+  // gradient, see _dashboard) with these solid card/surface tokens on it.
+  _bg         = dark ? const Color(0xFF201545) : const Color(0xFFEEF1F7);
+  _purpleSoft = dark ? const Color(0xFF2E2160) : const Color(0xFFE4EDFD);
+  _muted      = dark ? const Color(0xFFC0B8DA) : const Color(0xFF5C6A85);
+  _faint      = dark ? const Color(0xFF9A93B8) : const Color(0xFF7C879E);
+  _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF14203A);
+  _navOff     = dark ? const Color(0xFF7A72A0) : const Color(0xFF97A2B5);
   _card       = dark ? const Color(0xFF2A1E54) : const Color(0xFFFFFFFF);
-  _hair       = dark ? const Color(0xFF3B2D66) : const Color(0xFFE8ECE7);
-  _soft       = dark ? const Color(0xFF1B1240) : const Color(0xFFF4F2FA);
+  _hair       = dark ? const Color(0xFF3B2D66) : const Color(0xFFE3E9F2);
+  _soft       = dark ? const Color(0xFF1B1240) : const Color(0xFFEEF2F8);
   _themeVN.value = dark;
 }
 
@@ -515,15 +519,8 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // Theme flip must rebuild the cached tabs so their colours update.
   void _onTheme() => setState(() => _otherTabs = null);
 
-  // Home scroll drives the status-bar icon colour: the dark banner reaches
-  // behind the status bar, so its icons must be light while it covers the top,
-  // and flip back to dark once the light feed scrolls up under the status bar.
+  // Controls the home ListView (used for pull-to-refresh).
   final ScrollController _homeScroll = ScrollController();
-  bool _lightStatus = true;
-  void _onHomeScroll() {
-    final light = !_homeScroll.hasClients || _homeScroll.offset < 40;
-    if (light != _lightStatus) setState(() => _lightStatus = light);
-  }
 
   @override
   void initState() {
@@ -531,7 +528,6 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     // Sync the dashboard's colour tokens to the saved theme on every launch —
     // otherwise they'd sit at their light defaults until the user toggled.
     _applyTheme(AppPrefs.darkMode.value);
-    _homeScroll.addListener(_onHomeScroll);
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     // Let any detail/edit screen that mutates `_d['all']` (delete, edit,
@@ -774,7 +770,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           index: _tab,
           children: [
             AnnotatedRegion<SystemUiOverlayStyle>(
-              value: (_lightStatus || AppPrefs.darkMode.value)
+              // Dark theme = light icons (dark banner under the status bar);
+              // Frost = dark icons (the whole top is light).
+              value: AppPrefs.darkMode.value
                   ? SystemUiOverlayStyle.light
                   : SystemUiOverlayStyle.dark,
               child: _dashboard(),
@@ -799,22 +797,35 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     final monthKeys = keys.toList()..sort((a, b) => b.compareTo(a));
     final shown = monthKeys.take(1 + _shownPast).toList(); // current + N past months
 
-    // One smooth violet gradient behind the whole feed — top darker (for the
-    // status bar + balance header), easing to a lighter violet lower down. It's
-    // a fixed backdrop; the ListView and the banner are transparent so nothing
-    // shows a hard block edge — the header just melts into the page.
-    return Container(
-      decoration: _darkMode
-          ? const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF160E30), Color(0xFF231747), Color(0xFF2E2258)],
-                stops: [0.0, 0.5, 1.0],
-              ),
-            )
-          : null,
-      child: RefreshIndicator(
+    // A soft backdrop behind the whole feed. Dark = one smooth violet gradient
+    // (top darker for the status bar/header, lighter lower). Light ("Frost") = an
+    // airy blue-grey base with three faint colour glows (blue/teal/pink) that
+    // blend like a fintech mesh — subtle enough that dark ink stays fully legible.
+    // The ListView and banner are transparent so nothing shows a hard block edge.
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: _darkMode
+                ? const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF160E30), Color(0xFF231747), Color(0xFF2E2258)],
+                      stops: [0.0, 0.5, 1.0],
+                    ),
+                  )
+                : const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFFEDF1F9), Color(0xFFF3F0F9)],
+                    ),
+                  ),
+          ),
+        ),
+        if (!_darkMode) ..._frostMesh,
+        RefreshIndicator(
       onRefresh: _forceSync,
       color: _purple,
       backgroundColor: _card,
@@ -851,8 +862,45 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           ),
         const SizedBox(height: 16),
       ],
-    )));
+    )),
+      ],
+    );
   }
+
+  /// Light "Frost" mesh: three faint colour glows over the base gradient, kept
+  /// low-alpha so cards and dark ink stay perfectly legible on top.
+  static const List<Widget> _frostMesh = [
+    Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(-0.85, -1.0), radius: 1.15,
+            colors: [Color(0x1A2F6BFF), Color(0x002F6BFF)], stops: [0.0, 1.0],
+          ),
+        ),
+      ),
+    ),
+    Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(1.0, -0.85), radius: 1.05,
+            colors: [Color(0x1714B8A6), Color(0x0014B8A6)], stops: [0.0, 1.0],
+          ),
+        ),
+      ),
+    ),
+    Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0.3, 1.15), radius: 1.2,
+            colors: [Color(0x12EC4899), Color(0x00EC4899)], stops: [0.0, 1.0],
+          ),
+        ),
+      ),
+    ),
+  ];
 
   int _monthCount(String mk) => _feedAll.where((t) => (t['d'] as String).startsWith(mk)).length;
 
@@ -950,12 +998,16 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     );
   }
 
-  // "Neonas" balance hero (design #05): a dark card with a glowing violet→cyan
-  // flow chart, the balance in white, and — below — one row PER CONNECTED BANK
-  // (Revolut, SEB, …) straight from the payload, so what shows always matches
-  // what the user linked. Tapping opens the full balance sheet.
-  static const _neonInk = Color(0xFFEDEAF6);
-  static const _neonDim = Color(0xFF9A93B8);
+  // Balance hero: one row PER CONNECTED BANK (Revolut, SEB, …) straight from the
+  // payload, so what shows always matches what the user linked. Tapping opens the
+  // full balance sheet. Text colour follows the theme so it stays legible: light
+  // "on hero" ink over the dark violet backdrop, dark ink over the Frost page.
+  Color get _heroInk => _darkMode ? const Color(0xFFEDEAF6) : _ink;
+  Color get _heroDim => _darkMode ? const Color(0xFF9A93B8) : _muted;
+  // "gyvai" / sync indicator: cyan glows on the dark theme, a solid green/blue on
+  // Frost (a light cyan would vanish on the pale page).
+  Color get _liveTint => _darkMode ? const Color(0xFF6EE7FF) : _good;
+  Color get _syncTint => _darkMode ? const Color(0xFF6EE7FF) : _purple;
 
   Widget _topBanner() {
     final spark = (_d['spark'] as List).map((e) => (e as num).toDouble()).toList();
@@ -980,15 +1032,15 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title row lives ON the dark banner now (white).
+          // Title row sits on the page backdrop; colour follows the theme.
           Row(children: [
-            const Text('Pradžia',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+            Text('Pradžia',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _heroInk, letterSpacing: -0.4)),
             const Spacer(),
             GestureDetector(
               onTap: () => setState(() => _hideBal = !_hideBal),
               child: Icon(_hideBal ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                  size: 24, color: _neonInk),
+                  size: 24, color: _heroInk),
             ),
             const SizedBox(width: 14),
             GestureDetector(
@@ -996,14 +1048,14 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                     all: (_d['all'] as List).cast<Map<String, dynamic>>(),
                     budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
                   ))),
-              child: const Icon(Icons.search_rounded, size: 24, color: _neonInk),
+              child: Icon(Icons.search_rounded, size: 24, color: _heroInk),
             ),
             const SizedBox(width: 14),
             GestureDetector(
               onTap: _openAddMenu,
               child: Container(
                 width: 33, height: 33, alignment: Alignment.center,
-                decoration: const BoxDecoration(color: Color(0xFF7C3AED), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: _purple, shape: BoxShape.circle),
                 child: const Icon(Icons.add_rounded, size: 21, color: Colors.white),
               ),
             ),
@@ -1017,47 +1069,49 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               children: [
               Row(children: [
                 Text('Bendras likutis',
-                    style: TextStyle(fontSize: 12.5, color: _neonDim, fontWeight: FontWeight.w600, letterSpacing: 0.2)),
+                    style: TextStyle(fontSize: 12.5, color: _heroDim, fontWeight: FontWeight.w600, letterSpacing: 0.2)),
                 const Spacer(),
                 // Sync status shrunk to a tiny inline indicator (was a big card):
                 // a small spinner + "Sinchronizuojama" while a scan runs, else a
                 // quiet "gyvai" dot.
                 if (_deepening)
-                  Row(children: const [
+                  Row(children: [
                     SizedBox(width: 11, height: 11,
-                        child: CircularProgressIndicator(strokeWidth: 1.6, color: Color(0xFF6EE7FF))),
-                    SizedBox(width: 6),
-                    Text('Sinchronizuojama', style: TextStyle(fontSize: 11, color: Color(0xFF6EE7FF))),
+                        child: CircularProgressIndicator(strokeWidth: 1.6, color: _syncTint)),
+                    const SizedBox(width: 6),
+                    Text('Sinchronizuojama', style: TextStyle(fontSize: 11, color: _syncTint)),
                   ])
                 else
-                  Row(children: const [
+                  Row(children: [
                     SizedBox(width: 6, height: 6,
-                        child: DecoratedBox(decoration: BoxDecoration(color: Color(0xFF22D3EE), shape: BoxShape.circle))),
-                    SizedBox(width: 5),
-                    Text('gyvai', style: TextStyle(fontSize: 11, color: Color(0xFF6EE7FF))),
+                        child: DecoratedBox(decoration: BoxDecoration(color: _liveTint, shape: BoxShape.circle))),
+                    const SizedBox(width: 5),
+                    Text('gyvai', style: TextStyle(fontSize: 11, color: _liveTint)),
                   ]),
               ]),
               const SizedBox(height: 5),
               _hideBal
-                  ? const Text('••••••',
-                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 2))
+                  ? Text('••••••',
+                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: _heroInk, letterSpacing: 2))
                   : Text(balStr,
-                      style: const TextStyle(
-                        fontSize: 34, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.6,
-                        shadows: [Shadow(color: Color(0x808B5CF6), blurRadius: 18)],
+                      style: TextStyle(
+                        fontSize: 34, fontWeight: FontWeight.w800, color: _heroInk, letterSpacing: -0.6,
+                        shadows: _darkMode
+                            ? const [Shadow(color: Color(0x808B5CF6), blurRadius: 18)]
+                            : null,
                       )),
               const SizedBox(height: 12),
               // Chart + € labels overlaid on the right.
               SizedBox(
                 height: 68,
                 child: Stack(children: [
-                  Positioned.fill(child: CustomPaint(painter: _NeonSparkPainter(spark))),
+                  Positioned.fill(child: CustomPaint(painter: _NeonSparkPainter(spark, dark: _darkMode))),
                   if (hi != null)
                     Positioned(top: -2, right: 0,
-                        child: Text(hi, style: TextStyle(fontSize: 10.5, color: _neonDim, fontWeight: FontWeight.w600))),
+                        child: Text(hi, style: TextStyle(fontSize: 10.5, color: _heroDim, fontWeight: FontWeight.w600))),
                   if (lo != null)
                     Positioned(bottom: -2, right: 0,
-                        child: Text(lo, style: TextStyle(fontSize: 10.5, color: _neonDim, fontWeight: FontWeight.w600))),
+                        child: Text(lo, style: TextStyle(fontSize: 10.5, color: _heroDim, fontWeight: FontWeight.w600))),
                 ]),
               ),
               if (accounts.isNotEmpty) ...[
@@ -1071,18 +1125,18 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                       Expanded(
                         child: Text((a['bank'] ?? a['name'] ?? 'Sąskaita').toString(),
                             maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 14, color: _neonInk, fontWeight: FontWeight.w600)),
+                            style: TextStyle(fontSize: 14, color: _heroInk, fontWeight: FontWeight.w600)),
                       ),
                       Text(_hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
-                          style: const TextStyle(
-                              fontSize: 14, color: Colors.white, fontWeight: FontWeight.w700,
-                              fontFeatures: [FontFeature.tabularFigures()])),
+                          style: TextStyle(
+                              fontSize: 14, color: _heroInk, fontWeight: FontWeight.w700,
+                              fontFeatures: const [FontFeature.tabularFigures()])),
                     ]),
                   ),
               ],
               const SizedBox(height: 12),
               Text('Likutis iš banko · grafikas = sandorių srautas',
-                  style: TextStyle(fontSize: 10.5, color: _neonDim.withValues(alpha: 0.8))),
+                  style: TextStyle(fontSize: 10.5, color: _heroDim.withValues(alpha: 0.8))),
               ],
             ),
           ),
@@ -1122,13 +1176,19 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            // Deep violet that sits IN the dark theme (was a bright purple that
-            // clashed with the near-black surfaces). White-alpha inner chips read
-            // cleanly on it, and a thin violet edge lifts it off the background.
-            gradient: const RadialGradient(
-                center: Alignment(-0.5, -1), radius: 1.6,
-                colors: [Color(0xFF2E1D63), Color(0xFF150E2C)]),
-            border: Border.all(color: const Color(0xFF3A2A66)),
+            // A saturated hero card so the white-alpha inner chips read cleanly:
+            // deep violet on the dark theme, a rich Frost blue on the light page.
+            gradient: _darkMode
+                ? const RadialGradient(
+                    center: Alignment(-0.5, -1), radius: 1.6,
+                    colors: [Color(0xFF2E1D63), Color(0xFF150E2C)])
+                : const RadialGradient(
+                    center: Alignment(-0.5, -1), radius: 1.6,
+                    colors: [Color(0xFF3B78FF), Color(0xFF1D45C4)]),
+            border: Border.all(color: _darkMode ? const Color(0xFF3A2A66) : const Color(0xFF5A8BFF)),
+            boxShadow: _darkMode
+                ? null
+                : [BoxShadow(color: const Color(0xFF2F6BFF).withValues(alpha: 0.28), blurRadius: 22, offset: const Offset(0, 10))],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1267,6 +1327,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                         painter: _WeekAvgPainter(
                           avg: avg, maxV: maxV, barMax: 118,
                           label: 'vidurkis ${avg.round()} €/d.',
+                          dark: _darkMode,
                         ),
                       ),
                     ),
@@ -2491,17 +2552,25 @@ class _SparkPainter extends CustomPainter {
 /// sit against. Leaves right padding so the value labels overlaid on top don't
 /// collide with the line's endpoint.
 class _NeonSparkPainter extends CustomPainter {
-  _NeonSparkPainter(this.pts);
+  _NeonSparkPainter(this.pts, {this.dark = true});
   final List<double> pts;
+  final bool dark;
   // Room on the right so the overlaid € labels never touch the line's endpoint.
   static const double rightPad = 44;
+
+  // Line gradient: violet→cyan on dark, blue→teal on the Frost page.
+  List<Color> get _lineColors =>
+      dark ? const [Color(0xFF8B5CF6), Color(0xFF22D3EE)] : const [Color(0xFF2F6BFF), Color(0xFF14B8A6)];
+  Color get _dot => dark ? const Color(0xFF22D3EE) : const Color(0xFF2F6BFF);
+  Color get _gridColor =>
+      dark ? const Color(0xFFFFFFFF).withValues(alpha: 0.07) : const Color(0xFF14203A).withValues(alpha: 0.07);
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = (size.width - rightPad).clamp(1.0, size.width);
     // Two faint reference lines (top = max, bottom = min).
     final grid = Paint()
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.07)
+      ..color = _gridColor
       ..strokeWidth = 1;
     canvas.drawLine(const Offset(0, 1), Offset(size.width, 1), grid);
     canvas.drawLine(Offset(0, size.height - 1), Offset(size.width, size.height - 1), grid);
@@ -2525,21 +2594,23 @@ class _NeonSparkPainter extends CustomPainter {
       ..lineTo(w, size.height)
       ..lineTo(0, size.height)
       ..close();
+    final fillTop = _lineColors.first;
     canvas.drawPath(
       area,
       Paint()
-        ..shader = const LinearGradient(
+        ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0x668B5CF6), Color(0x008B5CF6)],
+          colors: [fillTop.withValues(alpha: dark ? 0.40 : 0.22), fillTop.withValues(alpha: 0.0)],
         ).createShader(Rect.fromLTWH(0, 0, w, size.height)),
     );
 
-    final gradient = const LinearGradient(
-      colors: [Color(0xFF8B5CF6), Color(0xFF22D3EE)],
+    final gradient = LinearGradient(
+      colors: _lineColors,
     ).createShader(Rect.fromLTWH(0, 0, w, size.height));
 
-    // Glow: a thick, blurred, low-opacity pass under the crisp line.
+    // Glow: a thick, blurred, low-opacity pass under the crisp line. On the light
+    // page a white glow washes out, so tint the glow with the line colour instead.
     canvas.drawPath(
       line,
       Paint()
@@ -2548,7 +2619,7 @@ class _NeonSparkPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..shader = gradient
-        ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.5)
+        ..color = (dark ? const Color(0xFFFFFFFF) : _lineColors.first).withValues(alpha: dark ? 0.5 : 0.28)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
     );
     canvas.drawPath(
@@ -2563,14 +2634,14 @@ class _NeonSparkPainter extends CustomPainter {
 
     // Bright endpoint dot.
     final end = at(pts.length - 1);
-    canvas.drawCircle(end, 3.4, Paint()..color = const Color(0xFF22D3EE));
+    canvas.drawCircle(end, 3.4, Paint()..color = _dot);
     canvas.drawCircle(end, 6, Paint()
-      ..color = const Color(0xFF22D3EE).withValues(alpha: 0.3)
+      ..color = _dot.withValues(alpha: 0.3)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
   }
 
   @override
-  bool shouldRepaint(_NeonSparkPainter old) => old.pts != pts;
+  bool shouldRepaint(_NeonSparkPainter old) => old.pts != pts || old.dark != dark;
 }
 
 /// The weekly chart's background: faint € gridlines (so a bar's height reads as
@@ -2581,11 +2652,14 @@ class _NeonSparkPainter extends CustomPainter {
 /// with a ~26px day-label strip beneath it, so the bars stand on a baseline that
 /// far above the box bottom, and grow up to [barMax] px scaled by [maxV].
 class _WeekAvgPainter extends CustomPainter {
-  _WeekAvgPainter({required this.avg, required this.maxV, required this.barMax, required this.label});
+  _WeekAvgPainter({required this.avg, required this.maxV, required this.barMax, required this.label, this.dark = true});
   final double avg, maxV, barMax;
   final String label;
+  final bool dark;
 
   static const double _bottomInset = 26; // day-label strip + gap under the bars
+
+  Color get _avgColor => dark ? const Color(0xFF6EE7FF) : const Color(0xFF2F6BFF);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2594,9 +2668,9 @@ class _WeekAvgPainter extends CustomPainter {
     double yFor(double v) => baseY - (v / maxV * barMax);
 
     final gridPaint = Paint()
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.06)
+      ..color = (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A)).withValues(alpha: dark ? 0.06 : 0.07)
       ..strokeWidth = 1;
-    final labelStyle = const TextStyle(fontSize: 9, color: Color(0xFF6E6790), fontWeight: FontWeight.w600);
+    final labelStyle = TextStyle(fontSize: 9, color: dark ? const Color(0xFF6E6790) : const Color(0xFF5C6A85), fontWeight: FontWeight.w600);
 
     // Faint horizontal gridlines at "nice" euro steps, each labelled on the right.
     final step = _niceStep(maxV / 3);
@@ -2611,14 +2685,14 @@ class _WeekAvgPainter extends CustomPainter {
     }
     // Baseline the bars sit on.
     canvas.drawLine(Offset(0, baseY + 0.5), Offset(size.width, baseY + 0.5),
-        Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.08)..strokeWidth = 1);
+        Paint()..color = (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A)).withValues(alpha: dark ? 0.08 : 0.10)..strokeWidth = 1);
 
-    // Dashed cyan average line + label (left), only when there's a real average.
+    // Dashed average line + label (left), only when there's a real average.
     if (avg > 0) {
       final y = yFor(avg).clamp(8.0, baseY);
       const dash = 5.0, gap = 4.0;
       final avgPaint = Paint()
-        ..color = const Color(0xFF6EE7FF).withValues(alpha: 0.7)
+        ..color = _avgColor.withValues(alpha: dark ? 0.7 : 0.85)
         ..strokeWidth = 1.3;
       for (double x = 0; x < size.width; x += dash + gap) {
         canvas.drawLine(Offset(x, y), Offset((x + dash).clamp(0, size.width), y), avgPaint);
@@ -2626,7 +2700,7 @@ class _WeekAvgPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: label,
-          style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: Color(0xFF6EE7FF)),
+          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: _avgColor),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -2634,7 +2708,7 @@ class _WeekAvgPainter extends CustomPainter {
       final ty = (y - tp.height - 2) < 0 ? y + 2 : y - tp.height - 2;
       canvas.drawRect(
         Rect.fromLTWH(0, ty, tp.width + 6, tp.height),
-        Paint()..color = const Color(0xFF16121F).withValues(alpha: 0.65),
+        Paint()..color = (dark ? const Color(0xFF16121F) : const Color(0xFFFFFFFF)).withValues(alpha: dark ? 0.65 : 0.82),
       );
       tp.paint(canvas, Offset(3, ty));
     }
@@ -2651,7 +2725,7 @@ class _WeekAvgPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_WeekAvgPainter old) =>
-      old.avg != avg || old.maxV != maxV || old.label != label;
+      old.avg != avg || old.maxV != maxV || old.label != label || old.dark != dark;
 }
 
 class _MiniRingPainter extends CustomPainter {
@@ -5853,7 +5927,7 @@ class _PlanningTabState extends State<_PlanningTab> {
         padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A22C6), Color(0xFF7C3AED)]),
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1D45C4), Color(0xFF3B78FF)]),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -6008,7 +6082,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A22C6), Color(0xFF7C3AED)]),
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1D45C4), Color(0xFF3B78FF)]),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${_eur(total)} / mėn', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -6022,7 +6096,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
-              const Icon(Icons.lightbulb_outline_rounded, size: 18, color: Color(0xFF8B5CF6)),
+              const Icon(Icons.lightbulb_outline_rounded, size: 18, color: _purple),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
