@@ -910,16 +910,12 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   }
 
   Widget _filters() {
+    // "Visas laikas" removed: the feed is already all-time (scroll → past months,
+    // each with its own total), and period-scoped analysis lives in the Apžvalga
+    // / Planavimas tabs — a placeholder chip here only duplicated that.
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       child: Row(children: [
-        GestureDetector(
-          onTap: () => ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(const SnackBar(content: Text('Laikotarpio pasirinkimas — netrukus'), duration: Duration(milliseconds: 1500))),
-          child: const _Chip(icon: Icons.calendar_today_rounded, label: 'Visas laikas'),
-        ),
-        const SizedBox(width: 9),
         GestureDetector(
           onTap: _openDashFilter,
           child: _Chip(
