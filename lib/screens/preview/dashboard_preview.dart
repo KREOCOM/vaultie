@@ -1010,13 +1010,29 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   Color get _syncTint => _darkMode ? const Color(0xFF6EE7FF) : _purple;
 
   Widget _topBanner() {
-    final spark = (_d['spark'] as List).map((e) => (e as num).toDouble()).toList();
+    // Plot the FULL balance-over-time series — the same data the tapped balance
+    // detail shows — sub-sampled to a clean small line. (The backend `spark` was
+    // only the last 26 points, so the home chart looked flat and peaked lower
+    // than the detail; now both move up/down together and hit the same peak.)
+    final series = (((_d['balance'] as Map?)?['series'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((p) => ((p['v'] ?? 0) as num).toDouble())
+        .toList();
+    final rawSpark = series.length >= 2
+        ? series
+        : (_d['spark'] as List).map((e) => (e as num).toDouble()).toList();
+    final step = (rawSpark.length / 64).ceil().clamp(1, 999);
+    final spark = [for (var i = 0; i < rawSpark.length; i += step) rawSpark[i]];
+    // Always keep the latest balance as the final point (the pulsing endpoint).
+    if (rawSpark.isNotEmpty && (spark.isEmpty || spark.last != rawSpark.last)) {
+      spark.add(rawSpark.last);
+    }
     final cur = (_d['balance'] as Map?)?['current'];
     final balStr = cur is num ? _eur0(cur) : '—';
     final accounts = (((_d['balance'] as Map?)?['accounts'] as List?) ?? const [])
         .whereType<Map>()
         .toList();
-    // € labels for the chart (max/min of the flow) so the line isn't just a
+    // € labels for the chart (max/min of the balance) so the line isn't just a
     // shape — the user asked to see the monetary values.
     String? hi, lo;
     if (spark.length >= 2) {
@@ -1154,7 +1170,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                   ),
               ],
               const SizedBox(height: 12),
-              Text('Likutis iš banko · grafikas = sandorių srautas',
+              Text('Likutis iš banko · grafikas = likučio kitimas laike',
                   style: TextStyle(fontSize: 10.5, color: _heroDim.withValues(alpha: 0.8))),
               ],
             ),
