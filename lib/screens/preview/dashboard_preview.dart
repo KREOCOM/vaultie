@@ -1105,7 +1105,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               SizedBox(
                 height: 68,
                 child: Stack(children: [
-                  Positioned.fill(child: CustomPaint(painter: _NeonSparkPainter(spark, dark: _darkMode))),
+                  Positioned.fill(child: _Sparkline(pts: spark, dark: _darkMode)),
                   if (hi != null)
                     Positioned(top: -2, right: 0,
                         child: Text(hi, style: TextStyle(fontSize: 10.5, color: _heroDim, fontWeight: FontWeight.w600))),
@@ -1116,21 +1116,40 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               ),
               if (accounts.isNotEmpty) ...[
                 const SizedBox(height: 12),
+                // Each connected bank in its own framed tile, with the balance set
+                // off in a coloured pill — reads more like a fintech account card.
                 for (final a in accounts)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
+                  Container(
+                    margin: const EdgeInsets.only(top: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _darkMode ? Colors.white.withValues(alpha: 0.06) : _card,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _hair),
+                      boxShadow: _darkMode ? null : DS.e1,
+                    ),
                     child: Row(children: [
                       _acctGlyph(a, diameter: 32, fontSize: 14),
                       const SizedBox(width: 11),
                       Expanded(
                         child: Text((a['bank'] ?? a['name'] ?? 'Sąskaita').toString(),
                             maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 14, color: _heroInk, fontWeight: FontWeight.w600)),
+                            style: TextStyle(fontSize: 14, color: _heroInk, fontWeight: FontWeight.w700)),
                       ),
-                      Text(_hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
-                          style: TextStyle(
-                              fontSize: 14, color: _heroInk, fontWeight: FontWeight.w700,
-                              fontFeatures: const [FontFeature.tabularFigures()])),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _purpleSoft,
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Text(_hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: _darkMode ? _heroInk : _purpleDeep,
+                                fontWeight: FontWeight.w800,
+                                fontFeatures: const [FontFeature.tabularFigures()])),
+                      ),
                     ]),
                   ),
               ],
@@ -1298,8 +1317,17 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
-          child: Row(children: [
-            Text('Šios savaitės išlaidos', style: TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w500)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Šios savaitės išlaidos', style: TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w500)),
+              // Average lives in the header (never on top of a bar or its number).
+              if (avg > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('vidurkis ${avg.round()} €/d.',
+                      style: TextStyle(fontSize: 12, color: _faint, fontWeight: FontWeight.w600)),
+                ),
+            ]),
             const Spacer(),
             // Positive amount — consistent with the month header's "Išleista X".
             Text(_eur(total), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
@@ -2131,7 +2159,7 @@ class _AddEntryScreen extends StatelessWidget {
             _choice(
               context,
               kind: 'transfer',
-              color: const Color(0xFF6E6E86),
+              color: _purple,
               icon: Icons.swap_horiz_rounded,
               title: 'Vidinis pervedimas',
               desc: 'Perkėlei pinigus tarp savo sąskaitų arba išsiėmei grynųjų.',
@@ -2547,21 +2575,21 @@ class _SparkPainter extends CustomPainter {
   bool shouldRepaint(_SparkPainter old) => false;
 }
 
-/// "Neonas" balance chart: a glowing violet→cyan line over a soft violet area
-/// fill, on a dark ground. Two faint gridlines give the € labels something to
-/// sit against. Leaves right padding so the value labels overlaid on top don't
-/// collide with the line's endpoint.
+/// Balance flow chart: a single crisp line (no gradient, no blur haze behind it —
+/// the user found those distracting) with a gently pulsing endpoint dot so it
+/// still feels "live". Two faint gridlines give the € labels something to sit
+/// against. Leaves right padding so the overlaid value labels don't collide with
+/// the line's endpoint. [pulse] is a 0→1 animation value from the host widget.
 class _NeonSparkPainter extends CustomPainter {
-  _NeonSparkPainter(this.pts, {this.dark = true});
+  _NeonSparkPainter(this.pts, {this.dark = true, this.pulse = 0});
   final List<double> pts;
   final bool dark;
+  final double pulse;
   // Room on the right so the overlaid € labels never touch the line's endpoint.
   static const double rightPad = 44;
 
-  // Line gradient: violet→cyan on dark, blue→teal on the Frost page.
-  List<Color> get _lineColors =>
-      dark ? const [Color(0xFF8B5CF6), Color(0xFF22D3EE)] : const [Color(0xFF2F6BFF), Color(0xFF14B8A6)];
-  Color get _dot => dark ? const Color(0xFF22D3EE) : const Color(0xFF2F6BFF);
+  // One solid line colour (violet on dark, Frost blue on light) — no gradient.
+  Color get _line => dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
   Color get _gridColor =>
       dark ? const Color(0xFFFFFFFF).withValues(alpha: 0.07) : const Color(0xFF14203A).withValues(alpha: 0.07);
 
@@ -2589,39 +2617,7 @@ class _NeonSparkPainter extends CustomPainter {
       line.lineTo(at(i).dx, at(i).dy);
     }
 
-    // Area fill under the line.
-    final area = Path.from(line)
-      ..lineTo(w, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    final fillTop = _lineColors.first;
-    canvas.drawPath(
-      area,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [fillTop.withValues(alpha: dark ? 0.40 : 0.22), fillTop.withValues(alpha: 0.0)],
-        ).createShader(Rect.fromLTWH(0, 0, w, size.height)),
-    );
-
-    final gradient = LinearGradient(
-      colors: _lineColors,
-    ).createShader(Rect.fromLTWH(0, 0, w, size.height));
-
-    // Glow: a thick, blurred, low-opacity pass under the crisp line. On the light
-    // page a white glow washes out, so tint the glow with the line colour instead.
-    canvas.drawPath(
-      line,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..shader = gradient
-        ..color = (dark ? const Color(0xFFFFFFFF) : _lineColors.first).withValues(alpha: dark ? 0.5 : 0.28)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-    );
+    // Crisp solid line — nothing behind it.
     canvas.drawPath(
       line,
       Paint()
@@ -2629,19 +2625,52 @@ class _NeonSparkPainter extends CustomPainter {
         ..strokeWidth = 2.4
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
-        ..shader = gradient,
+        ..color = _line,
     );
 
-    // Bright endpoint dot.
+    // Endpoint: a solid dot with a clean expanding-then-fading ring (opacity only,
+    // no blur) so it reads as "live" without adding haze.
     final end = at(pts.length - 1);
-    canvas.drawCircle(end, 3.4, Paint()..color = _dot);
-    canvas.drawCircle(end, 6, Paint()
-      ..color = _dot.withValues(alpha: 0.3)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+    final ringR = 4.0 + pulse * 6.0;
+    canvas.drawCircle(end, ringR, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = _line.withValues(alpha: (1 - pulse) * 0.45));
+    canvas.drawCircle(end, 3.4, Paint()..color = _line);
   }
 
   @override
-  bool shouldRepaint(_NeonSparkPainter old) => old.pts != pts || old.dark != dark;
+  bool shouldRepaint(_NeonSparkPainter old) => old.pts != pts || old.dark != dark || old.pulse != pulse;
+}
+
+/// Hosts the balance sparkline and drives its pulsing endpoint.
+class _Sparkline extends StatefulWidget {
+  const _Sparkline({required this.pts, required this.dark});
+  final List<double> pts;
+  final bool dark;
+  @override
+  State<_Sparkline> createState() => _SparklineState();
+}
+
+class _SparklineState extends State<_Sparkline> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1800))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) => CustomPaint(
+        painter: _NeonSparkPainter(widget.pts, dark: widget.dark, pulse: _c.value),
+      ),
+    );
+  }
 }
 
 /// The weekly chart's background: faint € gridlines (so a bar's height reads as
@@ -2687,7 +2716,8 @@ class _WeekAvgPainter extends CustomPainter {
     canvas.drawLine(Offset(0, baseY + 0.5), Offset(size.width, baseY + 0.5),
         Paint()..color = (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A)).withValues(alpha: dark ? 0.08 : 0.10)..strokeWidth = 1);
 
-    // Dashed average line + label (left), only when there's a real average.
+    // Dashed average line only (the "vidurkis X €/d." label now lives in the
+    // section header, so it can never overlap a bar or its number).
     if (avg > 0) {
       final y = yFor(avg).clamp(8.0, baseY);
       const dash = 5.0, gap = 4.0;
@@ -2697,20 +2727,6 @@ class _WeekAvgPainter extends CustomPainter {
       for (double x = 0; x < size.width; x += dash + gap) {
         canvas.drawLine(Offset(x, y), Offset((x + dash).clamp(0, size.width), y), avgPaint);
       }
-      final tp = TextPainter(
-        text: TextSpan(
-          text: label,
-          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: _avgColor),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      // Sit the label just above the line; if that would clip the top, drop it below.
-      final ty = (y - tp.height - 2) < 0 ? y + 2 : y - tp.height - 2;
-      canvas.drawRect(
-        Rect.fromLTWH(0, ty, tp.width + 6, tp.height),
-        Paint()..color = (dark ? const Color(0xFF16121F) : const Color(0xFFFFFFFF)).withValues(alpha: dark ? 0.65 : 0.82),
-      );
-      tp.paint(canvas, Offset(3, ty));
     }
   }
 
@@ -6450,7 +6466,7 @@ class _AccountTabState extends State<_AccountTab> {
             child: Row(children: [
               Container(
                 width: 40, height: 40,
-                decoration: BoxDecoration(color: _faint.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(12)),
                 child: const Icon(Icons.settings_rounded, size: 22, color: Colors.white),
               ),
               const SizedBox(width: 13),
