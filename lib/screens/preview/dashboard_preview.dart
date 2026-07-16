@@ -746,14 +746,6 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         ),
       ),
       bottomNavigationBar: _navBar(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openAddMenu,
-        backgroundColor: _purpleSoft,
-        elevation: 2,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.add_rounded, color: _purple, size: 28),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 
@@ -904,6 +896,17 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                   budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
                 ))),
             child: Icon(Icons.search_rounded, size: 25, color: _ink),
+          ),
+          const SizedBox(width: 12),
+          // Manual add lives here now — the centre nav slot is the AI chat tab,
+          // and a docked centre FAB would sit on top of it and swallow its taps.
+          GestureDetector(
+            onTap: _openAddMenu,
+            child: Container(
+              width: 34, height: 34, alignment: Alignment.center,
+              decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle),
+              child: const Icon(Icons.add_rounded, size: 22, color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -7262,6 +7265,7 @@ String buildFinanceSummary(Map<String, dynamic> d) {
   final months = all.map(monthOf).where((m) => m.trim().isNotEmpty).toList()..sort();
   final month = months.isNotEmpty ? months.last : '';
   final byCat = <String, double>{};
+  final byCatMerch = <String, Map<String, double>>{};
   double income = 0, spent = 0;
   for (final t in all) {
     if (monthOf(t) != month) continue;
@@ -7273,6 +7277,14 @@ String buildFinanceSummary(Map<String, dynamic> d) {
       spent += -a;
       final cat = (t['cat'] as String? ?? 'Kita');
       byCat[cat] = (byCat[cat] ?? 0) + -a;
+      // Track which merchant drives each category, so the assistant can name it
+      // ("būstas — MB Artus Grupė") instead of leaving the user to guess. Only
+      // business merchants reach here — transfers (people) are excluded above.
+      final merch = (t['nm'] as String? ?? '').trim();
+      if (merch.isNotEmpty) {
+        (byCatMerch[cat] ??= <String, double>{})
+            .update(merch, (v) => v + -a, ifAbsent: () => -a);
+      }
     } else if (a > 0 && t['pos'] == true) {
       income += a;
     }
@@ -7283,9 +7295,15 @@ String buildFinanceSummary(Map<String, dynamic> d) {
     if (income > 0) b.writeln('  Pajamos: ${_eur(income)}');
     final cats = byCat.entries.toList()..sort((x, y) => y.value.compareTo(x.value));
     if (cats.isNotEmpty) {
-      b.writeln('  Išlaidos pagal kategoriją:');
+      b.writeln('  Išlaidos pagal kategoriją (skliaustuose — pagrindinis pirkėjas):');
       for (final e in cats.take(12)) {
-        b.writeln('    - ${e.key}: ${_eur(e.value)}');
+        final top = (byCatMerch[e.key]?.entries.toList()
+              ?..sort((x, y) => y.value.compareTo(x.value)))
+            ?.take(2)
+            .map((m) => m.key)
+            .join(', ');
+        final who = (top != null && top.isNotEmpty) ? ' ($top)' : '';
+        b.writeln('    - ${e.key}: ${_eur(e.value)}$who');
       }
     }
   }
