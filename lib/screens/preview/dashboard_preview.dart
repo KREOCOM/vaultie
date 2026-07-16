@@ -936,52 +936,104 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     );
   }
 
+  // "Neonas" balance hero (design #05): a dark card with a glowing violet→cyan
+  // flow chart, the balance in white, and — below — one row PER CONNECTED BANK
+  // (Revolut, SEB, …) straight from the payload, so what shows always matches
+  // what the user linked. Tapping opens the full balance sheet.
+  static const _neonInk = Color(0xFFEDEAF6);
+  static const _neonDim = Color(0xFF9A93B8);
+
   Widget _balanceCard() {
     final spark = (_d['spark'] as List).map((e) => (e as num).toDouble()).toList();
-    // Real bank balance from the payload (was hardcoded "7 049 €"). "—" if absent.
     final cur = (_d['balance'] as Map?)?['current'];
     final balStr = cur is num ? _eur0(cur) : '—';
+    final accounts = (((_d['balance'] as Map?)?['accounts'] as List?) ?? const [])
+        .whereType<Map>()
+        .toList();
+    // € labels for the chart (max/min of the flow) so the line isn't just a
+    // shape — the user asked to see the monetary values.
+    String? hi, lo;
+    if (spark.length >= 2) {
+      hi = _eur0(spark.reduce((a, b) => a > b ? a : b));
+      lo = _eur0(spark.reduce((a, b) => a < b ? a : b));
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: GestureDetector(
         onTap: _showBalance,
-        child: AppCard(color: _card, border: _hair, 
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Bendras likutis', style: TextStyle(fontSize: 13.5, color: _ink, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 3),
-                      _hideBal
-                          ? Text('••••••', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: 2))
-                          : Text(balStr,
-                              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-                    ],
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const RadialGradient(
+              center: Alignment(0, -1.1),
+              radius: 1.5,
+              colors: [Color(0xFF211544), Color(0xFF0B0912)],
+            ),
+            border: Border.all(color: const Color(0xFF2A2140)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Text('Bendras likutis',
+                    style: TextStyle(fontSize: 12.5, color: _neonDim, fontWeight: FontWeight.w600, letterSpacing: 0.2)),
+                const Spacer(),
+                Row(children: [
+                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF22D3EE), shape: BoxShape.circle)),
+                  const SizedBox(width: 5),
+                  Text('gyvai', style: TextStyle(fontSize: 11, color: const Color(0xFF6EE7FF))),
+                ]),
+              ]),
+              const SizedBox(height: 5),
+              _hideBal
+                  ? const Text('••••••',
+                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 2))
+                  : Text(balStr,
+                      style: const TextStyle(
+                        fontSize: 34, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.6,
+                        shadows: [Shadow(color: Color(0x808B5CF6), blurRadius: 18)],
+                      )),
+              const SizedBox(height: 12),
+              // Chart + € labels overlaid on the right.
+              SizedBox(
+                height: 68,
+                child: Stack(children: [
+                  Positioned.fill(child: CustomPaint(painter: _NeonSparkPainter(spark))),
+                  if (hi != null)
+                    Positioned(top: -2, right: 0,
+                        child: Text(hi, style: TextStyle(fontSize: 10.5, color: _neonDim, fontWeight: FontWeight.w600))),
+                  if (lo != null)
+                    Positioned(bottom: -2, right: 0,
+                        child: Text(lo, style: TextStyle(fontSize: 10.5, color: _neonDim, fontWeight: FontWeight.w600))),
+                ]),
+              ),
+              if (accounts.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (final a in accounts)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Row(children: [
+                      _acctGlyph(a, diameter: 32, fontSize: 14),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Text((a['bank'] ?? a['name'] ?? 'Sąskaita').toString(),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14, color: _neonInk, fontWeight: FontWeight.w600)),
+                      ),
+                      Text(_hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
+                          style: const TextStyle(
+                              fontSize: 14, color: Colors.white, fontWeight: FontWeight.w700,
+                              fontFeatures: [FontFeature.tabularFigures()])),
+                    ]),
                   ),
-                ),
-                Container(
-                  width: 150,
-                  height: 56,
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
-                  child: CustomPaint(painter: _SparkPainter(spark)),
-                ),
               ],
-            ),
-            const SizedBox(height: 9),
-            Text(
-              '* Likutis ateina iš banko (Enable Banking balances) — sandorių sąraše jo nėra. Grafikas = realus sandorių srautas.',
-              style: TextStyle(fontSize: 11.5, color: _muted, height: 1.35, fontWeight: FontWeight.w500),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text('Likutis iš banko · grafikas = sandorių srautas',
+                  style: TextStyle(fontSize: 10.5, color: _neonDim.withValues(alpha: 0.8))),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -2411,6 +2463,93 @@ class _SparkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SparkPainter old) => false;
+}
+
+/// "Neonas" balance chart: a glowing violet→cyan line over a soft violet area
+/// fill, on a dark ground. Two faint gridlines give the € labels something to
+/// sit against. Leaves right padding so the value labels overlaid on top don't
+/// collide with the line's endpoint.
+class _NeonSparkPainter extends CustomPainter {
+  _NeonSparkPainter(this.pts);
+  final List<double> pts;
+  // Room on the right so the overlaid € labels never touch the line's endpoint.
+  static const double rightPad = 44;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = (size.width - rightPad).clamp(1.0, size.width);
+    // Two faint reference lines (top = max, bottom = min).
+    final grid = Paint()
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.07)
+      ..strokeWidth = 1;
+    canvas.drawLine(const Offset(0, 1), Offset(size.width, 1), grid);
+    canvas.drawLine(Offset(0, size.height - 1), Offset(size.width, size.height - 1), grid);
+    if (pts.length < 2) return;
+
+    final mn = pts.reduce((a, b) => a < b ? a : b);
+    final mx = pts.reduce((a, b) => a > b ? a : b);
+    final range = (mx - mn).abs() < 1e-6 ? 1.0 : (mx - mn);
+    Offset at(int i) => Offset(
+          i / (pts.length - 1) * w,
+          (size.height - 8) - (pts[i] - mn) / range * (size.height - 16) + 4,
+        );
+
+    final line = Path()..moveTo(at(0).dx, at(0).dy);
+    for (var i = 1; i < pts.length; i++) {
+      line.lineTo(at(i).dx, at(i).dy);
+    }
+
+    // Area fill under the line.
+    final area = Path.from(line)
+      ..lineTo(w, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      area,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x668B5CF6), Color(0x008B5CF6)],
+        ).createShader(Rect.fromLTWH(0, 0, w, size.height)),
+    );
+
+    final gradient = const LinearGradient(
+      colors: [Color(0xFF8B5CF6), Color(0xFF22D3EE)],
+    ).createShader(Rect.fromLTWH(0, 0, w, size.height));
+
+    // Glow: a thick, blurred, low-opacity pass under the crisp line.
+    canvas.drawPath(
+      line,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..shader = gradient
+        ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.5)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+    canvas.drawPath(
+      line,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..shader = gradient,
+    );
+
+    // Bright endpoint dot.
+    final end = at(pts.length - 1);
+    canvas.drawCircle(end, 3.4, Paint()..color = const Color(0xFF22D3EE));
+    canvas.drawCircle(end, 6, Paint()
+      ..color = const Color(0xFF22D3EE).withValues(alpha: 0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+  }
+
+  @override
+  bool shouldRepaint(_NeonSparkPainter old) => old.pts != pts;
 }
 
 class _MiniRingPainter extends CustomPainter {
