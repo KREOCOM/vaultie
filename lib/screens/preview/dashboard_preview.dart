@@ -508,9 +508,21 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
 
   // Theme flip must rebuild the cached tabs so their colours update.
   void _onTheme() => setState(() => _otherTabs = null);
+
+  // Home scroll drives the status-bar icon colour: the dark banner reaches
+  // behind the status bar, so its icons must be light while it covers the top,
+  // and flip back to dark once the light feed scrolls up under the status bar.
+  final ScrollController _homeScroll = ScrollController();
+  bool _lightStatus = true;
+  void _onHomeScroll() {
+    final light = !_homeScroll.hasClients || _homeScroll.offset < 40;
+    if (light != _lightStatus) setState(() => _lightStatus = light);
+  }
+
   @override
   void initState() {
     super.initState();
+    _homeScroll.addListener(_onHomeScroll);
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     // Let any detail/edit screen that mutates `_d['all']` (delete, edit,
@@ -716,6 +728,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _themeVN.removeListener(_onTheme);
+    _homeScroll.dispose();
     if (_dashRefresh == _refreshFromAll) _dashRefresh = null;
     super.dispose();
   }
@@ -735,15 +748,21 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bg,
-      body: SafeArea(
-        bottom: false,
-        child: IndexedStack(
-          index: _tab,
-          children: [
-            _dashboard(),
-            ...(_otherTabs ??= _buildOtherTabs()),
-          ],
-        ),
+      // No top SafeArea here: the home banner paints its own dark strip behind
+      // the status bar (edge-to-edge, Deriv-style). The other tabs keep their
+      // top inset via their own SafeArea below.
+      body: IndexedStack(
+        index: _tab,
+        children: [
+          AnnotatedRegion<SystemUiOverlayStyle>(
+            value: (_lightStatus || AppPrefs.darkMode.value)
+                ? SystemUiOverlayStyle.light
+                : SystemUiOverlayStyle.dark,
+            child: _dashboard(),
+          ),
+          for (final w in (_otherTabs ??= _buildOtherTabs()))
+            SafeArea(bottom: false, child: w),
+        ],
       ),
       bottomNavigationBar: _navBar(),
     );
@@ -764,12 +783,13 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       color: _purple,
       backgroundColor: _card,
       child: ListView(
+      controller: _homeScroll,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 28),
       children: [
-        _header(),
+        _topBanner(),
+        const SizedBox(height: 12),
         _filters(),
-        _balanceCard(),
         _syncedCard(),
         _subsCard(),
         _weekSection(),
@@ -877,42 +897,6 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     return out;
   }
 
-  Widget _header() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-      child: Row(
-        children: [
-          Text('Pradžia',
-              style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-          const Spacer(),
-          GestureDetector(
-            onTap: () => setState(() => _hideBal = !_hideBal),
-            child: Icon(_hideBal ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 25, color: _ink),
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _SearchScreen(
-                  all: (_d['all'] as List).cast<Map<String, dynamic>>(),
-                  budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
-                ))),
-            child: Icon(Icons.search_rounded, size: 25, color: _ink),
-          ),
-          const SizedBox(width: 12),
-          // Manual add lives here now — the centre nav slot is the AI chat tab,
-          // and a docked centre FAB would sit on top of it and swallow its taps.
-          GestureDetector(
-            onTap: _openAddMenu,
-            child: Container(
-              width: 34, height: 34, alignment: Alignment.center,
-              decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle),
-              child: const Icon(Icons.add_rounded, size: 22, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _filters() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
@@ -943,7 +927,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   static const _neonInk = Color(0xFFEDEAF6);
   static const _neonDim = Color(0xFF9A93B8);
 
-  Widget _balanceCard() {
+  Widget _topBanner() {
     final spark = (_d['spark'] as List).map((e) => (e as num).toDouble()).toList();
     final cur = (_d['balance'] as Map?)?['current'];
     final balStr = cur is num ? _eur0(cur) : '—';
@@ -957,24 +941,57 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       hi = _eur0(spark.reduce((a, b) => a > b ? a : b));
       lo = _eur0(spark.reduce((a, b) => a < b ? a : b));
     }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: GestureDetector(
-        onTap: _showBalance,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            gradient: const RadialGradient(
-              center: Alignment(0, -1.1),
-              radius: 1.5,
-              colors: [Color(0xFF211544), Color(0xFF0B0912)],
+    final topInset = MediaQuery.of(context).padding.top;
+    return Container(
+      // Edge-to-edge, straight from the top of the phone (behind the status
+      // bar), rounded only at the bottom — the "card descends from the top".
+      padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, 18),
+      decoration: const BoxDecoration(
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(26)),
+        gradient: RadialGradient(
+          center: Alignment(0, -0.8),
+          radius: 1.4,
+          colors: [Color(0xFF241650), Color(0xFF0B0912)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title row lives ON the dark banner now (white).
+          Row(children: [
+            const Text('Pradžia',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => setState(() => _hideBal = !_hideBal),
+              child: Icon(_hideBal ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  size: 24, color: _neonInk),
             ),
-            border: Border.all(color: const Color(0xFF2A2140)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            const SizedBox(width: 14),
+            GestureDetector(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _SearchScreen(
+                    all: (_d['all'] as List).cast<Map<String, dynamic>>(),
+                    budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
+                  ))),
+              child: const Icon(Icons.search_rounded, size: 24, color: _neonInk),
+            ),
+            const SizedBox(width: 14),
+            GestureDetector(
+              onTap: _openAddMenu,
+              child: Container(
+                width: 33, height: 33, alignment: Alignment.center,
+                decoration: const BoxDecoration(color: Color(0xFF7C3AED), shape: BoxShape.circle),
+                child: const Icon(Icons.add_rounded, size: 21, color: Colors.white),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 18),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _showBalance,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Row(children: [
                 Text('Bendras likutis',
                     style: TextStyle(fontSize: 12.5, color: _neonDim, fontWeight: FontWeight.w600, letterSpacing: 0.2)),
@@ -1031,9 +1048,10 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               const SizedBox(height: 12),
               Text('Likutis iš banko · grafikas = sandorių srautas',
                   style: TextStyle(fontSize: 10.5, color: _neonDim.withValues(alpha: 0.8))),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
