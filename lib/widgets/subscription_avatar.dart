@@ -56,63 +56,30 @@ class SubscriptionAvatar extends StatelessWidget {
     return logoAssetForName(name);
   }
 
-  /// The network logo URL, or null to fall back to the category icon / initials.
-  String? get _logoUrl {
-    final domain = logoDomain?.trim();
-    if (domain != null && domain.isNotEmpty) return logoUrlForDomain(domain);
-    final d = _mayGuessFromName ? domainForName(name) : null;
-    return d == null ? null : logoUrlForDomain(d);
-  }
-
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(size * 0.29);
-    // Bundled asset first (on-device, tells no one), then network, then fallback.
+    // Bundled asset only — resolves on-device, so an avatar never discloses the
+    // merchant to any third party. No bundled logo → category icon / initials,
+    // never a network fetch.
     final asset = _logoAsset;
-    if (asset != null) {
-      return SizedBox(
-        width: size,
-        height: size,
-        child: Image.asset(
-          asset,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stack) => _fallback(radius),
-          frameBuilder: (context, child, frame, sync) => ClipRRect(
-            borderRadius: radius,
-            child: ColoredBox(
-              color: Colors.white,
-              child: Padding(padding: EdgeInsets.all(size * 0.16), child: child),
-            ),
-          ),
-        ),
-      );
-    }
-    final url = _logoUrl;
-    if (url == null) {
+    if (asset == null) {
       return category != null ? _categoryIcon(radius) : _initials(radius);
     }
-
     return SizedBox(
       width: size,
       height: size,
-      child: Image.network(
-        url,
+      child: Image.asset(
+        asset,
         fit: BoxFit.contain,
-        gaplessPlayback: true,
-        // Loaded → logo on a white rounded tile; still loading → fallback.
-        loadingBuilder: (context, child, progress) => progress == null
-            ? ClipRRect(
-                borderRadius: radius,
-                child: ColoredBox(
-                  color: Colors.white,
-                  child: Padding(
-                    padding: EdgeInsets.all(size * 0.16),
-                    child: child,
-                  ),
-                ),
-              )
-            : _fallback(radius),
         errorBuilder: (context, error, stack) => _fallback(radius),
+        frameBuilder: (context, child, frame, sync) => ClipRRect(
+          borderRadius: radius,
+          child: ColoredBox(
+            color: Colors.white,
+            child: Padding(padding: EdgeInsets.all(size * 0.16), child: child),
+          ),
+        ),
       ),
     );
   }

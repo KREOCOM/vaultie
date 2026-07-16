@@ -44,8 +44,6 @@ dependencies:
   # Bank OAuth return via ASWebAuthenticationSession (iOS) / Custom Tabs
   # (Android) — intercepts the vaultie:// callback with no "Open in app?" prompt
   flutter_web_auth_2: ^4.1.0
-  cached_network_image: ^3.4.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

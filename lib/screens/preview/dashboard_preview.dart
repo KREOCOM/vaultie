@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -422,30 +421,18 @@ Widget _acctGlyph(Map a, {double diameter = 40, double fontSize = 18}) {
     final letter = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '•';
     child = Text(letter, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: _ink));
   }
-  // The bank's own logo when we ship it (SEB, Revolut, Swedbank…), keyed off the
-  // backend's `bank` label — never a hardcoded bank, since which one is
-  // connected varies per user. Bundled asset first (on-device), favicon next,
-  // the letter above as the final fallback.
+  // The bank's own logo when we SHIP it (SEB, Revolut, Swedbank…), keyed off the
+  // backend's `bank` label — never a hardcoded bank, since which one is connected
+  // varies per user. Bundled asset only; the letter above is the fallback. No
+  // network fetch, so an account avatar never discloses the user's bank to a
+  // third party.
   final bankName = (a['bank'] as String?) ?? name;
   final asset = isCash ? null : logoAssetForName(bankName);
-  final domain = (isCash || asset != null) ? null : domainForName(bankName);
-  final pad = EdgeInsets.all(diameter * 0.18);
   if (asset != null) {
     child = Padding(
-      padding: pad,
+      padding: EdgeInsets.all(diameter * 0.18),
       child: Image.asset(asset, fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => Center(child: child)),
-    );
-  } else if (domain != null) {
-    final fallback = child;
-    child = Padding(
-      padding: pad,
-      child: CachedNetworkImage(
-        imageUrl: logoUrlForDomain(domain),
-        fit: BoxFit.contain,
-        placeholder: (_, __) => Center(child: fallback),
-        errorWidget: (_, __, ___) => Center(child: fallback),
-      ),
     );
   }
   return Container(

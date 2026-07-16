@@ -1,12 +1,12 @@
-/// Maps a subscription name to a brand icon URL via the Google Favicon API
-/// (https://www.google.com/s2/favicons?domain={domain}&sz=128).
+/// Resolves a merchant name to a BUNDLED, on-device logo asset.
 ///
-/// We keep a curated name→domain table for popular services (global + a few
-/// Lithuanian ones). The name is normalised (lowercased, non-alphanumerics
-/// stripped) so "TV3 Go", "tv3go" and "TV3Go" all resolve the same. If nothing
-/// matches, callers fall back to coloured initials — and even a wrong guess is
-/// harmless: the favicon fails to load and the image's errorBuilder shows
-/// initials instead.
+/// A curated name→domain table maps popular merchants (global + Lithuanian) to a
+/// brand key; `tools/logos` ships each key's logo as an app asset, so showing a
+/// logo never fetches anything and never discloses a user's merchants to a third
+/// party. Names are normalised (diacritics folded, non-alphanumerics stripped)
+/// and matched on whole words, so "TV3 Go"/"tv3go" resolve alike while a brand's
+/// letters buried in an unrelated word ("iki" in "vaikiškas") never false-match.
+/// Nothing matches → the caller shows its category tile / initials.
 library;
 
 import 'bundled_logos.g.dart';
@@ -278,10 +278,3 @@ String? _keyForName(String name) {
   }
   return null;
 }
-
-/// Google-favicon icon URL for an explicit domain — the LAST resort, for a brand
-/// we recognise but didn't bundle. Fetched from the app, so it does disclose that
-/// merchant to Google; kept only so a known merchant without a shipped asset
-/// still shows something. Bundle the logo (tools/logos) to avoid it.
-String logoUrlForDomain(String domain) =>
-    'https://www.google.com/s2/favicons?domain=$domain&sz=128';

@@ -1,6 +1,5 @@
 import 'dart:ui' show FontFeature;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../services/logo_service.dart';
@@ -161,8 +160,11 @@ class CategoryIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final shape = circle ? const CircleBorder() : squircle(size * 0.32);
     final name = merchant;
+    // BUNDLED logos only — resolves on-device, so showing a logo never tells any
+    // third party which merchants the user pays. A brand we don't ship shows its
+    // category tile, never a network fetch: for a finance app that leak isn't
+    // worth a nicer icon.
     final asset = name == null ? null : logoAssetForName(name);
-    final domain = (name == null || asset != null) ? null : domainForName(name);
 
     Widget onTile(Widget child) => SizedBox(
           width: size,
@@ -175,29 +177,11 @@ class CategoryIcon extends StatelessWidget {
           ),
         );
 
-    if (asset == null && domain == null) return onTile(_glyph());
+    if (asset == null) return onTile(_glyph());
 
     // Padding keeps a square brand mark off the tile's edges; white behind it
     // because brand marks are drawn for light backgrounds and many are
     // transparent, so on the category colour they'd smear into it.
-    Widget framed(Widget img) => SizedBox(
-          width: size,
-          height: size,
-          child: Material(
-            color: Colors.white,
-            shape: shape,
-            clipBehavior: Clip.antiAlias,
-            child: Padding(padding: EdgeInsets.all(size * 0.16), child: img),
-          ),
-        );
-
-    if (asset != null) {
-      return framed(Image.asset(
-        asset,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => onTile(_glyph()),
-      ));
-    }
     return SizedBox(
       width: size,
       height: size,
@@ -205,17 +189,13 @@ class CategoryIcon extends StatelessWidget {
         color: Colors.white,
         shape: shape,
         clipBehavior: Clip.antiAlias,
-        child: CachedNetworkImage(
-          imageUrl: logoUrlForDomain(domain!),
-          fit: BoxFit.contain,
-          imageBuilder: (_, img) => Padding(
-            padding: EdgeInsets.all(size * 0.16),
-            child: Image(image: img, fit: BoxFit.contain),
+        child: Padding(
+          padding: EdgeInsets.all(size * 0.16),
+          child: Image.asset(
+            asset,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => onTile(_glyph()),
           ),
-          // Never flash a spinner for a tiny icon — hold the fallback tile so the
-          // row doesn't twitch while it loads.
-          placeholder: (_, __) => onTile(_glyph()),
-          errorWidget: (_, __, ___) => onTile(_glyph()),
         ),
       ),
     );
