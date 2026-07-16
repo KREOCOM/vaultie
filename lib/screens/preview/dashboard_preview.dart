@@ -53,17 +53,18 @@ Color _soft = const Color(0xFFF4F2FA); // recessed surface (input / inner boxes)
 
 void _applyTheme(bool dark) {
   _darkMode = dark;
-  // Dark = a violet-biased near-black (matches the neon balance banner), not a
-  // neutral graphite — the whole app reads as one dark surface with the banner.
-  _bg         = dark ? const Color(0xFF0B0912) : const Color(0xFFF1F1F4);
-  _purpleSoft = dark ? const Color(0xFF241650) : const Color(0xFFF3EEFE);
-  _muted      = dark ? const Color(0xFFB9B4CE) : const Color(0xFF2B2B31);
-  _faint      = dark ? const Color(0xFF8B84A6) : const Color(0xFF57575F);
+  // Dark = a violet twilight (not near-black): the whole home sits on one smooth
+  // top-dark→bottom-lighter violet gradient (see _dashboard), and these solid
+  // tokens are the card/surface violets that sit on it.
+  _bg         = dark ? const Color(0xFF201545) : const Color(0xFFF1F1F4);
+  _purpleSoft = dark ? const Color(0xFF2E2160) : const Color(0xFFF3EEFE);
+  _muted      = dark ? const Color(0xFFC0B8DA) : const Color(0xFF2B2B31);
+  _faint      = dark ? const Color(0xFF9A93B8) : const Color(0xFF57575F);
   _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF16161A);
-  _navOff     = dark ? const Color(0xFF6B6480) : const Color(0xFF9A9AA2);
-  _card       = dark ? const Color(0xFF16121F) : const Color(0xFFFFFFFF);
-  _hair       = dark ? const Color(0xFF241C36) : const Color(0xFFE8ECE7);
-  _soft       = dark ? const Color(0xFF120E1C) : const Color(0xFFF4F2FA);
+  _navOff     = dark ? const Color(0xFF7A72A0) : const Color(0xFF9A9AA2);
+  _card       = dark ? const Color(0xFF2A1E54) : const Color(0xFFFFFFFF);
+  _hair       = dark ? const Color(0xFF3B2D66) : const Color(0xFFE8ECE7);
+  _soft       = dark ? const Color(0xFF1B1240) : const Color(0xFFF4F2FA);
   _themeVN.value = dark;
 }
 
@@ -792,7 +793,22 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     final monthKeys = keys.toList()..sort((a, b) => b.compareTo(a));
     final shown = monthKeys.take(1 + _shownPast).toList(); // current + N past months
 
-    return RefreshIndicator(
+    // One smooth violet gradient behind the whole feed — top darker (for the
+    // status bar + balance header), easing to a lighter violet lower down. It's
+    // a fixed backdrop; the ListView and the banner are transparent so nothing
+    // shows a hard block edge — the header just melts into the page.
+    return Container(
+      decoration: _darkMode
+          ? const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF160E30), Color(0xFF231747), Color(0xFF2E2258)],
+                stops: [0.0, 0.5, 1.0],
+              ),
+            )
+          : null,
+      child: RefreshIndicator(
       onRefresh: _forceSync,
       color: _purple,
       backgroundColor: _card,
@@ -829,7 +845,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           ),
         const SizedBox(height: 16),
       ],
-    ));
+    )));
   }
 
   int _monthCount(String mk) => _feedAll.where((t) => (t['d'] as String).startsWith(mk)).length;
@@ -950,18 +966,11 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       lo = _eur0(spark.reduce((a, b) => a < b ? a : b));
     }
     final topInset = MediaQuery.of(context).padding.top;
-    return Container(
-      // Edge-to-edge, straight from the top of the phone (behind the status
-      // bar), rounded only at the bottom — the "card descends from the top".
+    return Padding(
+      // Transparent: the header sits directly on the page's violet gradient
+      // (darkest at the very top), so it melts into the feed below with no card
+      // edge or seam. Just the status-bar inset + side padding.
       padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, 18),
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(26)),
-        gradient: RadialGradient(
-          center: Alignment(0, -0.8),
-          radius: 1.4,
-          colors: [Color(0xFF241650), Color(0xFF0B0912)],
-        ),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

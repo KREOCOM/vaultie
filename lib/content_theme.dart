@@ -22,19 +22,19 @@ const _lFeatInk = Color(0xFF123024); // text on the mint/featured card
 const _lFeatSubtle = Color(0xFF5B7365);
 const _lAccent = Color(0xFF2E7D4F); // green foreground on light
 
-// ── Dark (violet near-black — matches the neon dashboard) ───────────────────
-const _dBg = Color(0xFF0B0912);
-const _dCard = Color(0xFF16121F);
+// ── Dark (violet twilight — matches the home gradient) ──────────────────────
+const _dBg = Color(0xFF201545);
+const _dCard = Color(0xFF2A1E54);
 const _dInk = Color(0xFFEDEAF6);
-const _dSubtle = Color(0xFF9A93B8);
-const _dLine = Color(0xFF241C36);
-const _dHiBg = Color(0xFF241F12);
+const _dSubtle = Color(0xFFC0B8DA);
+const _dLine = Color(0xFF3B2D66);
+const _dHiBg = Color(0xFF2A2412);
 const _dHiBorder = Color(0xFF6B5424);
-const _dFeatTop = Color(0xFF1E1740);
-const _dFeatBottom = Color(0xFF140F26);
-const _dFeatBorder = Color(0xFF2A2140);
+const _dFeatTop = Color(0xFF34246E);
+const _dFeatBottom = Color(0xFF231856);
+const _dFeatBorder = Color(0xFF443376);
 const _dFeatInk = Color(0xFFEDEAF6);
-const _dFeatSubtle = Color(0xFF9A93B8);
+const _dFeatSubtle = Color(0xFFC0B8DA);
 const _dAccent = Color(0xFF8B5CF6);
 
 // ── Live values (default to light) ──────────────────────────────────────────
