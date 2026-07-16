@@ -408,10 +408,10 @@
   "url": "https://max.com/img/hbomax/apple-touch-icon.png"
  },
  "maxima": {
-  "bytes": 3459,
   "domain": "maxima.lt",
   "file": "maxima.png",
-  "url": "https://maxima.lt/apple-touch-icon.png"
+  "note": "Wikimedia Commons, real wordmark",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Maxima_logo.svg/960px-Maxima_logo.svg.png"
  },
  "mcdonalds": {
   "bytes": 1570,
