@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../main.dart';
+import '../content_theme.dart';
 
 /// A simple scrollable legal document screen (Privacy Policy / Terms of Use).
 ///
@@ -210,11 +210,14 @@ class LegalScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: cBg,
       appBar: AppBar(
-        backgroundColor: VaultieColors.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: cBg,
+        foregroundColor: cInk,
+        surfaceTintColor: cBg,
         elevation: 0,
-        title: Text(title),
+        scrolledUnderElevation: 0,
+        title: Text(title, style: TextStyle(color: cInk, fontWeight: FontWeight.w800)),
       ),
       body: SafeArea(
         child: ListView(
@@ -222,37 +225,37 @@ class LegalScreen extends StatelessWidget {
           children: [
             Text(
               updated,
-              style: const TextStyle(
-                color: VaultieColors.subtle,
+              style: TextStyle(
+                color: cSubtle,
                 fontSize: 13,
               ),
             ),
             const SizedBox(height: 16),
             Text(
               intro,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 height: 1.5,
-                color: VaultieColors.ink,
+                color: cInk,
               ),
             ),
             const SizedBox(height: 24),
             for (final s in sections) ...[
               Text(
                 s.heading,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
-                  color: VaultieColors.ink,
+                  color: cInk,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
                 s.body,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   height: 1.5,
-                  color: VaultieColors.subtle,
+                  color: cSubtle,
                 ),
               ),
               const SizedBox(height: 20),

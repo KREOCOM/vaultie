@@ -1175,43 +1175,41 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                 ),
               ],
               if (accounts.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                // One card, one row per connected bank: logo + name, then the
-                // balance and its share of the total (e.g. Revolut 94,5 %).
-                Container(
-                  decoration: BoxDecoration(
-                    color: _darkMode ? Colors.white.withValues(alpha: 0.06) : _card,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _hair),
-                    boxShadow: _darkMode ? null : DS.e1,
-                  ),
-                  child: Column(children: [
-                    for (var i = 0; i < accounts.length; i++) ...[
-                      if (i > 0)
-                        Divider(height: 1, thickness: 1,
-                            color: _darkMode ? Colors.white.withValues(alpha: 0.08) : _hair, indent: 14, endIndent: 14),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-                        child: Row(children: [
-                          _acctGlyph(accounts[i], diameter: 34, fontSize: 14),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text((accounts[i]['bank'] ?? accounts[i]['name'] ?? 'Sąskaita').toString(),
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 15.5, color: _heroInk, fontWeight: FontWeight.w700)),
-                          ),
-                          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                            Text(_hideBal ? '••••' : _eur0(((accounts[i]['amount'] ?? 0) as num).toDouble()),
-                                style: TextStyle(fontSize: 15.5, color: _heroInk, fontWeight: FontWeight.w800,
-                                    fontFeatures: const [FontFeature.tabularFigures()])),
-                            if (!_hideBal && acctTotal > 0)
-                              Text('${(((accounts[i]['amount'] ?? 0) as num).toDouble() / acctTotal * 100).toStringAsFixed(1).replaceAll('.', ',')} %',
-                                  style: TextStyle(fontSize: 12, color: _heroDim, fontWeight: FontWeight.w600)),
-                          ]),
+                const SizedBox(height: 12),
+                // Compact account chips (logo · name · balance · share) that flow
+                // in a row instead of a tall card — takes far less space.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final a in accounts)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: _darkMode ? Colors.white.withValues(alpha: 0.06) : _card,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _hair),
+                          boxShadow: _darkMode ? null : DS.e1,
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          _acctGlyph(a, diameter: 24, fontSize: 11),
+                          const SizedBox(width: 8),
+                          Text((a['bank'] ?? a['name'] ?? 'Sąskaita').toString(),
+                              style: TextStyle(fontSize: 13, color: _heroInk, fontWeight: FontWeight.w700)),
+                          const SizedBox(width: 8),
+                          Text(_hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
+                              style: TextStyle(fontSize: 13,
+                                  color: _darkMode ? _heroInk : _purpleDeep,
+                                  fontWeight: FontWeight.w800,
+                                  fontFeatures: const [FontFeature.tabularFigures()])),
+                          if (!_hideBal && acctTotal > 0) ...[
+                            const SizedBox(width: 5),
+                            Text('${(((a['amount'] ?? 0) as num).toDouble() / acctTotal * 100).round()}%',
+                                style: TextStyle(fontSize: 11, color: _heroDim, fontWeight: FontWeight.w600)),
+                          ],
                         ]),
                       ),
-                    ],
-                  ]),
+                  ],
                 ),
               ],
               const SizedBox(height: 12),
