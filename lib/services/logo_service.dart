@@ -9,6 +9,8 @@
 /// initials instead.
 library;
 
+import 'bundled_logos.g.dart';
+
 const Map<String, String> _serviceDomains = {
   // Streaming / video
   'netflix': 'netflix.com',
@@ -245,12 +247,41 @@ String? domainForName(String name) {
   return null;
 }
 
-/// Google-favicon icon URL for a service name, or null when no domain is known.
-String? logoUrlForName(String name) {
-  final domain = domainForName(name);
-  return domain == null ? null : logoUrlForDomain(domain);
+/// The BUNDLED logo asset for a merchant name, or null if we don't ship one.
+///
+/// This is the whole point of shipping logos: it resolves entirely on-device, so
+/// showing a merchant's logo tells no one — no favicon service, no CDN — which
+/// merchants a user pays. Keyed off the same name→brand resolution as everything
+/// else, so it never guesses loosely.
+String? logoAssetForName(String name) {
+  final key = _keyForName(name);
+  final file = key == null ? null : kBundledLogos[key];
+  return file == null ? null : 'assets/logos/$file';
 }
 
-/// Google-favicon icon URL for an explicit domain (e.g. "netflix.com").
+// The brand KEY (e.g. "chatgpt") a name resolves to, or null. Same whole-word,
+// diacritic-folded matching as domainForName — just returns the key, not the
+// domain, so the bundled-asset lookup can't drift from the domain lookup.
+String? _keyForName(String name) {
+  final full = _normalize(name);
+  if (full.length < 2) return null;
+  if (_serviceDomains.containsKey(full)) return full;
+  final words = _foldDiacritics(name)
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  for (var n = words.length; n >= 1; n--) {
+    for (var i = 0; i + n <= words.length; i++) {
+      final joined = words.sublist(i, i + n).join();
+      if (joined.length >= 2 && _serviceDomains.containsKey(joined)) return joined;
+    }
+  }
+  return null;
+}
+
+/// Google-favicon icon URL for an explicit domain — the LAST resort, for a brand
+/// we recognise but didn't bundle. Fetched from the app, so it does disclose that
+/// merchant to Google; kept only so a known merchant without a shipped asset
+/// still shows something. Bundle the logo (tools/logos) to avoid it.
 String logoUrlForDomain(String domain) =>
     'https://www.google.com/s2/favicons?domain=$domain&sz=128';

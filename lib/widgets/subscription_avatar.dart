@@ -45,22 +45,48 @@ class SubscriptionAvatar extends StatelessWidget {
     return trimmed.substring(0, trimmed.length >= 2 ? 2 : 1).toUpperCase();
   }
 
-  /// The logo URL to show, or null to fall back to the category icon / initials.
+  /// Whether this avatar may resolve a logo from the NAME (vs. only an explicit
+  /// domain). Generic bills (rent, insurance) shouldn't guess a brand.
+  bool get _mayGuessFromName =>
+      category == null || normalizeCategoryKey(category!) == 'entertainment';
+
+  /// A bundled logo asset for this avatar, or null.
+  String? get _logoAsset {
+    if (!_mayGuessFromName) return null;
+    return logoAssetForName(name);
+  }
+
+  /// The network logo URL, or null to fall back to the category icon / initials.
   String? get _logoUrl {
     final domain = logoDomain?.trim();
     if (domain != null && domain.isNotEmpty) return logoUrlForDomain(domain);
-    // No explicit domain: only guess a brand logo from the name when this is a
-    // brand-style expense (or a category-less avatar, preserving old behaviour).
-    if (category == null ||
-        normalizeCategoryKey(category!) == 'entertainment') {
-      return logoUrlForName(name);
-    }
-    return null;
+    final d = _mayGuessFromName ? domainForName(name) : null;
+    return d == null ? null : logoUrlForDomain(d);
   }
 
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(size * 0.29);
+    // Bundled asset first (on-device, tells no one), then network, then fallback.
+    final asset = _logoAsset;
+    if (asset != null) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Image.asset(
+          asset,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stack) => _fallback(radius),
+          frameBuilder: (context, child, frame, sync) => ClipRRect(
+            borderRadius: radius,
+            child: ColoredBox(
+              color: Colors.white,
+              child: Padding(padding: EdgeInsets.all(size * 0.16), child: child),
+            ),
+          ),
+        ),
+      );
+    }
     final url = _logoUrl;
     if (url == null) {
       return category != null ? _categoryIcon(radius) : _initials(radius);

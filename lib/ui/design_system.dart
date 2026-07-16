@@ -129,12 +129,14 @@ class MoneyText extends StatelessWidget {
 /// A flat category tile — solid colour, white glyph. Circle or squircle. No
 /// gradient, no coloured shadow (those read as "toy / AI-generated").
 ///
-/// Give it a [logoDomain] (e.g. "netflix.com") and it shows that brand's real
-/// logo instead of the category glyph. The glyph is not a placeholder to be
-/// replaced — it's the resting state: most of a real bank feed is merchants no
-/// logo service has ever heard of, so the fallback is the common case and has to
-/// look deliberate rather than broken. A logo that fails to load, loads slowly,
-/// or was never known all land on the same coloured tile.
+/// Give it a [merchant] name and it shows that brand's real logo instead of the
+/// category glyph — a bundled asset first (resolves on-device, tells no one), a
+/// recognised-but-unbundled brand's favicon second, and the coloured glyph when
+/// neither exists. That glyph is not a placeholder to be replaced — it's the
+/// resting state: most of a real bank feed is merchants no logo set has heard of,
+/// so the fallback is the common case and has to look deliberate, not broken. A
+/// logo that was never known, is still loading, or failed to load all land on
+/// the same tile.
 class CategoryIcon extends StatelessWidget {
   const CategoryIcon({
     super.key,
@@ -142,54 +144,78 @@ class CategoryIcon extends StatelessWidget {
     required this.color,
     this.size = 38,
     this.circle = true,
-    this.logoDomain,
+    this.merchant,
   });
   final IconData icon;
   final Color color;
   final double size;
   final bool circle;
-  final String? logoDomain;
+
+  /// The raw merchant name/key to resolve a logo from (null = no logo, glyph).
+  final String? merchant;
 
   Widget _glyph() =>
       Center(child: Icon(icon, color: Colors.white, size: size * 0.52));
 
   @override
   Widget build(BuildContext context) {
-    final domain = logoDomain;
     final shape = circle ? const CircleBorder() : squircle(size * 0.32);
-    if (domain == null || domain.isEmpty) {
-      return SizedBox(
-        width: size,
-        height: size,
-        child: Material(
-          color: color,
-          shape: shape,
-          clipBehavior: Clip.antiAlias,
-          child: _glyph(),
-        ),
-      );
+    final name = merchant;
+    final asset = name == null ? null : logoAssetForName(name);
+    final domain = (name == null || asset != null) ? null : domainForName(name);
+
+    Widget onTile(Widget child) => SizedBox(
+          width: size,
+          height: size,
+          child: Material(
+            color: color,
+            shape: shape,
+            clipBehavior: Clip.antiAlias,
+            child: child,
+          ),
+        );
+
+    if (asset == null && domain == null) return onTile(_glyph());
+
+    // Padding keeps a square brand mark off the tile's edges; white behind it
+    // because brand marks are drawn for light backgrounds and many are
+    // transparent, so on the category colour they'd smear into it.
+    Widget framed(Widget img) => SizedBox(
+          width: size,
+          height: size,
+          child: Material(
+            color: Colors.white,
+            shape: shape,
+            clipBehavior: Clip.antiAlias,
+            child: Padding(padding: EdgeInsets.all(size * 0.16), child: img),
+          ),
+        );
+
+    if (asset != null) {
+      return framed(Image.asset(
+        asset,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => onTile(_glyph()),
+      ));
     }
     return SizedBox(
       width: size,
       height: size,
       child: Material(
-        // Brand marks are drawn for a light background and many are transparent
-        // PNGs; on the category colour they'd smear into it.
         color: Colors.white,
         shape: shape,
         clipBehavior: Clip.antiAlias,
         child: CachedNetworkImage(
-          imageUrl: logoUrlForDomain(domain),
+          imageUrl: logoUrlForDomain(domain!),
           fit: BoxFit.contain,
-          // Padding keeps a square brand mark from touching the tile's edges.
           imageBuilder: (_, img) => Padding(
             padding: EdgeInsets.all(size * 0.16),
             child: Image(image: img, fit: BoxFit.contain),
           ),
-          // Never flash a spinner for a 5KB icon — hold the tile we'd fall back
-          // to anyway, so the row doesn't twitch while it loads.
-          placeholder: (_, __) => Material(color: color, child: _glyph()),
-          errorWidget: (_, __, ___) => Material(color: color, child: _glyph()),
+          // Never flash a spinner for a tiny icon — hold the fallback tile so the
+          // row doesn't twitch while it loads.
+          placeholder: (_, __) => onTile(_glyph()),
+          errorWidget: (_, __, ___) => onTile(_glyph()),
         ),
       ),
     );

@@ -152,12 +152,11 @@ const String _dashB64 = 'eyJtb250aHMiOiBbeyJuYW1lIjogIkxpZXBhIiwgInkiOiAyMDI2LCA
 Color _colOf(String? k) => _catColors[k] ?? const Color(0xFF6E6E86);
 IconData _iconOf(String? k) => _catIcons[k] ?? Icons.swap_horiz_rounded;
 
-// The brand domain for a feed row, from the merchant the backend resolved it to
-// (`mkey`, e.g. "chatgpt") and falling back to the raw bank name. Null for
-// anything unrecognised — most of a real feed — and the row keeps its category
-// tile. Never guessed loosely: see logo_service.domainForName.
-String? _logoOf(Map row) =>
-    domainForName((row['mkey'] ?? row['nm'] ?? '').toString());
+// The merchant name a feed row's logo resolves from — the backend's canonical
+// `mkey` (e.g. "chatgpt") first, else the raw bank name. CategoryIcon turns it
+// into a bundled logo, a favicon, or the category tile. Never matched loosely:
+// see logo_service.
+String _logoOf(Map row) => (row['mkey'] ?? row['nm'] ?? '').toString();
 String _eur(num v, {bool signed = false}) => Money.format(v.toDouble(), signed: signed);
 
 // Whole-euro format (no cents) for headline balances, e.g. "7 049 €".
@@ -423,18 +422,29 @@ Widget _acctGlyph(Map a, {double diameter = 40, double fontSize = 18}) {
     final letter = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '•';
     child = Text(letter, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: _ink));
   }
-  // The bank's own logo when we know it (SEB, Revolut, Swedbank…), keyed off the
+  // The bank's own logo when we ship it (SEB, Revolut, Swedbank…), keyed off the
   // backend's `bank` label — never a hardcoded bank, since which one is
-  // connected varies per user. The letter above stays as the fallback.
-  final domain = isCash ? null : domainForName((a['bank'] as String?) ?? name);
-  if (domain != null) {
+  // connected varies per user. Bundled asset first (on-device), favicon next,
+  // the letter above as the final fallback.
+  final bankName = (a['bank'] as String?) ?? name;
+  final asset = isCash ? null : logoAssetForName(bankName);
+  final domain = (isCash || asset != null) ? null : domainForName(bankName);
+  final pad = EdgeInsets.all(diameter * 0.18);
+  if (asset != null) {
     child = Padding(
-      padding: EdgeInsets.all(diameter * 0.18),
+      padding: pad,
+      child: Image.asset(asset, fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => Center(child: child)),
+    );
+  } else if (domain != null) {
+    final fallback = child;
+    child = Padding(
+      padding: pad,
       child: CachedNetworkImage(
         imageUrl: logoUrlForDomain(domain),
         fit: BoxFit.contain,
-        placeholder: (_, __) => Center(child: child),
-        errorWidget: (_, __, ___) => Center(child: child),
+        placeholder: (_, __) => Center(child: fallback),
+        errorWidget: (_, __, ___) => Center(child: fallback),
       ),
     );
   }
@@ -1384,7 +1394,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
             Stack(
               clipBehavior: Clip.none,
               children: [
-                CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 38, circle: false, logoDomain: _logoOf(t)),
+                CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 38, circle: false, merchant: _logoOf(t)),
                 if (count > 1)
                   Positioned(
                     top: -6,
@@ -3169,7 +3179,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
           circle: false,
           // A transfer is a movement, not a merchant — a brand logo on it would
           // be claiming the money went somewhere it didn't.
-          logoDomain: _isTransfer ? null : _logoOf(widget.tx),
+          merchant: _isTransfer ? null : _logoOf(widget.tx),
         ),
         const SizedBox(height: 14),
         Text(merchant, style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
@@ -3395,7 +3405,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
               decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
               child: Row(children: [
-                CategoryIcon(icon: _iconOf(s['ic'] as String?), color: _colOf(s['col'] as String?), size: 40, circle: false, logoDomain: _logoOf(s)),
+                CategoryIcon(icon: _iconOf(s['ic'] as String?), color: _colOf(s['col'] as String?), size: 40, circle: false, merchant: _logoOf(s)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -4344,7 +4354,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Row(children: [
-                    CategoryIcon(icon: _iconOf(top[i]['ic'] as String?), color: _colOf(top[i]['col'] as String?), size: 40, circle: false, logoDomain: _logoOf(top[i])),
+                    CategoryIcon(icon: _iconOf(top[i]['ic'] as String?), color: _colOf(top[i]['col'] as String?), size: 40, circle: false, merchant: _logoOf(top[i])),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -7238,7 +7248,7 @@ class _SearchScreenState extends State<_SearchScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
                           child: Row(children: [
-                            CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 40, logoDomain: _logoOf(t)),
+                            CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 40, merchant: _logoOf(t)),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

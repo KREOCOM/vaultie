@@ -1,0 +1,704 @@
+{
+ "15min": {
+  "bytes": 4302,
+  "domain": "15min.lt",
+  "file": "15min.png",
+  "url": "https://15min.lt/assets/images/touchicons/15min_144x144.png"
+ },
+ "1password": {
+  "bytes": 1205,
+  "domain": "1password.com",
+  "file": "1password.png",
+  "url": "https://1password.com/apple-touch-icon.png"
+ },
+ "adobe": {
+  "bytes": 1549,
+  "domain": "adobe.com",
+  "file": "adobe.png",
+  "url": "https://www.google.com/s2/favicons?domain=adobe.com&sz=256"
+ },
+ "aibe": {
+  "bytes": 7708,
+  "domain": "aibe.lt",
+  "file": "aibe.png",
+  "url": "https://aibe.lt/wp-content/themes/mp-wp/assets/images/favicon/apple-icon-180x180.png"
+ },
+ "airbaltic": {
+  "bytes": 7521,
+  "domain": "airbaltic.com",
+  "file": "airbaltic.png",
+  "url": "https://airbaltic.com/apple-touch-icon-precomposed.png"
+ },
+ "airbnb": {
+  "bytes": 4104,
+  "domain": "airbnb.com",
+  "file": "airbnb.png",
+  "url": "https://a0.muscache.com/airbnb/static/icons/apple-touch-icon-180x180-bcbe0e3960cd084eb8eaf1353cf3c730.png"
+ },
+ "aliexpress": {
+  "bytes": 24734,
+  "domain": "aliexpress.com",
+  "file": "aliexpress.png",
+  "url": "https://www.google.com/s2/favicons?domain=aliexpress.com&sz=256"
+ },
+ "amazonprime": {
+  "bytes": 3021,
+  "domain": "primevideo.com",
+  "file": "amazonprime.png",
+  "url": "https://m.media-amazon.com/images/G/01/digital/video/DVUI/favicons/apple-touch-icon-152x152.png"
+ },
+ "apple": {
+  "bytes": 4506,
+  "domain": "apple.com",
+  "file": "apple.png",
+  "url": "https://apple.com/apple-touch-icon.png"
+ },
+ "applemusic": {
+  "bytes": 2819,
+  "domain": "music.apple.com",
+  "file": "applemusic.png",
+  "url": "https://music.apple.com/assets/favicon/favicon-180.png"
+ },
+ "appletv": {
+  "bytes": 22248,
+  "domain": "tv.apple.com",
+  "file": "appletv.png",
+  "url": "https://tv.apple.com/assets/favicon/favicon-180.png"
+ },
+ "audible": {
+  "bytes": 2689,
+  "domain": "audible.com",
+  "file": "audible.png",
+  "url": "https://m.media-amazon.com/images/G/01/seo/creative/Audible_Google_Favicon_192px.png"
+ },
+ "avitela": {
+  "bytes": 15696,
+  "domain": "avitela.lt",
+  "file": "avitela.png",
+  "url": "https://avitela.lt/logo/elesen-apple-touch-icon.png"
+ },
+ "benuvaistine": {
+  "bytes": 2829,
+  "domain": "benu.lt",
+  "file": "benuvaistine.png",
+  "url": "https://www.google.com/s2/favicons?domain=benu.lt&sz=256"
+ },
+ "bite": {
+  "bytes": 1141,
+  "domain": "bite.lt",
+  "file": "bite.png",
+  "url": "https://www.google.com/s2/favicons?domain=bite.lt&sz=256"
+ },
+ "bolt": {
+  "bytes": 2897,
+  "domain": "bolt.eu",
+  "file": "bolt.png",
+  "url": "https://assets.homepage.bolt.eu/1.22.99/public/common-assets/apple-icon.png"
+ },
+ "booking": {
+  "bytes": 4824,
+  "domain": "booking.com",
+  "file": "booking.png",
+  "url": "https://booking.com/apple-touch-icon.png"
+ },
+ "caffeine": {
+  "bytes": 1227,
+  "domain": "caffeine.lt",
+  "file": "caffeine.png",
+  "url": "https://www.google.com/s2/favicons?domain=caffeine.lt&sz=256"
+ },
+ "calm": {
+  "bytes": 5489,
+  "domain": "calm.com",
+  "file": "calm.png",
+  "url": "https://www.google.com/s2/favicons?domain=calm.com&sz=256"
+ },
+ "camelia": {
+  "bytes": 2783,
+  "domain": "camelia.lt",
+  "file": "camelia.png",
+  "url": "https://camelia.lt/favicon/apple-touch-icon-180x180.png"
+ },
+ "canva": {
+  "bytes": 26675,
+  "domain": "canva.com",
+  "file": "canva.png",
+  "url": "https://www.google.com/s2/favicons?domain=canva.com&sz=256"
+ },
+ "capcut": {
+  "bytes": 2649,
+  "domain": "capcut.com",
+  "file": "capcut.png",
+  "url": "https://www.google.com/s2/favicons?domain=capcut.com&sz=256"
+ },
+ "chatgpt": {
+  "bytes": 3026,
+  "domain": "chat.openai.com",
+  "file": "chatgpt.png",
+  "url": "https://www.google.com/s2/favicons?domain=chat.openai.com&sz=256"
+ },
+ "circlek": {
+  "bytes": 7247,
+  "domain": "circlek.lt",
+  "file": "circlek.png",
+  "url": "https://www.google.com/s2/favicons?domain=circlek.lt&sz=256"
+ },
+ "citadele": {
+  "bytes": 2641,
+  "domain": "citadele.lt",
+  "file": "citadele.png",
+  "url": "https://citadele.lt/storage/app/media/favicons/apple-logo-180.png"
+ },
+ "claude": {
+  "bytes": 62828,
+  "domain": "claude.ai",
+  "file": "claude.png",
+  "url": "https://claude.ai/apple-touch-icon.png"
+ },
+ "coursera": {
+  "bytes": 9194,
+  "domain": "coursera.org",
+  "file": "coursera.png",
+  "url": "https://d3njjcbhbojbot.cloudfront.net/web/images/favicons/apple-touch-icon-v2-180x180.png"
+ },
+ "crunchyroll": {
+  "bytes": 2632,
+  "domain": "crunchyroll.com",
+  "file": "crunchyroll.png",
+  "url": "https://www.google.com/s2/favicons?domain=crunchyroll.com&sz=256"
+ },
+ "dashlane": {
+  "bytes": 2387,
+  "domain": "dashlane.com",
+  "file": "dashlane.png",
+  "url": "https://dashlane.com/dashlane-favicon.png"
+ },
+ "decathlon": {
+  "bytes": 3017,
+  "domain": "decathlon.lt",
+  "file": "decathlon.png",
+  "url": "https://www.google.com/s2/favicons?domain=decathlon.lt&sz=256"
+ },
+ "deezer": {
+  "bytes": 9193,
+  "domain": "deezer.com",
+  "file": "deezer.png",
+  "url": "https://cdn-files.dzcdn.net/cache/images/common/favicon/apple-touch-icon.dc494e31ef5f888a087a.png"
+ },
+ "delfi": {
+  "bytes": 3915,
+  "domain": "delfi.lt",
+  "file": "delfi.png",
+  "url": "https://static.delfi.lt/portal/images/channel/delfi/apple-icon-180x180.png"
+ },
+ "disney": {
+  "bytes": 35962,
+  "domain": "disneyplus.com",
+  "file": "disney.png",
+  "url": "https://static-assets.bamgrid.com/product/disneyplus/favicons/disPlus-favicon-180x180.7d56f648dc95f591721935193bc827cb.png"
+ },
+ "dropbox": {
+  "bytes": 1379,
+  "domain": "dropbox.com",
+  "file": "dropbox.png",
+  "url": "https://www.google.com/s2/favicons?domain=dropbox.com&sz=256"
+ },
+ "duolingo": {
+  "bytes": 9900,
+  "domain": "duolingo.com",
+  "file": "duolingo.png",
+  "url": "https://www.google.com/s2/favicons?domain=duolingo.com&sz=256"
+ },
+ "ebay": {
+  "bytes": 2517,
+  "domain": "ebay.com",
+  "file": "ebay.png",
+  "url": "https://ebay.com/apple-touch-icon.png"
+ },
+ "ermitazas": {
+  "bytes": 916,
+  "domain": "ermitazas.lt",
+  "file": "ermitazas.png",
+  "url": "https://www.google.com/s2/favicons?domain=ermitazas.lt&sz=256"
+ },
+ "esoshop": {
+  "bytes": 2618,
+  "domain": "eso.lt",
+  "file": "esoshop.png",
+  "url": "https://www.google.com/s2/favicons?domain=eso.lt&sz=256"
+ },
+ "expressvpn": {
+  "bytes": 4142,
+  "domain": "expressvpn.com",
+  "file": "expressvpn.png",
+  "url": "https://expressvpn.com/wp-ws-cache/themes/expressvpn/assets/images/favicon/touch-icon-ipad-retina.png?v=137054"
+ },
+ "ezys": {
+  "bytes": 1595,
+  "domain": "ezys.lt",
+  "file": "ezys.png",
+  "url": "https://www.google.com/s2/favicons?domain=ezys.lt&sz=256"
+ },
+ "figma": {
+  "bytes": 2667,
+  "domain": "figma.com",
+  "file": "figma.png",
+  "url": "https://static.figma.com/app/icon/2/touch-180.png"
+ },
+ "general": {
+  "bytes": 1533,
+  "domain": "gjensidige.lt",
+  "file": "general.png",
+  "url": "https://www.gjensidige.lt/Content/gfx/icons/favicon.ico"
+ },
+ "gintarine": {
+  "bytes": 7580,
+  "domain": "gintarine.lt",
+  "file": "gintarine.png",
+  "url": "https://gintarine.lt/icons/icons_1/apple-touch-icon.png"
+ },
+ "github": {
+  "bytes": 959,
+  "domain": "github.com",
+  "file": "github.svg",
+  "url": "https://github.githubassets.com/favicons/favicon.svg"
+ },
+ "go3": {
+  "bytes": 7893,
+  "domain": "go3.tv",
+  "file": "go3.png",
+  "url": "https://www.google.com/s2/favicons?domain=go3.tv&sz=256"
+ },
+ "google": {
+  "bytes": 6958,
+  "domain": "google.com",
+  "file": "google.png",
+  "url": "https://www.google.com/s2/favicons?domain=google.com&sz=256"
+ },
+ "grammarly": {
+  "bytes": 3117,
+  "domain": "grammarly.com",
+  "file": "grammarly.png",
+  "url": "https://www.google.com/s2/favicons?domain=grammarly.com&sz=256"
+ },
+ "hbo": {
+  "bytes": 3157,
+  "domain": "hbomax.com",
+  "file": "hbo.png",
+  "url": "https://hbomax.com/img/hbomax/apple-touch-icon.png"
+ },
+ "headspace": {
+  "bytes": 2108,
+  "domain": "headspace.com",
+  "file": "headspace.png",
+  "url": "https://headspace.com/apple-touch-icon.png"
+ },
+ "hesburger": {
+  "bytes": 1305,
+  "domain": "hesburger.lt",
+  "file": "hesburger.png",
+  "url": "https://www.google.com/s2/favicons?domain=hesburger.lt&sz=256"
+ },
+ "hm": {
+  "bytes": 1405,
+  "domain": "hm.com",
+  "file": "hm.png",
+  "url": "https://www.google.com/s2/favicons?domain=hm.com&sz=256"
+ },
+ "hulu": {
+  "bytes": 35962,
+  "domain": "hulu.com",
+  "file": "hulu.png",
+  "url": "https://static-assets.bamgrid.com/product/disneyplus/favicons/disPlus-favicon-180x180.7d56f648dc95f591721935193bc827cb.png"
+ },
+ "icloud": {
+  "bytes": 12640,
+  "domain": "icloud.com",
+  "file": "icloud.png",
+  "url": "https://www.google.com/s2/favicons?domain=icloud.com&sz=256"
+ },
+ "iki": {
+  "bytes": 7385,
+  "domain": "iki.lt",
+  "file": "iki.png",
+  "url": "https://iki.lt/apple-touch-icon.png"
+ },
+ "impuls": {
+  "bytes": 10097,
+  "domain": "impuls.lt",
+  "file": "impuls.png",
+  "url": "https://impuls.lt/apple-touch-icon.png"
+ },
+ "inbank": {
+  "bytes": 2874,
+  "domain": "inbank.lt",
+  "file": "inbank.png",
+  "url": "https://www.google.com/s2/favicons?domain=inbank.lt&sz=256"
+ },
+ "jysk": {
+  "bytes": 1217,
+  "domain": "jysk.lt",
+  "file": "jysk.png",
+  "url": "https://www.google.com/s2/favicons?domain=jysk.lt&sz=256"
+ },
+ "kfc": {
+  "bytes": 12543,
+  "domain": "kfc.lt",
+  "file": "kfc.png",
+  "url": "https://kfc.lt/wp-content/uploads/2021/10/cropped-KFC-favicon-round-300x300.png"
+ },
+ "lastmile": {
+  "bytes": 2748,
+  "domain": "lastmile.lt",
+  "file": "lastmile.png",
+  "url": "https://lastmile.lt/favicon.png"
+ },
+ "lastpass": {
+  "bytes": 2583,
+  "domain": "lastpass.com",
+  "file": "lastpass.png",
+  "url": "https://lastpass.com/apple-touch-icon.png"
+ },
+ "lemonhym": {
+  "bytes": 21105,
+  "domain": "lemongym.lt",
+  "file": "lemonhym.png",
+  "url": "https://lemongym.lt/apple-touch-icon.png"
+ },
+ "lidl": {
+  "bytes": 1751,
+  "domain": "lidl.lt",
+  "file": "lidl.svg",
+  "url": "https://lidl.lt/cdn/assets/logos/1.0.1/lidl-logo-shop-cdn.svg"
+ },
+ "lietuvosdraudimas": {
+  "bytes": 22822,
+  "domain": "ld.lt",
+  "file": "lietuvosdraudimas.png",
+  "url": "https://www.google.com/s2/favicons?domain=ld.lt&sz=256"
+ },
+ "lpp": {
+  "bytes": 1384,
+  "domain": "lpp.com",
+  "file": "lpp.png",
+  "url": "https://wwwlpp62711ea95a.blob.core.windows.net/blobwwwlpp62711ea95a/wp-content/uploads/2025/02/favicon-lpp-192x192px.png"
+ },
+ "lrt": {
+  "bytes": 4625,
+  "domain": "lrt.lt",
+  "file": "lrt.png",
+  "url": "https://lrt.lt/images/favicons/apple-touch-icon-180x180.png?v=376"
+ },
+ "lrytas": {
+  "bytes": 1391,
+  "domain": "lrytas.lt",
+  "file": "lrytas.png",
+  "url": "https://www.google.com/s2/favicons?domain=lrytas.lt&sz=256"
+ },
+ "luminor": {
+  "bytes": 2453,
+  "domain": "luminor.lt",
+  "file": "luminor.png",
+  "url": "https://luminor.lt/sites/all/themes/dnb_theme/images/apple-touch-icon-152x152.png"
+ },
+ "max": {
+  "bytes": 3157,
+  "domain": "max.com",
+  "file": "max.png",
+  "url": "https://max.com/img/hbomax/apple-touch-icon.png"
+ },
+ "maxima": {
+  "bytes": 3459,
+  "domain": "maxima.lt",
+  "file": "maxima.png",
+  "url": "https://maxima.lt/apple-touch-icon.png"
+ },
+ "mcdonalds": {
+  "bytes": 1570,
+  "domain": "mcdonalds.com",
+  "file": "mcdonalds.png",
+  "url": "https://www.google.com/s2/favicons?domain=mcdonalds.com&sz=256"
+ },
+ "medium": {
+  "bytes": 8369,
+  "domain": "medium.com",
+  "file": "medium.png",
+  "url": "https://www.google.com/s2/favicons?domain=medium.com&sz=256"
+ },
+ "mogo": {
+  "bytes": 925,
+  "domain": "mogo.lt",
+  "file": "mogo.png",
+  "url": "https://mogo.lt/pwa-icons/mogo/apple-touch-icon-180x180.png"
+ },
+ "neste": {
+  "bytes": 21796,
+  "domain": "neste.lt",
+  "file": "neste.png",
+  "url": "https://www.google.com/s2/favicons?domain=neste.lt&sz=256"
+ },
+ "netflix": {
+  "bytes": 1755,
+  "domain": "netflix.com",
+  "file": "netflix.png",
+  "url": "https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.png"
+ },
+ "nintendo": {
+  "bytes": 1186,
+  "domain": "nintendo.com",
+  "file": "nintendo.png",
+  "url": "https://www.google.com/s2/favicons?domain=nintendo.com&sz=256"
+ },
+ "nordvpn": {
+  "bytes": 2783,
+  "domain": "nordvpn.com",
+  "file": "nordvpn.png",
+  "url": "https://www.google.com/s2/favicons?domain=nordvpn.com&sz=256"
+ },
+ "notion": {
+  "bytes": 8078,
+  "domain": "notion.so",
+  "file": "notion.png",
+  "url": "https://notion.so/front-static/logo-ios.png"
+ },
+ "nytimes": {
+  "bytes": 2440,
+  "domain": "nytimes.com",
+  "file": "nytimes.png",
+  "url": "https://static01.nyt.com/vi-assets/static-assets/assets/ios-iphone-114x144-PTTpqXor.png"
+ },
+ "openai": {
+  "bytes": 2556,
+  "domain": "openai.com",
+  "file": "openai.png",
+  "url": "https://www.google.com/s2/favicons?domain=openai.com&sz=256"
+ },
+ "paramount": {
+  "bytes": 1834,
+  "domain": "paramountplus.com",
+  "file": "paramount.png",
+  "url": "https://www.google.com/s2/favicons?domain=paramountplus.com&sz=256"
+ },
+ "patreon": {
+  "bytes": 2079,
+  "domain": "patreon.com",
+  "file": "patreon.png",
+  "url": "https://patreon.com/apple-touch-icon.png"
+ },
+ "paypal": {
+  "bytes": 2252,
+  "domain": "paypal.com",
+  "file": "paypal.png",
+  "url": "https://www.paypalobjects.com/marketing/web/icons/monogram/pp258.png"
+ },
+ "paysera": {
+  "bytes": 1925,
+  "domain": "paysera.com",
+  "file": "paysera.png",
+  "url": "https://paysera.com/v2/compiled/apple-touch-icon-v2.02dc84ca16eaddd2925e35fa6310c4e7.png"
+ },
+ "peacock": {
+  "bytes": 3610,
+  "domain": "peacocktv.com",
+  "file": "peacock.png",
+  "url": "https://www.peacocktv.com/static/peacock-toolkit/53.0.1/peacock/favicons/apple-touch-icon_152x152.png"
+ },
+ "pigu": {
+  "bytes": 1098,
+  "domain": "pigu.lt",
+  "file": "pigu.png",
+  "url": "https://assets.pigugroup.eu/favico/lt-apple-touch-icon.png?v=3"
+ },
+ "pildyk": {
+  "bytes": 8649,
+  "domain": "pildyk.lt",
+  "file": "pildyk.png",
+  "url": "https://pildyk.lt/img/favicon/apple-icon.png"
+ },
+ "reserved": {
+  "bytes": 1269,
+  "domain": "reserved.com",
+  "file": "reserved.png",
+  "url": "https://static.reserved.com/media/favicon/default/favicon_1.ico"
+ },
+ "revolut": {
+  "bytes": 1256,
+  "domain": "revolut.com",
+  "file": "revolut.png",
+  "url": "https://www.google.com/s2/favicons?domain=revolut.com&sz=256"
+ },
+ "rimi": {
+  "bytes": 1546,
+  "domain": "rimi.lt",
+  "file": "rimi.png",
+  "url": "https://rimi.lt/apple-touch-icon.png"
+ },
+ "ryanair": {
+  "bytes": 7003,
+  "domain": "ryanair.com",
+  "file": "ryanair.png",
+  "url": "https://assets.ryanair.com/resources/ui/ryanair3.0/favicons/apple-touch-icon-152x152.png"
+ },
+ "seb": {
+  "bytes": 1760,
+  "domain": "seb.lt",
+  "file": "seb.svg",
+  "url": "https://seb.lt/themes/custom/seb8/favicon_light.svg"
+ },
+ "senukai": {
+  "bytes": 7562,
+  "domain": "senukai.lt",
+  "file": "senukai.png",
+  "url": "https://www.google.com/s2/favicons?domain=senukai.lt&sz=256"
+ },
+ "slack": {
+  "bytes": 927,
+  "domain": "slack.com",
+  "file": "slack.png",
+  "url": "https://www.google.com/s2/favicons?domain=slack.com&sz=256"
+ },
+ "sodra": {
+  "bytes": 12168,
+  "domain": "sodra.lt",
+  "file": "sodra.png",
+  "url": "https://sodra.lt/wp-content/uploads/2025/02/cropped-favicon-180x180.png"
+ },
+ "soundcloud": {
+  "bytes": 3144,
+  "domain": "soundcloud.com",
+  "file": "soundcloud.png",
+  "url": "https://a-v2.sndcdn.com/assets/images/sc-icons/ios-a62dfc8fe7.png"
+ },
+ "spotify": {
+  "bytes": 2417,
+  "domain": "spotify.com",
+  "file": "spotify.png",
+  "url": "https://www.google.com/s2/favicons?domain=spotify.com&sz=256"
+ },
+ "starbucks": {
+  "bytes": 14821,
+  "domain": "starbucks.com",
+  "file": "starbucks.png",
+  "url": "https://starbucks.com/apple-touch-icon.png"
+ },
+ "strava": {
+  "bytes": 1988,
+  "domain": "strava.com",
+  "file": "strava.png",
+  "url": "https://d3nn82uaxijpm6.cloudfront.net/apple-touch-icon-180x180.png?v=dLlWydWlG8"
+ },
+ "surfshark": {
+  "bytes": 1582,
+  "domain": "surfshark.com",
+  "file": "surfshark.png",
+  "url": "https://surfshark.com/website/_next/public/global/favicon-180.png"
+ },
+ "swedbank": {
+  "bytes": 32954,
+  "domain": "swedbank.lt",
+  "file": "swedbank.png",
+  "url": "https://swedbank.lt/stylebook/touch/images/apple-touch-icon.png"
+ },
+ "tele2": {
+  "bytes": 4450,
+  "domain": "tele2.lt",
+  "file": "tele2.png",
+  "url": "https://tele2.lt/apple-icon-12jlf3.png?062e03946a68da0e"
+ },
+ "telia": {
+  "bytes": 7706,
+  "domain": "telia.lt",
+  "file": "telia.png",
+  "url": "https://telia.lt/_ui/images/favicon/apple-touch-icon-76x76.png"
+ },
+ "temu": {
+  "bytes": 3044,
+  "domain": "temu.com",
+  "file": "temu.png",
+  "url": "https://www.google.com/s2/favicons?domain=temu.com&sz=256"
+ },
+ "trafi": {
+  "bytes": 7157,
+  "domain": "trafi.com",
+  "file": "trafi.png",
+  "url": "https://static.wixstatic.com/media/53accc_f089dcca12374006aef231d70a88d40a%7Emv2.png/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/53accc_f089dcca12374006aef231d70a88d40a%7Emv2.png"
+ },
+ "tv3go": {
+  "bytes": 3505,
+  "domain": "tv3.lt",
+  "file": "tv3go.png",
+  "url": "https://tv3.lt/pimg/2/favicon/apple-icon-180x180.png"
+ },
+ "uber": {
+  "bytes": 6312,
+  "domain": "uber.com",
+  "file": "uber.png",
+  "url": "https://www.google.com/s2/favicons?domain=uber.com&sz=256"
+ },
+ "ubereats": {
+  "bytes": 3514,
+  "domain": "ubereats.com",
+  "file": "ubereats.png",
+  "url": "https://www.google.com/s2/favicons?domain=ubereats.com&sz=256"
+ },
+ "varle": {
+  "bytes": 4713,
+  "domain": "varle.lt",
+  "file": "varle.png",
+  "url": "https://varle.lt/static/web/apple-touch-icon.png"
+ },
+ "viada": {
+  "bytes": 10227,
+  "domain": "viada.lt",
+  "file": "viada.png",
+  "url": "https://viada.lt/apple-touch-icon.png"
+ },
+ "viaplay": {
+  "bytes": 4037,
+  "domain": "viaplay.com",
+  "file": "viaplay.png",
+  "url": "https://viaplay.com/apple-touch-icon.png"
+ },
+ "vinted": {
+  "bytes": 16171,
+  "domain": "vinted.com",
+  "file": "vinted.png",
+  "url": "https://marketplace-web-assets.vinted.com/_next/static/media/apple-touch-icon.0yqfwm74_4s9g.png"
+ },
+ "wise": {
+  "bytes": 1114,
+  "domain": "wise.com",
+  "file": "wise.png",
+  "url": "https://wise.com/public-resources/assets/icons/wise-personal/apple_touch_icon.png"
+ },
+ "wizzair": {
+  "bytes": 5336,
+  "domain": "wizzair.com",
+  "file": "wizzair.png",
+  "url": "https://wizzair.com/assets/images/apple-touch-icon-180x180.png"
+ },
+ "wolt": {
+  "bytes": 9088,
+  "domain": "wolt.com",
+  "file": "wolt.png",
+  "url": "https://wolt-com-static-assets.wolt.com/apple-icon-180x180.png"
+ },
+ "xbox": {
+  "bytes": 2809,
+  "domain": "xbox.com",
+  "file": "xbox.png",
+  "url": "https://www.google.com/s2/favicons?domain=xbox.com&sz=256"
+ },
+ "youtube": {
+  "bytes": 5020,
+  "domain": "youtube.com",
+  "file": "youtube.png",
+  "url": "https://www.youtube.com/s/desktop/0715bbf9/img/favicon_144x144.png"
+ },
+ "zoom": {
+  "bytes": 4380,
+  "domain": "zoom.us",
+  "file": "zoom.png",
+  "url": "https://zoom.us/apple-touch-icon.png"
+ }
+}
