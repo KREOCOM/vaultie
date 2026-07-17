@@ -944,7 +944,6 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       _monNom[int.parse(mk.substring(5, 7)) - 1],
       _monthExpenses(mk), _monthIncome(mk));
 
-  static const _wdFull = ['Pirmadienis', 'Antradienis', 'Trečiadienis', 'Ketvirtadienis', 'Penktadienis', 'Šeštadienis', 'Sekmadienis'];
 
   // Build a day-by-day feed for a month from the flat `all` list (merging same
   // merchant on the same day into an N× row, like the current-month feed).
@@ -1691,7 +1690,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                     ),
                     const SizedBox(width: 6),
                     Flexible(
-                      child: Text(t['cat'] as String,
+                      child: Text(tr(t['cat'] as String),
                           maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted)),
                     ),
                     for (final b in badges) ...[
@@ -1721,7 +1720,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(color: res ? const Color(0xFFEFEFF2) : _purpleSoft, borderRadius: BorderRadius.circular(6)),
-      child: Text(res ? 'Rezervuota' : 'Sąskaita',
+      child: Text(res ? tr('Rezervuota') : tr('Sąskaita'),
           style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: res ? _muted : _purple)),
     );
   }
@@ -1909,7 +1908,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     final now = DateTime.now();
     final monday = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
-    const wdShort = ['Pr', 'An', 'Tr', 'Kt', 'Pn', 'Št', 'Sk'];
+    final wdShort = _wdShort;
     final days = <Map<String, dynamic>>[];
     var weekTotal = 0.0;
     for (var i = 0; i < 7; i++) {
@@ -2408,7 +2407,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
               Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(2))),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-                child: Align(alignment: Alignment.centerLeft, child: Text('Kategorija', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink))),
+                child: Align(alignment: Alignment.centerLeft, child: Text(tr('Kategorija'), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink))),
               ),
               Flexible(
                 child: ListView.builder(
@@ -2887,9 +2886,25 @@ class _Chip extends StatelessWidget {
   }
 }
 
-const _monAbbr = ['Sau', 'Vas', 'Kov', 'Bal', 'Geg', 'Bir', 'Lie', 'Rgp', 'Rgs', 'Spa', 'Lap', 'Grd'];
-const _monNom = ['Sausis', 'Vasaris', 'Kovas', 'Balandis', 'Gegužė', 'Birželis', 'Liepa', 'Rugpjūtis', 'Rugsėjis', 'Spalis', 'Lapkritis', 'Gruodis'];
-const _monGen = ['Sausio', 'Vasario', 'Kovo', 'Balandžio', 'Gegužės', 'Birželio', 'Liepos', 'Rugpjūčio', 'Rugsėjo', 'Spalio', 'Lapkričio', 'Gruodžio'];
+const _monAbbrLt = ['Sau', 'Vas', 'Kov', 'Bal', 'Geg', 'Bir', 'Lie', 'Rgp', 'Rgs', 'Spa', 'Lap', 'Grd'];
+const _monAbbrEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const _monNomLt = ['Sausis', 'Vasaris', 'Kovas', 'Balandis', 'Gegužė', 'Birželis', 'Liepa', 'Rugpjūtis', 'Rugsėjis', 'Spalis', 'Lapkritis', 'Gruodis'];
+const _monNomEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// Lithuanian genitive ("Liepos suma"); English has no case, so nominative is reused.
+const _monGenLt = ['Sausio', 'Vasario', 'Kovo', 'Balandžio', 'Gegužės', 'Birželio', 'Liepos', 'Rugpjūčio', 'Rugsėjo', 'Spalio', 'Lapkričio', 'Gruodžio'];
+
+const _wdFullLt = ['Pirmadienis', 'Antradienis', 'Trečiadienis', 'Ketvirtadienis', 'Penktadienis', 'Šeštadienis', 'Sekmadienis'];
+const _wdFullEn = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const _wdShortLt = ['Pr', 'An', 'Tr', 'Kt', 'Pn', 'Št', 'Sk'];
+const _wdShortEn = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+// Locale-aware name arrays — one switch localizes every month/weekday usage.
+bool get _enUi => effectiveLocale().languageCode == 'en';
+List<String> get _monAbbr => _enUi ? _monAbbrEn : _monAbbrLt;
+List<String> get _monNom => _enUi ? _monNomEn : _monNomLt;
+List<String> get _monGen => _enUi ? _monNomEn : _monGenLt;
+List<String> get _wdFull => _enUi ? _wdFullEn : _wdFullLt;
+List<String> get _wdShort => _enUi ? _wdShortEn : _wdShortLt;
 String _dateLabel(DateTime t) => '${_monAbbr[t.month - 1]} ${t.day}';
 String _kEur(double v) => v.abs() >= 1000 ? '${(v / 1000).toStringAsFixed(1)}K€' : '${v.toStringAsFixed(0)}€';
 String _eurRound(double v) {
@@ -3913,7 +3928,7 @@ class _SelectCategorySheetState extends State<_SelectCategorySheet> {
         child: Row(children: [
           CategoryIcon(icon: _secIcon[sec['i']] ?? Icons.circle, color: color, size: 30),
           const SizedBox(width: 10),
-          Text(sec['sec'] as String, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _ink)),
+          Text(tr(sec['sec'] as String), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _ink)),
         ]),
       ),
       for (final sub in subs)
@@ -4172,7 +4187,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
               Text(sign, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400, color: _muted, height: 1)),
               const SizedBox(height: 2),
               Text('${value.round()} €', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-              Text(label, style: TextStyle(fontSize: 13, color: _muted)),
+              Text(tr(label), style: TextStyle(fontSize: 13, color: _muted)),
             ],
           ),
         ],
@@ -4186,7 +4201,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
       child: Row(children: [
-        Text('${widget.monthGen} suma', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
+        Text('${widget.monthGen} ${tr('suma')}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
         const Spacer(),
         Text(_eur(net, signed: true), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: net >= 0 ? _good : _ink)),
       ]),
@@ -4384,9 +4399,9 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
             child: Row(children: [
-              Text('Kategorija', style: TextStyle(fontSize: 13.5, color: _muted)),
+              Text(tr('Kategorija'), style: TextStyle(fontSize: 13.5, color: _muted)),
               const Spacer(),
-              const Text('Suma', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _purple)),
+              Text(tr('Suma'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _purple)),
             ]),
           ),
           AppCard(color: _card, border: _hair, 
@@ -4401,7 +4416,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                     child: Row(children: [
                       CategoryIcon(icon: secs[i].icon, color: secs[i].color, size: 40),
                       const SizedBox(width: 13),
-                      Expanded(child: Text(secs[i].label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
+                      Expanded(child: Text(tr(secs[i].label), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
                       Text(_eur(secs[i].net, signed: true),
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: secs[i].net >= 0 ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
                       const SizedBox(width: 4),
@@ -4471,7 +4486,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       if (sm == null || sm.isEmpty) return null;
       return _secColor[sm.entries.reduce((a, b) => a.value >= b.value ? a : b).key];
     }
-    const wd = ['Pr', 'An', 'Tr', 'Kt', 'Pn', 'Št', 'Sk'];
+    final wd = _wdShort;
     final cells = <Widget>[];
     for (var i = 0; i < lead; i++) {
       cells.add(const SizedBox());
@@ -4602,7 +4617,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final over = left < 0;
     return Column(children: [
       Row(children: [
-        Expanded(child: Text(cat, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink))),
+        Expanded(child: Text(tr(cat), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink))),
         Text('${limit.round()} €', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
       ]),
       const SizedBox(height: 8),
@@ -4744,7 +4759,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 child: Row(children: [
                   CategoryIcon(icon: s.icon, color: s.color, size: 26),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(s.label, style: TextStyle(fontSize: 14.5, color: _ink))),
+                  Expanded(child: Text(tr(s.label), style: TextStyle(fontSize: 14.5, color: _ink))),
                   Text('−${((-s.net) / days).toStringAsFixed(2).replaceAll('.', ',')} €',
                       style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
                 ]),
@@ -4927,7 +4942,7 @@ class _CategoryDetailScreen extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                  child: Row(children: [Text('Kategorija', style: TextStyle(fontSize: 13, color: _muted)), const Spacer(), Text('Suma', style: TextStyle(fontSize: 13, color: _muted))]),
+                  child: Row(children: [Text(tr('Kategorija'), style: TextStyle(fontSize: 13, color: _muted)), const Spacer(), Text(tr('Suma'), style: TextStyle(fontSize: 13, color: _muted))]),
                 ),
                 AppCard(color: _card, border: _hair, 
                   child: Column(children: [
@@ -5198,7 +5213,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             Text(sign, style: TextStyle(fontSize: 20, color: _muted, height: 1)),
             const SizedBox(height: 2),
             Text(_hide ? '••• €' : '${v.round()} €', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-            Text(label, style: TextStyle(fontSize: 13, color: _muted)),
+            Text(tr(label), style: TextStyle(fontSize: 13, color: _muted)),
           ]),
         ]),
       );
@@ -5239,7 +5254,7 @@ class _OverviewTabState extends State<_OverviewTab> {
               ]),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text('Santaupų norma', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink), overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(tr('Santaupų norma'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink), overflow: TextOverflow.ellipsis)),
             const SizedBox(width: 8),
             Text(savStr, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
             const SizedBox(width: 4),
@@ -5254,7 +5269,7 @@ class _OverviewTabState extends State<_OverviewTab> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-          child: Row(children: [Text('Kategorija', style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), const Text('Suma', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _purple))]),
+          child: Row(children: [Text(tr('Kategorija'), style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text(tr('Suma'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _purple))]),
         ),
         AppCard(color: _card, border: _hair, 
           child: Column(children: [
@@ -5268,7 +5283,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                   child: Row(children: [
                     CategoryIcon(icon: secs[i].icon, color: secs[i].color, size: 40),
                     const SizedBox(width: 13),
-                    Expanded(child: Text(secs[i].label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
+                    Expanded(child: Text(tr(secs[i].label), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
                     Text(_eur(secs[i].net, signed: true), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: secs[i].net >= 0 ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
                     const SizedBox(width: 4),
                     Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
@@ -5321,7 +5336,7 @@ class _OverviewTabState extends State<_OverviewTab> {
       if (sm == null || sm.isEmpty) return null;
       return _secColor[sm.entries.reduce((a, b) => a.value >= b.value ? a : b).key];
     }
-    const wd = ['Pr', 'An', 'Tr', 'Kt', 'Pn', 'Št', 'Sk'];
+    final wd = _wdShort;
     final cells = <Widget>[];
     for (var i = 0; i < lead; i++) {
       cells.add(const SizedBox());
@@ -5482,7 +5497,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('Vidutinės dienos išlaidos', style: TextStyle(fontSize: 13.5, color: _muted))),
+        Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(tr('Vidutinės dienos išlaidos'), style: TextStyle(fontSize: 13.5, color: _muted))),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
@@ -5499,7 +5514,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                 child: Row(children: [
                   CategoryIcon(icon: s.icon, color: s.color, size: 26),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(s.label, style: TextStyle(fontSize: 14.5, color: _ink))),
+                  Expanded(child: Text(tr(s.label), style: TextStyle(fontSize: 14.5, color: _ink))),
                   Text('−${((-s.net) / days).toStringAsFixed(2).replaceAll('.', ',')} €', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
                 ]),
               ),
@@ -5545,7 +5560,7 @@ class _SavingsRateScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(6, 4, 14, 8),
             child: Row(children: [
               IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: _ink)),
-              Expanded(child: Text('Santaupų norma', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _ink))),
+              Expanded(child: Text(tr('Santaupų norma'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _ink))),
             ]),
           ),
           Expanded(
@@ -5612,7 +5627,7 @@ class _SavingsRateScreen extends StatelessWidget {
                       ]),
                     ),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text('Santaupų norma', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink)),
+                      Text(tr('Santaupų norma'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink)),
                       Text(savStr, style: TextStyle(fontSize: 52, fontWeight: FontWeight.w800, color: _ink, height: 1.1)),
                       Text('santaupos / pajamos', style: TextStyle(fontSize: 11.5, color: _muted)),
                     ]),
@@ -6530,7 +6545,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 6, 18, 18),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Kategorija', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
+              Text(tr('Kategorija'), style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
               const SizedBox(height: 10),
               Wrap(spacing: 9, runSpacing: 9, children: [
                 for (final s in widget.options)
@@ -7019,7 +7034,7 @@ class _AccountTabState extends State<_AccountTab> {
             Expanded(child: Text(a['name'] as String, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               if (a['sub'] != null)
-                Text(a['sub'] as String, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+                Text(tr(a['sub'] as String), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
               Text(_eur(((a['amount'] ?? 0) as num).toDouble()),
                   style: TextStyle(
                     fontSize: a['sub'] != null ? 12.5 : 16,
@@ -8129,8 +8144,8 @@ class _AiChatTabState extends State<_AiChatTab> {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('AI pokalbis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
-                Text('Klausk apie savo pinigus', style: TextStyle(fontSize: 13, color: _muted)),
+                Text(tr('AI pokalbis'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+                Text(tr('Klausk apie savo pinigus'), style: TextStyle(fontSize: 13, color: _muted)),
               ]),
             ),
           ]),
@@ -8158,7 +8173,7 @@ class _AiChatTabState extends State<_AiChatTab> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Text('Prijunk banką, kad galėčiau atsakyti apie tavo finansus.',
+          child: Text(tr('Prijunk banką, kad galėčiau atsakyti apie tavo finansus.'),
               textAlign: TextAlign.center, style: TextStyle(color: _muted, height: 1.5, fontSize: 15)),
         ),
       );
@@ -8166,7 +8181,7 @@ class _AiChatTabState extends State<_AiChatTab> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
       children: [
-        Text('Pabandyk paklausti:',
+        Text(tr('Pabandyk paklausti:'),
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _muted)),
         const SizedBox(height: 12),
         for (final s in _starters)
@@ -8185,7 +8200,7 @@ class _AiChatTabState extends State<_AiChatTab> {
                 child: Row(children: [
                   const Icon(Icons.chat_bubble_outline_rounded, size: 17, color: _purple),
                   const SizedBox(width: 12),
-                  Expanded(child: Text(s, style: TextStyle(fontSize: 15, color: _ink))),
+                  Expanded(child: Text(tr(s), style: TextStyle(fontSize: 15, color: _ink))),
                 ]),
               ),
             ),
@@ -8265,7 +8280,7 @@ class _AiChatTabState extends State<_AiChatTab> {
               onSubmitted: _send,
               style: TextStyle(fontSize: 15, color: _ink),
               decoration: InputDecoration(
-                hintText: hasBank ? 'Klausk apie savo finansus…' : 'Pirma prijunk banką',
+                hintText: hasBank ? tr('Klausk apie savo finansus…') : tr('Pirma prijunk banką'),
                 hintStyle: TextStyle(color: _muted),
                 filled: true,
                 fillColor: _bg,

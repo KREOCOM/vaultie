@@ -36,7 +36,6 @@ const Map<String, String> _en = {
   'nuo praėjusio mėn.': 'vs last month',
   'Likutis iš banko · grafikas = likučio kitimas laike':
       'Bank balance · chart = balance over time',
-  'Sąskaita': 'Account',
 
   // ── Filters / week ──
   'Filtras': 'Filter',
@@ -53,13 +52,89 @@ const Map<String, String> _en = {
   // ── Month feed / headers ──
   'Išleista': 'Spent',
   'Gauta': 'Received',
-  'suma': 'net',
   'grynasis': 'net',
   'Rodyti senesnius': 'Show older',
   'sandoriai': 'transactions',
   'sandorių': 'transactions',
   'apžvalga': 'review',
   'Peržiūrėti': 'View',
+
+  // ── AI chat ──
+  'Klausk apie savo pinigus': 'Ask about your money',
+  'Pabandyk paklausti:': 'Try asking:',
+  'Klausk apie savo finansus…': 'Ask about your finances…',
+  'Pirma prijunk banką': 'Connect a bank first',
+  'Prijunk banką, kad galėčiau atsakyti apie tavo finansus.':
+      'Connect a bank so I can answer questions about your finances.',
+  'Kiek išleidau šį mėnesį?': 'How much did I spend this month?',
+  'Kokia mano brangiausia prenumerata?': 'What’s my most expensive subscription?',
+  'Kur galėčiau sutaupyti?': 'Where could I save?',
+  'Į ką daugiausiai išleidžiu?': 'What do I spend the most on?',
+
+  // ── Overview / analytics ──
+  'Kategorija': 'Category',
+  'Suma': 'Amount',
+  'Santaupų norma': 'Savings rate',
+  'suma': 'total',
+  'Vidutinės dienos išlaidos': 'Average daily spending',
+  'Šį mėnesį': 'This month',
+  'Praėjusio mėn. statusas': 'Last month’s status',
+  'Paskutinių 6 mėn. normos': 'Last 6 months’ rates',
+  'santaupos / pajamos': 'savings / income',
+  'pajamos': 'income',
+  'santaupos': 'savings',
+  'išleista': 'spent',
+  'uždirbta': 'earned',
+  'santaupų': 'savings',
+  'd.': '',
+
+  // ── Section (category) names ──
+  'Maistas, gėrimai': 'Food & drinks',
+  'Transportas': 'Transport',
+  'Apsipirkimas': 'Shopping',
+  'Būstas, sąskaitos': 'Housing & bills',
+  'Sveikata, sportas': 'Health & sport',
+  'Pramogos': 'Entertainment',
+  'Finansai': 'Finance',
+  'Švietimas': 'Education',
+  'Pajamos ir pervedimai': 'Income & transfers',
+  'Pervedimai': 'Transfers',
+  'Pajamos': 'Income',
+  'Kita': 'Other',
+
+  // ── Sub-categories & transaction labels ──
+  'Maisto prekės': 'Groceries',
+  'Kavinės, restoranai': 'Cafes & restaurants',
+  'Alkoholis, tabakas': 'Alcohol & tobacco',
+  'Kuras': 'Fuel',
+  'Taksi, pavėžėja': 'Taxi & rideshare',
+  'Automobilis': 'Car',
+  'Viešasis transportas': 'Public transport',
+  'Drabužiai': 'Clothing',
+  'Elektronika, prekės': 'Electronics & goods',
+  'Namų prekės': 'Household',
+  'Nuoma, būstas': 'Rent & housing',
+  'Komunaliniai': 'Utilities',
+  'Ryšys, internetas': 'Phone & internet',
+  'Draudimas': 'Insurance',
+  'Sveikata': 'Health',
+  'Sportas': 'Sport',
+  'Vaistinė': 'Pharmacy',
+  'Prenumeratos': 'Subscriptions',
+  'Kelionės': 'Travel',
+  'Mokesčiai': 'Taxes',
+  'Bankas, komisiniai': 'Bank & fees',
+  'Investicijos': 'Investments',
+  'Mokslas': 'Education',
+  'Kursai, knygos': 'Courses & books',
+  'Grynieji': 'Cash',
+  'Asmeninis pervedimas': 'Personal transfer',
+  'Atlyginimas': 'Salary',
+
+  // ── Transaction badges ──
+  'Sąskaita': 'Bill',
+  'Rezervuota': 'Reserved',
+  'Prekybininkas': 'Merchant',
 
   // ── Common words ──
   'per metus': 'per year',
