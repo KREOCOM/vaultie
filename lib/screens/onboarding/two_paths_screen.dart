@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../i18n.dart';
 import '../../theme/vaultie_theme.dart';
 
 /// Two paths — connect a bank (recommended) or start manually. Split layout:
@@ -88,15 +89,15 @@ class TwoPathsScreen extends StatelessWidget {
                             color: Colors.white, size: 27),
                       ),
                       const SizedBox(height: 22),
-                      const Text('Prijunk banką',
-                          style: TextStyle(
+                      Text(tr('Prijunk banką'),
+                          style: const TextStyle(
                               color: Colors.white,
                               fontSize: 25,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.4)),
                       const SizedBox(height: 12),
                       Text(
-                        'Vaultie automatiškai suras visas tavo prenumeratas ir pasikartojančius mokėjimus.',
+                        tr('Vaultie automatiškai suras visas tavo prenumeratas ir pasikartojančius mokėjimus.'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.85),
@@ -105,7 +106,7 @@ class TwoPathsScreen extends StatelessWidget {
                             fontWeight: FontWeight.w400),
                       ),
                       const SizedBox(height: 26),
-                      _WhiteButton(label: 'Prijungti banką', onTap: onBank),
+                      _WhiteButton(label: tr('Prijungti banką'), onTap: onBank),
                       const SizedBox(height: 14),
                       _SecurityLine(),
                     ],
@@ -154,20 +155,20 @@ class TwoPathsScreen extends StatelessWidget {
                             color: VT.brand, size: 24),
                       ),
                       const SizedBox(width: 14),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('Pradėti rankiniu būdu',
-                                style: TextStyle(
+                            Text(tr('Pradėti rankiniu būdu'),
+                                style: const TextStyle(
                                     color: VT.ink,
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700)),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
-                              'Nemokamai iki 5 prenumeratų. Banką galėsi prijungti bet kuriuo metu.',
-                              style: TextStyle(
+                              tr('Nemokamai iki 5 prenumeratų. Banką galėsi prijungti bet kuriuo metu.'),
+                              style: const TextStyle(
                                   color: VT.subtle,
                                   fontSize: 12,
                                   height: 1.35,
@@ -274,7 +275,7 @@ class _SecurityLine extends StatelessWidget {
         const SizedBox(width: 5),
         Flexible(
           child: Text(
-            'Saugus prisijungimas per Enable Banking — licencijuotą ES partnerį.',
+            tr('Saugus prisijungimas per Enable Banking — licencijuotą ES partnerį.'),
             textAlign: TextAlign.center,
             style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.72),

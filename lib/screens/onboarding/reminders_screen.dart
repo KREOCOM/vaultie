@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../i18n.dart';
 import '../../theme/vaultie_theme.dart';
 
 class _Notif {
@@ -81,10 +82,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            'Įspėsim prieš kiekvieną\nmokėjimą.',
+          Text(
+            tr('Įspėsim prieš kiekvieną\nmokėjimą.'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: VT.ink,
               fontSize: 20,
               fontWeight: FontWeight.w800,
@@ -93,10 +94,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Jokių netikėtų nurašymų — spėsi atšaukti, kol pinigai dar nenuskaityti.',
+          Text(
+            tr('Jokių netikėtų nurašymų — spėsi atšaukti, kol pinigai dar nenuskaityti.'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: _subInk,
               fontSize: 15.5,
               fontWeight: FontWeight.w500,
@@ -150,7 +151,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5)),
                     const Spacer(),
-                    Text('dabar',
+                    Text(tr('dabar'),
                         style: TextStyle(
                             color: VT.subtle.withValues(alpha: 0.8),
                             fontSize: 11,
@@ -158,7 +159,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   ],
                 ),
                 const SizedBox(height: 3),
-                Text(n.body,
+                Text(tr(n.body),
                     style: const TextStyle(
                         color: VT.ink,
                         fontSize: 14,

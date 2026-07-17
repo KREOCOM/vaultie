@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../i18n.dart';
 import '../../theme/vaultie_theme.dart';
 
 /// Screen 1 — Landing (final). Light canvas with a soft green glow, an animated
@@ -78,10 +79,10 @@ class _LandingScreenState extends State<LandingScreen>
                 const Spacer(),
                 _AnimatedHero(float: _float, shimmer: _shimmer),
                 const Spacer(),
-                const Text(
-                  'Sužinok, kur dingsta\ntavo pinigai',
+                Text(
+                  tr('Sužinok, kur dingsta\ntavo pinigai'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: VT.ink,
                     fontSize: 27,
                     fontWeight: FontWeight.w800,
@@ -90,10 +91,10 @@ class _LandingScreenState extends State<LandingScreen>
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'Nuoma, prenumeratos, draudimas — viskas vienoje vietoje.',
+                Text(
+                  tr('Nuoma, prenumeratos, draudimas — viskas vienoje vietoje.'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: _subInk,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -101,10 +102,10 @@ class _LandingScreenState extends State<LandingScreen>
                   ),
                 ),
                 const Spacer(),
-                VtPrimaryButton(label: 'Pradėti', onPressed: widget.onStart),
+                VtPrimaryButton(label: tr('Pradėti'), onPressed: widget.onStart),
                 const SizedBox(height: 4),
                 VtTextButton(
-                    label: 'Jau turiu paskyrą',
+                    label: tr('Jau turiu paskyrą'),
                     onPressed: widget.onHaveAccount),
               ],
             ),
@@ -230,8 +231,8 @@ class _HeroContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('KAS MĖNESĮ IŠEINA',
-              style: TextStyle(
+          Text(tr('KAS MĖNESĮ IŠEINA'),
+              style: const TextStyle(
                   color: _mint,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -259,7 +260,7 @@ class _HeroContent extends StatelessWidget {
               const SizedBox(width: 5),
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text('/mėn',
+                child: Text(tr('/mėn'),
                     style: TextStyle(
                         color: _mint,
                         fontSize: 15,
@@ -274,8 +275,8 @@ class _HeroContent extends StatelessWidget {
             children: [
               _tile(const Color(0xFF6D9E3F), Icons.home_rounded),
               const SizedBox(width: 11),
-              const Text('Nuoma',
-                  style: TextStyle(
+              Text(tr('Nuoma'),
+                  style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w600)),
@@ -298,7 +299,7 @@ class _HeroContent extends StatelessWidget {
                       fontSize: 15,
                       fontWeight: FontWeight.w600)),
               const SizedBox(width: 10),
-              const _WarnChip(text: 'nenaudota 3 mėn.'),
+              _WarnChip(text: tr('nenaudota 3 mėn.')),
             ],
           ),
         ],

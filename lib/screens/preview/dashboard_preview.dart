@@ -243,18 +243,18 @@ void _showReceivedBreakdown(BuildContext context, double income, double other) {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              Text('Gauta', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+              Text(tr('Gauta'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
               const Spacer(),
               Text('${(income + other).round()} €', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
             ]),
             const SizedBox(height: 4),
-            Text('Visi pinigai, kurie įkrito į tavo sąskaitą.', style: TextStyle(fontSize: 13.5, color: _muted)),
+            Text(tr('Visi pinigai, kurie įkrito į tavo sąskaitą.'), style: TextStyle(fontSize: 13.5, color: _muted)),
             const SizedBox(height: 16),
-            _breakdownRow(_secColor['amber']!, 'Atpažintos pajamos', 'atlyginimas, reguliarios įplaukos', income),
+            _breakdownRow(_secColor['amber']!, tr('Atpažintos pajamos'), tr('atlyginimas, reguliarios įplaukos'), income),
             const SizedBox(height: 12),
-            _breakdownRow(_secColor['indigo']!, 'Kiti pervedimai / įplaukos', 'pavedimai iš žmonių, papildymai', other),
+            _breakdownRow(_secColor['indigo']!, tr('Kiti pervedimai / įplaukos'), tr('pavedimai iš žmonių, papildymai'), other),
             const SizedBox(height: 16),
-            Text('Į santaupų normą įskaičiuojamos tik atpažintos pajamos — pervedimai iš kitų nelaikomi uždarbiu.',
+            Text(tr('Į santaupų normą įskaičiuojamos tik atpažintos pajamos — pervedimai iš kitų nelaikomi uždarbiu.'),
                 style: TextStyle(fontSize: 12.5, color: _faint, height: 1.35)),
           ],
         ),
@@ -369,10 +369,13 @@ const _recMonLt = ['', 'sausio', 'vasario', 'kovo', 'balandžio', 'gegužės', '
 
 // "kas mėnesį · paskutinį kartą liepos 14 · ×6" — helps the user judge each row.
 String _recDetail(Map it) {
-  final parts = <String>[_recCycleLabel(it['cycle'] as String?)];
+  final parts = <String>[tr(_recCycleLabel(it['cycle'] as String?))];
   final last = it['lastCharge'] as String?;
   final d = last != null ? DateTime.tryParse(last) : null;
-  if (d != null) parts.add('paskutinį kartą ${_recMonLt[d.month]} ${d.day}');
+  if (d != null) {
+    final mon = _enUi ? _monAbbrEn[d.month - 1] : _recMonLt[d.month];
+    parts.add('${tr('paskutinį kartą')} $mon ${d.day}');
+  }
   final occ = ((it['occ'] ?? 0) as num).toInt();
   if (occ >= 2) parts.add('×$occ');
   return parts.join(' · ');
@@ -616,10 +619,8 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     // a bank that has cut us off is to come back in ~6 hours, so promising a
     // quick retry would just send the user back to pull again, and again.
     final msg = _wasRateLimited(lost)
-        ? '$names kol kas neatiduoda naujų duomenų. Rodomi paskutiniai — '
-            'atsinaujins savaime, kai bankas vėl leis.'
-        : 'Nepavyko atnaujinti: $names. Rodomi paskutiniai duomenys — '
-            'perjunk banką, jei kartojasi.';
+        ? '$names ${tr('kol kas neatiduoda naujų duomenų. Rodomi paskutiniai — atsinaujins savaime, kai bankas vėl leis.')}'
+        : '${tr('Nepavyko atnaujinti:')} $names. ${tr('Rodomi paskutiniai duomenys — perjunk banką, jei kartojasi.')}';
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 5)));
@@ -642,9 +643,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     if (last != null && DateTime.now().difference(last) < _minBetweenManualSyncs) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text('Duomenys ką tik atnaujinti.'),
-          duration: Duration(seconds: 2),
+        ..showSnackBar(SnackBar(
+          content: Text(tr('Duomenys ką tik atnaujinti.')),
+          duration: const Duration(seconds: 2),
         ));
       return;
     }
@@ -1196,7 +1197,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           _acctGlyph(a, diameter: 24, fontSize: 11),
                           const SizedBox(width: 8),
-                          Text((a['bank'] ?? a['name'] ?? 'Sąskaita').toString(),
+                          Text((a['bank'] ?? a['name'] ?? tr('Sąskaita')).toString(),
                               style: TextStyle(fontSize: 13, color: _heroInk, fontWeight: FontWeight.w700)),
                           const SizedBox(width: 8),
                           Text(_hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
@@ -1556,7 +1557,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               Text(tot > 0 ? '−${_eur(tot)}' : _eur(tot), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
             ]),
             if (cats.isEmpty)
-              Padding(padding: const EdgeInsets.only(top: 6), child: Text('Nėra išlaidų', style: TextStyle(fontSize: 12.5, color: _muted))),
+              Padding(padding: const EdgeInsets.only(top: 6), child: Text(tr('Nėra išlaidų'), style: TextStyle(fontSize: 12.5, color: _muted))),
             for (final ct in cats) ...[
               const SizedBox(height: 9),
               Row(children: [
@@ -1566,7 +1567,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                   child: Icon(_secIcon[ct['icon']] ?? Icons.circle, size: 12, color: Colors.white),
                 ),
                 const SizedBox(width: 8),
-                Expanded(child: Text((ct['label'] as String).split(',')[0], style: TextStyle(fontSize: 13, color: _ink, fontWeight: FontWeight.w600))),
+                Expanded(child: Text(tr(ct['label'] as String).split(',')[0], style: TextStyle(fontSize: 13, color: _ink, fontWeight: FontWeight.w600))),
                 Text('−${_eur((ct['amount'] as num).toDouble())}',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
               ]),
@@ -1589,12 +1590,12 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('Išleista ${_eur(expenses)}',
+              Text('${tr('Išleista')} ${_eur(expenses)}',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
               if (income > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: Text('Pajamos ${_eur(income)} · Liko ${_eur(net, signed: true)}',
+                  child: Text('${tr('Pajamos')} ${_eur(income)} · ${tr('Liko')} ${_eur(net, signed: true)}',
                       style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _muted)),
                 ),
             ],
@@ -1765,9 +1766,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${_monGen[m - 1]} apžvalga',
+                        Text('${_monGen[m - 1]} ${tr('apžvalga')}',
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
-                        Text('${_monthCount(mk)} sandoriai', style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.8))),
+                        Text('${_monthCount(mk)} ${tr('sandoriai')}', style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.8))),
                       ],
                     ),
                   ),
@@ -1777,7 +1778,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                     children: [
                       Text(_eur(net, signed: true),
                           style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5)),
-                      Text('grynasis', style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.8))),
+                      Text(tr('grynasis'), style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.8))),
                     ],
                   ),
                 ],
@@ -1787,10 +1788,10 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               decoration: BoxDecoration(color: _card.withValues(alpha: 0.12)),
               child: Row(children: [
-                Text('Skrituliai · kategorijos · kalendorius',
+                Text(tr('Skrituliai · kategorijos · kalendorius'),
                     style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9))),
                 const Spacer(),
-                const Text('Peržiūrėti →', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white)),
+                Text('${tr('Peržiūrėti')} →', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white)),
               ]),
             ),
           ],
@@ -1882,7 +1883,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     if (mounted) {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
-        ..showSnackBar(const SnackBar(content: Text('Įrašas pridėtas'), duration: Duration(seconds: 2)));
+        ..showSnackBar(SnackBar(content: Text(tr('Įrašas pridėtas')), duration: const Duration(seconds: 2)));
     }
   }
 
@@ -2086,14 +2087,14 @@ Future<_TxFilter?> _showFilterSheet(BuildContext context, _TxFilter current, Lis
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
                 child: Row(children: [
-                  Text('Filtras', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+                  Text(tr('Filtras'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
                   const Spacer(),
                   GestureDetector(
                     onTap: () => setSheet(() {
                       type = 'all';
                       secs.clear();
                     }),
-                    child: const Text('Išvalyti', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
+                    child: Text(tr('Išvalyti'), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
                   ),
                 ]),
               ),
@@ -2102,7 +2103,7 @@ Future<_TxFilter?> _showFilterSheet(BuildContext context, _TxFilter current, Lis
                   shrinkWrap: true,
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                   children: [
-                    Text('TIPAS', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.6)),
+                    Text(tr('TIPAS'), style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.6)),
                     const SizedBox(height: 10),
                     Wrap(spacing: 8, runSpacing: 8, children: [
                       for (final tp in types)
@@ -2114,7 +2115,7 @@ Future<_TxFilter?> _showFilterSheet(BuildContext context, _TxFilter current, Lis
                               color: type == tp[0] ? _purple : _soft,
                               borderRadius: BorderRadius.circular(11),
                             ),
-                            child: Text(tp[1],
+                            child: Text(tr(tp[1]),
                                 style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -2124,7 +2125,7 @@ Future<_TxFilter?> _showFilterSheet(BuildContext context, _TxFilter current, Lis
                     ]),
                     if (availableSecs.isNotEmpty) ...[
                       const SizedBox(height: 20),
-                      Text('KATEGORIJOS', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.6)),
+                      Text(tr('KATEGORIJOS'), style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.6)),
                       const SizedBox(height: 4),
                       for (final s in availableSecs)
                         InkWell(
@@ -2134,7 +2135,7 @@ Future<_TxFilter?> _showFilterSheet(BuildContext context, _TxFilter current, Lis
                             child: Row(children: [
                               CategoryIcon(icon: _secIcon[_secToIcon[s]] ?? Icons.circle, color: _secColor[_secToIconColor(s)] ?? _muted, size: 34),
                               const SizedBox(width: 12),
-                              Expanded(child: Text(s, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink))),
+                              Expanded(child: Text(tr(s), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink))),
                               Icon(secs.contains(s) ? Icons.check_circle_rounded : Icons.circle_outlined,
                                   size: 24, color: secs.contains(s) ? _purple : _faint),
                             ]),
@@ -2152,7 +2153,7 @@ Future<_TxFilter?> _showFilterSheet(BuildContext context, _TxFilter current, Lis
                     height: 52,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(15)),
-                    child: const Text('Taikyti', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                    child: Text(tr('Taikyti'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
                   ),
                 ),
               ),
@@ -2220,16 +2221,16 @@ class _AddEntryScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            Text('Pridėti ranka',
+            Text(tr('Pridėti ranka'),
                 style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.6)),
             const SizedBox(height: 8),
             Text.rich(
               TextSpan(
                 style: TextStyle(fontSize: 15.5, color: _muted, height: 1.5),
                 children: [
-                  const TextSpan(text: 'Įrašyk tai, ko '),
-                  TextSpan(text: 'bankas nemato', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
-                  const TextSpan(text: ' — grynuosius, skolą draugui, pervedimą tarp savo sąskaitų.'),
+                  TextSpan(text: tr('Įrašyk tai, ko ')),
+                  TextSpan(text: tr('bankas nemato'), style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+                  TextSpan(text: tr(' — grynuosius, skolą draugui, pervedimą tarp savo sąskaitų.')),
                 ],
               ),
             ),
@@ -2239,9 +2240,9 @@ class _AddEntryScreen extends StatelessWidget {
               kind: 'expense',
               color: const Color(0xFFE0574F),
               icon: Icons.south_west_rounded,
-              title: 'Išlaida',
-              desc: 'Pinigai, kuriuos išleidai — pvz. sumokėjai grynais.',
-              effect: 'Didina mėnesio išlaidas',
+              title: tr('Išlaida'),
+              desc: tr('Pinigai, kuriuos išleidai — pvz. sumokėjai grynais.'),
+              effect: tr('Didina mėnesio išlaidas'),
             ),
             const SizedBox(height: 14),
             _choice(
@@ -2249,9 +2250,9 @@ class _AddEntryScreen extends StatelessWidget {
               kind: 'income',
               color: _good,
               icon: Icons.north_east_rounded,
-              title: 'Pajamos',
-              desc: 'Gauti pinigai — atlyginimas grynais, dovana, grąžinta skola.',
-              effect: 'Didina mėnesio pajamas',
+              title: tr('Pajamos'),
+              desc: tr('Gauti pinigai — atlyginimas grynais, dovana, grąžinta skola.'),
+              effect: tr('Didina mėnesio pajamas'),
             ),
             const SizedBox(height: 14),
             _choice(
@@ -2259,9 +2260,9 @@ class _AddEntryScreen extends StatelessWidget {
               kind: 'transfer',
               color: _purple,
               icon: Icons.swap_horiz_rounded,
-              title: 'Vidinis pervedimas',
-              desc: 'Perkėlei pinigus tarp savo sąskaitų arba išsiėmei grynųjų.',
-              effect: 'Neįskaičiuojama į išlaidas ar pajamas',
+              title: tr('Vidinis pervedimas'),
+              desc: tr('Perkėlei pinigus tarp savo sąskaitų arba išsiėmei grynųjų.'),
+              effect: tr('Neįskaičiuojama į išlaidas ar pajamas'),
             ),
           ],
         ),
@@ -2425,9 +2426,9 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(c.cat, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+                              Text(tr(c.cat), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
                               const SizedBox(height: 1),
-                              Text(c.sec, style: TextStyle(fontSize: 12, color: _muted)),
+                              Text(tr(c.sec), style: TextStyle(fontSize: 12, color: _muted)),
                             ]),
                           ),
                           if (sel) const Icon(Icons.check_circle_rounded, color: _purple, size: 22),
@@ -2453,7 +2454,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
       initialDate: _date,
       firstDate: DateTime(now.year - 3),
       lastDate: now,
-      helpText: 'Data',
+      helpText: tr('Data'),
     );
     if (picked != null) setState(() => _date = DateTime(picked.year, picked.month, picked.day));
   }
@@ -2486,8 +2487,8 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
 
   String get _dateLabel {
     final t = _today();
-    if (_date == t) return 'Šiandien';
-    if (_date == t.subtract(const Duration(days: 1))) return 'Vakar';
+    if (_date == t) return tr('Šiandien');
+    if (_date == t.subtract(const Duration(days: 1))) return tr('Vakar');
     return '${_date.day} ${_monGen[_date.month - 1].toLowerCase()} ${_date.year}';
   }
 
@@ -2505,7 +2506,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
               padding: const EdgeInsets.fromLTRB(8, 6, 16, 6),
               child: Row(children: [
                 IconButton(icon: Icon(Icons.arrow_back_rounded, color: _ink), onPressed: () => Navigator.of(context).pop()),
-                Expanded(child: Text(_isEdit ? 'Redaguoti' : _kindTitle(widget.kind), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink))),
+                Expanded(child: Text(_isEdit ? tr('Redaguoti') : tr(_kindTitle(widget.kind)), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink))),
               ]),
             ),
             Expanded(
@@ -2544,8 +2545,8 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                   _row(
                     onTap: _pickCat,
                     leading: CategoryIcon(icon: _iconOf(_cat.ic), color: _colOf(_cat.col), size: 40, circle: false),
-                    label: 'Kategorija',
-                    value: _cat.cat,
+                    label: tr('Kategorija'),
+                    value: tr(_cat.cat),
                   ),
                   const SizedBox(height: 10),
                   // date
@@ -2557,7 +2558,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                       decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(11)),
                       child: Icon(Icons.event_rounded, color: _muted, size: 21),
                     ),
-                    label: 'Data',
+                    label: tr('Data'),
                     value: _dateLabel,
                   ),
                   const SizedBox(height: 10),
@@ -2580,7 +2581,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink),
                           decoration: InputDecoration(
                             border: InputBorder.none,
-                            hintText: widget.kind == 'transfer' ? 'Pavadinimas (nebūtina)' : 'Pastaba (nebūtina)',
+                            hintText: widget.kind == 'transfer' ? tr('Pavadinimas (nebūtina)') : tr('Pastaba (nebūtina)'),
                             hintStyle: TextStyle(fontSize: 15, color: _faint),
                           ),
                         ),
@@ -2590,7 +2591,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                   if (widget.kind == 'transfer')
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 14, 4, 0),
-                      child: Text('Vidiniai pervedimai neįskaičiuojami į išlaidas ar pajamas.',
+                      child: Text(tr('Vidiniai pervedimai neįskaičiuojami į išlaidas ar pajamas.'),
                           style: TextStyle(fontSize: 12.5, color: _muted, height: 1.3)),
                     ),
                 ],
@@ -2608,7 +2609,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                     color: _valid ? _purple : _faint,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Text('Išsaugoti', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                  child: Text(tr('Išsaugoti'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
                 ),
               ),
             ),
@@ -2970,9 +2971,9 @@ class _BalanceSheetState extends State<_BalanceSheet> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.show_chart_rounded, size: 34, color: _faint),
           const SizedBox(height: 12),
-          Text('Balanso istorijos dar nėra', style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: _ink)),
+          Text(tr('Balanso istorijos dar nėra'), style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: _ink)),
           const SizedBox(height: 6),
-          Text('Kai atsiras operacijų, čia matysi kaip keitėsi tavo likutis.',
+          Text(tr('Kai atsiras operacijų, čia matysi kaip keitėsi tavo likutis.'),
               textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, color: _muted, height: 1.4)),
         ]),
       );
@@ -3148,7 +3149,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Rodoma ${_monthsAvail()} mėn. — tiek istorijos grąžino bankas. Daugiau prisipildys laikui bėgant.',
+                      '${tr('Rodoma')} ${_monthsAvail()} ${tr('mėn. — tiek istorijos grąžino bankas. Daugiau prisipildys laikui bėgant.')}',
                       style: TextStyle(fontSize: 12, color: _ink, height: 1.35),
                     ),
                   ),
@@ -3364,13 +3365,13 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Ištrinti sandorį?', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
-        content: Text('„$merchant" (${_eur(amount, signed: true)}) bus pašalintas. Šio veiksmo anuliuoti negalima.',
+        title: Text(tr('Ištrinti sandorį?'), style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        content: Text('„$merchant" (${_eur(amount, signed: true)}) ${tr('bus pašalintas. Šio veiksmo anuliuoti negalima.')}',
             style: TextStyle(color: _muted, height: 1.4)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
           TextButton(onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Ištrinti', style: TextStyle(color: Color(0xFFE0574F), fontWeight: FontWeight.w800))),
+              child: Text(tr('Ištrinti'), style: const TextStyle(color: Color(0xFFE0574F), fontWeight: FontWeight.w800))),
         ],
       ),
     );
@@ -3425,7 +3426,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       _isTransfer = edited['sec'] == 'Pervedimai';
     });
     _dashRefresh?.call();
-    _toast('Pakeitimai išsaugoti');
+    _toast(tr('Pakeitimai išsaugoti'));
   }
 
   void _toggleStar() {
@@ -3455,7 +3456,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       _catIcon = _iconOf(fields['ic']);
     });
     _dashRefresh?.call();
-    _toast(toTransfer ? 'Pažymėta kaip vidinis pervedimas' : 'Grąžinta į įprastą (kategorija „Kita")');
+    _toast(toTransfer ? tr('Pažymėta kaip vidinis pervedimas') : tr('Grąžinta į įprastą (kategorija „Kita")'));
   }
 
   String get _dateFull {
@@ -3525,7 +3526,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
         if (ic != null) r['ic'] = ic;
       }
       _dashRefresh?.call();
-      _toast('Kategorija pakeista į „$cat"');
+      _toast('${tr('Kategorija pakeista į')} „$cat"');
     });
   }
 
@@ -3569,7 +3570,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
         children: [
           IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: _ink)),
           Expanded(
-            child: Text(_isTransfer ? 'Vidinis pervedimas' : 'Įprastas sandoris',
+            child: Text(_isTransfer ? tr('Vidinis pervedimas') : tr('Įprastas sandoris'),
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _ink)),
           ),
           IconButton(onPressed: _delete, icon: Icon(Icons.delete_outline_rounded, size: 22, color: _muted)),
@@ -3608,7 +3609,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          Text('Data', style: TextStyle(fontSize: 15, color: _muted)),
+          Text(tr('Data'), style: TextStyle(fontSize: 15, color: _muted)),
           const Spacer(),
           Text(_dateFull, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink)),
         ],
@@ -3635,15 +3636,15 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(_cat, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
+                          Text(tr(_cat), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
                           const SizedBox(height: 2),
                           Row(children: [
-                            Flexible(child: Text(widget.tx['manual'] == true ? 'Įvesta ranka' : 'Kategorizuota automatiškai', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted))),
+                            Flexible(child: Text(widget.tx['manual'] == true ? tr('Įvesta ranka') : tr('Kategorizuota automatiškai'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted))),
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(5)),
-                              child: Text(pt[0], style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _purple)),
+                              child: Text(tr(pt[0]), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _purple)),
                             ),
                           ]),
                         ],
@@ -3674,13 +3675,13 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Sandorio informacija', style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
+          Text(tr('Sandorio informacija'), style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
-            child: Text('Prekybininkas: ${tx['nm']}', style: TextStyle(fontSize: 14.5, color: _ink)),
+            child: Text('${tr('Prekybininkas')}: ${tx['nm']}', style: TextStyle(fontSize: 14.5, color: _ink)),
           ),
         ],
       ),
@@ -3689,10 +3690,10 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
 
   Widget _actions() {
     final chips = <List<dynamic>>[
-      [Icons.edit_outlined, 'Redaguoti', _edit],
-      [_starred ? Icons.star_rounded : Icons.star_border_rounded, 'Žyma', _toggleStar],
-      [Icons.swap_horiz_rounded, _isTransfer ? 'Į įprastą' : 'Į vidinį pervedimą', _convertTransfer],
-      [Icons.delete_outline_rounded, 'Ištrinti', _delete],
+      [Icons.edit_outlined, tr('Redaguoti'), _edit],
+      [_starred ? Icons.star_rounded : Icons.star_border_rounded, tr('Žyma'), _toggleStar],
+      [Icons.swap_horiz_rounded, _isTransfer ? tr('Į įprastą') : tr('Į vidinį pervedimą'), _convertTransfer],
+      [Icons.delete_outline_rounded, tr('Ištrinti'), _delete],
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -3733,7 +3734,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$_txMonthGen biudžetas', style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
+          Text('$_txMonthGen ${tr('biudžetas')}', style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           AppCard(color: _card, border: _hair, 
             padding: const EdgeInsets.all(15),
@@ -3742,14 +3743,14 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                 Row(children: [
                   CategoryIcon(icon: _catIcon, color: _catColor, size: 36),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(_cat, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink))),
+                  Expanded(child: Text(tr(_cat), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink))),
                   Text(_eur(limit).replaceAll(',00', ''), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                 ]),
                 const SizedBox(height: 12),
                 Row(children: [
-                  Text('${_eur(spent)} išleista', style: TextStyle(fontSize: 12.5, color: _muted)),
+                  Text('${_eur(spent)} ${tr('išleista')}', style: TextStyle(fontSize: 12.5, color: _muted)),
                   const Spacer(),
-                  Text(over ? '${_eur(-left)} viršyta' : '${_eur(left)} liko',
+                  Text(over ? '${_eur(-left)} ${tr('viršyta')}' : '${_eur(left)} ${tr('liko')}',
                       style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: over ? DS.danger : _good)),
                 ]),
                 const SizedBox(height: 8),
@@ -3783,7 +3784,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Sąskaita', style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
+          Text(tr('Sąskaita'), style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           AppCard(color: _card, border: _hair,
             padding: const EdgeInsets.all(14),
@@ -3806,7 +3807,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text('Panašūs sandoriai', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
+            Text(tr('Panašūs sandoriai'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
             const SizedBox(width: 8),
             Text('${items.length}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _muted)),
           ]),
@@ -3828,7 +3829,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                       Row(children: [
                         Container(width: 5, height: 5, decoration: const BoxDecoration(shape: BoxShape.circle, color: _purple)),
                         const SizedBox(width: 6),
-                        Flexible(child: Text('${s['md']}; ${s['cat']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted))),
+                        Flexible(child: Text('${s['md']}; ${tr((s['cat'] ?? '').toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted))),
                       ]),
                     ],
                   ),
@@ -3841,7 +3842,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
           if (items.length > show.length)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Text('… ir dar ${items.length - show.length}', style: TextStyle(fontSize: 13, color: _muted)),
+              child: Text('… ${tr('ir dar')} ${items.length - show.length}', style: TextStyle(fontSize: 13, color: _muted)),
             ),
         ],
       ),
@@ -3880,8 +3881,8 @@ class _SelectCategorySheetState extends State<_SelectCategorySheet> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('SANDORIS', style: TextStyle(fontSize: 11, color: _muted, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
-                    Text('Pasirinkti kategoriją', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
+                    Text(tr('SANDORIS'), style: TextStyle(fontSize: 11, color: _muted, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+                    Text(tr('Pasirinkti kategoriją'), style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
                   ],
                 ),
               ],
@@ -3894,7 +3895,7 @@ class _SelectCategorySheetState extends State<_SelectCategorySheet> {
               cursorColor: _purple,
               style: TextStyle(color: _ink),
               decoration: InputDecoration(
-                hintText: 'Ieškoti',
+                hintText: tr('Ieškoti'),
                 hintStyle: TextStyle(color: _faint),
                 suffixIcon: Icon(Icons.search_rounded, color: _muted),
                 isDense: true,
@@ -3937,7 +3938,7 @@ class _SelectCategorySheetState extends State<_SelectCategorySheet> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(60, 11, 20, 11),
             child: Row(children: [
-              Expanded(child: Text(sub, style: TextStyle(fontSize: 15, color: _ink))),
+              Expanded(child: Text(tr(sub), style: TextStyle(fontSize: 15, color: _ink))),
               if (sub == widget.current) const Icon(Icons.check_rounded, size: 20, color: _purple),
             ]),
           ),
@@ -4131,7 +4132,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
           child: Row(
             children: [
               IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.white)),
-              Expanded(child: Text('${widget.monthGen} apžvalga', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white))),
+              Expanded(child: Text('${widget.monthGen} ${tr('apžvalga')}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white))),
             ],
           ),
         ),
@@ -4222,13 +4223,13 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
       child: Row(children: [
-        stat('${spent.round()} €', 'išleista'),
+        stat('${spent.round()} €', tr('išleista')),
         div(),
-        stat('${earned.round()} €', 'uždirbta'),
+        stat('${earned.round()} €', tr('uždirbta')),
         div(),
-        stat('${net >= 0 ? '+' : '−'}${net.abs().round()} €', 'grynasis'),
+        stat('${net >= 0 ? '+' : '−'}${net.abs().round()} €', tr('grynasis')),
         div(),
-        stat(earned > 0 ? '$savings %' : '—', 'santaupų'),
+        stat(earned > 0 ? '$savings %' : '—', tr('santaupų')),
       ]),
     );
   }
@@ -4245,7 +4246,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            'Atlyginimas (${sal.round()} €) gaunamas NOK (Nergard) ir automatiškai konvertuojamas į EUR. Rodoma bazine valiuta — EUR.',
+            '${tr('Atlyginimas')} (${sal.round()} €) ${tr('gaunamas NOK (Nergard) ir automatiškai konvertuojamas į EUR. Rodoma bazine valiuta — EUR.')}',
             style: TextStyle(fontSize: 12.5, color: _ink, height: 1.35),
           ),
         ),
@@ -4257,9 +4258,9 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final savings = earned > 0 ? ((earned - spent) / earned * 100).round().clamp(0, 100) : 0;
     final top = expenseSecs.isNotEmpty ? expenseSecs.first : null;
     // Templated fallback used while the AI writes, or if it's unavailable.
-    final fallback = '${widget.monthGen} mėnesį uždirbai ${earned.round()} €, o išleidai ${spent.round()} €. Grynasis rezultatas ${_eur(net, signed: true)}. '
-        '${top != null ? 'Daugiausia išleidai kategorijoje „${top.label.split(',').first}" (${(-top.net).round()} €). ' : ''}'
-        '${earned > 0 ? 'Santaupų norma šį mėnesį — $savings %.' : 'Šį mėnesį pajamų nebuvo, tad santaupų norma neskaičiuojama.'}';
+    final fallback = '${widget.monthGen} ${tr('mėnesį uždirbai')} ${earned.round()} €, ${tr('o išleidai')} ${spent.round()} €. ${tr('Grynasis rezultatas')} ${_eur(net, signed: true)}. '
+        '${top != null ? '${tr('Daugiausia išleidai kategorijoje')} „${tr(top.label).split(',').first}" (${(-top.net).round()} €). ' : ''}'
+        '${earned > 0 ? '${tr('Santaupų norma šį mėnesį —')} $savings %.' : tr('Šį mėnesį pajamų nebuvo, tad santaupų norma neskaičiuojama.')}';
     final isAi = _aiText != null && _aiText!.isNotEmpty;
     final body = isAi ? _aiText! : fallback;
     return Container(
@@ -4270,7 +4271,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Text('SANTRAUKA', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.8)),
+            Text(tr('SANTRAUKA'), style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.8)),
             const SizedBox(width: 8),
             if (isAi)
               Container(
@@ -4282,13 +4283,13 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             const Icon(Icons.auto_awesome_rounded, size: 20, color: _purple),
           ]),
           const SizedBox(height: 12),
-          Text('${widget.monthGen} finansų momentas 📸', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
+          Text('${widget.monthGen} ${tr('finansų momentas 📸')}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
           const SizedBox(height: 10),
           if (_aiLoading && !isAi)
             Row(children: [
               SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: _purple)),
               const SizedBox(width: 10),
-              Text('AI rašo santrauką…', style: TextStyle(fontSize: 14.5, color: _muted)),
+              Text(tr('AI rašo santrauką…'), style: TextStyle(fontSize: 14.5, color: _muted)),
             ])
           else
             Text(body, style: TextStyle(fontSize: 15.5, color: _ink, height: 1.45)),
@@ -4310,7 +4311,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('${widget.monthGen} balansas', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
+          Text('${widget.monthGen} ${tr('balansas')}', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 10),
           SizedBox(
             height: 130,
@@ -4349,7 +4350,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${widget.monthGen} santaupų klubas', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+                Text('${widget.monthGen} ${tr('santaupų klubas')}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -4362,7 +4363,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                       const SizedBox(width: 10),
                       const Icon(Icons.local_fire_department_rounded, size: 16, color: _purple),
                       const SizedBox(width: 4),
-                      Text('$streak mėn. iš eilės', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
+                      Text('$streak ${tr('mėn. iš eilės')}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
                     ],
                   ]),
                 ),
@@ -4461,7 +4462,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
   Widget _sectionLabel(String s) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 22, 20, 8),
-        child: Text(s, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
+        child: Text(tr(s), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
       );
 
   // ── CALENDAR heatmap ──
@@ -4565,8 +4566,8 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             // categories, so never claim overall savings — state what was spent
             // in the tracked categories out of their (placeholder) limit.
             under >= 0
-                ? 'Sekamose kategorijose išleidai ${totalSpent.round()} € iš ${totalBudget.round()} €.'
-                : 'Viršijai sekamų kategorijų limitą ${(-under).round()} €.',
+                ? '${tr('Sekamose kategorijose išleidai')} ${totalSpent.round()} € ${tr('iš')} ${totalBudget.round()} €.'
+                : '${tr('Viršijai sekamų kategorijų limitą')} ${(-under).round()} €.',
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white, height: 1.3),
           ),
         ),
@@ -4578,7 +4579,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
               Row(children: [
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${totalSpent.round()} €', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink)),
-                  Text('išleista', style: TextStyle(fontSize: 12.5, color: _muted)),
+                  Text(tr('išleista'), style: TextStyle(fontSize: 12.5, color: _muted)),
                 ]),
                 const Spacer(),
                 SizedBox(
@@ -4591,11 +4592,11 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 const Spacer(),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Text('${totalBudget.round()} €', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink)),
-                  Text('biudžetas*', style: TextStyle(fontSize: 12.5, color: _muted)),
+                  Text(tr('biudžetas*'), style: TextStyle(fontSize: 12.5, color: _muted)),
                 ]),
               ]),
               const SizedBox(height: 6),
-              Align(alignment: Alignment.centerRight, child: Text('* pavyzdiniai limitai', style: TextStyle(fontSize: 10.5, color: _faint))),
+              Align(alignment: Alignment.centerRight, child: Text(tr('* pavyzdiniai limitai'), style: TextStyle(fontSize: 10.5, color: _faint))),
             ]),
           ),
         ),
@@ -4622,9 +4623,9 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       ]),
       const SizedBox(height: 8),
       Row(children: [
-        Text('${_eur(spent)} išleista', style: TextStyle(fontSize: 12.5, color: _muted)),
+        Text('${_eur(spent)} ${tr('išleista')}', style: TextStyle(fontSize: 12.5, color: _muted)),
         const Spacer(),
-        Text(over ? '${_eur(-left)} viršyta' : '${_eur(left)} liko', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: over ? DS.danger : _good)),
+        Text(over ? '${_eur(-left)} ${tr('viršyta')}' : '${_eur(left)} ${tr('liko')}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: over ? DS.danger : _good)),
       ]),
       const SizedBox(height: 8),
       ClipRRect(
@@ -4679,9 +4680,9 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                   TextSpan(
                     style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink, height: 1.35),
                     children: [
-                      TextSpan(text: 'Kategorijai „${label.split(',').first}" išleidai '),
+                      TextSpan(text: '${tr('Kategorijai')} „${tr(label).split(',').first}" ${tr('išleidai')} '),
                       TextSpan(text: '${diff.abs().round()} €', style: TextStyle(fontWeight: FontWeight.w800, color: diffColor)),
-                      TextSpan(text: ' ${more ? 'daugiau' : 'mažiau'} nei praėjusį mėnesį.'),
+                      TextSpan(text: ' ${more ? tr('daugiau') : tr('mažiau')} ${tr('nei praėjusį mėnesį.')}'),
                     ],
                   ),
                 ),
@@ -4701,7 +4702,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _purple)),
-                child: const Text('Nusistatyti biudžetą', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
+                child: Text(tr('Nusistatyti biudžetą'), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
               ),
             ),
           ],
@@ -4786,7 +4787,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
           child: Row(children: [
-            Text('$count prekybininkai', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
+            Text('$count ${tr('prekybininkai')}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
             const Spacer(),
             const Icon(Icons.keyboard_arrow_down_rounded, color: _purple),
           ]),
@@ -4817,7 +4818,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(_shortNm(top[i]['nm'] as String), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
                         const SizedBox(height: 2),
-                        Text('${top[i]['md']}; ${top[i]['cat']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted)),
+                        Text('${top[i]['md']}; ${tr((top[i]['cat'] ?? '').toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted)),
                       ]),
                     ),
                     const SizedBox(width: 8),
@@ -5026,7 +5027,7 @@ class _OverviewTabState extends State<_OverviewTab> {
 
   String get _monthLabel {
     final keys = _monthKeys;
-    if (_selKey == null || keys.isEmpty || _selKey == keys.last) return 'Šis mėnuo';
+    if (_selKey == null || keys.isEmpty || _selKey == keys.last) return tr('Šis mėnuo');
     return _monNom[int.parse(_selKey!.substring(5, 7)) - 1];
   }
 
@@ -5042,7 +5043,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(2))),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-            child: Align(alignment: Alignment.centerLeft, child: Text('Laikotarpis', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink))),
+            child: Align(alignment: Alignment.centerLeft, child: Text(tr('Laikotarpis'), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink))),
           ),
           Flexible(
             child: ListView(shrinkWrap: true, children: [
@@ -5058,7 +5059,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                       Expanded(
                         child: Text(
                           k == _monthKeys.last
-                              ? 'Šis mėnuo'
+                              ? tr('Šis mėnuo')
                               : '${_monNom[int.parse(k.substring(5, 7)) - 1]} ${k.substring(0, 4)}',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink),
                         ),
@@ -5301,11 +5302,11 @@ class _OverviewTabState extends State<_OverviewTab> {
   Widget _tags() => Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('Žymos', style: TextStyle(fontSize: 13.5, color: _muted))),
+          Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(tr('Žymos'), style: TextStyle(fontSize: 13.5, color: _muted))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
-            child: Row(children: [const Icon(Icons.add_rounded, size: 22, color: _purple), const SizedBox(width: 12), Text('Pridėti žymą', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink))]),
+            child: Row(children: [const Icon(Icons.add_rounded, size: 22, color: _purple), const SizedBox(width: 12), Text(tr('Pridėti žymą'), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink))]),
           ),
         ]),
       );
@@ -5443,7 +5444,7 @@ class _OverviewTabState extends State<_OverviewTab> {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
           child: Row(children: [
-            Text('Paskutiniai 6 mėn.', style: TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w500)),
+            Text(tr('Paskutiniai 6 mėn.'), style: TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w500)),
             const Spacer(),
             Text(_eur(total, signed: true), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: total >= 0 ? _good : _ink)),
           ]),
@@ -5503,7 +5504,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
           child: Column(children: [
             Row(children: [
-              Text('Šį mėnesį', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+              Text(tr('Šį mėnesį'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
               const Spacer(),
               Text('−${totalAvg.toStringAsFixed(2).replaceAll('.', ',')} €', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
             ]),
@@ -5577,27 +5578,27 @@ class _SavingsRateScreen extends StatelessWidget {
                     Row(children: [
                       const Icon(Icons.savings_outlined, size: 18, color: _purple),
                       const SizedBox(width: 8),
-                      Text('Kas tai?', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
+                      Text(tr('Kas tai?'), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
                     ]),
                     const SizedBox(height: 8),
-                    Text('Santaupų norma rodo, kokią dalį gautų pajamų per mėnesį NEišleidai.',
+                    Text(tr('Santaupų norma rodo, kokią dalį gautų pajamų per mėnesį NEišleidai.'),
                         style: TextStyle(fontSize: 13.5, color: _ink, height: 1.45)),
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(10), border: Border.all(color: _hair)),
-                      child: Text('(pajamos − išlaidos) ÷ pajamos',
+                      child: Text(tr('(pajamos − išlaidos) ÷ pajamos'),
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _purple)),
                     ),
                     const SizedBox(height: 10),
-                    Text('Pvz. uždirbai 1 000 €, išleidai 750 € → norma 25 %. Kuo didesnė, tuo daugiau atsidedi. Neblogas tikslas — 20 % ar daugiau.',
+                    Text(tr('Pvz. uždirbai 1 000 €, išleidai 750 € → norma 25 %. Kuo didesnė, tuo daugiau atsidedi. Neblogas tikslas — 20 % ar daugiau.'),
                         style: TextStyle(fontSize: 13, color: _muted, height: 1.45)),
                     const SizedBox(height: 8),
                     Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Icon(Icons.info_outline_rounded, size: 15, color: _faint),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Text('Skaičiuojama tik iš mėnesių, kuriuose matomos pajamos. Jei atlyginimo ar kitų pajamų neaptikta — rodoma „—".',
+                        child: Text(tr('Skaičiuojama tik iš mėnesių, kuriuose matomos pajamos. Jei atlyginimo ar kitų pajamų neaptikta — rodoma „—".'),
                             style: TextStyle(fontSize: 12, color: _faint, height: 1.4)),
                       ),
                     ]),
@@ -5609,7 +5610,7 @@ class _SavingsRateScreen extends StatelessWidget {
                   child: Row(children: [
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('${_monNom[curMon - 1]} pajamos', style: TextStyle(fontSize: 13, color: _muted)),
+                        Text('${_monNom[curMon - 1]} ${tr('pajamos')}', style: TextStyle(fontSize: 13, color: _muted)),
                         const SizedBox(height: 6),
                         Row(children: [
                           Container(width: 26, height: 26, alignment: Alignment.center, decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.add_rounded, size: 16, color: Colors.white)),
@@ -5617,7 +5618,7 @@ class _SavingsRateScreen extends StatelessWidget {
                           Text('${earned.round()} €', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                         ]),
                         const SizedBox(height: 16),
-                        Text('${_monNom[curMon - 1]} santaupos', style: TextStyle(fontSize: 13, color: _muted)),
+                        Text('${_monNom[curMon - 1]} ${tr('santaupos')}', style: TextStyle(fontSize: 13, color: _muted)),
                         const SizedBox(height: 6),
                         Row(children: [
                           Container(width: 26, height: 26, alignment: Alignment.center, decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.savings_outlined, size: 15, color: Colors.white)),
@@ -5629,20 +5630,20 @@ class _SavingsRateScreen extends StatelessWidget {
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Text(tr('Santaupų norma'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink)),
                       Text(savStr, style: TextStyle(fontSize: 52, fontWeight: FontWeight.w800, color: _ink, height: 1.1)),
-                      Text('santaupos / pajamos', style: TextStyle(fontSize: 11.5, color: _muted)),
+                      Text(tr('santaupos / pajamos'), style: TextStyle(fontSize: 11.5, color: _muted)),
                     ]),
                   ]),
                 ),
                 const SizedBox(height: 14),
                 if (prevKey != null) ...[
-                  Padding(padding: const EdgeInsets.only(left: 4, bottom: 6), child: Text('Praėjusio mėn. statusas', style: TextStyle(fontSize: 12.5, color: _muted))),
+                  Padding(padding: const EdgeInsets.only(left: 4, bottom: 6), child: Text(tr('Praėjusio mėn. statusas'), style: TextStyle(fontSize: 12.5, color: _muted))),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(18), border: Border.all(color: _hair)),
                     child: Row(children: [
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('${_monGen[prevMon - 1]} santaupų klubas', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+                          Text('${_monGen[prevMon - 1]} ${tr('santaupų klubas')}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
                           const SizedBox(height: 10),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -5655,7 +5656,7 @@ class _SavingsRateScreen extends StatelessWidget {
                                 const SizedBox(width: 10),
                                 const Icon(Icons.local_fire_department_rounded, size: 15, color: _purple),
                                 const SizedBox(width: 2),
-                                Text('$streak mėn.', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
+                                Text('$streak ${tr('mėn.')}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
                               ],
                             ]),
                           ),
@@ -5666,14 +5667,14 @@ class _SavingsRateScreen extends StatelessWidget {
                         decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle),
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                           Text(earnedOf(prevRows) > 0 ? '$prevSavings' : '—', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
-                          const Text('% klubas', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: Colors.white)),
+                          Text(tr('% klubas'), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: Colors.white)),
                         ]),
                       ),
                     ]),
                   ),
                 ],
                 const SizedBox(height: 16),
-                Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('Paskutinių 6 mėn. normos', style: TextStyle(fontSize: 12.5, color: _muted))),
+                Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(tr('Paskutinių 6 mėn. normos'), style: TextStyle(fontSize: 12.5, color: _muted))),
                 Container(
                   padding: const EdgeInsets.fromLTRB(6, 16, 6, 8),
                   decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
@@ -5856,7 +5857,7 @@ class _PlanningTabState extends State<_PlanningTab> {
 
   Widget _monthFilter() {
     final isLatest = _selKey == null || _selKey == _monthKeys.last;
-    final label = isLatest ? 'Šis mėnuo' : _monNom[_curMon - 1];
+    final label = isLatest ? tr('Šis mėnuo') : _monNom[_curMon - 1];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Row(children: [
@@ -5890,7 +5891,7 @@ class _PlanningTabState extends State<_PlanningTab> {
           const SizedBox(height: 12),
           Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(3))),
           Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
-              child: Align(alignment: Alignment.centerLeft, child: Text('Pasirink mėnesį', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)))),
+              child: Align(alignment: Alignment.centerLeft, child: Text(tr('Pasirink mėnesį'), style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)))),
           // Scrollable so a full year of months never overflows (was the yellow
           // overflow bar at the bottom of the sheet).
           Flexible(
@@ -5907,7 +5908,7 @@ class _PlanningTabState extends State<_PlanningTab> {
                         Text('${_monNom[int.parse(k.substring(5, 7)) - 1]} ${k.substring(0, 4)}',
                             style: TextStyle(fontSize: 16.5, fontWeight: k == _curKey ? FontWeight.w800 : FontWeight.w500, color: _ink)),
                         const Spacer(),
-                        if (k == _monthKeys.last) Text('Šis mėnuo', style: TextStyle(fontSize: 12.5, color: _muted)),
+                        if (k == _monthKeys.last) Text(tr('Šis mėnuo'), style: TextStyle(fontSize: 12.5, color: _muted)),
                         if (k == _curKey) const Padding(padding: EdgeInsets.only(left: 8), child: Icon(Icons.check_rounded, size: 20, color: _purple)),
                       ]),
                     ),
@@ -5922,7 +5923,7 @@ class _PlanningTabState extends State<_PlanningTab> {
 
   Widget _sectionTitle(String t) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-        child: Text(t, style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
+        child: Text(tr(t), style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
       );
 
   Widget _banner() => Container(
@@ -5932,7 +5933,7 @@ class _PlanningTabState extends State<_PlanningTab> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
-              child: Text('Biudžetai padeda suvaldyti išlaidas',
+              child: Text(tr('Biudžetai padeda suvaldyti išlaidas'),
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink, height: 1.25)),
             ),
             GestureDetector(
@@ -5941,7 +5942,7 @@ class _PlanningTabState extends State<_PlanningTab> {
             ),
           ]),
           const SizedBox(height: 8),
-          Text('Susikurk biudžetą kategorijai — limitą pasiūlysime pagal tavo realų mėnesių vidurkį.',
+          Text(tr('Susikurk biudžetą kategorijai — limitą pasiūlysime pagal tavo realų mėnesių vidurkį.'),
               style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
         ]),
       );
@@ -5971,7 +5972,7 @@ class _PlanningTabState extends State<_PlanningTab> {
         Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_eur(spent), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
-            Text('išleista', style: TextStyle(fontSize: 13, color: _muted)),
+            Text(tr('išleista'), style: TextStyle(fontSize: 13, color: _muted)),
           ]),
           const Spacer(),
           SizedBox(
@@ -5985,7 +5986,7 @@ class _PlanningTabState extends State<_PlanningTab> {
           const Spacer(),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(_eur(limit), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
-            Text('visas biudžetas', style: TextStyle(fontSize: 13, color: _muted)),
+            Text(tr('visas biudžetas'), style: TextStyle(fontSize: 13, color: _muted)),
           ]),
         ]),
         const SizedBox(height: 16),
@@ -6006,8 +6007,8 @@ class _PlanningTabState extends State<_PlanningTab> {
         const SizedBox(height: 8),
         Text(
           onTrack
-              ? 'Tokiu tempu mėnesį baigsi ~${projected.round()} € — telpi į biudžetą.'
-              : 'Tokiu tempu peršoksi biudžetą ~${(projected - limit).round()} € — sulėtink.',
+              ? '${tr('Tokiu tempu mėnesį baigsi ~')}${projected.round()} € ${tr('— telpi į biudžetą.')}'
+              : '${tr('Tokiu tempu peršoksi biudžetą ~')}${(projected - limit).round()} € ${tr('— sulėtink.')}',
           style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: onTrack ? _good : const Color(0xFFEE7A3A)),
         ),
       ]),
@@ -6032,8 +6033,8 @@ class _PlanningTabState extends State<_PlanningTab> {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(b.sec, style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink)),
-                 Text(b.isAuto ? 'Pasiūlyta pagal tavo išlaidas · keisk' : 'Tavo biudžetas · keisk',
+                Text(tr(b.sec), style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink)),
+                 Text(b.isAuto ? tr('Pasiūlyta pagal tavo išlaidas · keisk') : tr('Tavo biudžetas · keisk'),
                     style: TextStyle(fontSize: 11.5, color: _muted)),
               ]),
             ),
@@ -6043,10 +6044,10 @@ class _PlanningTabState extends State<_PlanningTab> {
           ]),
           const SizedBox(height: 10),
           Row(children: [
-            Text('${_eur(spent)} išleista', style: TextStyle(fontSize: 13.5, color: _muted)),
+            Text('${_eur(spent)} ${tr('išleista')}', style: TextStyle(fontSize: 13.5, color: _muted)),
             const Spacer(),
             Text(
-              left >= 0 ? '${_eur(left)} liko' : '${_eur(-left)} virš pasiūlymo',
+              left >= 0 ? '${_eur(left)} ${tr('liko')}' : '${_eur(-left)} ${tr('virš pasiūlymo')}',
               style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: col),
             ),
           ]),
@@ -6077,16 +6078,16 @@ class _PlanningTabState extends State<_PlanningTab> {
           Row(children: [
             CategoryIcon(icon: _iconOfSec(b.sec), color: _colorOfSec(b.sec), size: 34),
             const SizedBox(width: 10),
-            Expanded(child: Text(b.sec, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink))),
+            Expanded(child: Text(tr(b.sec), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink))),
             GestureDetector(onTap: () => Navigator.pop(ctx), child: Icon(Icons.close_rounded, color: _faint)),
           ]),
           const SizedBox(height: 6),
           Text(b.isAuto
-              ? 'Šį limitą pasiūlėme pagal tavo ~3 mėn. vidurkį. Gali pakeisti į savo.'
-              : 'Keisk savo mėnesio limitą.',
+              ? tr('Šį limitą pasiūlėme pagal tavo ~3 mėn. vidurkį. Gali pakeisti į savo.')
+              : tr('Keisk savo mėnesio limitą.'),
               style: TextStyle(fontSize: 13.5, color: _muted, height: 1.35)),
           const SizedBox(height: 16),
-          Text('Mėnesio limitas', style: TextStyle(fontSize: 13, color: _muted, fontWeight: FontWeight.w600)),
+          Text(tr('Mėnesio limitas'), style: TextStyle(fontSize: 13, color: _muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -6106,7 +6107,7 @@ class _PlanningTabState extends State<_PlanningTab> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 15), alignment: Alignment.center,
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
-                  child: const Text('Pašalinti', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: DS.danger)),
+                  child: Text(tr('Pašalinti'), style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: DS.danger)),
                 ),
               ),
             ),
@@ -6122,7 +6123,7 @@ class _PlanningTabState extends State<_PlanningTab> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 15), alignment: Alignment.center,
                   decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(14)),
-                  child: const Text('Išsaugoti', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                  child: Text(tr('Išsaugoti'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
                 ),
               ),
             ),
@@ -6140,10 +6141,10 @@ class _PlanningTabState extends State<_PlanningTab> {
             padding: const EdgeInsets.symmetric(vertical: 16),
             alignment: Alignment.center,
             decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.add_rounded, size: 22, color: _purple),
-              SizedBox(width: 10),
-              Text('Pridėti biudžetą', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.add_rounded, size: 22, color: _purple),
+              const SizedBox(width: 10),
+              Text(tr('Pridėti biudžetą'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
             ]),
           ),
         ),
@@ -6159,10 +6160,10 @@ class _PlanningTabState extends State<_PlanningTab> {
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Biudžetai padeda suvaldyti išlaidas',
+                Text(tr('Biudžetai padeda suvaldyti išlaidas'),
                     style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink, height: 1.25)),
                 const SizedBox(height: 8),
-                Text('Susikurk biudžetą kategorijai — limitą pasiūlysime pagal tavo realų mėnesių vidurkį.',
+                Text(tr('Susikurk biudžetą kategorijai — limitą pasiūlysime pagal tavo realų mėnesių vidurkį.'),
                     style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
               ]),
             ),
@@ -6176,9 +6177,9 @@ class _PlanningTabState extends State<_PlanningTab> {
                   child: const Icon(Icons.savings_outlined, size: 26, color: _purple),
                 ),
                 const SizedBox(height: 12),
-                Text('Dar neturi biudžetų', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                Text(tr('Dar neturi biudžetų'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                 const SizedBox(height: 5),
-                Text('Pridėk kategoriją — pasiūlysim limitą pagal tavo tikras išlaidas, o tu patvirtinsi ar pakeisi.',
+                Text(tr('Pridėk kategoriją — pasiūlysim limitą pagal tavo tikras išlaidas, o tu patvirtinsi ar pakeisi.'),
                     textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: _muted, height: 1.4)),
               ]),
             ),
@@ -6190,10 +6191,10 @@ class _PlanningTabState extends State<_PlanningTab> {
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(14)),
-                  child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.add_rounded, size: 22, color: Colors.white),
-                    SizedBox(width: 9),
-                    Text('Pridėti biudžetą', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const Icon(Icons.add_rounded, size: 22, color: Colors.white),
+                    const SizedBox(width: 9),
+                    Text(tr('Pridėti biudžetą'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
                   ]),
                 ),
               ),
@@ -6260,12 +6261,12 @@ class _PlanningTabState extends State<_PlanningTab> {
           Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${_eur(total)} / mėn', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+                Text('${_eur(total)} ${tr('/ mėn')}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
                 const SizedBox(height: 2),
-                Text('= ${_eur(total * 12)} per metus',
+                Text('= ${_eur(total * 12)} ${tr('per metus')}',
                     style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
                 const SizedBox(height: 3),
-                Text('${counted.length} aktyvūs mokėjimai — bakstelėk tvarkyti',
+                Text('${counted.length} ${tr('aktyvūs mokėjimai — bakstelėk tvarkyti')}',
                     style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
               ]),
             ),
@@ -6281,7 +6282,7 @@ class _PlanningTabState extends State<_PlanningTab> {
               const Icon(Icons.circle, size: 7, color: Colors.white),
               const SizedBox(width: 10),
               Expanded(child: Text(_recName(it), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Colors.white))),
-              Text('${((it['monthly'] ?? 0) as num).round()} € / mėn', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.92))),
+              Text('${((it['monthly'] ?? 0) as num).round()} € ${tr('/ mėn')}', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.92))),
             ]),
             if (it != counted.take(5).last) Padding(
               padding: const EdgeInsets.symmetric(vertical: 9),
@@ -6345,18 +6346,18 @@ class _RecurringScreenState extends State<_RecurringScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Pavadinti prenumeratą',
+        title: Text(tr('Pavadinti prenumeratą'),
             style: TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 18)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Align(
             alignment: Alignment.centerLeft,
-            child: Text('$merchant · $monthly € / mėn',
+            child: Text('$merchant · $monthly € ${tr('/ mėn')}',
                 style: TextStyle(color: _muted, fontSize: 13)),
           ),
           const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerLeft,
-            child: Text('Bankas nepasako, kas tai. Pavadink, kad atpažintum.',
+            child: Text(tr('Bankas nepasako, kas tai. Pavadink, kad atpažintum.'),
                 style: TextStyle(color: _faint, fontSize: 12)),
           ),
           const SizedBox(height: 12),
@@ -6366,7 +6367,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             textCapitalization: TextCapitalization.sentences,
             style: TextStyle(color: _ink, fontSize: 16, fontWeight: FontWeight.w600),
             decoration: InputDecoration(
-              hintText: 'pvz. ChatGPT, iCloud, Spotify',
+              hintText: tr('pvz. ChatGPT, iCloud, Spotify'),
               hintStyle: TextStyle(color: _faint),
             ),
           ),
@@ -6374,12 +6375,12 @@ class _RecurringScreenState extends State<_RecurringScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, 'clear'),
-              child: Text('Palikti kaip $merchant',
+              child: Text('${tr('Palikti kaip')} $merchant',
                   style: TextStyle(color: _muted, fontSize: 13))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, 'save'),
-              child: const Text('Išsaugoti',
-                  style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+              child: Text(tr('Išsaugoti'),
+                  style: const TextStyle(color: _purple, fontWeight: FontWeight.w700))),
         ],
       ),
     );
@@ -6400,7 +6401,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
         backgroundColor: _bg,
         elevation: 0,
         foregroundColor: _ink,
-        title: Text('Pasikartojantys', style: TextStyle(color: _ink, fontWeight: FontWeight.w800)),
+        title: Text(tr('Pasikartojantys'), style: TextStyle(color: _ink, fontWeight: FontWeight.w800)),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 30),
@@ -6412,9 +6413,9 @@ class _RecurringScreenState extends State<_RecurringScreen> {
               gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1D45C4), Color(0xFF3B78FF)]),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${_eur(total)} / mėn', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
+              Text('${_eur(total)} ${tr('/ mėn')}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
               const SizedBox(height: 2),
-              Text('= ${_eur(total * 12)} per metus · $countedN įskaičiuota',
+              Text('= ${_eur(total * 12)} ${tr('per metus')} · $countedN ${tr('įskaičiuota')}',
                   style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
             ]),
           ),
@@ -6427,13 +6428,13 @@ class _RecurringScreenState extends State<_RecurringScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                    'Pasikartojančius mokėjimus atpažinti sunku — patikrink. Įjungti (žali) skaičiuojami į mėnesio sumą; nebemoki arba tai ne sąskaita — išjunk.',
+                    tr('Pasikartojančius mokėjimus atpažinti sunku — patikrink. Įjungti (žali) skaičiuojami į mėnesio sumą; nebemoki arba tai ne sąskaita — išjunk.'),
                     style: TextStyle(fontSize: 12.5, color: _muted, height: 1.35)),
               ),
             ]),
           ),
           if (_ordered.isEmpty)
-            Padding(padding: const EdgeInsets.all(16), child: Text('Pasikartojančių mokėjimų nerasta.', style: TextStyle(color: _muted))),
+            Padding(padding: const EdgeInsets.all(16), child: Text(tr('Pasikartojančių mokėjimų nerasta.'), style: TextStyle(color: _muted))),
           for (final it in _ordered) _row(it),
         ],
       ),
@@ -6450,15 +6451,15 @@ class _RecurringScreenState extends State<_RecurringScreen> {
     final String chip;
     final bool live;
     if (counted) {
-      chip = 'Įskaičiuota';
+      chip = tr('Įskaičiuota');
       live = true;
     } else {
       live = false;
       if (backendActive) {
-        chip = 'Išjungta';
+        chip = tr('Išjungta');
       } else {
         final m = _recStatusMeta(it['status'] as String?);
-        chip = m[0].isNotEmpty ? m[0] : 'Neįskaičiuota';
+        chip = m[0].isNotEmpty ? tr(m[0]) : tr('Neįskaičiuota');
       }
     }
     return Container(
@@ -6483,7 +6484,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text('$monthly € / mėn', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: counted ? _ink : _muted)),
+              Text('$monthly € ${tr('/ mėn')}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: counted ? _ink : _muted)),
             ]),
             const SizedBox(height: 4),
             Row(children: [
@@ -6536,7 +6537,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
           child: Row(children: [
-            Text('Naujas biudžetas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+            Text(tr('Naujas biudžetas'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
             const Spacer(),
             GestureDetector(onTap: () => Navigator.pop(context), child: Icon(Icons.close_rounded, color: _faint)),
           ]),
@@ -6564,7 +6565,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(widget.iconOf(s), size: 17, color: widget.colorOf(s)),
                         const SizedBox(width: 7),
-                        Text(s, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _sec == s ? _purple : _ink)),
+                        Text(tr(s), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _sec == s ? _purple : _ink)),
                       ]),
                     ),
                   ),
@@ -6572,12 +6573,12 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
               if (_sec != null) ...[
                 const SizedBox(height: 20),
                 Row(children: [
-                  Text('Mėnesio limitas', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
+                  Text(tr('Mėnesio limitas'), style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(8)),
-                    child: Text('siūlome ${widget.suggestOf(_sec!).round()} €',
+                    child: Text('${tr('siūlome')} ${widget.suggestOf(_sec!).round()} €',
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _purple)),
                   ),
                 ]),
@@ -6613,7 +6614,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                     color: (_sec != null) ? _purple : _faint,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Text('Išsaugoti', style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                  child: Text(tr('Išsaugoti'), style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: Colors.white)),
                 ),
               ),
             ]),
@@ -6726,7 +6727,7 @@ class _AccountTabState extends State<_AccountTab> {
   double get _netWorth => _bankBalance + _assetsSum;
   List<Map<String, dynamic>> get _accounts => ((widget.balance['accounts'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
-  void _soon() => _snack('Netrukus');
+  void _soon() => _snack(tr('Netrukus'));
 
   void _snack(String m) => ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
@@ -6803,7 +6804,7 @@ class _AccountTabState extends State<_AccountTab> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
-              child: Text('Naujiena: matyk visą savo turtą', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink, height: 1.2)),
+              child: Text(tr('Naujiena: matyk visą savo turtą'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink, height: 1.2)),
             ),
             Container(
               width: 58, height: 58,
@@ -6813,14 +6814,14 @@ class _AccountTabState extends State<_AccountTab> {
             GestureDetector(onTap: () => setState(() => _promo = false), child: Padding(padding: const EdgeInsets.only(left: 6), child: Icon(Icons.close_rounded, size: 20, color: _faint))),
           ]),
           const SizedBox(height: 8),
-          Text('Pridėk būstą, investicijas, paskolas ir daugiau — visą finansinį vaizdą vienoje vietoje.',
+          Text(tr('Pridėk būstą, investicijas, paskolas ir daugiau — visą finansinį vaizdą vienoje vietoje.'),
               style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
           const SizedBox(height: 12),
-          const Row(children: [
-            Icon(Icons.auto_awesome_rounded, size: 18, color: _purple),
-            SizedBox(width: 8),
-            Expanded(child: Text('Geresni AI patarimai, kai Vaultie mato visą tavo situaciją.',
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _purpleDeep, height: 1.35))),
+          Row(children: [
+            const Icon(Icons.auto_awesome_rounded, size: 18, color: _purple),
+            const SizedBox(width: 8),
+            Expanded(child: Text(tr('Geresni AI patarimai, kai Vaultie mato visą tavo situaciją.'),
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _purpleDeep, height: 1.35))),
           ]),
         ]),
       );
@@ -6832,7 +6833,7 @@ class _AccountTabState extends State<_AccountTab> {
         child: Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Grynasis turtas', style: TextStyle(fontSize: 14, color: _ink, fontWeight: FontWeight.w700)),
+              Text(tr('Grynasis turtas'), style: TextStyle(fontSize: 14, color: _ink, fontWeight: FontWeight.w700)),
               const SizedBox(height: 3),
               Text(_eur(_netWorth), style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
             ]),
@@ -6863,13 +6864,13 @@ class _AccountTabState extends State<_AccountTab> {
   Widget _assetsCard() {
     final rows = <Widget>[
       // Bank accounts — the live component from Enable Banking (never edited here).
-      _assetRow(Icons.account_balance_rounded, _purple, 'Banko sąskaitos', _bankBalance),
+      _assetRow(Icons.account_balance_rounded, _purple, tr('Banko sąskaitos'), _bankBalance),
     ];
     for (var i = 0; i < _assets.length; i++) {
       final a = _assets[i];
       final label = ((a['label'] as String?)?.trim().isNotEmpty ?? false)
           ? a['label'] as String
-          : 'Grynieji';
+          : tr('Grynieji');
       rows
         ..add(const RowDivider(indent: 66))
         ..add(_assetRow(Icons.savings_rounded, _good, label,
@@ -6878,13 +6879,13 @@ class _AccountTabState extends State<_AccountTab> {
     }
     rows
       ..add(const RowDivider(indent: 66))
-      ..add(_addRow('Pridėti grynų ar santaupų', onTap: () => _assetDialog()));
+      ..add(_addRow(tr('Pridėti grynų ar santaupų'), onTap: () => _assetDialog()));
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-          child: Row(children: [Text('Turto kategorija', style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text('Vertė', style: TextStyle(fontSize: 13.5, color: _muted))]),
+          child: Row(children: [Text(tr('Turto kategorija'), style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text(tr('Vertė'), style: TextStyle(fontSize: 13.5, color: _muted))]),
         ),
         AppCard(color: _card, border: _hair, child: Column(children: rows)),
       ]),
@@ -6902,7 +6903,7 @@ class _AccountTabState extends State<_AccountTab> {
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(editing ? 'Redaguoti' : 'Pridėti grynų ar santaupų',
+        title: Text(editing ? tr('Redaguoti') : tr('Pridėti grynų ar santaupų'),
             style: TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 18)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
@@ -6922,7 +6923,7 @@ class _AccountTabState extends State<_AccountTab> {
             controller: labelCtl,
             style: TextStyle(color: _ink),
             decoration: InputDecoration(
-              hintText: 'Pavadinimas (pvz. Grynieji, Santaupos)',
+              hintText: tr('Pavadinimas (pvz. Grynieji, Santaupos)'),
               hintStyle: TextStyle(color: _faint),
             ),
           ),
@@ -6931,15 +6932,15 @@ class _AccountTabState extends State<_AccountTab> {
           if (editing)
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Ištrinti',
-                  style: TextStyle(color: Color(0xFFD1453B), fontWeight: FontWeight.w600))),
+              child: Text(tr('Ištrinti'),
+                  style: const TextStyle(color: Color(0xFFD1453B), fontWeight: FontWeight.w600))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, null),
-              child: Text('Atšaukti', style: TextStyle(color: _muted))),
+              child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Išsaugoti',
-                  style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+              child: Text(tr('Išsaugoti'),
+                  style: const TextStyle(color: _purple, fontWeight: FontWeight.w700))),
         ],
       ),
     );
@@ -7052,12 +7053,12 @@ class _AccountTabState extends State<_AccountTab> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-          child: Row(children: [Text('Sąskaitos', style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text('Likutis', style: TextStyle(fontSize: 13.5, color: _muted))]),
+          child: Row(children: [Text(tr('Sąskaitos'), style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text(tr('Likutis'), style: TextStyle(fontSize: 13.5, color: _muted))]),
         ),
         AppCard(color: _card, border: _hair,
           child: Column(children: [
             ...rows,
-            _addRow('Prijungti kitą banką', onTap: () => Navigator.of(context)
+            _addRow(tr('Prijungti kitą banką'), onTap: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const BankConnectScreen()))),
           ]),
         ),
@@ -7084,9 +7085,9 @@ class _AccountTabState extends State<_AccountTab> {
         child: Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Turi pastabų?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+              Text(tr('Turi pastabų?'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
               const SizedBox(height: 2),
-              Text('Pasakyk, ką galvoji', style: TextStyle(fontSize: 13.5, color: _muted)),
+              Text(tr('Pasakyk, ką galvoji'), style: TextStyle(fontSize: 13.5, color: _muted)),
             ]),
           ),
           GestureDetector(
@@ -7094,7 +7095,7 @@ class _AccountTabState extends State<_AccountTab> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _purple)),
-              child: const Text('Palikti atsiliepimą', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _purple)),
+              child: Text(tr('Palikti atsiliepimą'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _purple)),
             ),
           ),
         ]),
@@ -7108,10 +7109,10 @@ class _AccountTabState extends State<_AccountTab> {
     );
     try {
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        if (mounted) _snack('Parašyk mums: labas@vaultie.app');
+        if (mounted) _snack(tr('Parašyk mums: labas@vaultie.app'));
       }
     } catch (_) {
-      if (mounted) _snack('Parašyk mums: labas@vaultie.app');
+      if (mounted) _snack(tr('Parašyk mums: labas@vaultie.app'));
     }
   }
 }
@@ -7170,43 +7171,43 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(icon: Icon(Icons.chevron_left_rounded, size: 30, color: _ink), onPressed: () => Navigator.pop(context)),
-        title: Text('Nustatymai', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)),
+        title: Text(tr('Nustatymai'), style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)),
         centerTitle: true,
       ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 30),
         children: [
           _profile(),
-          _group('Privatumas', [
-            _toggleItem(Icons.lock_outline_rounded, 'PIN kodas', 'Atrakink Vaultie su PIN', _pin, _togglePin),
+          _group(tr('Privatumas'), [
+            _toggleItem(Icons.lock_outline_rounded, tr('PIN kodas'), tr('Atrakink Vaultie su PIN'), _pin, _togglePin),
             if (_faceAvailable)
-              _toggleItem(Icons.face_retouching_natural_rounded, 'Face ID atrakinimas',
-                  _pin ? 'Atrakink Vaultie veidu' : 'Įjunk PIN, kad naudotum Face ID',
+              _toggleItem(Icons.face_retouching_natural_rounded, tr('Face ID atrakinimas'),
+                  _pin ? tr('Atrakink Vaultie veidu') : tr('Įjunk PIN, kad naudotum Face ID'),
                   _faceId && _pin, _pin ? _toggleFaceId : null),
           ]),
-          _group('Nustatymai', [
-            _valueItem('€', 'Numatytoji valiuta', _currency, _pickCurrency),
-            _valueItem('LT', 'Kalba', _langLabel, _pickLanguage),
-            _iconValueItem(Icons.brightness_6_rounded, 'Tema', _theme, _pickTheme),
-            _toggleItem(Icons.notifications_none_rounded, 'Pranešimai', 'Priminimai apie mokėjimus', _notif, _toggleNotif),
+          _group(tr('Nustatymai'), [
+            _valueItem('€', tr('Numatytoji valiuta'), tr(_currency), _pickCurrency),
+            _valueItem('LT', tr('Kalba'), tr(_langLabel), _pickLanguage),
+            _iconValueItem(Icons.brightness_6_rounded, tr('Tema'), tr(_theme), _pickTheme),
+            _toggleItem(Icons.notifications_none_rounded, tr('Pranešimai'), tr('Priminimai apie mokėjimus'), _notif, _toggleNotif),
           ]),
-          _group('Paskyra', [
-            _navItem(Icons.workspace_premium_rounded, 'Vaultie prenumerata', 'Atsiskaitymo informacija', onTap: _subInfo),
-            _navItem(Icons.grid_on_rounded, 'Eksportuoti sandorius', 'Atsisiųsk CSV ar PDF', onTap: _exportChooser),
-            _navItem(Icons.chat_bubble_outline_rounded, 'Atsiliepimai', 'Pasakyk, ką galvoji', onTap: _sendFeedback),
-            _navItem(Icons.logout_rounded, 'Atsijungti', 'Grįžti į prisijungimą', onTap: _signOut),
-            _navItem(Icons.delete_outline_rounded, 'Ištrinti paskyrą', 'Ištrink savo Vaultie paskyrą', onTap: _confirmDelete),
+          _group(tr('Paskyra'), [
+            _navItem(Icons.workspace_premium_rounded, tr('Vaultie prenumerata'), tr('Atsiskaitymo informacija'), onTap: _subInfo),
+            _navItem(Icons.grid_on_rounded, tr('Eksportuoti sandorius'), tr('Atsisiųsk CSV ar PDF'), onTap: _exportChooser),
+            _navItem(Icons.chat_bubble_outline_rounded, tr('Atsiliepimai'), tr('Pasakyk, ką galvoji'), onTap: _sendFeedback),
+            _navItem(Icons.logout_rounded, tr('Atsijungti'), tr('Grįžti į prisijungimą'), onTap: _signOut),
+            _navItem(Icons.delete_outline_rounded, tr('Ištrinti paskyrą'), tr('Ištrink savo Vaultie paskyrą'), onTap: _confirmDelete),
           ]),
-          _group('Dokumentai', [
-            _navItem(Icons.description_outlined, 'Naudojimo sąlygos', '',
+          _group(tr('Dokumentai'), [
+            _navItem(Icons.description_outlined, tr('Naudojimo sąlygos'), '',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LegalScreen.terms(true)))),
-            _navItem(Icons.privacy_tip_outlined, 'Privatumo politika', '',
+            _navItem(Icons.privacy_tip_outlined, tr('Privatumo politika'), '',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LegalScreen.privacy(true)))),
           ]),
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Versija: 1.0.0+1', style: TextStyle(fontSize: 13, color: _muted)),
+            child: Text('${tr('Versija')}: 1.0.0+1', style: TextStyle(fontSize: 13, color: _muted)),
           ),
         ],
       ),
@@ -7246,13 +7247,13 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Tavo vardas', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        title: Text(tr('Tavo vardas'), style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
         content: TextField(
           controller: ctl, autofocus: true, textCapitalization: TextCapitalization.words,
           cursorColor: _purple,
           style: TextStyle(color: _ink, fontSize: 17),
           decoration: InputDecoration(
-            hintText: 'Įrašyk vardą',
+            hintText: tr('Įrašyk vardą'),
             hintStyle: TextStyle(color: _faint),
             enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _hair)),
             focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
@@ -7261,9 +7262,9 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx),
-              child: Text('Atšaukti', style: TextStyle(color: _muted))),
+              child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
           TextButton(onPressed: () => _saveName(ctx, ctl.text),
-              child: const Text('Išsaugoti', style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+              child: Text(tr('Išsaugoti'), style: const TextStyle(color: _purple, fontWeight: FontWeight.w700))),
         ],
       ),
     );
@@ -7371,9 +7372,9 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       ['Norvegijos krona (NOK)', 'kr', '1 EUR = 11,14 NOK'],
       ['JAV doleris (USD)', '\$', '1 EUR = 1,14 USD'],
     ];
-    _sheet('Numatytoji valiuta', [
+    _sheet(tr('Numatytoji valiuta'), [
       for (final o in opts)
-        _radioRow(o[0], o[2], o[1], _currency == o[0], () {
+        _radioRow(tr(o[0]), tr(o[2]), o[1], _currency == o[0], () {
           AppPrefs.setCurrency(o[1]);
           setState(() => _currency = o[0]);
           Navigator.pop(context);
@@ -7389,9 +7390,9 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       ['Lietuvių', const Locale('lt')],
       ['English', const Locale('en')],
     ];
-    _sheet('Kalba', [
+    _sheet(tr('Kalba'), [
       for (final o in opts)
-        _radioRow(o[0] as String, '', '', _langLabel == o[0], () {
+        _radioRow(tr(o[0] as String), '', '', _langLabel == o[0], () {
           AppPrefs.setLocale(o[1] as Locale?);
           setState(() {});
           Navigator.pop(context);
@@ -7405,7 +7406,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       ['Šviesi', Icons.light_mode_rounded],
       ['Tamsi', Icons.dark_mode_rounded],
     ];
-    _sheet('Tema', [
+    _sheet(tr('Tema'), [
       for (final o in opts)
         InkWell(
           onTap: () {
@@ -7426,7 +7427,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
             child: Row(children: [
               Icon(o[1] as IconData, size: 23, color: _purple),
               const SizedBox(width: 16),
-              Text(o[0] as String, style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w600, color: _ink)),
+              Text(tr(o[0] as String), style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w600, color: _ink)),
               const Spacer(),
               if (_theme == o[0]) const Icon(Icons.check_rounded, size: 22, color: _purple),
             ]),
@@ -7453,13 +7454,13 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         builder: (ctx) => AlertDialog(
           backgroundColor: _card,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text('Išjungti PIN?', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
-          content: Text('Vaultie nebebus užrakinta. Galėsi bet kada vėl įjungti PIN.',
+          title: Text(tr('Išjungti PIN?'), style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+          content: Text(tr('Vaultie nebebus užrakinta. Galėsi bet kada vėl įjungti PIN.'),
               style: TextStyle(color: _muted, height: 1.45)),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
             TextButton(onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Išjungti', style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+                child: Text(tr('Išjungti'), style: const TextStyle(color: _purple, fontWeight: FontWeight.w800))),
           ],
         ),
       );
@@ -7481,11 +7482,11 @@ class _SettingsScreenState extends State<_SettingsScreen> {
 
   // ── CSV export + feedback ────────────────────────────────────────────────
   void _exportChooser() {
-    _sheet('Eksportuoti sandorius', [
-      _navItem(Icons.grid_on_rounded, 'CSV', 'Skaičiuoklei (Excel, Numbers)',
+    _sheet(tr('Eksportuoti sandorius'), [
+      _navItem(Icons.grid_on_rounded, 'CSV', tr('Skaičiuoklei (Excel, Numbers)'),
           onTap: () { Navigator.pop(context); _exportCsv(); }),
       const RowDivider(indent: 62),
-      _navItem(Icons.picture_as_pdf_outlined, 'PDF', 'Spausdinti ar dalintis ataskaita',
+      _navItem(Icons.picture_as_pdf_outlined, 'PDF', tr('Spausdinti ar dalintis ataskaita'),
           onTap: () { Navigator.pop(context); _exportPdf(); }),
     ]);
   }
@@ -7500,7 +7501,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   Future<void> _exportPdf() async {
     final rows = _exportRows();
     if (rows.isEmpty) {
-      _snack('Nėra sandorių eksportui');
+      _snack(tr('Nėra sandorių eksportui'));
       return;
     }
     try {
@@ -7515,14 +7516,14 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         pageFormat: PdfPageFormat.a4,
         theme: pw.ThemeData.withFont(base: base, bold: bold),
         build: (ctx) => [
-          pw.Text('Vaultie — sandoriai',
+          pw.Text(tr('Vaultie — sandoriai'),
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF2F6BFF))),
           pw.SizedBox(height: 4),
-          pw.Text('${rows.length} sandorių · bendra suma ${total.toStringAsFixed(2)} €',
+          pw.Text('${rows.length} ${tr('sandorių')} · ${tr('bendra suma')} ${total.toStringAsFixed(2)} €',
               style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
           pw.SizedBox(height: 14),
           pw.TableHelper.fromTextArray(
-            headers: const ['Data', 'Pavadinimas', 'Suma €', 'Kategorija'],
+            headers: [tr('Data'), tr('Pavadinimas'), tr('Suma €'), tr('Kategorija')],
             data: [
               for (final t in rows)
                 [
@@ -7553,7 +7554,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         ShareParams(files: [XFile(file.path)], subject: 'Vaultie sandoriai'),
       );
     } catch (_) {
-      if (mounted) _snack('Nepavyko eksportuoti');
+      if (mounted) _snack(tr('Nepavyko eksportuoti'));
     }
   }
 
@@ -7563,14 +7564,14 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         .whereType<Map>()
         .toList();
     if (all.isEmpty) {
-      _snack('Nėra sandorių eksportui');
+      _snack(tr('Nėra sandorių eksportui'));
       return;
     }
     String cell(Object? v) {
       final s = (v ?? '').toString().replaceAll('"', '""');
       return '"$s"';
     }
-    final buf = StringBuffer('Data,Pavadinimas,Suma,Kategorija,Pakategorė\n');
+    final buf = StringBuffer('${tr('Data')},${tr('Pavadinimas')},${tr('Suma')},${tr('Kategorija')},${tr('Pakategorė')}\n');
     final rows = List<Map>.from(all)
       ..sort((a, b) => (b['d'] ?? '').toString().compareTo((a['d'] ?? '').toString()));
     for (final t in rows) {
@@ -7590,7 +7591,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         ShareParams(files: [XFile(file.path)], subject: 'Vaultie sandoriai'),
       );
     } catch (_) {
-      if (mounted) _snack('Nepavyko eksportuoti');
+      if (mounted) _snack(tr('Nepavyko eksportuoti'));
     }
   }
 
@@ -7602,21 +7603,21 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     );
     try {
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        if (mounted) _snack('Parašyk mums: labas@vaultie.app');
+        if (mounted) _snack(tr('Parašyk mums: labas@vaultie.app'));
       }
     } catch (_) {
-      if (mounted) _snack('Parašyk mums: labas@vaultie.app');
+      if (mounted) _snack(tr('Parašyk mums: labas@vaultie.app'));
     }
   }
 
   void _subInfo() {
-    _sheet('Prenumeratos informacija', [
+    _sheet(tr('Prenumeratos informacija'), [
       Padding(
         padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Būsena: Bandomasis laikotarpis', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
+          Text(tr('Būsena: Bandomasis laikotarpis'), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
           const SizedBox(height: 10),
-          Text('Vaultie — prenumerata pagrįstas produktas. Mūsų nefinansuoja reklama ir mes neparduodame duomenų — mus finansuoji tu. Tavo mokestis išlaiko Vaultie be reklamų, privatų ir nuolat tobulėjantį. 💜',
+          Text(tr('Vaultie — prenumerata pagrįstas produktas. Mūsų nefinansuoja reklama ir mes neparduodame duomenų — mus finansuoji tu. Tavo mokestis išlaiko Vaultie be reklamų, privatų ir nuolat tobulėjantį. 💜'),
               style: TextStyle(fontSize: 14.5, color: _muted, height: 1.5)),
         ]),
       ),
@@ -7627,7 +7628,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           padding: const EdgeInsets.symmetric(vertical: 15),
           alignment: Alignment.center,
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
-          child: const Text('Susisiekti su pagalba', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _purple)),
+          child: Text(tr('Susisiekti su pagalba'), style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _purple)),
         ),
       ),
     ]);
@@ -7684,7 +7685,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     ..clearSnackBars()
     ..showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 2)));
 
-  void _soon() => _snack('Netrukus');
+  void _soon() => _snack(tr('Netrukus'));
 
   Future<void> _signOut() async {
     final ok = await showDialog<bool>(
@@ -7692,13 +7693,13 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Atsijungti?', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
-        content: Text('Grįši į prisijungimo ekraną. Tavo duomenys liks išsaugoti šiame telefone ir bus vėl matomi prisijungus.',
+        title: Text(tr('Atsijungti?'), style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        content: Text(tr('Grįši į prisijungimo ekraną. Tavo duomenys liks išsaugoti šiame telefone ir bus vėl matomi prisijungus.'),
             style: TextStyle(color: _muted, height: 1.45)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
           TextButton(onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Atsijungti', style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+              child: Text(tr('Atsijungti'), style: const TextStyle(color: _purple, fontWeight: FontWeight.w800))),
         ],
       ),
     );
@@ -7707,7 +7708,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       await AuthService().signOut();
       await onSignedOut();
     } catch (_) {
-      if (mounted) _snack('Atsijungti galima tik tikroje programoje.');
+      if (mounted) _snack(tr('Atsijungti galima tik tikroje programoje.'));
       return;
     }
     if (!mounted) return;
@@ -7721,16 +7722,15 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Ištrinti paskyrą?', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        title: Text(tr('Ištrinti paskyrą?'), style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
         content: Text(
-          'Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. '
-          'Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.',
+          tr('Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.'),
           style: TextStyle(color: _muted, height: 1.45),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
           TextButton(onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Ištrinti', style: TextStyle(color: Color(0xFFE0574F), fontWeight: FontWeight.w800))),
+              child: Text(tr('Ištrinti'), style: const TextStyle(color: Color(0xFFE0574F), fontWeight: FontWeight.w800))),
         ],
       ),
     );
@@ -7757,7 +7757,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
     } catch (_) {
-      if (mounted) _snack('Ištrinti paskyrą galima tik tikroje programoje.');
+      if (mounted) _snack(tr('Ištrinti paskyrą galima tik tikroje programoje.'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -7777,7 +7777,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       await auth.reauthenticateWithPassword(pw);
       return true;
     } catch (_) {
-      if (mounted) _snack('Neteisingas slaptažodis.');
+      if (mounted) _snack(tr('Neteisingas slaptažodis.'));
       return false;
     }
   }
@@ -7803,7 +7803,7 @@ class _PasswordPromptState extends State<_PasswordPrompt> {
     return AlertDialog(
       backgroundColor: _card,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text('Patvirtink slaptažodį', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+      title: Text(tr('Patvirtink slaptažodį'), style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
       content: TextField(
         controller: _ctl,
         autofocus: true,
@@ -7811,7 +7811,7 @@ class _PasswordPromptState extends State<_PasswordPrompt> {
         cursorColor: _purple,
         style: TextStyle(color: _ink, fontSize: 17),
         decoration: InputDecoration(
-          hintText: 'Slaptažodis',
+          hintText: tr('Slaptažodis'),
           hintStyle: TextStyle(color: _faint),
           enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _hair)),
           focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
@@ -7819,9 +7819,9 @@ class _PasswordPromptState extends State<_PasswordPrompt> {
         onSubmitted: (v) => Navigator.pop(context, v),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text('Atšaukti', style: TextStyle(color: _muted))),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
         TextButton(onPressed: () => Navigator.pop(context, _ctl.text),
-            child: const Text('Patvirtinti', style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+            child: Text(tr('Patvirtinti'), style: const TextStyle(color: _purple, fontWeight: FontWeight.w800))),
       ],
     );
   }
@@ -7881,7 +7881,7 @@ class _SearchScreenState extends State<_SearchScreen> {
           onChanged: (v) => setState(() => _q = v),
           style: TextStyle(fontSize: 17, color: _ink),
           decoration: InputDecoration(
-            hintText: 'Ieškok prekybininko ar kategorijos…',
+            hintText: tr('Ieškok prekybininko ar kategorijos…'),
             hintStyle: TextStyle(color: _faint, fontSize: 16),
             border: InputBorder.none,
           ),
@@ -7891,19 +7891,19 @@ class _SearchScreenState extends State<_SearchScreen> {
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: Text('Įrašyk, ko ieškai — pvz. „Maxima", „kuras", „Netflix".',
+                child: Text(tr('Įrašyk, ko ieškai — pvz. „Maxima", „kuras", „Netflix".'),
                     textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: _muted, height: 1.4)),
               ),
             )
           : res.isEmpty
-              ? Center(child: Text('Nieko nerasta', style: TextStyle(fontSize: 16, color: _muted)))
+              ? Center(child: Text(tr('Nieko nerasta'), style: TextStyle(fontSize: 16, color: _muted)))
               : ListView(
                   padding: const EdgeInsets.only(bottom: 24),
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                       child: Row(children: [
-                        Text('${res.length} ${res.length == 1 ? 'sandoris' : 'sandoriai'}',
+                        Text('${res.length} ${res.length == 1 ? tr('sandoris') : tr('sandoriai')}',
                             style: TextStyle(fontSize: 13.5, color: _muted)),
                         const Spacer(),
                         Text(_eur(total, signed: true),
@@ -7924,7 +7924,7 @@ class _SearchScreenState extends State<_SearchScreen> {
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Text(_shortNm(t['nm'] as String), maxLines: 1, overflow: TextOverflow.ellipsis,
                                     style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink)),
-                                Text('${t['cat']} · ${t['md']}', style: TextStyle(fontSize: 12.5, color: _muted)),
+                                Text('${tr((t['cat'] ?? '').toString())} · ${t['md']}', style: TextStyle(fontSize: 12.5, color: _muted)),
                               ]),
                             ),
                             Text(_eur((t['a'] as num).toDouble(), signed: true),
@@ -8060,26 +8060,26 @@ class _AiChatTabState extends State<_AiChatTab> {
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Text('AI pokalbis apie tavo finansus',
+        title: Text(tr('AI pokalbis apie tavo finansus'),
             style: TextStyle(fontWeight: FontWeight.w800, color: _ink, fontSize: 19)),
         content: Text(
-          'Kad atsakytų į klausimus, appsas siunčia mūsų AI tiekėjui (Anthropic) '
+          tr('Kad atsakytų į klausimus, appsas siunčia mūsų AI tiekėjui (Anthropic) '
           'TAVO finansų SANTRAUKĄ — banko likučius, išlaidas pagal kategoriją ir '
           'tavo pasikartojančių mokėjimų pavadinimus (pvz. „Netflix").\n\n'
           '• Nesiunčiami atskiri sandoriai, IBAN‑ai ar kortelių numeriai.\n'
           '• Duomenys NENAUDOJAMI dirbtinio intelekto treniravimui.\n'
-          '• Tai nėra finansinė konsultacija.',
+          '• Tai nėra finansinė konsultacija.'),
           style: TextStyle(color: _muted, height: 1.5, fontSize: 14.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Atšaukti', style: TextStyle(color: _muted)),
+            child: Text(tr('Atšaukti'), style: TextStyle(color: _muted)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Sutinku ir tęsiu',
-                style: TextStyle(color: _purple, fontWeight: FontWeight.w800)),
+            child: Text(tr('Sutinku ir tęsiu'),
+                style: const TextStyle(color: _purple, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -8108,11 +8108,11 @@ class _AiChatTabState extends State<_AiChatTab> {
       );
       if (!mounted) return;
       setState(() => _msgs.add(_ChatMsg('assistant',
-          reply.isEmpty ? 'Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą.' : reply)));
+          reply.isEmpty ? tr('Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą.') : reply)));
     } catch (_) {
       if (!mounted) return;
       setState(() => _msgs.add(_ChatMsg('assistant',
-          'Nepavyko susisiekti su serveriu. Patikrink ryšį ir bandyk dar kartą.')));
+          tr('Nepavyko susisiekti su serveriu. Patikrink ryšį ir bandyk dar kartą.'))));
     } finally {
       if (mounted) setState(() => _sending = false);
       _scrollToEnd();

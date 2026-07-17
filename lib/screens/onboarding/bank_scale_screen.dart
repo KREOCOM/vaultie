@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../i18n.dart';
 import '../../theme/vaultie_theme.dart';
 
 class _Bank {
@@ -115,10 +116,10 @@ class _BankScaleScreenState extends State<BankScaleScreen>
           const SizedBox(height: 12),
           _marquee(_row5, _c5, leftward: true),
           const Spacer(),
-          const Text(
-            'Jungiamės prie 2 500+ bankų\nvisoje Europoje.',
+          Text(
+            tr('Jungiamės prie 2 500+ bankų\nvisoje Europoje.'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: VT.ink,
               fontSize: 23,
               fontWeight: FontWeight.w800,
@@ -263,8 +264,8 @@ class _Badge extends StatelessWidget {
                   color: VT.accent, shape: BoxShape.circle),
             ),
             const SizedBox(width: 8),
-            const Text('2 500+ bankų · saugus ryšys',
-                style: TextStyle(
+            Text(tr('2 500+ bankų · saugus ryšys'),
+                style: const TextStyle(
                     color: VT.ink,
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600)),

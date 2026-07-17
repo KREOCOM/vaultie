@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../i18n.dart';
 import '../../theme/vaultie_theme.dart';
 
 /// The two subscription plans shown on the paywall. No "lifetime" — the updated
@@ -82,7 +83,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
       widget.onSubscribed(_plan);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pirkimas nepavyko. Bandyk dar kartą.')),
+        SnackBar(content: Text(tr('Pirkimas nepavyko. Bandyk dar kartą.'))),
       );
     }
   }
@@ -110,9 +111,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                           child: _CloseButton(onTap: widget.onClose),
                         ),
                         const SizedBox(height: 10),
-                        const Text(
-                          'Leisk Vaultie pasirūpinti tavo prenumeratomis.',
-                          style: TextStyle(
+                        Text(
+                          tr('Leisk Vaultie pasirūpinti tavo prenumeratomis.'),
+                          style: const TextStyle(
                             color: VT.ink,
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
@@ -122,14 +123,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ),
                         const Spacer(flex: 3),
                         for (var i = 0; i < _benefits.length; i++) ...[
-                          _BenefitRow(text: _benefits[i]),
+                          _BenefitRow(text: tr(_benefits[i])),
                           if (i != _benefits.length - 1)
                             const SizedBox(height: 20),
                         ],
                         const Spacer(flex: 3),
                         _PlanCard(
-                          title: 'Metinis',
-                          trialSub: '7 dienos nemokamai',
+                          title: tr('Metinis'),
+                          trialSub: tr('7 dienos nemokamai'),
                           price: widget.annualPrice,
                           priceSub: widget.annualPerMonth,
                           badge: widget.annualBadge,
@@ -139,8 +140,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ),
                         const SizedBox(height: 12),
                         _PlanCard(
-                          title: 'Mėnesinis',
-                          trialSub: '7 dienos nemokamai',
+                          title: tr('Mėnesinis'),
+                          trialSub: tr('7 dienos nemokamai'),
                           price: widget.monthlyPrice,
                           priceSub: '/mėn',
                           selected: _plan == PaywallPlan.monthly,
@@ -149,13 +150,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ),
                         const Spacer(flex: 2),
                         _CtaButton(
-                          label: 'Pradėti 7 dienų bandymą',
+                          label: tr('Pradėti 7 dienų bandymą'),
                           busy: _busy,
                           onTap: _startTrial,
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          _finePrint,
+                          tr(_finePrint),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: VT.subtle.withValues(alpha: 0.85),
@@ -301,7 +302,7 @@ class _PlanCard extends StatelessWidget {
                             fontSize: 17,
                             fontWeight: FontWeight.w800)),
                     const SizedBox(height: 2),
-                    Text(priceSub,
+                    Text(tr(priceSub),
                         style: const TextStyle(
                             color: VT.subtle,
                             fontSize: 12,
@@ -332,7 +333,7 @@ class _PlanCard extends StatelessWidget {
               color: VT.brand,
               borderRadius: BorderRadius.circular(9),
             ),
-            child: Text(badge!,
+            child: Text(tr(badge!),
                 style: const TextStyle(
                     color: Colors.white,
                     fontSize: 10.5,

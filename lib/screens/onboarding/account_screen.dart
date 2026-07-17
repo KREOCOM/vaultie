@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../../i18n.dart';
 import '../../theme/vaultie_theme.dart';
 import '../legal_screen.dart';
 
@@ -58,18 +59,18 @@ class AccountScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
-              const Text('Sukurk paskyrą',
+              Text(tr('Sukurk paskyrą'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                       color: VT.ink,
                       fontSize: 25,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.4)),
               const SizedBox(height: 10),
-              const Text(
-                'Prisijunk per Google, Apple arba el. paštą.\nTai užtruks mažiau nei minutę.',
+              Text(
+                tr('Prisijunk per Google, Apple arba el. paštą.\nTai užtruks mažiau nei minutę.'),
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                     color: _subInk,
                     fontSize: 13,
                     height: 1.45,
@@ -77,7 +78,7 @@ class AccountScreen extends StatelessWidget {
               ),
               const SizedBox(height: 28),
               _AuthButton(
-                label: 'Tęsti su Google',
+                label: tr('Tęsti su Google'),
                 bg: Colors.white,
                 fg: const Color(0xFF14231C),
                 border: const Color(0xFFDBE1DC),
@@ -87,7 +88,7 @@ class AccountScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _AuthButton(
-                label: 'Tęsti su Apple',
+                label: tr('Tęsti su Apple'),
                 bg: Colors.black,
                 fg: Colors.white,
                 onTap: onApple,
@@ -95,7 +96,7 @@ class AccountScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _AuthButton(
-                label: 'Tęsti su el. paštu',
+                label: tr('Tęsti su el. paštu'),
                 bg: VT.brand,
                 fg: Colors.white,
                 onTap: onEmail,
@@ -121,7 +122,7 @@ class AccountScreen extends StatelessWidget {
       children: [
         const Icon(Icons.lock_rounded, size: 12, color: VT.subtle),
         const SizedBox(width: 5),
-        Text('Šifruota · Privatūs duomenys · GDPR',
+        Text(tr('Šifruota · Privatūs duomenys · GDPR'),
             style: TextStyle(
                 color: VT.subtle.withValues(alpha: 0.9),
                 fontSize: 11.5,
@@ -146,15 +147,15 @@ class AccountScreen extends StatelessWidget {
     final link = base.copyWith(color: VT.brand, fontWeight: FontWeight.w700);
     return Text.rich(
       TextSpan(children: [
-        const TextSpan(text: 'Tęsdamas sutinki su '),
+        TextSpan(text: tr('Tęsdamas sutinki su ')),
         TextSpan(
-            text: 'Sąlygomis',
+            text: tr('Sąlygomis'),
             style: link,
             recognizer: TapGestureRecognizer()
               ..onTap = () => _openLegal(context, terms: true)),
-        const TextSpan(text: ' ir '),
+        TextSpan(text: tr(' ir ')),
         TextSpan(
-            text: 'Privatumo politika',
+            text: tr('Privatumo politika'),
             style: link,
             recognizer: TapGestureRecognizer()
               ..onTap = () => _openLegal(context, terms: false)),
@@ -169,12 +170,12 @@ class AccountScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text('Jau turi paskyrą? ',
-            style: TextStyle(
+        Text(tr('Jau turi paskyrą? '),
+            style: const TextStyle(
                 color: VT.subtle, fontSize: 13.5, fontWeight: FontWeight.w500)),
         GestureDetector(
           onTap: onSignIn,
-          child: const Text('Prisijunk',
+          child: Text(tr('Prisijunk'),
               style: TextStyle(
                   color: VT.brand, fontSize: 13.5, fontWeight: FontWeight.w800)),
         ),

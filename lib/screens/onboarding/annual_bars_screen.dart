@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../i18n.dart';
 import '../../theme/vaultie_theme.dart';
 
 /// Screen 2 — "annual sum". A 12-bar chart grows bar-by-bar from the bottom,
@@ -105,10 +106,10 @@ class _AnnualBarsScreenState extends State<AnnualBarsScreen>
             },
           ),
           const Spacer(flex: 2),
-          const Text(
-            'Net mažos išlaidos per metus\nvirsta didele suma.',
+          Text(
+            tr('Net mažos išlaidos per metus\nvirsta didele suma.'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: VT.ink,
               fontSize: 23,
               fontWeight: FontWeight.w800,
@@ -117,10 +118,10 @@ class _AnnualBarsScreenState extends State<AnnualBarsScreen>
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Vaultie automatiškai apskaičiuoja, kiek tavo prenumeratos ir kitos pasikartojančios išlaidos kainuoja per metus.',
+          Text(
+            tr('Vaultie automatiškai apskaičiuoja, kiek tavo prenumeratos ir kitos pasikartojančios išlaidos kainuoja per metus.'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: _subInk,
               fontSize: 15.5,
               fontWeight: FontWeight.w500,

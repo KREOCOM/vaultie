@@ -57,9 +57,38 @@ class _OnbPreviewState extends State<OnbPreview> with SingleTickerProviderStateM
               );
             },
             child: Image.asset(
-              'assets/onboarding/welcome.png',
+              'assets/onboarding/vault.png',
               fit: BoxFit.cover,
-              alignment: const Alignment(0, -0.12),
+              alignment: const Alignment(0, -0.18),
+            ),
+          ),
+
+          // pulsing glow under the vault podium
+          Positioned(
+            left: 0,
+            right: 0,
+            top: MediaQuery.of(context).size.height * 0.44,
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _c,
+                builder: (_, __) {
+                  final t = Curves.easeInOut.transform(_c.value);
+                  return Center(
+                    child: Container(
+                      width: 240,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          colors: [
+                            _accent.withValues(alpha: 0.30 + t * 0.22),
+                            _accent.withValues(alpha: 0.0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
 
@@ -102,7 +131,7 @@ class _OnbPreviewState extends State<OnbPreview> with SingleTickerProviderStateM
                       ),
                       const SizedBox(height: 10),
                       const Text(
-                        'All your money, in one place.\nFinally in control.',
+                        'All your money, in one place.\nSafe, smart, simple.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 15.5, height: 1.4, fontWeight: FontWeight.w500, color: _muted),
                       ),
@@ -119,9 +148,9 @@ class _OnbPreviewState extends State<OnbPreview> with SingleTickerProviderStateM
                           children: [
                             _feature(Icons.verified_user_rounded, 'Bank-level\nsecurity'),
                             _divider(),
-                            _feature(Icons.pie_chart_rounded, 'Smart insights\n& analytics'),
+                            _feature(Icons.pie_chart_rounded, 'Smart\ninsights'),
                             _divider(),
-                            _feature(Icons.bolt_rounded, 'Everything\nyou need'),
+                            _feature(Icons.bolt_rounded, 'Everything\nsimple'),
                           ],
                         ),
                       ),

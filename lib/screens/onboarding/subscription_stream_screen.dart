@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../i18n.dart';
 import '../../theme/vaultie_theme.dart';
 
 class _Sub {
@@ -98,16 +99,16 @@ class _SubscriptionStreamScreenState extends State<SubscriptionStreamScreen>
       gradientBg: true,
       segments: 4,
       segmentsFilled: 2,
-      bottom: VtPrimaryButton(label: 'Toliau', onPressed: widget.onNext),
+      bottom: VtPrimaryButton(label: tr('Toliau'), onPressed: widget.onNext),
       child: Column(
         children: [
           const SizedBox(height: 4),
           Expanded(child: _stream()),
           const SizedBox(height: 8),
-          const Text(
-            'Visos tavo prenumeratos.\nVienoje vietoje.',
+          Text(
+            tr('Visos tavo prenumeratos.\nVienoje vietoje.'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: VT.ink,
               fontSize: 23,
               fontWeight: FontWeight.w800,
@@ -116,10 +117,10 @@ class _SubscriptionStreamScreenState extends State<SubscriptionStreamScreen>
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Vaultie automatiškai suranda pasikartojančius mokėjimus banko išraše.',
+          Text(
+            tr('Vaultie automatiškai suranda pasikartojančius mokėjimus banko išraše.'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: _subInk,
               fontSize: 15.5,
               fontWeight: FontWeight.w500,
@@ -196,13 +197,13 @@ class _SubscriptionStreamScreenState extends State<SubscriptionStreamScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(s.name,
+                  Text(tr(s.name),
                       style: const TextStyle(
                           color: VT.ink,
                           fontSize: 15,
                           fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
-                  Text(s.subtitle,
+                  Text(tr(s.subtitle),
                       style: TextStyle(
                           color: s.warn
                               ? const Color(0xFFB4771A)
@@ -213,7 +214,7 @@ class _SubscriptionStreamScreenState extends State<SubscriptionStreamScreen>
                 ],
               ),
             ),
-            if (s.redChip != null) _RedChip(text: s.redChip!),
+            if (s.redChip != null) _RedChip(text: tr(s.redChip!)),
           ],
         ),
       ),
