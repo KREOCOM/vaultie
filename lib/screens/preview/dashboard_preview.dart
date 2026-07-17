@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/auth_service.dart';
 import '../../app_prefs.dart';
 import '../../content_theme.dart';
+import '../../i18n.dart';
 import '../../services/app_lock.dart';
 import '../../services/banking_service.dart';
 import '../../services/dashboard_store.dart';
@@ -992,7 +993,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           onTap: _openDashFilter,
           child: _Chip(
             icon: Icons.tune_rounded,
-            label: _txFilter.active ? 'Filtras · ${_txFilter.count}' : 'Filtras',
+            label: _txFilter.active ? '${tr('Filtras')} · ${_txFilter.count}' : tr('Filtras'),
             active: _txFilter.active,
           ),
         ),
@@ -1061,7 +1062,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         children: [
           // Title row sits on the page backdrop; colour follows the theme.
           Row(children: [
-            Text('Pradžia',
+            Text(tr('Pradžia'),
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _heroInk, letterSpacing: -0.4)),
             const Spacer(),
             GestureDetector(
@@ -1095,7 +1096,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
               Row(children: [
-                Text('Bendras likutis',
+                Text(tr('Bendras likutis'),
                     style: TextStyle(fontSize: 12.5, color: _heroDim, fontWeight: FontWeight.w600, letterSpacing: 0.2)),
                 const Spacer(),
                 // Sync status shrunk to a tiny inline indicator (was a big card):
@@ -1106,14 +1107,14 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                     SizedBox(width: 11, height: 11,
                         child: CircularProgressIndicator(strokeWidth: 1.6, color: _syncTint)),
                     const SizedBox(width: 6),
-                    Text('Sinchronizuojama', style: TextStyle(fontSize: 11, color: _syncTint)),
+                    Text(tr('Sinchronizuojama'), style: TextStyle(fontSize: 11, color: _syncTint)),
                   ])
                 else
                   Row(children: [
                     SizedBox(width: 6, height: 6,
                         child: DecoratedBox(decoration: BoxDecoration(color: _liveTint, shape: BoxShape.circle))),
                     const SizedBox(width: 5),
-                    Text('gyvai', style: TextStyle(fontSize: 11, color: _liveTint)),
+                    Text(tr('gyvai'), style: TextStyle(fontSize: 11, color: _liveTint)),
                   ]),
               ]),
               const SizedBox(height: 5),
@@ -1141,7 +1142,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                         color: delta >= 0 ? _good : const Color(0xFFE0574F)),
                   ),
                   const SizedBox(width: 6),
-                  Text('nuo praėjusio mėn.',
+                  Text(tr('nuo praėjusio mėn.'),
                       style: TextStyle(fontSize: 12.5, color: _heroDim, fontWeight: FontWeight.w500)),
                 ]),
               ],
@@ -1215,7 +1216,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                 ),
               ],
               const SizedBox(height: 12),
-              Text('Likutis iš banko · grafikas = likučio kitimas laike',
+              Text(tr('Likutis iš banko · grafikas = likučio kitimas laike'),
                   style: TextStyle(fontSize: 10.5, color: _heroDim.withValues(alpha: 0.8))),
               ],
             ),
@@ -1315,16 +1316,16 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(8)),
-                  child: const Text('PRENUMERATOS IR SĄSKAITOS',
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.9)),
+                  child: Text(tr('PRENUMERATOS IR SĄSKAITOS'),
+                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.9)),
                 ),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.only(left: 10, right: 6, top: 4, bottom: 4),
                   decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(20)),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('Tvarkyti', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                    Icon(Icons.chevron_right_rounded, size: 17, color: Colors.white),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(tr('Tvarkyti'), style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                    const Icon(Icons.chevron_right_rounded, size: 17, color: Colors.white),
                   ]),
                 ),
               ]),
@@ -1336,15 +1337,15 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${_eur(total)} / mėn',
+                        Text('${_eur(total)} ${tr('/ mėn')}',
                             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
                         const SizedBox(height: 2),
-                        Text('= ${_eur(total * 12)} per metus',
+                        Text('= ${_eur(total * 12)} ${tr('per metus')}',
                             style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
                         const SizedBox(height: 3),
                         Text(
-                            '${counted.length} aktyvūs mokėjimai'
-                            '${endedCount > 0 ? ' · $endedCount baigėsi' : ''}',
+                            '${counted.length} ${tr('aktyvūs mokėjimai')}'
+                            '${endedCount > 0 ? ' · $endedCount ${tr('baigėsi')}' : ''}',
                             style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
                       ],
                     ),
@@ -1420,12 +1421,12 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
           padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Šios savaitės išlaidos', style: TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w500)),
+              Text(tr('Šios savaitės išlaidos'), style: TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w500)),
               // Average lives in the header (never on top of a bar or its number).
               if (avg > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: Text('vidurkis ${avg.round()} €/d.',
+                  child: Text('${tr('vidurkis')} ${avg.round()} €/d.',
                       style: TextStyle(fontSize: 12, color: _faint, fontWeight: FontWeight.w600)),
                 ),
             ]),
@@ -1842,7 +1843,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                   children: [
                     Icon(items[i][1] as IconData, size: 24, color: _tab == i ? _purple : _navOff),
                     const SizedBox(height: 4),
-                    Text(items[i][0] as String,
+                    Text(tr(items[i][0] as String),
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _tab == i ? _purple : _navOff)),
                   ],
                 ),
@@ -2993,7 +2994,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Bendras likutis', style: TextStyle(fontSize: 15, color: _muted, fontWeight: FontWeight.w500)),
+                    Text(tr('Bendras likutis'), style: TextStyle(fontSize: 15, color: _muted, fontWeight: FontWeight.w500)),
                     const SizedBox(height: 2),
                     Text(_eur(((widget.bal['current'] ?? 0) as num).toDouble()),
                         style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
@@ -4129,7 +4130,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       child: Row(children: [
         _Chip(icon: Icons.calendar_today_rounded, label: widget.monthNom),
         const SizedBox(width: 9),
-        const _Chip(icon: Icons.tune_rounded, label: 'Filtras'),
+        _Chip(icon: Icons.tune_rounded, label: tr('Filtras')),
       ]),
     );
   }
@@ -5139,7 +5140,7 @@ class _OverviewTabState extends State<_OverviewTab> {
   Widget _header() => Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
         child: Row(children: [
-          Text('Apžvalga', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+          Text(tr('Apžvalga'), style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
           const Spacer(),
           GestureDetector(
             onTap: () => setState(() => _hide = !_hide),
@@ -5163,7 +5164,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             onTap: _openFilter,
             child: _Chip(
               icon: Icons.tune_rounded,
-              label: _filter.active ? 'Filtras · ${_filter.count}' : 'Filtras',
+              label: _filter.active ? '${tr('Filtras')} · ${_filter.count}' : tr('Filtras'),
               active: _filter.active,
             ),
           ),
@@ -5834,7 +5835,7 @@ class _PlanningTabState extends State<_PlanningTab> {
   Widget _header() => Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
         child: Row(children: [
-          Text('Planavimas', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+          Text(tr('Planavimas'), style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
         ]),
       );
 
@@ -6747,7 +6748,7 @@ class _AccountTabState extends State<_AccountTab> {
   Widget _header() => Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
         child: Row(children: [
-          Text('Paskyra', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+          Text(tr('Paskyra'), style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
         ]),
       );
 
@@ -6970,7 +6971,7 @@ class _AccountTabState extends State<_AccountTab> {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Bendras likutis', style: TextStyle(fontSize: 13.5, color: _ink, fontWeight: FontWeight.w700)),
+                  Text(tr('Bendras likutis'), style: TextStyle(fontSize: 13.5, color: _ink, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 3),
                   Text(_eur(_bankBalance), style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
                 ]),
