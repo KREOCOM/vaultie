@@ -23,7 +23,9 @@ import 'screens/dashboard_screen.dart';
 import 'screens/paywall_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
-import 'screens/onb_preview.dart';
+import 'screens/onb_top.dart';
+import 'screens/onb_welcome.dart';
+import 'screens/onboarding/onboarding_flow.dart';
 import 'screens/verify_email_screen.dart';
 
 /// Vaultie brand palette. The hero colour is the deep "vault green".
@@ -276,7 +278,7 @@ class VaultieApp extends StatelessWidget {
           // TEMP PREVIEW: launch into the onboarding hero screen so it can be
           // reviewed on device; "Let's Start" continues into the normal splash
           // flow. Revert `home` to SplashScreen when done previewing.
-          home: OnbPreview(next: SplashScreen(hasOnboarded: hasOnboarded)),
+          home: OnbWelcome(next: SplashScreen(hasOnboarded: hasOnboarded)),
           routes: {
             OnboardingScreen.route: (_) => const OnboardingScreen(),
             AuthScreen.route: (_) => const AuthScreen(),
