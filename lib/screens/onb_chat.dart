@@ -283,10 +283,12 @@ class _Chat extends StatelessWidget {
     final asked2 = t >= _send2;
 
     // whichever question is currently being written sits in the composer
+    final q1 = tr(_q1);
+    final q2 = tr(_q2);
     final draft = !asked1
-        ? _q1.substring(0, _chars(t, _q1, _t1From, _t1To))
+        ? q1.substring(0, _chars(t, q1, _t1From, _t1To))
         : !asked2
-            ? _q2.substring(0, _chars(t, _q2, _t2From, _t2To))
+            ? q2.substring(0, _chars(t, q2, _t2From, _t2To))
             : '';
 
     return Container(
