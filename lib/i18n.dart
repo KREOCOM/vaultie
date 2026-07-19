@@ -630,4 +630,20 @@ const Map<String, String> _en = {
   'Tavo finansų agentas': 'Your finance agent',
   'Tęsti': 'Continue',
   'Atkurti pirkimus': 'Restore purchases',
+  // ── onboarding: AI replies, recap, and labels the narrow filter missed ──
+  '34 prekybininkai': '34 merchants',
+  'Liepos {d}': 'July {d}',
+  'Daugiausia moki už {a} — {b} per mėnesį. Po jo eina {c} ({d}) ir {e} ({f}). Iš viso penkios prenumeratos sudaro {g} per mėnesį, arba {h} per metus.':
+      'You pay the most for {a} — {b} per month. Next come {c} ({d}) and {e} ({f}). In total, five subscriptions come to {g} per month, or {h} per year.',
+  'Liepą daugiausia nusinešė būstas ir sąskaitos — {a}. Maistui išleidai {b}, tai 62 € mažiau nei birželį. Realiausia sutaupyti ties transportu ({c}) ir pramogomis ({d}) — sumažinus juos penktadaliu, per mėnesį liktų apie {e} € daugiau.':
+      'In July, housing and bills took the most — {a}. You spent {b} on food, 62 € less than in June. The most realistic saving is on transport ({c}) and entertainment ({d}) — cutting each by a fifth would leave about {e} € more per month.',
+  'Liepa buvo tvarkinga. Gavai {a} €, išleidai {b} €, tad atsidėjai {c} € — santaupų norma {d} %, virš 20 % tikslo. Daugiausia nusinešė būstas ir sąskaitos ({e} €) bei maistas ({f} €).':
+      'July was tidy. You received {a} €, spent {b} €, so you set aside {c} € — a savings rate of {d} %, above the 20 % target. Housing and bills took the most ({e} €), then food ({f} €).',
+  'Pr': 'Mon',
+  'An': 'Tue',
+  'Tr': 'Wed',
+  'Kt': 'Thu',
+  'Pn': 'Fri',
+  'Št': 'Sat',
+  'Sk': 'Sun',
 };

@@ -366,7 +366,7 @@ class _Chat extends StatelessWidget {
               children: [
                 Text(tr('Tavo finansų agentas'),
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
-                const Text('Klausk apie savo pinigus', style: TextStyle(fontSize: 13, color: _muted)),
+                Text(tr('Klausk apie savo pinigus'), style: const TextStyle(fontSize: 13, color: _muted)),
               ],
             ),
           ],
@@ -484,7 +484,7 @@ class _Chat extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        text.isEmpty ? 'Klausk apie savo finansus…' : text,
+                        text.isEmpty ? tr('Klausk apie savo finansus…') : text,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 15, color: text.isEmpty ? _muted : _ink),

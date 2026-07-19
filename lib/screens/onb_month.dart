@@ -250,7 +250,7 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
                       _h2(tr('Vidutinės dienos išlaidos'), key: _kDaily),
                       _daily(),
                       _h2(tr('Prekybininkai')),
-                      _plainCard('34 prekybininkai'),
+                      _plainCard(tr('34 prekybininkai')),
                       _h2(tr('Didžiausios išlaidos')),
                       _biggest(),
                     ],
@@ -415,9 +415,7 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)),
             const SizedBox(height: 8),
             Text(
-              tr('Liepa buvo tvarkinga. Gavai {a} €, išleidai {b} €, tad atsidėjai {c} € — '
-                      'santaupų norma {d} %, virš 20 % tikslo. Daugiausia nusinešė būstas ir '
-                      'sąskaitos ({e} €) bei maistas ({f} €).')
+              tr('Liepa buvo tvarkinga. Gavai {a} €, išleidai {b} €, tad atsidėjai {c} € — santaupų norma {d} %, virš 20 % tikslo. Daugiausia nusinešė būstas ir sąskaitos ({e} €) bei maistas ({f} €).')
                   .replaceFirst('{a}', '${_income.round()}')
                   .replaceFirst('{b}', '${_spend.round()}')
                   .replaceFirst('{c}', '${_net.round()}')
@@ -620,9 +618,9 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
         decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14)),
         child: Column(
           children: [
-            for (final e in const [
-              ('Nuoma', 'Liepos 1', 520.00, 0),
-              ('Maxima', 'Liepos 12', 86.40, 1),
+            for (final e in [
+              (tr('Nuoma'), tr('Liepos {d}').replaceFirst('{d}', '1'), 520.00, 0),
+              ('Maxima', tr('Liepos {d}').replaceFirst('{d}', '12'), 86.40, 1),
             ]) ...[
               if (e.$4 > 0) Container(height: 1, color: const Color(0xFFEDEFF4)),
               SizedBox(

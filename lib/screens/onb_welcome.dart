@@ -767,7 +767,7 @@ class _HomeMock extends StatelessWidget {
               children: [
                 for (final d in _week)
                   Expanded(
-                    child: Text(d.$1,
+                    child: Text(tr(d.$1),
                         textAlign: TextAlign.center,
                         style: const TextStyle(fontSize: 10.5, color: _dim, fontWeight: FontWeight.w600)),
                   ),
