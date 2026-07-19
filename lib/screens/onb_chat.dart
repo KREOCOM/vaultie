@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 /// Onboarding page 5 — the AI chat, mid-conversation.
 ///
 /// Built from `_AiChatTab` in lib/screens/preview/dashboard_preview.dart:8021:
@@ -62,17 +64,21 @@ const _subs = <(String, double)>[
 final double _subsMonthly = _subs.fold(0.0, (a, b) => a + b.$2);   // 84,26
 final double _subsYearly = _subsMonthly * 12;                      // 1 011,12
 
-final String _reply2 =
-    'Daugiausia moki už ${_subs[0].$1} — ${_eur(_subs[0].$2)} per mėnesį. '
-    'Po jo eina ${_subs[1].$1} (${_eur(_subs[1].$2)}) ir ${_subs[2].$1} (${_eur(_subs[2].$2)}). '
-    'Iš viso penkios prenumeratos sudaro ${_eur(_subsMonthly)} per mėnesį, '
-    'arba ${_eur(_subsYearly)} per metus.';
+final String _reply2 = tr(
+        'Daugiausia moki už {a} — {b} per mėnesį. Po jo eina {c} ({d}) ir {e} ({f}). '
+        'Iš viso penkios prenumeratos sudaro {g} per mėnesį, arba {h} per metus.')
+    .replaceFirst('{a}', tr(_subs[0].$1)).replaceFirst('{b}', _eur(_subs[0].$2))
+    .replaceFirst('{c}', _subs[1].$1).replaceFirst('{d}', _eur(_subs[1].$2))
+    .replaceFirst('{e}', _subs[2].$1).replaceFirst('{f}', _eur(_subs[2].$2))
+    .replaceFirst('{g}', _eur(_subsMonthly)).replaceFirst('{h}', _eur(_subsYearly));
 
-final String _reply1 =
-    'Liepą daugiausia nusinešė būstas ir sąskaitos — ${_eur(_bustas)}. '
-    'Maistui išleidai ${_eur(_maistas)}, tai 62 € mažiau nei birželį. '
-    'Realiausia sutaupyti ties transportu (${_eur(_transportas)}) ir pramogomis '
-    '(${_eur(_pramogos)}) — sumažinus juos penktadaliu, per mėnesį liktų apie $_saving € daugiau.';
+final String _reply1 = tr(
+        'Liepą daugiausia nusinešė būstas ir sąskaitos — {a}. Maistui išleidai {b}, '
+        'tai 62 € mažiau nei birželį. Realiausia sutaupyti ties transportu ({c}) ir '
+        'pramogomis ({d}) — sumažinus juos penktadaliu, per mėnesį liktų apie {e} € daugiau.')
+    .replaceFirst('{a}', _eur(_bustas)).replaceFirst('{b}', _eur(_maistas))
+    .replaceFirst('{c}', _eur(_transportas)).replaceFirst('{d}', _eur(_pramogos))
+    .replaceFirst('{e}', '$_saving');
 
 class _OnbChatState extends State<OnbChat> with TickerProviderStateMixin {
   late final AnimationController _enter =
@@ -214,13 +220,13 @@ class _OnbChatState extends State<OnbChat> with TickerProviderStateMixin {
                   ],
                 ),
                 alignment: Alignment.center,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Pradėti',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
+                    Text(tr('Pradėti'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
                   ],
                 ),
               ),
@@ -234,17 +240,17 @@ class _OnbChatState extends State<OnbChat> with TickerProviderStateMixin {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('Agentas, kuris mato',
+        Text(tr('Agentas, kuris mato'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Colors.white, shadows: glow)),
-        const Text('tavo skaičius',
+        Text(tr('tavo skaičius'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Color(0xFFBFD6FF), shadows: glow)),
         const SizedBox(height: 10),
         Text(
-          'Paklausk, kur nueina pinigai —\natsakys iš karto ir konkrečiai.',
+          tr('Paklausk, kur nueina pinigai —\natsakys iš karto ir konkrečiai.'),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13.5, height: 1.5, fontWeight: FontWeight.w500,
               color: Colors.white.withValues(alpha: 0.92), shadows: glow),
@@ -321,10 +327,10 @@ class _Chat extends StatelessWidget {
     required double fade2,
   }) {
     final items = <Widget>[
-      _bubble(_q1, user: true),
+      _bubble(tr(_q1), user: true),
       if (thinking1) _typing(),
       if (replied1) _fadeIn(_bubble(_reply1, user: false), fade1),
-      if (asked2) _bubble(_q2, user: true),
+      if (asked2) _bubble(tr(_q2), user: true),
       if (thinking2) _typing(),
       if (replied2) _fadeIn(_bubble(_reply2, user: false), fade2),
     ];
@@ -354,13 +360,13 @@ class _Chat extends StatelessWidget {
               child: const Icon(Icons.auto_awesome_rounded, color: _purple, size: 22),
             ),
             const SizedBox(width: 12),
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Tavo finansų agentas',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
-                Text('Klausk apie savo pinigus', style: TextStyle(fontSize: 13, color: _muted)),
+                Text(tr('Tavo finansų agentas'),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+                const Text('Klausk apie savo pinigus', style: TextStyle(fontSize: 13, color: _muted)),
               ],
             ),
           ],
@@ -371,8 +377,8 @@ class _Chat extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          const Text('Pabandyk paklausti:',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _muted)),
+          Text(tr('Pabandyk paklausti:'),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _muted)),
           const SizedBox(height: 12),
           for (final s in _starters)
             Padding(
@@ -396,7 +402,7 @@ class _Chat extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(s,
+                      child: Text(tr(s),
                           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink)),
                     ),
                     const Icon(Icons.arrow_outward_rounded, size: 16, color: _purple),

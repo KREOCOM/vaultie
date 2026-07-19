@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 /// Onboarding page 3 — the Planavimas dashboard, and a budget being added.
 ///
 /// Rebuilt from lib/screens/preview/dashboard_preview.dart rather than from a
@@ -219,13 +221,13 @@ class _OnbPlanningState extends State<OnbPlanning> with TickerProviderStateMixin
                   ],
                 ),
                 alignment: Alignment.center,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Toliau',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
+                    Text(tr('Toliau'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
                   ],
                 ),
               ),
@@ -239,17 +241,17 @@ class _OnbPlanningState extends State<OnbPlanning> with TickerProviderStateMixin
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('Susikurk biudžetą',
+        Text(tr('Susikurk biudžetą'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Colors.white, shadows: glow)),
-        const Text('ir laikykis jo',
+        Text(tr('ir laikykis jo'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Color(0xFFBFD6FF), shadows: glow)),
         const SizedBox(height: 10),
         Text(
-          'Limitą pasiūlysime pagal tavo\nrealų mėnesių vidurkį.',
+          tr('Limitą pasiūlysime pagal tavo\nrealų mėnesių vidurkį.'),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13.5, height: 1.5, fontWeight: FontWeight.w500,
               color: Colors.white.withValues(alpha: 0.92), shadows: glow),
@@ -330,24 +332,24 @@ class _Planning extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(
+                SizedBox(
                   height: _ttlH,
                   child: Padding(
-                    padding: EdgeInsets.only(top: 6, bottom: 12),
-                    child: Text('Planavimas',
-                        style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+                    padding: const EdgeInsets.only(top: 6, bottom: 12),
+                    child: Text(tr('Planavimas'),
+                        style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
                   ),
                 ),
                 SizedBox(
                   height: _chipH,
                   child: Row(children: [_monthChip()]),
                 ),
-                const SizedBox(
+                SizedBox(
                   height: _sectH,
                   child: Padding(
-                    padding: EdgeInsets.only(top: 8, bottom: 10),
-                    child: Text('Biudžetai',
-                        style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
+                    padding: const EdgeInsets.only(top: 8, bottom: 10),
+                    child: Text(tr('Biudžetai'),
+                        style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
                   ),
                 ),
                 _summary(active, spent, limit, over),
@@ -398,14 +400,14 @@ class _Planning extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: _hair),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.calendar_today_rounded, size: 16, color: _purple),
-            SizedBox(width: 7),
-            Text('Šis mėnuo', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
-            SizedBox(width: 4),
-            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _purple),
+            const Icon(Icons.calendar_today_rounded, size: 16, color: _purple),
+            const SizedBox(width: 7),
+            Text(tr('Šis mėnuo'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _purple),
           ],
         ),
       );
@@ -425,7 +427,7 @@ class _Planning extends StatelessWidget {
           children: [
             Row(
               children: [
-                _figure(_eur(spent), 'išleista', CrossAxisAlignment.start),
+                _figure(_eur(spent), tr('išleista'), CrossAxisAlignment.start),
                 const Spacer(),
                 SizedBox(
                   width: 62,
@@ -443,7 +445,7 @@ class _Planning extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                _figure(_eur(limit), 'visas biudžetas', CrossAxisAlignment.end),
+                _figure(_eur(limit), tr('visas biudžetas'), CrossAxisAlignment.end),
               ],
             ),
             const SizedBox(height: 16),
@@ -464,7 +466,7 @@ class _Planning extends StatelessWidget {
             // and pushed itself out of the bottom of a card sized for one line.
             Align(
               alignment: Alignment.centerLeft,
-              child: Text('Tokiu tempu peršoksi biudžetą ~$over € — sulėtink.',
+              child: Text('${tr('Tokiu tempu peršoksi biudžetą ~')}$over ${tr('€ — sulėtink.')}',
                   maxLines: 1,
                   style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _warn)),
             ),
@@ -505,10 +507,10 @@ class _Planning extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(b.name, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink)),
+                    Text(tr(b.name), style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink)),
                     const SizedBox(height: 2),
-                    const Text('Pasiūlyta pagal tavo išlaidas · keisk',
-                        style: TextStyle(fontSize: 11.5, color: _muted)),
+                    Text(tr('Pasiūlyta pagal tavo išlaidas · keisk'),
+                        style: const TextStyle(fontSize: 11.5, color: _muted)),
                   ],
                 ),
                 const Spacer(),
@@ -521,9 +523,9 @@ class _Planning extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                Text('${_eur(b.spent)} išleista', style: const TextStyle(fontSize: 13.5, color: _muted)),
+                Text('${_eur(b.spent)} ${tr('išleista')}', style: const TextStyle(fontSize: 13.5, color: _muted)),
                 const Spacer(),
-                Text('${_eur(b.left)} liko',
+                Text('${_eur(b.left)} ${tr('liko')}',
                     style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _warn)),
               ],
             ),
@@ -551,13 +553,13 @@ class _Planning extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _hair),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_rounded, size: 22, color: _purple),
-            SizedBox(width: 10),
-            Text('Pridėti biudžetą',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
+            const Icon(Icons.add_rounded, size: 22, color: _purple),
+            const SizedBox(width: 10),
+            Text(tr('Pridėti biudžetą'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
           ],
         ),
       );
@@ -584,7 +586,7 @@ class _Planning extends StatelessWidget {
                   children: [
                     Icon(n.$2, size: 21, color: n.$3 ? _purple : const Color(0xFF97A2B5)),
                     const SizedBox(height: 4),
-                    Text(n.$1,
+                    Text(tr(n.$1),
                         style: TextStyle(
                             fontSize: 10, fontWeight: FontWeight.w600,
                             color: n.$3 ? _purple : const Color(0xFF97A2B5))),
@@ -614,14 +616,14 @@ class _Planning extends StatelessWidget {
                   decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(3)),
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(18, 14, 18, 6),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
                 child: Row(
                   children: [
-                    Text('Naujas biudžetas',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
-                    Spacer(),
-                    Icon(Icons.close_rounded, size: 20, color: _faint),
+                    Text(tr('Naujas biudžetas'),
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+                    const Spacer(),
+                    const Icon(Icons.close_rounded, size: 20, color: _faint),
                   ],
                 ),
               ),
@@ -630,31 +632,31 @@ class _Planning extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('Kategorija',
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _muted)),
+                    Text(tr('Kategorija'),
+                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _muted)),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 9,
                       runSpacing: 9,
                       children: [
                         _chip(_maistas.name, _maistas.icon, _maistas.color, chosen),
-                        _chip('Transportas', Icons.directions_car_rounded, const Color(0xFF5866F0), false),
-                        _chip('Apsipirkimas', Icons.shopping_bag_rounded, const Color(0xFF00897B), false),
-                        _chip('Sveikata, sportas', Icons.fitness_center_rounded, _warn, false),
-                        _chip('Pramogos', Icons.celebration_rounded, const Color(0xFF2E9BE6), false),
+                        _chip(tr('Transportas'), Icons.directions_car_rounded, const Color(0xFF5866F0), false),
+                        _chip(tr('Apsipirkimas'), Icons.shopping_bag_rounded, const Color(0xFF00897B), false),
+                        _chip(tr('Sveikata, sportas'), Icons.fitness_center_rounded, _warn, false),
+                        _chip(tr('Pramogos'), Icons.celebration_rounded, const Color(0xFF2E9BE6), false),
                       ],
                     ),
                     if (showLimit) ...[
                       const SizedBox(height: 20),
                       Row(
                         children: [
-                          const Text('Mėnesio limitas',
-                              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _muted)),
+                          Text(tr('Mėnesio limitas'),
+                              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _muted)),
                           const Spacer(),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(color: _psoft, borderRadius: BorderRadius.circular(8)),
-                            child: Text('siūlome ${_maistas.limit.round()} €',
+                            child: Text('${tr('siūlome')} ${_maistas.limit.round()} €',
                                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _purple)),
                           ),
                         ],
@@ -682,8 +684,8 @@ class _Planning extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(14)),
-                        child: const Text('Išsaugoti',
-                            style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                        child: Text(tr('Išsaugoti'),
+                            style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: Colors.white)),
                       ),
                     ],
                   ],
@@ -706,7 +708,7 @@ class _Planning extends StatelessWidget {
           children: [
             Icon(icon, size: 17, color: color),
             const SizedBox(width: 7),
-            Text(label,
+            Text(tr(label),
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: on ? _purple : _ink)),
           ],
         ),

@@ -313,6 +313,7 @@ const Map<String, String> _en = {
   'Tokiu tempu mėnesį baigsi ~': "At this pace you'll finish the month around ~",
   '— telpi į biudžetą.': '— you fit in the budget.',
   'Tokiu tempu peršoksi biudžetą ~': "At this pace you'll exceed the budget by ~",
+  '€ — sulėtink.': '€ — ease off.',
   '— sulėtink.': '— slow down.',
   'Pasiūlyta pagal tavo išlaidas · keisk': 'Suggested from your spending · edit',
   'Tavo biudžetas · keisk': 'Your budget · edit',
@@ -595,4 +596,38 @@ const Map<String, String> _en = {
       'Choosing the annual plan instead of monthly.',
   'Atsinaujina automatiškai, kol neatšauksi App Store nustatymuose likus ne mažiau kaip 24 val. iki laikotarpio pabaigos.':
       'Renews automatically unless cancelled in App Store settings at least 24 hours before the period ends.',
+  // ── onboarding demonstrations (onb_welcome / month / planning / security / chat) ──
+  'Birželis': 'June',
+  'Liepa': 'July',
+  'Euras': 'Euro',
+  'Sinchronizuota': 'Synced',
+  'Sužinok, kur dingsta': 'Find out where',
+  'tavo pinigai': 'your money goes',
+  'Vaultie automatiškai surenka\ntavo finansus į vieną vietą ir\npadeda lengviau juos suprasti.':
+      'Vaultie gathers your finances\ninto one place and makes them\neasier to understand.',
+  '5 aktyvūs mokėjimai · 2 baigėsi': '5 active payments · 2 ended',
+  'Visas mėnuo': 'The whole month',
+  'vienoje vietoje': 'in one place',
+  'Kur nuėjo pinigai, kas pasikeitė\nir kiek tai kainuoja per dieną.':
+      'Where the money went, what changed\nand what it costs you per day.',
+  'Liepos apžvalga': 'July overview',
+  'Liepos finansų momentas 📸': 'July at a glance 📸',
+  'Liepos suma': 'July total',
+  'Susikurk biudžetą': 'Set a budget',
+  'ir laikykis jo': 'and stick to it',
+  'Limitą pasiūlysime pagal tavo\nrealų mėnesių vidurkį.':
+      'We will suggest a limit from\nyour real monthly average.',
+  'Užrakink ir': 'Lock it and',
+  'pritaikyk sau': 'make it yours',
+  'PIN, Face ID ir tamsi tema —\nviskas per kelias sekundes.':
+      'PIN, Face ID and dark mode —\nall in a few seconds.',
+  'Naujas PIN kodas': 'New PIN code',
+  'Sugalvok 4 skaitmenų kodą': 'Choose a 4-digit code',
+  'Agentas, kuris mato': 'An agent that sees',
+  'tavo skaičius': 'your numbers',
+  'Paklausk, kur nueina pinigai —\natsakys iš karto ir konkrečiai.':
+      'Ask where the money goes —\nyou get a straight answer.',
+  'Tavo finansų agentas': 'Your finance agent',
+  'Tęsti': 'Continue',
+  'Atkurti pirkimus': 'Restore purchases',
 };

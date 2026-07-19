@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 /// Welcome screen — a black device holding the app's own Home screen.
 ///
 /// [_HomeMock] rebuilds the dashboard at the same 390pt logical width the real
@@ -188,13 +190,13 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
                   ],
                 ),
                 alignment: Alignment.center,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Toliau',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
+                    Text(tr('Toliau'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
                   ],
                 ),
               ),
@@ -213,19 +215,19 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('Sužinok, kur dingsta',
+        Text(tr('Sužinok, kur dingsta'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Colors.white, shadows: glow)),
-        const Text('tavo pinigai',
+        Text(tr('tavo pinigai'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Color(0xFFBFD6FF), shadows: glow)),
         const SizedBox(height: 10),
         Text(
           // Balanced by hand at 28/30/30 characters so the centred block stays
           // a block rather than tapering to a point.
-          'Vaultie automatiškai surenka\ntavo finansus į vieną vietą ir\npadeda lengviau juos suprasti.',
+          tr('Vaultie automatiškai surenka\ntavo finansus į vieną vietą ir\npadeda lengviau juos suprasti.'),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13.5, height: 1.5, fontWeight: FontWeight.w500,
               color: Colors.white.withValues(alpha: 0.92), shadows: glow),
@@ -358,8 +360,8 @@ class _HomeMock extends StatelessWidget {
                   const SizedBox(height: 12),
                   _bankChips(),
                   const SizedBox(height: 7),
-                  const Text('Likutis iš banko · grafikas = likučio kitimas laike',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF98A2B7), fontWeight: FontWeight.w500)),
+                  Text(tr('Likutis iš banko · grafikas = likučio kitimas laike'),
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF98A2B7), fontWeight: FontWeight.w500)),
                   const SizedBox(height: 11),
                   _filterPill(),
                   const SizedBox(height: 12),
@@ -431,8 +433,8 @@ class _HomeMock extends StatelessWidget {
 
   Widget _header() => Row(
         children: [
-          const Text('Pradžia',
-              style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.7)),
+          Text(tr('Pradžia'),
+              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.7)),
           const Spacer(),
           const Icon(Icons.visibility_outlined, size: 22, color: _ink),
           const SizedBox(width: 15),
@@ -453,13 +455,13 @@ class _HomeMock extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Text('Bendras likutis',
-                  style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
+              Text(tr('Bendras likutis'),
+                  style: const TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
               const Spacer(),
               Container(width: 6, height: 6, decoration: const BoxDecoration(color: _brand, shape: BoxShape.circle)),
               const SizedBox(width: 5),
-              const Text('Sinchronizuota',
-                  style: TextStyle(fontSize: 11.5, color: _brand, fontWeight: FontWeight.w600)),
+              Text(tr('Sinchronizuota'),
+                  style: const TextStyle(fontSize: 11.5, color: _brand, fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 2),
@@ -469,16 +471,16 @@ class _HomeMock extends StatelessWidget {
                 letterSpacing: hidden ? 2 : -1.2,
               )),
           const SizedBox(height: 6),
-          const Row(
+          Row(
             children: [
-              Text('↑ +2,8 %', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _green)),
-              SizedBox(width: 7),
-              Text('|', style: TextStyle(fontSize: 13, color: Color(0xFFC9D2E0))),
-              SizedBox(width: 7),
-              Text('+112 €', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _green)),
-              SizedBox(width: 7),
-              Text('nuo praėjusio mėn.',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _muted)),
+              const Text('↑ +2,8 %', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _green)),
+              const SizedBox(width: 7),
+              const Text('|', style: TextStyle(fontSize: 13, color: Color(0xFFC9D2E0))),
+              const SizedBox(width: 7),
+              const Text('+112 €', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _green)),
+              const SizedBox(width: 7),
+              Text(tr('nuo praėjusio mėn.'),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _muted)),
             ],
           ),
         ],
@@ -587,12 +589,12 @@ class _HomeMock extends StatelessWidget {
             BoxShadow(color: const Color(0xFF14203A).withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, 2)),
           ],
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.tune_rounded, size: 16, color: _brand),
-            SizedBox(width: 8),
-            Text('Filtras', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink)),
+            const Icon(Icons.tune_rounded, size: 16, color: _brand),
+            const SizedBox(width: 8),
+            Text(tr('Filtras'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink)),
           ],
         ),
       );
@@ -624,8 +626,8 @@ class _HomeMock extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.16),
                         borderRadius: BorderRadius.circular(9),
                       ),
-                      child: const Text('PRENUMERATOS IR SĄSKAITOS',
-                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.7)),
+                      child: Text(tr('PRENUMERATOS IR SĄSKAITOS'),
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.7)),
                     ),
                     const Spacer(),
                     Container(
@@ -634,21 +636,21 @@ class _HomeMock extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.16),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text('Tvarkyti', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
-                        Icon(Icons.chevron_right_rounded, size: 15, color: Colors.white),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(tr('Tvarkyti'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                        const Icon(Icons.chevron_right_rounded, size: 15, color: Colors.white),
                       ]),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text('${_eur(_subsMonthly)} / mėn',
+                Text('${_eur(_subsMonthly)} ${tr('/ mėn')}',
                     style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.6)),
                 const SizedBox(height: 3),
-                Text('= ${_eur(_subsMonthly * 12)} per metus',
+                Text('= ${_eur(_subsMonthly * 12)} ${tr('per metus')}',
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
                 const SizedBox(height: 3),
-                Text('5 aktyvūs mokėjimai · 2 baigėsi',
+                Text(tr('5 aktyvūs mokėjimai · 2 baigėsi'),
                     style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.78))),
                 const SizedBox(height: 11),
                 Wrap(
@@ -692,10 +694,10 @@ class _HomeMock extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Šios savaitės išlaidos',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
+              Text(tr('Šios savaitės išlaidos'),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
               const SizedBox(height: 2),
-              Text('vidurkis $_weekAvg €/d.',
+              Text('${tr('vidurkis')} $_weekAvg €/d.',
                   style: const TextStyle(fontSize: 12.5, color: _dim, fontWeight: FontWeight.w500)),
             ],
           ),
@@ -786,18 +788,18 @@ class _HomeMock extends StatelessWidget {
         child: Row(
           children: [
             for (final t in [
-              ('Pradžia', Icons.dashboard_rounded, true),
-              ('Apžvalga', Icons.donut_large_rounded, false),
-              ('AI pokalbis', Icons.auto_awesome_rounded, false),
-              ('Planavimas', Icons.calendar_month_rounded, false),
-              ('Paskyra', Icons.person_rounded, false),
+              (tr('Pradžia'), Icons.dashboard_rounded, true),
+              (tr('Apžvalga'), Icons.donut_large_rounded, false),
+              (tr('AI pokalbis'), Icons.auto_awesome_rounded, false),
+              (tr('Planavimas'), Icons.calendar_month_rounded, false),
+              (tr('Paskyra'), Icons.person_rounded, false),
             ])
               Expanded(
                 child: Column(
                   children: [
                     Icon(t.$2, size: 21, color: t.$3 ? _brand : const Color(0xFF98A2B7)),
                     const SizedBox(height: 4),
-                    Text(t.$1,
+                    Text(tr(t.$1),
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,

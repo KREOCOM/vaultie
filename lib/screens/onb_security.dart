@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 /// Onboarding page 4 — locking the app and choosing how it looks.
 ///
 /// Built from the real screens: the Privatumas / Nustatymai groups in
@@ -179,13 +181,13 @@ class _OnbSecurityState extends State<OnbSecurity> with TickerProviderStateMixin
                   ],
                 ),
                 alignment: Alignment.center,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Toliau',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
+                    Text(tr('Toliau'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
                   ],
                 ),
               ),
@@ -199,13 +201,13 @@ class _OnbSecurityState extends State<OnbSecurity> with TickerProviderStateMixin
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('Užrakink ir',
+        Text(tr('Užrakink ir'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Colors.white, shadows: glow)),
-        const Text('pritaikyk sau',
+        Text(tr('pritaikyk sau'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Color(0xFFBFD6FF), shadows: glow)),
         const SizedBox(height: 10),
         Text(
@@ -314,7 +316,7 @@ class _Settings extends StatelessWidget {
                 Icon(Icons.chevron_left_rounded, size: 30, color: p.ink),
                 Expanded(
                   child: Center(
-                    child: Text('Nustatymai',
+                    child: Text(tr('Nustatymai'),
                         style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: p.ink)),
                   ),
                 ),
@@ -322,32 +324,32 @@ class _Settings extends StatelessWidget {
               ],
             ),
           ),
-          _label('Privatumas', p),
+          _label(tr('Privatumas'), p),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(color: p.card, borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
-                _toggleRow(p, accent, Icons.lock_outline_rounded, 'PIN kodas',
-                    'Atrakink Vaultie su PIN', pinOn, true),
-                _toggleRow(p, accent, Icons.face_retouching_natural_rounded, 'Face ID atrakinimas',
-                    pinOn ? 'Atrakink Vaultie veidu' : 'Įjunk PIN, kad naudotum Face ID',
+                _toggleRow(p, accent, Icons.lock_outline_rounded, tr('PIN kodas'),
+                    tr('Atrakink Vaultie su PIN'), pinOn, true),
+                _toggleRow(p, accent, Icons.face_retouching_natural_rounded, tr('Face ID atrakinimas'),
+                    pinOn ? tr('Atrakink Vaultie veidu') : tr('Įjunk PIN, kad naudotum Face ID'),
                     faceOn, pinOn),
               ],
             ),
           ),
-          _label('Nustatymai', p),
+          _label(tr('Nustatymai'), p),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(color: p.card, borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
-                _valueRow(p, accent, '€', 'Numatytoji valiuta', 'Euras'),
-                _valueRow(p, accent, 'LT', 'Kalba', 'Lietuvių'),
-                _valueRow(p, accent, null, 'Tema', dark ? 'Tamsi' : 'Šviesi',
+                _valueRow(p, accent, '€', tr('Numatytoji valiuta'), tr('Euras')),
+                _valueRow(p, accent, 'LT', tr('Kalba'), tr('Lietuvių')),
+                _valueRow(p, accent, null, tr('Tema'), dark ? tr('Tamsi') : tr('Šviesi'),
                     icon: Icons.brightness_6_rounded),
-                _toggleRow(p, accent, Icons.notifications_none_rounded, 'Pranešimai',
-                    'Priminimai apie mokėjimus', true, true),
+                _toggleRow(p, accent, Icons.notifications_none_rounded, tr('Pranešimai'),
+                    tr('Priminimai apie mokėjimus'), true, true),
               ],
             ),
           ),
@@ -462,11 +464,11 @@ class _Settings extends StatelessWidget {
               child: const Icon(Icons.lock_rounded, color: _accentD, size: 26),
             ),
             const SizedBox(height: 20),
-            const Text('Naujas PIN kodas',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFFEDEAF6))),
+            Text(tr('Naujas PIN kodas'),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFFEDEAF6))),
             const SizedBox(height: 8),
-            const Text('Sugalvok 4 skaitmenų kodą',
-                style: TextStyle(fontSize: 14.5, color: Color(0xFF948DAC))),
+            Text(tr('Sugalvok 4 skaitmenų kodą'),
+                style: const TextStyle(fontSize: 14.5, color: Color(0xFF948DAC))),
             const SizedBox(height: 30),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -545,7 +547,7 @@ class _Settings extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
-              child: Text('Tema',
+              child: Text(tr('Tema'),
                   style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: p.ink)),
             ),
             for (final o in const [
@@ -559,9 +561,9 @@ class _Settings extends StatelessWidget {
                   children: [
                     Icon(o.$2, size: 23, color: accent),
                     const SizedBox(width: 14),
-                    Text(o.$1, style: TextStyle(fontSize: 16, color: p.ink)),
+                    Text(tr(o.$1), style: TextStyle(fontSize: 16, color: p.ink)),
                     const Spacer(),
-                    if ((dark && o.$1 == 'Tamsi') || (!dark && o.$1 == 'Šviesi'))
+                    if ((dark && o.$1 == tr('Tamsi')) || (!dark && o.$1 == tr('Šviesi')))
                       Icon(Icons.check_rounded, size: 20, color: accent),
                   ],
                 ),

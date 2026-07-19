@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../i18n.dart';
 import 'package:flutter/rendering.dart';
 
 /// Onboarding page 4 — the month overview, which is far longer than a screen.
@@ -242,14 +244,14 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
                       _ai(key: _kAi),
                       _categoryHeader(),
                       _categoryList(),
-                      _h2('Įžvalgos', key: _kInsights),
+                      _h2(tr('Įžvalgos'), key: _kInsights),
                       _insight(_cats[1], 451.20, _cats[1].amount),
                       _insight(_cats[0], 624.50, _cats[0].amount),
-                      _h2('Vidutinės dienos išlaidos', key: _kDaily),
+                      _h2(tr('Vidutinės dienos išlaidos'), key: _kDaily),
                       _daily(),
-                      _h2('Prekybininkai'),
+                      _h2(tr('Prekybininkai')),
                       _plainCard('34 prekybininkai'),
-                      _h2('Didžiausios išlaidos'),
+                      _h2(tr('Didžiausios išlaidos')),
                       _biggest(),
                     ],
                   ),
@@ -264,12 +266,12 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
                 color: const Color(0xFF2149C8),
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                 alignment: Alignment.bottomLeft,
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.white),
-                    SizedBox(width: 12),
-                    Text('Liepos apžvalga',
-                        style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: Colors.white)),
+                    const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.white),
+                    const SizedBox(width: 12),
+                    Text(tr('Liepos apžvalga'),
+                        style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: Colors.white)),
                   ],
                 ),
               ),
@@ -280,9 +282,9 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
 
   Widget _chips() => Row(
         children: [
-          _chip(Icons.calendar_today_rounded, 'Liepa'),
+          _chip(Icons.calendar_today_rounded, tr('Liepa')),
           const SizedBox(width: 10),
-          _chip(Icons.tune_rounded, 'Filtras'),
+          _chip(Icons.tune_rounded, tr('Filtras')),
         ],
       );
 
@@ -322,7 +324,7 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
                     style: const TextStyle(fontSize: 15, color: _muted, fontWeight: FontWeight.w600, height: 1)),
                 Text(out ? _round(_spend) : _round(_income),
                     style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: _ink, height: 1.3)),
-                Text(out ? 'Išleista' : 'Gauta',
+                Text(out ? tr('Išleista') : tr('Gauta'),
                     style: const TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
               ],
             ),
@@ -362,13 +364,13 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
         decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14)),
         child: Row(
           children: [
-            _stat(_round(_spend), 'išleista'),
+            _stat(_round(_spend), tr('išleista')),
             _divider(),
-            _stat(_round(_income), 'uždirbta'),
+            _stat(_round(_income), tr('uždirbta')),
             _divider(),
-            _stat('+${_net.round()} €', 'grynasis'),
+            _stat('+${_net.round()} €', tr('grynasis')),
             _divider(),
-            _stat('$_rate %', 'santaupų'),
+            _stat('$_rate %', tr('santaupų')),
           ],
         ),
       );
@@ -395,8 +397,8 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
           children: [
             Row(
               children: [
-                const Text('SANTRAUKA',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.7)),
+                Text(tr('SANTRAUKA'),
+                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.7)),
                 const SizedBox(width: 7),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
@@ -409,27 +411,32 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
               ],
             ),
             const SizedBox(height: 9),
-            const Text('Liepos finansų momentas 📸',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)),
+            Text(tr('Liepos finansų momentas 📸'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)),
             const SizedBox(height: 8),
             Text(
-              'Liepa buvo tvarkinga. Gavai ${_income.round()} €, išleidai ${_spend.round()} €, '
-              'tad atsidėjai ${_net.round()} € — santaupų norma $_rate %, virš 20 % tikslo. '
-              'Daugiausia nusinešė būstas ir sąskaitos (${_cats[0].amount.round()} €) bei '
-              'maistas (${_cats[1].amount.round()} €).',
+              tr('Liepa buvo tvarkinga. Gavai {a} €, išleidai {b} €, tad atsidėjai {c} € — '
+                      'santaupų norma {d} %, virš 20 % tikslo. Daugiausia nusinešė būstas ir '
+                      'sąskaitos ({e} €) bei maistas ({f} €).')
+                  .replaceFirst('{a}', '${_income.round()}')
+                  .replaceFirst('{b}', '${_spend.round()}')
+                  .replaceFirst('{c}', '${_net.round()}')
+                  .replaceFirst('{d}', '$_rate')
+                  .replaceFirst('{e}', '${_cats[0].amount.round()}')
+                  .replaceFirst('{f}', '${_cats[1].amount.round()}'),
               style: const TextStyle(fontSize: 13, height: 1.5, color: Color(0xFF2A3854)),
             ),
           ],
         ),
       );
 
-  Widget _categoryHeader() => const Padding(
-        padding: EdgeInsets.fromLTRB(3, 16, 3, 7),
+  Widget _categoryHeader() => Padding(
+        padding: const EdgeInsets.fromLTRB(3, 16, 3, 7),
         child: Row(
           children: [
-            Text('Kategorija', style: TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
-            Spacer(),
-            Text('Suma', style: TextStyle(fontSize: 12.5, color: _purple, fontWeight: FontWeight.w700)),
+            Text(tr('Kategorija'), style: const TextStyle(fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            Text(tr('Suma'), style: const TextStyle(fontSize: 12.5, color: _purple, fontWeight: FontWeight.w700)),
           ],
         ),
       );
@@ -447,7 +454,7 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
                   children: [
                     _icon(_cats[i], 32, 16),
                     const SizedBox(width: 12),
-                    Text(_cats[i].name,
+                    Text(tr(_cats[i].name),
                         style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
                     const Spacer(),
                     Text('−${_eur(_cats[i].amount)}',
@@ -512,12 +519,12 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
                   TextSpan(
                     style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink, height: 1.35),
                     children: [
-                      TextSpan(text: 'Kategorijai „${c.name.split(',').first}" išleidai '),
+                      TextSpan(text: '${tr('Kategorijai')} „${tr(c.name).split(',').first}" ${tr('išleidai')} '),
                       TextSpan(
                         text: '${diff.abs().round()} €',
                         style: TextStyle(fontWeight: FontWeight.w800, color: more ? _bad : _good),
                       ),
-                      TextSpan(text: ' ${more ? 'daugiau' : 'mažiau'} nei praėjusį mėnesį.'),
+                      TextSpan(text: ' ${more ? tr('daugiau') : tr('mažiau')} ${tr('nei praėjusį mėnesį.')}'),
                     ],
                   ),
                 ),
@@ -527,9 +534,9 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(child: _insightBox(c.color, prev, 'Birželis')),
+              Expanded(child: _insightBox(c.color, prev, tr('Birželis'))),
               const SizedBox(width: 10),
-              Expanded(child: _insightBox(c.color, now, 'Liepa')),
+              Expanded(child: _insightBox(c.color, now, tr('Liepa'))),
             ],
           ),
           const SizedBox(height: 12),
@@ -541,8 +548,8 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _purple),
             ),
-            child: const Text('Nusistatyti biudžetą',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
+            child: Text(tr('Nusistatyti biudžetą'),
+                style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
           ),
         ],
       ),
@@ -581,7 +588,7 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
           children: [
             Row(
               children: [
-                const Text('Liepa', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+                Text(tr('Liepa'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
                 const Spacer(),
                 Text('−${_eur(_perDay)}',
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
@@ -596,7 +603,7 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
                   children: [
                     _icon(c, 26, 13),
                     const SizedBox(width: 11),
-                    Text(c.name, style: const TextStyle(fontSize: 13.5, color: _ink)),
+                    Text(tr(c.name), style: const TextStyle(fontSize: 13.5, color: _ink)),
                     const Spacer(),
                     Text('−${_eur(c.amount / _daysInMonth)}',
                         style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _ink)),
@@ -679,13 +686,13 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
                   ],
                 ),
                 alignment: Alignment.center,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Toliau',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
+                    Text(tr('Toliau'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
                   ],
                 ),
               ),
@@ -699,17 +706,17 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('Visas mėnuo',
+        Text(tr('Visas mėnuo'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Colors.white, shadows: glow)),
-        const Text('vienoje vietoje',
+        Text(tr('vienoje vietoje'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
                 letterSpacing: -0.9, color: Color(0xFFBFD6FF), shadows: glow)),
         const SizedBox(height: 10),
         Text(
-          'Kur nuėjo pinigai, kas pasikeitė\nir kiek tai kainuoja per dieną.',
+          tr('Kur nuėjo pinigai, kas pasikeitė\nir kiek tai kainuoja per dieną.'),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13.5, height: 1.5, fontWeight: FontWeight.w500,
               color: Colors.white.withValues(alpha: 0.92), shadows: glow),
