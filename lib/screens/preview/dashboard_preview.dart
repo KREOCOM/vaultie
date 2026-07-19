@@ -664,7 +664,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       if (!mounted) return;
       setState(() => _deepening = true);
       final fresh = await BankingService.instance.refreshDashboard(refs,
-          aiEnrichment: true, monthsBack: 6, onDiag: (d) => _lastDiag = d);
+          aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6, onDiag: (d) => _lastDiag = d);
       if (!mounted) return;
       if (_refreshLostABank(fresh)) {
         setState(() => _deepening = false);
@@ -696,7 +696,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       if (!mounted) return;
       setState(() => _deepening = true);
       final fresh = await BankingService.instance.refreshDashboard(refs,
-          aiEnrichment: true, monthsBack: 6, onDiag: (d) => _lastDiag = d);
+          aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6, onDiag: (d) => _lastDiag = d);
       if (!mounted) return;
       if (_refreshLostABank(fresh)) {
         setState(() => _deepening = false);

@@ -274,10 +274,7 @@ class VaultieApp extends StatelessWidget {
             dialogTheme: DialogThemeData(backgroundColor: cCard),
             bottomSheetTheme: BottomSheetThemeData(backgroundColor: cCard),
           ),
-          // TEMP PREVIEW: forced to false so the splash leads into onboarding
-          // even on a device that has already completed it. Change back to
-          // `hasOnboarded` before release.
-          home: const SplashScreen(hasOnboarded: false),
+          home: SplashScreen(hasOnboarded: hasOnboarded),
           routes: {
             OnboardingScreen.route: (_) => const OnboardingScreen(),
             AuthScreen.route: (_) => const AuthScreen(),

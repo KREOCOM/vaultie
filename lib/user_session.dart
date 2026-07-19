@@ -56,8 +56,27 @@ Future<void> _wipeLocalData() async {
   await _clearBox(HiveBoxes.dashboard);
   final settings = Hive.box(HiveBoxes.settings);
   // Clear per-user state; keep device-level prefs (onboarded, language, currency).
-  await settings.delete('premium');
-  await settings.delete('monthlyBudget');
+  //
+  // The list below was 'premium' and 'monthlyBudget' only, which left three
+  // kinds of the previous account's state behind on the device:
+  //
+  //  · the PIN — the next person was locked out of the app by a code they
+  //    could not know, and deleting your account bricked it for them too;
+  //  · the AI chat consent — the next person's finance summary went to
+  //    Anthropic without the disclosure dialog ever being shown to them, which
+  //    is one data subject's consent record being applied to another;
+  //  · the display name — the app greeted them by the previous owner's name.
+  for (final key in const [
+    'premium',
+    'monthlyBudget',
+    'lockPinHash',
+    'lockPinSalt',
+    'lockFaceId',
+    'aiChatConsent',
+    'userName',
+  ]) {
+    await settings.delete(key);
+  }
   AppPrefs.budget.value = null;
 }
 
