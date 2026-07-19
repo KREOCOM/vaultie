@@ -7202,9 +7202,9 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           ]),
           _group(tr('Dokumentai'), [
             _navItem(Icons.description_outlined, tr('Naudojimo sąlygos'), '',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LegalScreen.terms(true)))),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LegalScreen.terms(!_enUi)))),
             _navItem(Icons.privacy_tip_outlined, tr('Privatumo politika'), '',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LegalScreen.privacy(true)))),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LegalScreen.privacy(!_enUi)))),
           ]),
           const SizedBox(height: 20),
           Padding(
@@ -7758,8 +7758,23 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
-    } catch (_) {
-      if (mounted) _snack(tr('Ištrinti paskyrą galima tik tikroje programoje.'));
+    } on FirebaseAuthException catch (e) {
+      // Cancelling the Apple re-auth sheet is not a failure — just stop.
+      if (e.code == 'apple-reauth-cancelled') return;
+      if (mounted) _snack(authErrorMessage(e, isLithuanian: !_enUi));
+    } catch (e) {
+      // Some firebase_auth versions throw a non-Firebase (Pigeon) error even
+      // though the native delete succeeded. If the user is gone, it worked.
+      if (AuthService().currentUser == null) {
+        try {
+          await wipeLocalDataAndForget();
+        } catch (_) {}
+        if (!mounted) return;
+        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
+        return;
+      }
+      if (mounted) _snack(_enUi ? 'Could not delete your account.' : 'Nepavyko ištrinti paskyros.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
