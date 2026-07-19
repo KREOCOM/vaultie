@@ -3,11 +3,14 @@ import 'package:flutter/services.dart';
 
 import '../services/app_lock.dart';
 
-const _bg = Color(0xFF160E30);
-const _bg2 = Color(0xFF2A1E58);
+// These are fixed rather than themed: the lock covers the whole app before any
+// theme is applied. They now match the near-black dark palette instead of the
+// violet one, which stopped matching anything when the theme changed.
+const _bg = Color(0xFF0A0910);
+const _bg2 = Color(0xFF1A1726);
 const _ink = Color(0xFFEDEAF6);
-const _dim = Color(0xFF9A93B8);
-const _accent = Color(0xFF8B5CF6);
+const _dim = Color(0xFF948DAC);
+const _accent = Color(0xFF4C86FF);
 
 const _pinLength = 4;
 
@@ -23,19 +26,33 @@ class LockScreen extends StatefulWidget {
 class _LockScreenState extends State<LockScreen> {
   String _entry = '';
   bool _error = false;
+  bool _prompted = false;
 
   @override
   void initState() {
     super.initState();
-    // Offer Face ID immediately if the user enabled it.
+    // Let the lock screen actually appear before the system sheet covers it.
+    // Prompting in the first frame put Face ID over a screen the user had not
+    // seen yet, which is why it felt like the app grabbed at their face the
+    // moment it opened — iOS itself shows its lock UI first and then scans.
     if (AppLock.faceIdEnabled) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _tryFaceId());
+      Future<void>.delayed(const Duration(milliseconds: 450), () {
+        if (mounted) _tryFaceId();
+      });
     }
   }
 
   Future<void> _tryFaceId() async {
+    if (_prompted) return;           // one automatic prompt per lock, no retries
+    _prompted = true;
     final ok = await AppLock.authenticateBiometric();
-    if (ok && mounted) widget.onUnlocked();
+    if (ok && mounted) {
+      widget.onUnlocked();
+    } else {
+      // a failed or cancelled scan falls back to the keypad; the Face ID key
+      // on the pad is there to try again deliberately
+      _prompted = false;
+    }
   }
 
   void _press(String d) {

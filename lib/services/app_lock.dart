@@ -74,7 +74,16 @@ class AppLock {
   }
 
   /// Prompt the OS biometric check. Returns true only on a successful match.
+  /// True while the system biometric sheet is on screen.
+  ///
+  /// iOS reports the app as backgrounded for as long as that sheet is up, so
+  /// without this the lock gate re-locks the instant Face ID succeeds — and the
+  /// fresh lock screen prompts again, which reads as the app scanning over and
+  /// over. The gate checks this flag before acting on a resume.
+  static bool biometricInFlight = false;
+
   static Future<bool> authenticateBiometric() async {
+    biometricInFlight = true;
     try {
       return await _auth.authenticate(
         localizedReason: 'Atrakink Vaultie',
@@ -83,6 +92,11 @@ class AppLock {
       );
     } catch (_) {
       return false;
+    } finally {
+      // The resume event lands a frame or two after authenticate() returns, so
+      // the flag has to outlive the call itself.
+      Future<void>.delayed(const Duration(milliseconds: 700),
+          () => biometricInFlight = false);
     }
   }
 }
