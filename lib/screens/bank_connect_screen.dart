@@ -290,20 +290,6 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
           title: Text(atRoot
               ? (_isLt ? 'Pasirink šalį' : 'Choose a country')
               : (_isLt ? 'Prijungti banką' : 'Connect your bank')),
-          actions: [
-            // A way out of the bank flow without an account at a bank in the
-            // list. Without it, a reviewer (or anyone abroad) reaches this via
-            // pushReplacement, finds no back button at the country root, and
-            // is trapped short of Settings — where account deletion and the
-            // legal docs live. Lands on the dashboard's built-in demo data.
-            TextButton(
-              onPressed: () => Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const DashboardPreview()),
-              ),
-              child: Text(_isLt ? 'Praleisti' : 'Skip',
-                  style: TextStyle(color: cSubtle, fontWeight: FontWeight.w600)),
-            ),
-          ],
         ),
         body: SafeArea(child: _body()),
       ),
