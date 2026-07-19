@@ -593,8 +593,8 @@ class _OnbMonthState extends State<OnbMonth> with TickerProviderStateMixin {
               ],
             ),
             const SizedBox(height: 9),
-            // each category's share of a day; these sum to the figure above
-            for (final c in _cats.take(5))
+            // each category's share of a day; all six sum to the header figure
+            for (final c in _cats)
               SizedBox(
                 height: 38,
                 child: Row(

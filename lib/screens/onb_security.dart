@@ -211,7 +211,7 @@ class _OnbSecurityState extends State<OnbSecurity> with TickerProviderStateMixin
                 letterSpacing: -0.9, color: Color(0xFFBFD6FF), shadows: glow)),
         const SizedBox(height: 10),
         Text(
-          'PIN, Face ID ir tamsi tema —\nviskas per kelias sekundes.',
+          tr('PIN, Face ID ir tamsi tema —\nviskas per kelias sekundes.'),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13.5, height: 1.5, fontWeight: FontWeight.w500,
               color: Colors.white.withValues(alpha: 0.92), shadows: glow),
@@ -563,7 +563,7 @@ class _Settings extends StatelessWidget {
                     const SizedBox(width: 14),
                     Text(tr(o.$1), style: TextStyle(fontSize: 16, color: p.ink)),
                     const Spacer(),
-                    if ((dark && o.$1 == tr('Tamsi')) || (!dark && o.$1 == tr('Šviesi')))
+                    if ((dark && o.$1 == 'Tamsi') || (!dark && o.$1 == 'Šviesi'))
                       Icon(Icons.check_rounded, size: 20, color: accent),
                   ],
                 ),
