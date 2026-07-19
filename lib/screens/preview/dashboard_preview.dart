@@ -8147,7 +8147,7 @@ class _AiChatTabState extends State<_AiChatTab> {
 
   @override
   Widget build(BuildContext context) {
-    final hasBank = DashboardStore.bankCount > 0 || (widget.data['all'] as List?)?.isNotEmpty == true;
+    final hasBank = DashboardStore.bankCount > 0 || (widget.data?['all'] as List?)?.isNotEmpty == true;
     return Column(
       children: [
         Padding(
