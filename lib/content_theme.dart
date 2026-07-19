@@ -23,19 +23,19 @@ const _lFeatSubtle = Color(0xFF5C6A85);
 const _lAccent = Color(0xFF2F6BFF); // electric royal blue on light
 
 // ── Dark (violet twilight — matches the home gradient) ──────────────────────
-const _dBg = Color(0xFF201545);
-const _dCard = Color(0xFF2A1E54);
+const _dBg = Color(0xFF0A0910);
+const _dCard = Color(0xFF262436);
 const _dInk = Color(0xFFEDEAF6);
-const _dSubtle = Color(0xFFC0B8DA);
-const _dLine = Color(0xFF3B2D66);
+const _dSubtle = Color(0xFFBDB7CE);
+const _dLine = Color(0xFF3D3951);
 const _dHiBg = Color(0xFF2A2412);
 const _dHiBorder = Color(0xFF6B5424);
-const _dFeatTop = Color(0xFF34246E);
-const _dFeatBottom = Color(0xFF231856);
-const _dFeatBorder = Color(0xFF443376);
+const _dFeatTop = Color(0xFF1D2A4E);
+const _dFeatBottom = Color(0xFF141B33);
+const _dFeatBorder = Color(0xFF2E3D66);
 const _dFeatInk = Color(0xFFEDEAF6);
-const _dFeatSubtle = Color(0xFFC0B8DA);
-const _dAccent = Color(0xFF8B5CF6);
+const _dFeatSubtle = Color(0xFFBDB7CE);
+const _dAccent = Color(0xFF4C86FF);
 
 // ── Live values (default to light) ──────────────────────────────────────────
 Color cBg = _lBg;

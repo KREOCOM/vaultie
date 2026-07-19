@@ -66,18 +66,20 @@ Color _soft = const Color(0xFFEEF2F8); // recessed surface (input / inner boxes)
 
 void _applyTheme(bool dark) {
   _darkMode = dark;
-  // Light = "Frost": airy blue-tinted page, dark ink, white cards. Dark keeps the
-  // violet twilight as the alternate look (one smooth top-dark→bottom-lighter
-  // gradient, see _dashboard) with these solid card/surface tokens on it.
-  _bg         = dark ? const Color(0xFF201545) : const Color(0xFFEEF1F7);
-  _purpleSoft = dark ? const Color(0xFF2E2160) : const Color(0xFFE4EDFD);
-  _muted      = dark ? const Color(0xFFC0B8DA) : const Color(0xFF5C6A85);
-  _faint      = dark ? const Color(0xFF9A93B8) : const Color(0xFF7C879E);
+  // Light = "Frost". Dark = near-black, back from before e07d9db, but with the
+  // surfaces lifted: the old #16121F card sat at 1.07:1 against its own
+  // background, so blocks had no edge and the dividers between rows were
+  // invisible. Every pair below was solved for a target ratio rather than
+  // eyeballed — text ≥ 4.5:1, block edges ≥ 1.25:1, dividers ≥ 1.3:1.
+  _bg         = dark ? const Color(0xFF0A0910) : const Color(0xFFEEF1F7);
+  _purpleSoft = dark ? const Color(0xFF1B2A55) : const Color(0xFFE4EDFD);
+  _muted      = dark ? const Color(0xFFBDB7CE) : const Color(0xFF5C6A85);
+  _faint      = dark ? const Color(0xFF948DAC) : const Color(0xFF7C879E);
   _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF14203A);
-  _navOff     = dark ? const Color(0xFF7A72A0) : const Color(0xFF97A2B5);
-  _card       = dark ? const Color(0xFF2A1E54) : const Color(0xFFFFFFFF);
-  _hair       = dark ? const Color(0xFF3B2D66) : const Color(0xFFE3E9F2);
-  _soft       = dark ? const Color(0xFF1B1240) : const Color(0xFFEEF2F8);
+  _navOff     = dark ? const Color(0xFF8C86A0) : const Color(0xFF97A2B5);
+  _card       = dark ? const Color(0xFF262436) : const Color(0xFFFFFFFF);
+  _hair       = dark ? const Color(0xFF3D3951) : const Color(0xFFE3E9F2);
+  _soft       = dark ? const Color(0xFF0A0912) : const Color(0xFFEEF2F8);
   _themeVN.value = dark;
 }
 
@@ -815,7 +817,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Color(0xFF160E30), Color(0xFF231747), Color(0xFF2E2258)],
+                      colors: [Color(0xFF07060E), Color(0xFF0A0910), Color(0xFF141220)],
                       stops: [0.0, 0.5, 1.0],
                     ),
                   )
@@ -1006,7 +1008,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // full balance sheet. Text colour follows the theme so it stays legible: light
   // "on hero" ink over the dark violet backdrop, dark ink over the Frost page.
   Color get _heroInk => _darkMode ? const Color(0xFFEDEAF6) : _ink;
-  Color get _heroDim => _darkMode ? const Color(0xFF9A93B8) : _muted;
+  Color get _heroDim => _darkMode ? const Color(0xFF948DAC) : _muted;
   // "gyvai" / sync indicator: cyan glows on the dark theme, a solid green/blue on
   // Frost (a light cyan would vanish on the pale page).
   Color get _liveTint => _darkMode ? const Color(0xFF6EE7FF) : _good;
@@ -1189,9 +1191,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
-                          color: _darkMode ? Colors.white.withValues(alpha: 0.06) : _card,
+                          color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _card,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _hair),
+                          border: Border.all(color: _darkMode ? Colors.white.withValues(alpha: 0.17) : _hair),
                           boxShadow: _darkMode ? null : DS.e1,
                         ),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
