@@ -7209,7 +7209,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('${tr('Versija')}: 1.0.0+1', style: TextStyle(fontSize: 13, color: _muted)),
+            child: Text('${tr('Versija')}: 2.0.0', style: TextStyle(fontSize: 13, color: _muted)),
           ),
         ],
       ),

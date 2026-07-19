@@ -91,19 +91,16 @@ class LegalScreen extends StatelessWidget {
                   '„RevenueCat", gaunantis tavo „App Store" operacijų duomenis. '
                   'Jei prijungi banką, „Enable Banking" (licencijuotas PSD2 '
                   'teikėjas) saugiai gauna tavo sąskaitos duomenis mūsų vardu. '
-                  'Prekių ženklų logotipai užkraunami iš Google favicon paslaugos '
-                  'pagal iš pavadinimo atspėtą domeną, todėl tavo sekamos '
-                  'paslaugos matomos „Google" šiose užklausose. Neparduodame tavo '
-                  'duomenų.'
+                  'Prekių ženklų logotipai saugomi pačioje programoje — jokių '
+                  'užklausų trečiosioms šalims dėl jų nesiunčiama. Neparduodame '
+                  'tavo duomenų.'
               : 'We use Google Firebase for authentication, plus Sign in with '
                   'Apple if you choose it. In-app purchases are handled by '
                   'RevenueCat, which receives your App Store transaction data. '
                   'If you connect a bank, Enable Banking (a licensed PSD2 provider) '
                   'securely retrieves your account data on our behalf. Brand logos '
-                  'are fetched from Google\'s favicon service using a domain '
-                  'guessed from each subscription\'s name, so the services you '
-                  'track are visible to Google in those requests. We do not sell '
-                  'your data.',
+                  'are bundled in the app itself — no third-party requests are made '
+                  'for them. We do not sell your data.',
         ),
         LegalSection(
           isLt ? 'AI funkcijos' : 'AI features',

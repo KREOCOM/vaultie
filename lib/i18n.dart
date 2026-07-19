@@ -447,7 +447,7 @@ const Map<String, String> _en = {
 
   // ── AI chat consent / errors ──
   'AI pokalbis apie tavo finansus': 'AI chat about your finances',
-  'Kad atsakytų į klausimus, appsas siunčia mūsų AI tiekėjui (Anthropic) TAVO finansų SANTRAUKĄ — banko likučius, išlaidas pagal kategoriją ir tavo pasikartojančių mokėjimų pavadinimus (pvz. „Netflix").\n\n• Nesiunčiami atskiri sandoriai, IBAN‑ai ar kortelių numeriai.\n• Duomenys NENAUDOJAMI dirbtinio intelekto treniravimui.\n• Tai nėra finansinė konsultacija.':
+  'Kad atsakytų į klausimus, „Vaultie" siunčia mūsų AI tiekėjui (Anthropic) TAVO finansų SANTRAUKĄ — banko likučius, išlaidas pagal kategoriją ir tavo pasikartojančių mokėjimų pavadinimus (pvz. „Netflix").\n\n• Nesiunčiami atskiri sandoriai, IBAN‑ai ar kortelių numeriai.\n• Duomenys NENAUDOJAMI dirbtinio intelekto treniravimui.\n• Tai nėra finansinė konsultacija.':
       'To answer your questions, the app sends our AI provider (Anthropic) a SUMMARY of YOUR finances — bank balances, spending by category and the names of your recurring payments (e.g. "Netflix").\n\n• Individual transactions, IBANs or card numbers are not sent.\n• The data is NOT used to train AI.\n• This is not financial advice.',
   'Sutinku ir tęsiu': 'I agree and continue',
   'Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą.': "Sorry, I couldn't answer. Please try again.",
