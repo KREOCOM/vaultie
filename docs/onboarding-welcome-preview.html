@@ -1,0 +1,757 @@
+<meta charset="utf-8">
+<title>Vaultie — welcome screen</title>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root { --page:#EFF1F5; --ink:#101828; --muted:#667085; --line:#E1E5EC; --brand:#2F6BFF; }
+  @media (prefers-color-scheme: dark) { :root { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; --line:#1D2637; --brand:#6E9BFF; } }
+  :root[data-theme="dark"] { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; --line:#1D2637; --brand:#6E9BFF; }
+  :root[data-theme="light"] { --page:#EFF1F5; --ink:#101828; --muted:#667085; --line:#E1E5EC; --brand:#2F6BFF; }
+
+  body { background:var(--page); color:var(--ink); padding:30px 20px 50px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1060px; margin:0 auto; }
+  header { display:flex; flex-direction:column; gap:7px; margin-bottom:24px; }
+  h1 { font-size:23px; font-weight:750; letter-spacing:-.02em; }
+  .lede { font-size:13.5px; line-height:1.55; color:var(--muted); max-width:74ch; }
+
+  .set { display:flex; gap:30px; flex-wrap:wrap; align-items:flex-start; }
+  figure { display:flex; flex-direction:column; gap:9px; }
+  cap { font-size:12px; font-weight:700; }
+  .meta { font-size:11px; color:var(--muted); }
+
+  /* ── welcome screen ── */
+  .p { position:relative; width:268px; aspect-ratio:390/844; border-radius:12.5%/5.8%; overflow:hidden;
+    container-type:inline-size; --px:0.3731cqw; background:#fff;
+    box-shadow:0 1px 2px rgba(16,24,40,.14), 0 16px 32px -12px rgba(16,24,40,.34); }
+  .pad { position:absolute; inset:0; padding:calc(40*var(--px)) 0 calc(26*var(--px));
+    display:flex; flex-direction:column; align-items:center; }
+
+  .devwrap { flex:1; width:100%; padding:calc(10*var(--px)) calc(26*var(--px)) 0;
+    display:grid; place-items:center; min-height:0; }
+  /* ── bottom: dots, title, subtitle, button ── */
+  .foot { flex:none; width:100%; padding:calc(18*var(--px)) calc(24*var(--px)) 0;
+    display:flex; flex-direction:column; align-items:center; }
+  .dots { display:flex; gap:calc(6*var(--px)); }
+  .dots i { width:calc(6*var(--px)); height:calc(6*var(--px)); border-radius:50%; background:#C6D2E6; display:block; }
+  .dots i.on { width:calc(20*var(--px)); border-radius:calc(6*var(--px)); background:#2F6BFF; }
+
+  .ttl { margin-top:0; font-size:calc(30*var(--px)); font-weight:800; line-height:1.14;
+    letter-spacing:calc(-.9*var(--px)); color:#0E1B33; text-align:center; }
+    .sub2 { margin-top:calc(11*var(--px)); font-size:calc(13.5*var(--px)); line-height:1.45;
+    font-weight:500; text-align:center; }
+
+  /* A — accent word in brand blue */
+  .ttl .acc { color:#2F6BFF; }
+
+  /* Each line fades from its own colour into white across the tear, so the
+     letters sitting on blue paper read white and the ones on the sheet stay dark. */
+  .ttl .l1, .ttl .l2 { display:block; -webkit-background-clip:text; background-clip:text; color:transparent; }
+  /* One ground per line of text. A word split black/white reads as a rendering
+     fault, not a design — so the layout keeps text off the seam entirely. */
+  .ttl .l1, .ttl .l2 { background:none; -webkit-background-clip:border-box; background-clip:border-box; }
+  @keyframes sheen {
+    0%   { background-position:210% 0; }   /* fully clear of the first letter */
+    45%  { background-position:-110% 0; }  /* fully past the last one */
+    100% { background-position:-110% 0; }
+  }
+
+  /* B — a marker sweep that draws itself behind the words */
+  .ttl .mark { position:relative; display:inline-block; }
+  .ttl .mark::before { content:''; position:absolute; left:calc(-4*var(--px)); right:calc(-4*var(--px));
+    bottom:calc(2*var(--px)); height:calc(13*var(--px)); border-radius:calc(4*var(--px));
+    background:linear-gradient(90deg, rgba(47,107,255,.22), rgba(47,107,255,.30));
+    transform:scaleX(0); transform-origin:0 50%; z-index:-1;
+    animation:sweep .7s .5s cubic-bezier(.3,.9,.3,1) forwards; }
+  @keyframes sweep { to { transform:scaleX(1); } }
+
+  /* C — the number carries the line */
+  .ttl .num { display:block; font-size:calc(46*var(--px)); line-height:1; letter-spacing:calc(-2*var(--px));
+    color:#2F6BFF; font-variant-numeric:tabular-nums; margin-bottom:calc(4*var(--px)); }
+
+  .cta { margin-top:calc(22*var(--px)); width:100%; height:calc(54*var(--px)); border-radius:calc(16*var(--px));
+    background:#2F6BFF; color:#fff; display:flex; align-items:center; justify-content:center;
+    gap:calc(8*var(--px)); font-size:calc(16*var(--px)); font-weight:750;
+    box-shadow:0 calc(8*var(--px)) calc(18*var(--px)) rgba(47,107,255,.32); }
+  .cta svg { width:calc(19*var(--px)); height:calc(19*var(--px)); fill:#fff; }
+
+  /* A — the balance line redraws and the pill counts up, on a loop */
+  .anim-chart .chart .ln { animation:draw 3.2s cubic-bezier(.35,.85,.4,1) infinite; }
+  .anim-chart .chart .fl { animation:flLoop 3.2s ease-in-out infinite; }
+  @keyframes flLoop { 0%,20% { opacity:0; } 55%,88% { opacity:1; } 100% { opacity:0; } }
+  .anim-chart .pill { animation:none; opacity:1; }
+
+  /* B — the device turns a full 360° on open, slow enough to actually watch */
+  .anim-flip .dev { transform-style:preserve-3d; animation:spin360 1.6s cubic-bezier(.32,.72,.3,1) both; }
+  @keyframes spin360 {
+    0%   { transform:perspective(1100px) rotateY(0deg) scale(.86); opacity:0; }
+    18%  { opacity:1; }
+    100% { transform:perspective(1100px) rotateY(360deg) scale(1); opacity:1; }
+  }
+
+  /* C — the subscriptions card flips over and back, forever */
+  .anim-card .subs { transform-style:preserve-3d; animation:cardFlip 5s ease-in-out infinite; }
+  @keyframes cardFlip {
+    0%,55%  { transform:perspective(700px) rotateY(0); }
+    72%     { transform:perspective(700px) rotateY(180deg); }
+    88%,100%{ transform:perspective(700px) rotateY(360deg); }
+  }
+
+  /* C — a finger reaches for the eye, taps it, and the amounts hide */
+  .finger { position:absolute; width:calc(30*var(--p)); height:calc(30*var(--p)); border-radius:50%;
+    background:rgba(20,32,58,.22); box-shadow:inset 0 0 0 calc(2*var(--p)) rgba(20,32,58,.32);
+    left:calc(190*var(--p)); top:calc(560*var(--p)); opacity:0; pointer-events:none; z-index:5;
+    transition:left .75s cubic-bezier(.4,.1,.2,1), top .75s cubic-bezier(.4,.1,.2,1),
+               opacity .3s ease, transform .16s ease; }
+  .finger.tap { transform:scale(.72); background:rgba(47,107,255,.34); }
+  .hide-amt { letter-spacing:calc(2*var(--p)); }
+
+  /* ═══ the ground stays white + blue; only the card goes black ═══ */
+
+  /* shared: white title, brand blue accent, all inside a black card */
+  .blk .ttl .w { color:#FFFFFF; }
+  .blk .ttl .a { color:#6FA3FF; }
+  .blk .sub2 { color:rgba(255,255,255,.72); }
+  .blk .cta { background:#FFFFFF; color:#0B0B0D; }
+  .blk .cta svg { fill:#0B0B0D; }
+  .blk .frame { position:relative; overflow:hidden; width:100%;
+    margin-top:calc(16*var(--px)); border-radius:calc(22*var(--px));
+    padding:calc(17*var(--px)) calc(16*var(--px));
+    display:flex; flex-direction:column; align-items:center; }
+
+  /* 1 — polished black: a highlight along the top edge, like black glass */
+  .m1 .frame { background:linear-gradient(168deg,#232327 0%,#0E0E11 42%,#050506 100%);
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 calc(12*var(--px)) calc(30*var(--px)) rgba(4,10,30,.42); }
+  .m1 .frame::before { content:''; position:absolute; left:0; right:0; top:0; height:40%;
+    background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0)); }
+
+  /* 2 — smoked glass: black but the blue still shows through */
+  .m2 .frame { background:rgba(8,8,10,.62); backdrop-filter:blur(calc(16*var(--px)));
+    border:1px solid rgba(255,255,255,.18);
+    box-shadow:0 calc(12*var(--px)) calc(30*var(--px)) rgba(4,10,30,.36); }
+
+  /* 3 — a sheen crosses the card on the diagonal, the way light hits a screen */
+  .m3 .frame { background:linear-gradient(160deg,#1A1A1E 0%,#0B0B0D 55%,#040405 100%);
+    border:1px solid rgba(255,255,255,.13);
+    box-shadow:0 calc(12*var(--px)) calc(30*var(--px)) rgba(4,10,30,.42); }
+  .m3 .frame::before { content:''; position:absolute; inset:0;
+    background:linear-gradient(108deg, transparent 34%, rgba(255,255,255,.13) 47%, transparent 58%); }
+
+  /* 4 — flat black, no gloss at all */
+  .m4 .frame { background:#0B0B0D; border:1px solid rgba(255,255,255,.10);
+    box-shadow:0 calc(12*var(--px)) calc(30*var(--px)) rgba(4,10,30,.42); }
+
+  /* ═══ four grounds, judged on contrast ═══ */
+
+  /* 1 — navy: dark enough for white to carry, still blue */
+  .g-navy .edge .blue { background:linear-gradient(165deg,#16224A 0%,#0E1834 46%,#080F22 100%); }
+  .g-navy .edge svg path { fill:#16224A !important; }
+  .g-navy .ttl .a { color:#5B94FF; }
+  .g-navy .frame { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.16); }
+  .g-navy .cta { background:#2F6BFF; color:#FFFFFF; }
+  .g-navy .cta svg { fill:#FFFFFF; }
+
+  /* 2 — near black: maximum contrast, brand blue as the only colour */
+  .g-black .edge .blue { background:linear-gradient(165deg,#141416 0%,#0B0B0D 52%,#060607 100%); }
+  .g-black .edge svg path { fill:#141416 !important; }
+  .g-black .ttl .a { color:#5B94FF; }
+  .g-black .frame { background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.14); }
+  .g-black .cta { background:#2F6BFF; color:#FFFFFF; }
+  .g-black .cta svg { fill:#FFFFFF; }
+
+  /* 3 — the blue stays, the headline goes dark */
+  .g-darktext .ttl .w { color:#08132E; }
+  .g-darktext .ttl .a { color:#0B2E8F; }
+  .g-darktext .sub2 { color:rgba(8,19,46,.72); }
+  .g-darktext .frame { background:rgba(255,255,255,.30); border-color:rgba(255,255,255,.5); }
+  .g-darktext .cta { background:#08132E; color:#FFFFFF; }
+  .g-darktext .cta svg { fill:#FFFFFF; }
+
+  /* 4 — blue ground, dark card: the card carries the contrast, not the screen */
+  .g-darkcard .frame { background:rgba(8,19,46,.72); border-color:rgba(255,255,255,.12);
+    backdrop-filter:blur(calc(14*var(--px))); }
+  .g-darkcard .ttl .a { color:#7FB0FF; }
+  .g-darkcard .cta { background:#08132E; color:#FFFFFF; }
+  .g-darkcard .cta svg { fill:#FFFFFF; }
+
+  /* ═══ five ways to frame the copy ═══ */
+  /* Every one of these is a plain box around plain text — nothing that depends
+     on a widget measuring itself, so the Flutter build can match it exactly. */
+
+  .foot .frame { width:100%; margin-top:calc(16*var(--px)); display:flex; flex-direction:column; align-items:center; }
+
+  /* A — frosted card holding title and subtitle */
+  .f-glass .frame { background:rgba(255,255,255,.14); backdrop-filter:blur(calc(14*var(--px)));
+    border:1px solid rgba(255,255,255,.26); border-radius:calc(22*var(--px));
+    padding:calc(17*var(--px)) calc(16*var(--px)); }
+
+  /* B — hairline outline, nothing filled */
+  .f-outline .frame { border:calc(1.6*var(--px)) solid rgba(255,255,255,.42);
+    border-radius:calc(20*var(--px)); padding:calc(18*var(--px)) calc(16*var(--px)); }
+
+  /* C — solid white card, dark text: maximum contrast on the blue */
+  .f-white .frame { background:#FFFFFF; border-radius:calc(22*var(--px));
+    padding:calc(20*var(--px)) calc(18*var(--px));
+    box-shadow:0 calc(10*var(--px)) calc(26*var(--px)) rgba(6,24,80,.24); }
+  .f-white .ttl .w { color:#0B1220; }
+  .f-white .ttl .a { color:#2F6BFF; }
+  .f-white .sub2 { color:#5C6A85; }
+
+  /* D — a bar down the left, text ranged beside it */
+  .f-bar .frame { flex-direction:row; align-items:stretch; gap:calc(14*var(--px)); text-align:left; }
+  .f-bar .frame > i { width:calc(4*var(--px)); border-radius:999px; background:#8FE9D0; flex:none; }
+  .f-bar .ttl, .f-bar .sub2 { text-align:left; }
+
+  /* E — the accent line gets its own pill */
+  .f-pill .ttl .a { display:inline-block; background:rgba(255,255,255,.16);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);
+    border-radius:calc(12*var(--px)); padding:calc(2*var(--px)) calc(14*var(--px)); margin-top:calc(6*var(--px)); }
+
+  /* ═══ five ways to set the new copy on the blue ═══ */
+
+  .ttl .w { color:#FFFFFF; }
+  .ttl .a { color:#BFD6FF; }
+
+  /* B — the words arrive one at a time, then hold */
+  .t-stagger .ttl span { display:inline-block; opacity:0;
+    animation:wordIn .5s cubic-bezier(.2,.85,.25,1) forwards; }
+  @keyframes wordIn { from { opacity:0; transform:translateY(calc(9*var(--px))); } to { opacity:1; transform:none; } }
+
+  /* C — a sheen crosses the headline and rests */
+  .t-sheen .ttl { background:linear-gradient(100deg,
+      rgba(255,255,255,0) 40%, rgba(255,255,255,.95) 50%, rgba(255,255,255,0) 60%);
+    background-size:300% 100%; background-repeat:no-repeat;
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    animation:sheen2 3.6s cubic-bezier(.4,0,.3,1) infinite; }
+  .t-sheen .ttl .w, .t-sheen .ttl .a { color:transparent; }
+  @keyframes sheen2 { 0% { background-position:200% 0; } 46%,100% { background-position:-100% 0; } }
+
+  /* D — a line draws itself under the word that matters */
+  .t-underline .ttl .u { position:relative; }
+  .t-underline .ttl .u::after { content:''; position:absolute; left:0; right:0;
+    bottom:calc(-3*var(--px)); height:calc(3*var(--px)); border-radius:999px; background:#8FE9D0;
+    transform:scaleX(0); transform-origin:0 50%;
+    animation:ul .6s .7s cubic-bezier(.3,.9,.3,1) forwards; }
+  @keyframes ul { to { transform:scaleX(1); } }
+
+  /* E — a soft glow sits behind the accent line */
+  .t-glow .ttl .a { position:relative; }
+  .t-glow .ttl .a::before { content:''; position:absolute; left:calc(-10*var(--px)); right:calc(-10*var(--px));
+    top:calc(-2*var(--px)); bottom:calc(-2*var(--px)); border-radius:calc(14*var(--px)); z-index:-1;
+    background:radial-gradient(closest-side, rgba(255,255,255,.22), rgba(255,255,255,0));
+    animation:pulseGlow 3.4s ease-in-out infinite; }
+  @keyframes pulseGlow { 0%,100% { opacity:.45; } 50% { opacity:1; } }
+
+  /* ═══ eight ways to end the white and begin the blue ═══ */
+  .edge { position:absolute; inset:0; background:#FBFDFF; pointer-events:none; }
+  .edge .blue { position:absolute; left:0; right:0; bottom:0; top:52%;
+    background:linear-gradient(160deg,#5B94FF 0%,#2F6BFF 44%,#1440B4 100%); }
+  .edge svg { position:absolute; left:0; right:0; width:100%; display:block; }
+
+  .e1 .blue { top:58%; }                                   /* hard line, for reference */
+
+  .e2 .blue { top:44%;                                     /* long fade */
+    -webkit-mask-image:linear-gradient(180deg, transparent 0%, #000 34%);
+            mask-image:linear-gradient(180deg, transparent 0%, #000 34%); }
+
+  .e3 .blue { top:52%; }                                   /* single arc */
+  .e3 svg { top:calc(52% - 8.5%); height:9%; }
+
+  .e4 .blue { top:56%; }                                   /* soft wave */
+  .e4 svg { top:calc(56% - 7%); height:8%; }
+
+  .e5 .blue { top:56%; filter:blur(calc(9*var(--px)));     /* blurred seam */
+    left:calc(-14*var(--px)); right:calc(-14*var(--px)); }
+
+  .e6 .blue { top:38%;                                     /* diagonal, faded */
+    -webkit-mask-image:linear-gradient(168deg, transparent 6%, #000 40%);
+            mask-image:linear-gradient(168deg, transparent 6%, #000 40%); }
+
+  .e7 .blue { top:52%; }                                   /* torn paper */
+  .e7 svg { top:calc(52% - 6%); height:7%; }
+
+  .e8 .blue { top:34%;                                     /* radial bloom */
+    -webkit-mask-image:radial-gradient(120% 78% at 50% 108%, #000 42%, transparent 76%);
+            mask-image:radial-gradient(120% 78% at 50% 108%, #000 42%, transparent 76%); }
+
+  /* one set of colours for all eight */
+  .edge ~ .pad .ttl .l1 { color:#FFFFFF; }
+  .edge ~ .pad .ttl .l2 { color:#BFD6FF; }
+  .edge ~ .pad .sub2 { color:rgba(255,255,255,.80); }
+  .edge ~ .pad .cta { background:#FFFFFF; color:#1440B4; }
+  .edge ~ .pad .cta svg { fill:#1440B4; }
+  .edge ~ .pad .dots i { background:rgba(255,255,255,.38); }
+  .edge ~ .pad .dots i.on { background:#FFFFFF; }
+
+  /* ═══ three layouts that keep text on one ground ═══ */
+
+  /* A — horizontal band: the blue starts above the copy, so all of it is white */
+  .lay-band .bg-h { position:absolute; left:0; right:0; top:58%; bottom:0;
+    background:linear-gradient(160deg,#5B94FF 0%,#2F6BFF 44%,#1440B4 100%); }
+  .lay-band .bg-h::before { content:''; position:absolute; left:0; right:0; top:0; height:calc(6*var(--px));
+    background:linear-gradient(180deg, rgba(11,42,122,.16), rgba(11,42,122,0)); }
+  .lay-band .ttl .l1 { color:#FFFFFF; }
+  .lay-band .ttl .l2 { color:#BFD6FF; }
+  .lay-band .sub2 { color:rgba(255,255,255,.80); }
+  .lay-band .cta { background:#FFFFFF; color:#1440B4; }
+  .lay-band .cta svg { fill:#1440B4; }
+  .lay-band .dots i { background:rgba(255,255,255,.38); }
+  .lay-band .dots i.on { background:#FFFFFF; }
+
+  /* B — diagonal: the blue sweeps in from the right and passes under the copy */
+  .lay-diag .bg-d { position:absolute; inset:0; background:#FBFDFF; }
+  .lay-diag .bg-d i { position:absolute; inset:0;
+    background:linear-gradient(150deg,#5B94FF 0%,#2F6BFF 44%,#1440B4 100%);
+    clip-path:polygon(100% 0, 100% 100%, 0 100%, 0 66%); }
+  .lay-diag .ttl .l1 { color:#FFFFFF; }
+  .lay-diag .ttl .l2 { color:#BFD6FF; }
+  .lay-diag .sub2 { color:rgba(255,255,255,.80); }
+  .lay-diag .cta { background:#FFFFFF; color:#1440B4; }
+  .lay-diag .cta svg { fill:#1440B4; }
+  .lay-diag .dots i { background:rgba(255,255,255,.38); }
+  .lay-diag .dots i.on { background:#FFFFFF; }
+
+  /* C — the vertical split stays, and the copy sits on its own white panel */
+  .lay-card .bg-v { position:absolute; inset:0; background:#FBFDFF; }
+  .lay-card .bg-v i { position:absolute; left:50%; top:0; right:0; bottom:0;
+    background:linear-gradient(135deg,#5B94FF 0%,#2F6BFF 42%,#1440B4 100%); }
+  .lay-card .foot { margin:0 calc(14*var(--px)) calc(4*var(--px)); width:auto;
+    background:rgba(255,255,255,.94); backdrop-filter:blur(calc(10*var(--px)));
+    border-radius:calc(24*var(--px)); padding:calc(18*var(--px)) calc(20*var(--px)) calc(18*var(--px));
+    box-shadow:0 calc(10*var(--px)) calc(28*var(--px)) rgba(11,31,77,.18); }
+  .lay-card .ttl .l1 { color:#0B1220; }
+  .lay-card .ttl .l2 { color:#2F6BFF; }
+  .lay-card .sub2 { color:#5C6A85; }
+
+  /* ═══ five grounds ═══ */
+  .bg { position:absolute; inset:0; pointer-events:none; }
+  .bg svg { position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  /* Half white, half blue. The split lives in one place — --split — and the
+     headline gradients below use the same number, so the letters change colour
+     exactly where the ground does. */
+  .p { --split:50%; }
+  .bg-split { background:#FBFDFF; }
+  .bg-split .blue { position:absolute; left:var(--split); top:0; right:0; bottom:0;
+    background:linear-gradient(135deg,#5B94FF 0%,#2F6BFF 42%,#1440B4 100%); }
+  .bg-split .seam { position:absolute; left:var(--split); top:0; bottom:0; width:calc(6*var(--px));
+    background:linear-gradient(90deg, rgba(11,42,122,.16), rgba(11,42,122,0)); }
+
+  /* 2 — mesh: soft colour blooms, no hard edges anywhere */
+  .bg-mesh { background:#EAF1FE; }
+  .bg-mesh i { position:absolute; border-radius:50%; filter:blur(calc(46*var(--px))); }
+
+  /* 3 — waves: layered curves rising from the bottom */
+  .bg-waves { background:linear-gradient(180deg,#F6FAFF 0%,#E3EDFE 100%); }
+
+  /* 4 — diagonal band with fine grain */
+  .bg-band { background:linear-gradient(118deg,#FFFFFF 0%,#F0F5FF 34%,#C9DCFB 62%,#8FB6F4 100%); }
+  .bg-band::after { content:''; position:absolute; inset:0; opacity:.5;
+    background-image:radial-gradient(rgba(20,40,90,.10) .5px, transparent .5px);
+    background-size:calc(3*var(--px)) calc(3*var(--px)); }
+
+  /* 5 — grid with a brand glow behind the device */
+  .bg-grid { background:#F3F7FE; }
+  .bg-grid::before { content:''; position:absolute; inset:0; opacity:.75;
+    background-image:linear-gradient(#D7E3F8 1px, transparent 1px),
+                     linear-gradient(90deg,#D7E3F8 1px, transparent 1px);
+    background-size:calc(26*var(--px)) calc(26*var(--px));
+    mask-image:radial-gradient(120% 80% at 50% 34%, #000 30%, transparent 78%); }
+  .bg-grid::after { content:''; position:absolute; left:50%; top:34%; transform:translate(-50%,-50%);
+    width:calc(420*var(--px)); height:calc(420*var(--px)); border-radius:50%;
+    background:radial-gradient(closest-side, rgba(47,107,255,.22), rgba(47,107,255,0)); }
+
+  /* the device drifts side to side, so the empty margins read as air, not gap */
+  /* the first screen holds still; the chart and the finger carry the motion */
+  @keyframes drift {
+    from { transform:translateX(calc(-13*var(--px))); }
+    to   { transform:translateX(calc(13*var(--px))); }
+  }
+
+  /* ── device ── */
+  .dev { position:relative; height:100%; aspect-ratio:390/844; container-type:inline-size;
+    padding:2.4cqw; border-radius:13.5cqw;
+    background:linear-gradient(135deg,#161619 0%,#0B0B0D 30%,#000 55%,#0E0E11 85%,#1A1A1E 100%);
+    box-shadow:0 6cqw 16cqw rgba(6,12,30,.4); }
+  .scr { position:relative; width:100%; height:100%; border-radius:11.6cqw; overflow:hidden;
+    --p:0.2564cqw;  /* one logical pt of a 390pt screen */
+    background:linear-gradient(168deg,#E9EFF7 0%,#EEF0F7 46%,#F4EFF3 78%,#F6EEF0 100%);
+    display:flex; flex-direction:column; }
+
+  .body { flex:1; overflow:hidden; padding:calc(26*var(--p)) calc(18*var(--p)) 0; }
+
+  /* header row */
+  .hd { display:flex; align-items:center; margin-top:calc(16*var(--p)); }
+  .hd .t { font-size:calc(30*var(--p)); font-weight:800; color:#14203A; letter-spacing:calc(-.7*var(--p)); }
+  .hd .ic { margin-left:calc(15*var(--p)); width:calc(22*var(--p)); height:calc(22*var(--p)); fill:#14203A; }
+  .hd .add { margin-left:calc(15*var(--p)); width:calc(32*var(--p)); height:calc(32*var(--p)); border-radius:50%;
+    background:#2F6BFF; display:grid; place-items:center; }
+  .hd .add svg { width:calc(19*var(--p)); height:calc(19*var(--p)); fill:#fff; }
+
+  /* balance */
+  .balrow { display:flex; align-items:center; margin-top:calc(14*var(--p)); }
+  .balrow .k { font-size:calc(12.5*var(--p)); color:#5C6A85; font-weight:600; }
+  .sync { margin-left:auto; display:flex; align-items:center; gap:calc(5*var(--p));
+    font-size:calc(11.5*var(--p)); color:#2F6BFF; font-weight:600; }
+  .sync i { width:calc(6*var(--p)); height:calc(6*var(--p)); border-radius:50%; background:#2F6BFF; display:block; }
+  .bal { font-size:calc(40*var(--p)); font-weight:800; color:#14203A; letter-spacing:calc(-1.2*var(--p));
+    font-variant-numeric:tabular-nums; line-height:1.1; margin-top:calc(2*var(--p)); }
+  .delta { display:flex; align-items:center; gap:calc(7*var(--p)); margin-top:calc(6*var(--p));
+    font-size:calc(13*var(--p)); font-weight:700; color:#0C8F49; }
+  .delta .bar { color:#C9D2E0; font-weight:400; }
+  .delta .since { color:#14203A; font-weight:700; }
+
+  /* chart */
+  .chart { position:relative; margin-top:calc(12*var(--p)); }
+  .chart svg.line { width:100%; height:calc(92*var(--p)); display:block; }
+  .chart .ln { stroke-dasharray:520; stroke-dashoffset:520; animation:draw 1.7s .3s cubic-bezier(.3,.9,.3,1) forwards; }
+  .chart .fl { opacity:0; animation:fade .6s 1.4s forwards; }
+  @keyframes draw { to { stroke-dashoffset:0; } } @keyframes fade { to { opacity:1; } }
+  .yhi, .ylo { position:absolute; right:0; font-size:calc(11*var(--p)); color:#8794AC; font-weight:600; font-variant-numeric:tabular-nums; }
+  .yhi { top:calc(-4*var(--p)); } .ylo { bottom:calc(16*var(--p)); }
+  .pill { position:absolute; background:#2F6BFF; color:#fff; font-size:calc(12*var(--p)); font-weight:800;
+    padding:calc(4*var(--p)) calc(9*var(--p)); border-radius:calc(9*var(--p)); font-variant-numeric:tabular-nums;
+    opacity:0; animation:fade .4s 1.8s forwards; }
+  .xax { display:flex; justify-content:space-between; font-size:calc(11*var(--p)); color:#8794AC;
+    font-weight:600; margin-top:calc(4*var(--p)); }
+
+  /* bank chips */
+  .banks { display:flex; gap:calc(10*var(--p)); margin-top:calc(12*var(--p)); }
+  .bchip { flex:1; min-width:0; display:flex; align-items:center; gap:calc(7*var(--p)); background:#fff;
+    border-radius:calc(15*var(--p)); padding:calc(11*var(--p)) calc(11*var(--p));
+    box-shadow:0 calc(2*var(--p)) calc(9*var(--p)) rgba(20,32,58,.07); white-space:nowrap; }
+  .bchip .lg { width:calc(22*var(--p)); height:calc(22*var(--p)); border-radius:50%; background:#fff;
+    box-shadow:0 0 0 1px #E7ECF5; display:grid; place-items:center;
+    font-size:calc(9*var(--p)); font-weight:800; color:#14203A; flex:none; }
+  .bchip .nm { font-size:calc(12.5*var(--p)); font-weight:700; color:#14203A; }
+  .bchip .am { margin-left:auto; font-size:calc(13*var(--p)); font-weight:800; color:#2F6BFF; font-variant-numeric:tabular-nums; }
+  .bchip .pc { font-size:calc(11*var(--p)); font-weight:650; color:#8794AC; }
+  .note { font-size:calc(11*var(--p)); color:#14203A; font-weight:650; margin-top:calc(7*var(--p)); }
+
+  .filter { display:inline-flex; align-items:center; gap:calc(8*var(--p)); background:#fff;
+    border-radius:calc(20*var(--p)); padding:calc(8*var(--p)) calc(14*var(--p)); margin-top:calc(11*var(--p));
+    font-size:calc(14*var(--p)); font-weight:700; color:#14203A;
+    box-shadow:0 calc(2*var(--p)) calc(8*var(--p)) rgba(20,32,58,.06); }
+  .filter svg { width:calc(16*var(--p)); height:calc(16*var(--p)); fill:#2F6BFF; }
+
+  /* subscriptions card */
+  .subs { position:relative; margin-top:calc(12*var(--p)); border-radius:calc(20*var(--p));
+    padding:calc(15*var(--p)); color:#fff; overflow:hidden;
+    background:linear-gradient(140deg,#4B7BFF 0%,#2F6BFF 46%,#2453D8 100%);
+    box-shadow:0 calc(10*var(--p)) calc(24*var(--p)) rgba(47,107,255,.3); }
+  .subs .r1 { display:flex; align-items:center; }
+  .subs .chip { font-size:calc(10.5*var(--p)); font-weight:800; letter-spacing:calc(.7*var(--p));
+    background:rgba(255,255,255,.16); border-radius:calc(9*var(--p)); padding:calc(5*var(--p)) calc(9*var(--p)); }
+  .subs .mng { margin-left:auto; display:flex; align-items:center; gap:calc(2*var(--p));
+    background:rgba(255,255,255,.16); border-radius:calc(20*var(--p));
+    padding:calc(5*var(--p)) calc(6*var(--p)) calc(5*var(--p)) calc(11*var(--p));
+    font-size:calc(12*var(--p)); font-weight:700; }
+  .subs .mng svg { width:calc(15*var(--p)); height:calc(15*var(--p)); fill:#fff; }
+  .subs .big { font-size:calc(26*var(--p)); font-weight:800; letter-spacing:calc(-.6*var(--p));
+    font-variant-numeric:tabular-nums; margin-top:calc(12*var(--p)); }
+  .subs .yr { font-size:calc(14*var(--p)); font-weight:650; opacity:.95; margin-top:calc(3*var(--p)); font-variant-numeric:tabular-nums; }
+  .subs .cnt { font-size:calc(12*var(--p)); opacity:.78; font-weight:500; margin-top:calc(3*var(--p)); }
+  .subs .tags { display:flex; flex-wrap:wrap; gap:calc(7*var(--p)); margin-top:calc(11*var(--p)); }
+  .subs .tag { display:flex; align-items:center; gap:calc(6*var(--p)); background:rgba(255,255,255,.16);
+    border-radius:calc(10*var(--p)); padding:calc(6*var(--p)) calc(10*var(--p));
+    font-size:calc(11.5*var(--p)); font-weight:650; }
+  .subs .tag i { width:calc(6*var(--p)); height:calc(6*var(--p)); border-radius:50%; background:#8FE9D0; }
+  .subs .ring { position:absolute; right:calc(16*var(--p)); top:calc(52*var(--p));
+    width:calc(58*var(--p)); height:calc(58*var(--p)); }
+
+  /* week section */
+  .week { display:flex; align-items:flex-start; margin-top:calc(12*var(--p)); }
+  .week .t { font-size:calc(16*var(--p)); font-weight:750; color:#14203A; }
+  .week .s { font-size:calc(12.5*var(--p)); color:#8794AC; font-weight:500; margin-top:calc(2*var(--p)); }
+  .week .v { margin-left:auto; font-size:calc(17*var(--p)); font-weight:800; color:#14203A; font-variant-numeric:tabular-nums; }
+
+  /* week chart — capsule bars, gridlines, dashed average */
+  .wk { margin-top:calc(10*var(--p)); background:rgba(255,255,255,.55); border-radius:calc(16*var(--p));
+    padding:calc(14*var(--p)) calc(12*var(--p)) calc(8*var(--p)); }
+  .wk .plot { position:relative; height:calc(112*var(--p)); }
+  .wk .grid { position:absolute; left:0; right:calc(34*var(--p)); border-top:1px solid #DFE5EF; }
+  .wk .grid span { position:absolute; right:calc(-32*var(--p)); top:calc(-7*var(--p));
+    font-size:calc(9.5*var(--p)); color:#98A2B7; font-weight:600; }
+  .wk .avg { position:absolute; left:0; right:calc(34*var(--p)); border-top:calc(1.4*var(--p)) dashed #2F6BFF; opacity:.75; }
+  .wk .bars { position:absolute; inset:0 calc(34*var(--p)) 0 0; display:flex; align-items:flex-end; }
+  .wk .col { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+  .wk .val { font-size:calc(10.5*var(--p)); font-weight:700; color:#42506B; margin-bottom:calc(3*var(--p)); }
+  .wk .bar { width:calc(13*var(--p)); border-radius:calc(7*var(--p)); transform-origin:50% 100%;
+    transform:scaleY(0); animation:grow .6s cubic-bezier(.2,.85,.25,1) forwards; }
+  @keyframes grow { to { transform:scaleY(1); } }
+  .wk .days { display:flex; margin-top:calc(6*var(--p)); padding-right:calc(34*var(--p)); }
+  .wk .days span { flex:1; text-align:center; font-size:calc(10.5*var(--p)); color:#8794AC; font-weight:600; }
+
+  /* bottom nav */
+  .nav { flex:none; display:flex; background:rgba(255,255,255,.9); backdrop-filter:blur(calc(8*var(--p)));
+    padding:calc(9*var(--p)) 0 calc(20*var(--p)); border-top:1px solid rgba(20,32,58,.06); }
+  .nav div { flex:1; display:flex; flex-direction:column; align-items:center; gap:calc(4*var(--p));
+    font-size:calc(10*var(--p)); font-weight:650; color:#98A2B7; }
+  .nav div.on { color:#2F6BFF; }
+  .nav svg { width:calc(21*var(--p)); height:calc(21*var(--p)); fill:currentColor; }
+
+  footer { margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:12.5px;
+    line-height:1.6; color:var(--muted); max-width:80ch; }
+  footer strong { color:var(--ink); font-weight:650; }
+  footer p + p { margin-top:9px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chart .ln { animation:none; stroke-dashoffset:0; }
+    .chart .fl, .pill { animation:none; opacity:1; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Juoda kortelė ant balto ir mėlyno</h1>
+    <p class="lede">Fonas nepakitęs — baltas viršus, mėlyna apačia. Juoda tik kortelė, kurioje guli žodžiai. Skiriasi tik tai, kaip ta juoda atrodo.</p>
+  </header>
+
+  <div class="set" id="set"></div>
+
+  <footer>
+    <p><strong>Everything adds up.</strong> Revolut 3&nbsp;726&nbsp;&euro; + SEB 403&nbsp;&euro; = the
+    4&nbsp;129&nbsp;&euro; balance, and their shares are computed from those numbers rather than typed, so 90% / 10%
+    can never drift. The subscription total &times;&nbsp;12 gives the yearly figure the same way.</p>
+    <p><strong>One deliberate change.</strong> Your screenshot shows the month-on-month delta in red
+    (&minus;4,4&nbsp;%). On a welcome screen that is the first thing a new user reads, so this shows a rise in
+    green instead. If the app has no green state for that row yet, say so and I will put it back to red.</p>
+  </footer>
+</div>
+
+<script>
+const eur = (v, dec = 2) => {
+  const s = v.toFixed(dec), [w, d] = s.split('.');
+  return w.replace(/\B(?=(\d{3})+(?!\d))/g,' ') + (dec ? ',' + d : '') + ' €';
+};
+const eur0 = v => Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ') + ' €';
+
+/* invented figures — shares and yearly totals are derived, never typed */
+const BANKS = [['R','Revolut', 3726], ['SEB','SEB', 403]];
+const BAL   = BANKS.reduce((s,b)=>s+b[2], 0);            // 4 129
+const SUBS  = 84.26;
+const HI = 6180, LO = 740;
+
+/* week — my own amounts. The total and the average are derived from the days,
+   so the header line can never disagree with the bars underneath it. */
+/* colour is set per day rather than derived, so the mix stays under control:
+   one green, one red for the spike, the rest blue, weekend grey. */
+const GREEN='#3FA96A', RED='#E05C4E', BLUE='#5B8DEF', GREY='#D6DCE6';
+const WEEK = [['Pr',38,GREEN],['An',121,RED],['Tr',62,BLUE],['Kt',47,BLUE],['Pn',61,BLUE],['Št',0,GREY],['Sk',0,GREY]];
+const WEEK_TOTAL = WEEK.reduce((s,d)=>s+d[1], 0);              // 329
+const SPENT_DAYS = WEEK.filter(d=>d[1]>0).length;              // 5
+const AVG = Math.round(WEEK_TOTAL / SPENT_DAYS);               // 66
+const WMAX = Math.max(...WEEK.map(d=>d[1]));                   // 121
+
+function weekChart() {
+  const top = Math.ceil(WMAX / 50) * 50 + 20;                  // headroom above the tallest
+  const y = v => (v / top) * 100;
+  const grids = [];
+  for (let g = 50; g <= top - 20; g += 50) grids.push(g);
+  return `<div class="wk">
+    <div class="plot">
+      ${grids.map(g=>`<div class="grid" style="bottom:${y(g)}%"><span>${g}€</span></div>`).join('')}
+      <div class="avg" style="bottom:${y(AVG)}%"></div>
+      <div class="bars">
+        ${WEEK.map(([d,v,c],i)=>`<div class="col">
+          ${v ? `<span class="val">${v}€</span>` : ''}
+          <div class="bar" style="height:${v ? Math.max(y(v),3) : 2}%;background:${c};animation-delay:${(i*.06).toFixed(2)}s"></div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="days">${WEEK.map(([d])=>`<span>${d}</span>`).join('')}</div>
+  </div>`;
+}
+
+const IC = {
+  eye:'<svg viewBox="0 0 24 24"><path d="M12 6.5c-3.9 0-7.2 2.4-8.5 5.5 1.3 3.1 4.6 5.5 8.5 5.5s7.2-2.4 8.5-5.5c-1.3-3.1-4.6-5.5-8.5-5.5Zm0 9.2a3.7 3.7 0 1 1 0-7.4 3.7 3.7 0 0 1 0 7.4Zm0-5.9a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Z"/></svg>',
+  search:'<svg viewBox="0 0 24 24"><path d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5-5-5Zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14Z"/></svg>',
+  plus:'<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2Z"/></svg>',
+  chev:'<svg viewBox="0 0 24 24"><path d="M9.3 6.7 14.6 12l-5.3 5.3 1.4 1.4L17.4 12l-6.7-6.7-1.4 1.4Z"/></svg>',
+  filter:'<svg viewBox="0 0 24 24"><path d="M4 7h10v2H4V7Zm12 0h4v2h-4V7Zm-8 4h12v2H8v-2Zm-4 0h2v2H4v-2Zm4 4h4v2H8v-2Zm6 0h6v2h-6v-2Z"/><circle cx="15" cy="8" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="13" cy="16" r="2.4"/></svg>',
+  home:'<svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3Zm10 0h8v5h-8V3ZM3 13h8v8H3v-8Zm10 3h8v5h-8v-5Z"/></svg>',
+  chart:'<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9h-9V3Z" opacity=".55"/><path d="M13.5 2v8.5H22A8.5 8.5 0 0 0 13.5 2Z"/></svg>',
+  ai:'<svg viewBox="0 0 24 24"><path d="m12 2 1.9 5.6L19.5 9l-5.6 1.9L12 16.5l-1.9-5.6L4.5 9l5.6-1.4L12 2Zm6.5 11 .9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6Z"/></svg>',
+  plan:'<svg viewBox="0 0 24 24"><path d="M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7ZM5 9h14v10H5V9Z"/></svg>',
+  user:'<svg viewBox="0 0 24 24"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4 0-8 2-8 4.5V21h16v-2.5c0-2.5-4-4.5-8-4.5Z"/></svg>',
+  wifi:'<svg viewBox="0 0 20 14"><path d="M10 12.6 12.4 10a3.6 3.6 0 0 0-4.8 0L10 12.6ZM5.2 7.8a7 7 0 0 1 9.6 0l1.7-1.8a9.4 9.4 0 0 0-13 0l1.7 1.8ZM1.6 4.2a12.2 12.2 0 0 1 16.8 0L20 2.5a14.6 14.6 0 0 0-20 0l1.6 1.7Z"/></svg>',
+  cell:'<svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" opacity=".35"/><rect x="10" y="3" width="3" height="9" rx="1" opacity=".35"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".35"/></svg>',
+};
+
+/* balance line — shaped like the real one: a climb, a peak, then a long drift */
+const PTS = [.06,.10,.08,.46,.52,.44,.42,.40,.62,.58,.56,.86,.74,.72,.70,.66,.62,.68,.64,.60,.58,.62,.66,.60,.57];
+const CW = 336, CH = 92;
+function path() {
+  const dx = CW / (PTS.length - 1);
+  const y = v => CH - 14 - v * (CH - 30);
+  let d = `M0 ${y(PTS[0]).toFixed(1)}`;
+  for (let i = 1; i < PTS.length; i++) d += ` L${(i*dx).toFixed(1)} ${y(PTS[i]).toFixed(1)}`;
+  return { d, endX: CW, endY: y(PTS[PTS.length-1]) };
+}
+const P = path();
+
+const screen = `
+  <div class="scr">
+    <div class="body">
+      <div class="hd"><span class="t">Pradžia</span>
+        <span style="margin-left:auto;display:flex;align-items:center">
+          <span class="ic">${IC.eye}</span><span class="ic">${IC.search}</span><span class="add">${IC.plus}</span>
+        </span>
+      </div>
+
+      <div class="balrow"><span class="k">Bendras likutis</span>
+        <span class="sync"><i></i>Sinchronizuota</span></div>
+      <div class="bal" data-bal data-real="${eur0(BAL)}">${eur0(BAL)}</div>
+      <div class="delta">↑ +2,8 % <span class="bar">|</span> +112 € <span class="since">nuo praėjusio mėn.</span></div>
+
+      <div class="chart">
+        <svg class="line" viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="none">
+          <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#2F6BFF" stop-opacity=".26"/><stop offset="1" stop-color="#2F6BFF" stop-opacity="0"/></linearGradient></defs>
+          <line x1="0" y1="8" x2="${CW}" y2="8" stroke="#DDE3EE" stroke-width="1"/>
+          <line x1="0" y1="${CH-14}" x2="${CW}" y2="${CH-14}" stroke="#DDE3EE" stroke-width="1"/>
+          <path class="fl" d="${P.d} L${CW} ${CH-14} L0 ${CH-14} Z" fill="url(#g)"/>
+          <path class="ln" d="${P.d}" fill="none" stroke="#2F6BFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="${P.endX-2}" cy="${P.endY}" r="3.4" fill="#2F6BFF"/>
+        </svg>
+        <span class="yhi">${eur0(HI)}</span><span class="ylo">${eur0(LO)}</span>
+        <span class="pill" data-pill style="right:calc(-2*var(--p));top:calc(${(P.endY/CH*92-11).toFixed(0)}*var(--p))">${eur0(BAL)}</span>
+        <div class="xax"><span>20-01</span><span>30-03</span><span>11-05</span><span>14-06</span><span>17-07</span></div>
+      </div>
+
+      <div class="banks">
+        ${BANKS.map(([l,n,v])=>`<div class="bchip"><span class="lg">${l}</span>
+          <span class="nm">${n}</span><span class="am" data-amt data-real="${eur0(v)}">${eur0(v)}</span>
+          <span class="pc">${Math.round(v/BAL*100)}%</span></div>`).join('')}
+      </div>
+      <div class="note">Likutis iš banko · grafikas = likučio kitimas laike</div>
+
+      <div class="filter">${IC.filter} Filtras</div>
+
+      <div class="subs">
+        <div class="r1"><span class="chip">PRENUMERATOS IR SĄSKAITOS</span>
+          <span class="mng">Tvarkyti ${IC.chev}</span></div>
+        <div class="big">${eur(SUBS)} / mėn</div>
+        <div class="yr">= ${eur(SUBS*12)} per metus</div>
+        <div class="cnt">5 aktyvūs mokėjimai · 2 baigėsi</div>
+        <div class="tags">
+          <span class="tag"><i></i>Telia · 25 €</span>
+          <span class="tag"><i></i>Netflix · 13 €</span>
+          <span class="tag"><i></i>Spotify · 10 €</span>
+        </div>
+        <svg class="ring" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="9"/>
+          <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"
+                  stroke-dasharray="251" stroke-dashoffset="72" transform="rotate(-90 50 50)"/>
+        </svg>
+      </div>
+
+      <div class="week">
+        <div><div class="t">Šios savaitės išlaidos</div><div class="s">vidurkis ${AVG} €/d.</div></div>
+        <div class="v">${eur(WEEK_TOTAL)}</div>
+      </div>
+      ${weekChart()}
+    </div>
+
+    <div class="finger" data-finger></div>
+    <div class="nav">
+      <div class="on">${IC.home}Pradžia</div><div>${IC.chart}Apžvalga</div>
+      <div>${IC.ai}AI pokalbis</div><div>${IC.plan}Planavimas</div><div>${IC.user}Paskyra</div>
+    </div>
+  </div>`;
+
+/* a hand-set tear line: irregular, never a straight diagonal */
+const TEAR = 'M100,0 L86,0 C84,6 79,7 78,13 C77,19 82,21 80,27 C78,33 71,32 70,38 '
+  + 'C69,44 74,47 72,53 C70,59 63,58 62,64 C61,70 66,73 64,79 C62,85 55,84 54,90 '
+  + 'C53,95 56,97 55,100 L0,100 L0,0 Z';
+
+const SUB = `Vaultie automatiškai surenka tavo finansus<br>į vieną vietą ir padeda lengviau<br>juos suprasti.`;
+
+const TITLE = '<span class="w">Sužinok, kur dingsta</span><br><span class="a">tavo pinigai</span>';
+
+const FRAMES = [
+  ['1', 'Poliruota juoda', 'blk m1',
+   'Šviesos atspindys viršutiniame krašte — tarsi juodas stiklas. Ryškiausias ir labiausiai „veidrodinis".'],
+  ['2', 'Dūminis stiklas', 'blk m2',
+   'Juoda 62% permatomumo su blur — mėlyna prasišviečia pro ją. Švelniausias, bet ir silpniausias kontrastas.'],
+  ['3', 'Įstrižas atspindys', 'blk m3',
+   'Šviesos juosta kerta kortelę įstrižai, kaip krintanti šviesa ant ekrano. Kortelė atrodo kaip fizinis daiktas.'],
+  ['4', 'Lygi juoda', 'blk m4',
+   'Jokio blizgesio. Ramiausia ir tvirčiausia — niekas nekonkuruoja su tekstu.'],
+];
+
+document.getElementById('set').innerHTML = FRAMES.map(([k, name, cls, bar, why]) => `
+  <figure>
+    <div class="p anim-chart anim-finger ${cls}">
+      <div class="edge e3"><div class="blue"></div>
+        <svg viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M0,10 C28,0 72,0 100,10 Z" fill="#5B94FF"/></svg>
+      </div>
+      <div class="pad">
+        <div class="devwrap"><div class="dev">${screen}</div></div>
+        <div class="foot">
+          <div class="dots"><i class="on"></i><i></i><i></i></div>
+          <div class="frame">
+            ${bar ? '<i></i>' : ''}
+            <div style="flex:1">
+              <div class="ttl">${TITLE}</div>
+              <div class="sub2">${SUB}</div>
+            </div>
+          </div>
+          <div class="cta">Toliau
+            <svg viewBox="0 0 24 24"><path d="M12 4l-1.4 1.4L16.2 11H4v2h12.2l-5.6 5.6L12 20l8-8-8-8Z"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <cap>${k} · ${name}</cap>
+    <div class="meta" style="max-width:230px">${why}</div>
+  </figure>`).join('');
+
+/* the finger reaches the eye, taps, and the amounts blank out */
+document.querySelectorAll('.anim-finger').forEach(root => {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const finger = root.querySelector('[data-finger]');
+  const bal = root.querySelector('[data-bal]');
+  const amts = [...root.querySelectorAll('[data-amt]')];
+  const EYE_X = 262, EYE_Y = 46;     // the eye icon, in 390pt screen space
+  const REST_X = 190, REST_Y = 560;
+  const px = v => `calc(${v}*var(--p))`;
+  let hidden = false;
+
+  const set = h => {
+    hidden = h;
+    bal.textContent = h ? '••••••' : bal.dataset.real;
+    bal.classList.toggle('hide-amt', h);
+    amts.forEach(a => { a.textContent = h ? '•••' : a.dataset.real; a.classList.toggle('hide-amt', h); });
+  };
+
+  function cycle() {
+    // reach
+    finger.style.opacity = '1';
+    finger.style.left = px(EYE_X); finger.style.top = px(EYE_Y);
+    setTimeout(() => {                      // tap
+      finger.classList.add('tap');
+      setTimeout(() => { finger.classList.remove('tap'); set(!hidden); }, 170);
+    }, 800);
+    setTimeout(() => {                      // withdraw
+      finger.style.opacity = '0';
+      finger.style.left = px(REST_X); finger.style.top = px(REST_Y);
+    }, 1400);
+  }
+  setTimeout(() => { cycle(); setInterval(cycle, 3600); }, 1400);
+});
+
+/* A: the pill climbs to the total in step with the line, then restarts */
+const pill = document.querySelector('.anim-chart [data-pill]');
+if (pill && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const D = 3200, RISE = 0.62;          // the line finishes at 62% of the cycle
+  const t0 = performance.now();
+  (function tick(t) {
+    const p = ((t - t0) % D) / D;
+    const k = Math.min(1, p / RISE);
+    pill.textContent = eur0(BAL * (0.18 + 0.82 * k));
+    requestAnimationFrame(tick);
+  })(t0);
+}
+</script>

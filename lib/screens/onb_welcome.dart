@@ -21,7 +21,6 @@ class OnbWelcome extends StatefulWidget {
 }
 
 class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
-  static const _brand = Color(0xFF2F6BFF);
 
   /// Plays once when the screen opens: the device rises, tilts upright and
   /// settles. The copy follows a beat later so the eye lands on the phone first.
@@ -37,6 +36,7 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
   /// own hide-balances control, demonstrated rather than described.
   late final AnimationController _finger =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 3600))..repeat();
+
 
 
   bool _hidden = false;
@@ -80,7 +80,7 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
     return Scaffold(
       body: Stack(
         children: [
-          const Positioned.fill(child: CustomPaint(painter: _SplitPainter())),
+          const Positioned.fill(child: CustomPaint(painter: _ArcPainter())),
           SafeArea(
           child: Column(
             children: [
@@ -127,20 +127,9 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
     );
   }
 
-  /// Paints a line of text with a horizontal gradient, so its colour can follow
-  /// what is behind it — dark on the paper, white on the blue.
-  static Widget _gradientText(String text, List<Color> colors, List<double> stops, TextStyle style) =>
-      ShaderMask(
-        blendMode: BlendMode.srcIn,
-        shaderCallback: (rect) => LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: colors,
-          stops: stops,
-        ).createShader(rect),
-        child: Text(text,
-            textAlign: TextAlign.center, style: style.copyWith(color: Colors.white)),
-      );
+  static const _titleStyle = TextStyle(
+      fontSize: 30, fontWeight: FontWeight.w800, height: 1.14,
+      letterSpacing: -0.9, color: Colors.white);
 
   Widget _foot(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(24, 18, 24, 26),
@@ -156,33 +145,41 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
                     width: i == 0 ? 20 : 6,
                     height: 6,
                     decoration: BoxDecoration(
-                      color: i == 0 ? _brand : const Color(0xFFC6D2E6),
+                      color: i == 0 ? Colors.white : Colors.white.withValues(alpha: 0.38),
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
               ],
             ),
             const SizedBox(height: 18),
-            // Each line fades from its own colour into white across the tear, so
-            // letters over blue paper read white and those on the sheet stay dark.
-            _gradientText(
-              'Visi tavo pinigai',
-              const [Color(0xFF0B1220), Color(0xFF0B1220), Colors.white, Colors.white],
-              const [0.0, _SplitPainter.split - 0.02, _SplitPainter.split + 0.02, 1.0],
-              const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.14, letterSpacing: -0.9),
-            ),
-            _gradientText(
-              'vienoje vietoje',
-              const [_brand, _brand, Colors.white, Colors.white],
-              const [0.0, _SplitPainter.split - 0.02, _SplitPainter.split + 0.02, 1.0],
-              const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.14, letterSpacing: -0.9),
-            ),
-            const SizedBox(height: 11),
-            _gradientText(
-              'Prijunk banką ir matyk likutį, išlaidas, pajamas\nir prenumeratas — visą finansinį vaizdą.',
-              const [Color(0xFF44526E), Color(0xFF44526E), Color(0xFFEAF2FF), Color(0xFFEAF2FF)],
-              const [0.0, _SplitPainter.split - 0.02, _SplitPainter.split + 0.02, 1.0],
-              const TextStyle(fontSize: 13.5, height: 1.45, fontWeight: FontWeight.w600),
+            // A frosted card gives the copy its own field without hiding the
+            // blue behind it. Everything inside is plain text in a plain box —
+            // nothing that measures itself, so it renders the same everywhere.
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.26)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Sužinok, kur dingsta', textAlign: TextAlign.center, style: _titleStyle),
+                  const Text('tavo pinigai',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.14,
+                          letterSpacing: -0.9, color: Color(0xFFBFD6FF))),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Vaultie automatiškai surenka tavo finansus\nį vieną vietą ir padeda lengviau\njuos suprasti.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13.5, height: 1.5, fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.86)),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 22),
             GestureDetector(
@@ -190,10 +187,11 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
               child: Container(
                 height: 54,
                 decoration: BoxDecoration(
-                  color: _brand,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
-                    BoxShadow(color: _brand.withValues(alpha: 0.32), blurRadius: 18, offset: const Offset(0, 8)),
+                    BoxShadow(color: const Color(0xFF0A2260).withValues(alpha: 0.28),
+                        blurRadius: 18, offset: const Offset(0, 8)),
                   ],
                 ),
                 alignment: Alignment.center,
@@ -201,9 +199,9 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text('Toliau',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1440B4))),
                     SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_rounded, size: 19, color: Colors.white),
+                    Icon(Icons.arrow_forward_rounded, size: 19, color: Color(0xFF1440B4)),
                   ],
                 ),
               ),
@@ -902,47 +900,41 @@ class _RingPainter extends CustomPainter {
 }
 
 
-/// Half the screen white, half blue, split straight down the middle.
+/// White above, blue below, parted by a shallow arc.
 ///
-/// The blue side is a gradient rather than one flat colour, so the half that
-/// carries no content still has some depth to it.
-class _SplitPainter extends CustomPainter {
-  const _SplitPainter();
+/// A straight line read as a cut; the arc gives the two fields a relationship
+/// instead of a border. Its peak sits at [peak] and its ends at [edge], both
+/// fractions of the height — the copy below is laid out well clear of them, so
+/// no word ever straddles the two colours.
+class _ArcPainter extends CustomPainter {
+  const _ArcPainter();
 
-  /// Where the split sits, as a fraction of the width. The headline gradients
-  /// in [_OnbWelcomeState] use the same number, so the letters change colour
-  /// exactly where the ground does.
-  static const split = 0.5;
+  static const peak = 0.435;   // highest point of the arc, mid-screen
+  static const edge = 0.52;    // where it meets the left and right sides
 
   @override
   void paint(Canvas canvas, Size size) {
-    final x = size.width * split;
+    final w = size.width, h = size.height;
 
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, x, size.height),
-      Paint()..color = const Color(0xFFFBFDFF),
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFFBFDFF));
 
-    final blue = Rect.fromLTWH(x, 0, size.width - x, size.height);
-    canvas.drawRect(
+    final blue = Path()
+      ..moveTo(0, h * edge)
+      ..cubicTo(w * 0.28, h * peak, w * 0.72, h * peak, w, h * edge)
+      ..lineTo(w, h)
+      ..lineTo(0, h)
+      ..close();
+
+    final rect = Rect.fromLTWH(0, h * peak, w, h * (1 - peak));
+    canvas.drawPath(
       blue,
       Paint()
         ..shader = const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [Color(0xFF5B94FF), Color(0xFF2F6BFF), Color(0xFF1440B4)],
-          stops: [0.0, 0.42, 1.0],
-        ).createShader(blue),
-    );
-
-    // a hairline of shadow where the white meets the blue, so the seam reads
-    // as two surfaces rather than one flat join
-    canvas.drawRect(
-      Rect.fromLTWH(x, 0, 6, size.height),
-      Paint()
-        ..shader = LinearGradient(
-          colors: [const Color(0xFF0B2A7A).withValues(alpha: 0.16), const Color(0x00000000)],
-        ).createShader(Rect.fromLTWH(x, 0, 6, size.height)),
+          stops: [0.0, 0.44, 1.0],
+        ).createShader(rect),
     );
   }
 
