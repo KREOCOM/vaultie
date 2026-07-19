@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../app_prefs.dart';
 import '../main.dart';
 import '../services/dashboard_store.dart';
-import 'bank_info_screen.dart';
+import 'bank_connect_screen.dart';
+import 'onb_paywall.dart';
 import 'preview/dashboard_preview.dart';
 
 /// Green accent for onboarding CTAs, matching the paywall/splash.
@@ -16,7 +17,15 @@ const Color _gold = Color(0xFFFFD24A);
 Widget landingAfterAuth() {
   if (!AppPrefs.onboardingComplete) return const OnboardingChoiceScreen();
   final saved = DashboardStore.load();
-  return saved != null ? DashboardPreview(data: saved) : const BankInfoScreen();
+  // Straight to the bank list. BankInfoScreen said four things: three are now
+  // on the blue "Prijungti banką" screen, and the remaining two facts moved to
+  // the bank list's own footer. It was also the last screen still wearing the
+  // old green identity. The file stays on disk, just off this path.
+  //
+  // The paywall sits in front of it. It charges nothing yet — see OnbPaywall.
+  return saved != null
+      ? DashboardPreview(data: saved)
+      : const OnbPaywall(next: BankConnectScreen());
 }
 
 /// First-run screen shown right after login: connect a bank (recommended) or
@@ -31,8 +40,13 @@ class OnboardingChoiceScreen extends StatelessWidget {
     if (!context.mounted) return;
     // Both paths land on the bank flow for now — the green DashboardScreen is
     // temporarily hidden (kept in code; `bank` retained for the later decision).
+    // Goes to the bank list directly, same as landingAfterAuth: the explainer
+    // in between was the last green screen and its content now lives on the
+    // "Prijungti banką" screen and in the list's own footer.
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const BankInfoScreen()),
+      MaterialPageRoute(
+        builder: (_) => const OnbPaywall(next: BankConnectScreen()),
+      ),
     );
   }
 

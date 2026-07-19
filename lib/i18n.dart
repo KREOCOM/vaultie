@@ -539,4 +539,60 @@ const Map<String, String> _en = {
   'Pirkimas nepavyko. Bandyk dar kartą.': 'Purchase failed. Please try again.',
   '7 dienos nemokamai. Atšaukus iki bandomojo laikotarpio pabaigos, mokestis nebus nuskaičiuotas. Vėliau taikomas pasirinkto plano mokestis, kol atsisakysi App Store nustatymuose.':
       "7 days free. Cancel before the trial ends and you won't be charged. After that, the selected plan's price applies until you cancel in App Store settings.",
+  // ── onboarding intro ──
+  'Geriau suprask\nsavo pinigus': 'Understand your\nmoney better',
+  'Stebėk išlaidas, analizuok įpročius\nir atrask, kur gali sutaupyti.':
+      'Track spending, spot habits\nand find where you can save.',
+  'Prisijungimai prie': 'Connects to',
+  'bankų': 'banks',
+  'visoje Europoje': 'across Europe',
+  'Populiariausi bankai': 'Most popular banks',
+  'Daugiau': 'More',
+  'Jūsų pasitikėjimas mums svarbiausias': 'Your trust matters most',
+  'Naudojame bankų lygio saugumą, esame licencijuoti ir atitinkame visus ES standartus.':
+      'We use bank-level security, we are licensed and we meet all EU standards.',
+  'Bankų lygio\napsauga': 'Bank-level\nsecurity',
+  'Licencijuoti\nES': 'Licensed\nin the EU',
+  'Atitinka PSD2\nreglamentą': 'PSD2\ncompliant',
+  // ── bank connect CTA ──
+  'Suprask savo\npinigus geriau': 'Understand your\nmoney better',
+  'Prijunk banką ir Vaultie automatiškai\natras tai, ko nepastebi banko programėlė.':
+      'Connect your bank and Vaultie will find\nwhat your banking app does not show.',
+  'Banko lygio saugumas': 'Bank-level security',
+  'Naudojame bankų lygio šifravimą ir laikomės aukščiausių ES saugumo standartų.':
+      'We use bank-level encryption and follow the highest EU security standards.',
+  'Greitas prisijungimas': 'Quick to connect',
+  'Prisijungi savo banko puslapyje — taip pat, kaip įprastai.':
+      'You sign in on your own bank\u2019s page, exactly as you normally would.',
+  'Jūsų duomenys – jūsų kontrolėje': 'Your data stays yours',
+  'Jūsų prisijungimo duomenys niekada nėra saugomi Vaultie.':
+      'Your bank login details are never stored by Vaultie.',
+  'Reguliuojama ir licencijuota': 'Regulated and licensed',
+  'Prisijungimą vykdo licencijuota Enable Banking, veikianti pagal PSD2 direktyvą.':
+      'Handled by Enable Banking, a licensed institution operating under PSD2.',
+  'Saugu. Patikima. Sukurta jums.': 'Secure. Reliable. Built for you.',
+  'Jūsų finansinė informacija yra visiškai apsaugota.':
+      'Your financial information is fully protected.',
+  // ── paywall ──
+  'Visos funkcijos vienoje vietoje.\nDaugiau įžvalgų, kontrolės ir sutaupytų pinigų.':
+      'Everything in one place.\nMore insight, more control, more money saved.',
+  'AI finansų\nanalizė': 'AI money\nanalysis',
+  'Išlaidų\nsekimas': 'Spending\ntracking',
+  'Prenumeratų\nsekimas': 'Subscription\ntracking',
+  'Išmanios\nįžvalgos': 'Smart\ninsights',
+  'Neriboti\nbankai': 'Unlimited\nbanks',
+  'Mėnesinis planas': 'Monthly plan',
+  'Metinis planas': 'Annual plan',
+  'Visos Premium funkcijos.': 'All Premium features.',
+  'POPULIARUS PASIRINKIMAS': 'MOST POPULAR',
+  'Sutaupyk': 'Save',
+  'Sutaupai': 'You save',
+  '/ mėn.': '/ mo.',
+  '/ metus': '/ yr.',
+  'metams': 'per year',
+  'mėnesiui': 'per month',
+  'Pasirinkus metinį planą, lyginant su mėnesiniu.':
+      'Choosing the annual plan instead of monthly.',
+  'Atsinaujina automatiškai, kol neatšauksi App Store nustatymuose likus ne mažiau kaip 24 val. iki laikotarpio pabaigos.':
+      'Renews automatically unless cancelled in App Store settings at least 24 hours before the period ends.',
 };

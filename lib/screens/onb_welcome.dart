@@ -78,110 +78,103 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          const Positioned.fill(child: CustomPaint(painter: _ArcPainter())),
-          SafeArea(
-          child: Column(
+      body: LayoutBuilder(
+        builder: (context, box) {
+          // Authored against an 844pt page and scaled, the same way page 2 is,
+          // so the two screens present the phone at a matching size.
+          final s = box.maxHeight / 844;
+
+          return Stack(
             children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(26, 10, 26, 0),
-                  child: AnimatedBuilder(
-                    animation: Listenable.merge([_enter, _chart, _finger]),
-                    builder: (context, _) {
-                      final t = Curves.easeOutCubic.transform(_enter.value);
-                      return Opacity(
-                        opacity: t,
-                        child: Transform(
-                          alignment: Alignment.bottomCenter,
-                          transform: Matrix4.identity()
-                            ..setEntry(3, 2, 0.0012)            // a little perspective
-                            ..translateByDouble(0.0, (1 - t) * 46, 0.0, 1.0)
-                            ..rotateX((1 - t) * 0.16)
-                            ..scaleByDouble(0.94 + 0.06 * t, 0.94 + 0.06 * t, 1.0, 1.0),
-                          child: _DeviceMock(chart: _chart.value, finger: _finger.value, hidden: _hidden),
+              const Positioned.fill(child: CustomPaint(painter: _ArcPainter())),
+
+              // 550pt of phone: as large as the copy below it allows. The three
+              // body lines here are one line more than page 2 carries, which is
+              // the whole of the 30pt difference between the two devices.
+              Positioned(
+                top: 30 * s,
+                left: 0,
+                right: 0,
+                child: AnimatedBuilder(
+                  animation: Listenable.merge([_enter, _chart, _finger]),
+                  builder: (context, _) {
+                    final t = Curves.easeOutCubic.transform(_enter.value);
+                    return Opacity(
+                      opacity: t,
+                      child: Transform(
+                        alignment: Alignment.bottomCenter,
+                        transform: Matrix4.identity()
+                          ..setEntry(3, 2, 0.0012)            // a little perspective
+                          ..translateByDouble(0.0, (1 - t) * 46, 0.0, 1.0)
+                          ..rotateX((1 - t) * 0.16)
+                          ..scaleByDouble(0.94 + 0.06 * t, 0.94 + 0.06 * t, 1.0, 1.0),
+                        child: Center(
+                          child: SizedBox(
+                            width: 254 * s,
+                            height: 550 * s,
+                            child: _DeviceMock(chart: _chart.value, finger: _finger.value, hidden: _hidden),
+                          ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ),
-              AnimatedBuilder(
-                animation: _enter,
-                builder: (context, child) {
-                  // The copy arrives after the device, on the same curve.
-                  final t = Curves.easeOutCubic.transform(((_enter.value - 0.35) / 0.65).clamp(0.0, 1.0));
-                  return Opacity(
-                    opacity: t,
-                    child: Transform.translate(offset: Offset(0, (1 - t) * 18), child: child),
-                  );
-                },
-                child: _foot(context),
+
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 26 * s,
+                child: AnimatedBuilder(
+                  animation: _enter,
+                  builder: (context, child) {
+                    // The copy arrives after the device, on the same curve.
+                    final t = Curves.easeOutCubic.transform(((_enter.value - 0.35) / 0.65).clamp(0.0, 1.0));
+                    return Opacity(
+                      opacity: t,
+                      child: Transform.translate(offset: Offset(0, (1 - t) * 18), child: child),
+                    );
+                  },
+                  child: _foot(context),
+                ),
               ),
             ],
-          ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  static const _titleStyle = TextStyle(
-      fontSize: 30, fontWeight: FontWeight.w800, height: 1.14,
-      letterSpacing: -0.9, color: Colors.white);
-
+  /// The copy on a black card, in the four treatments drawn in the preview.
+  ///
+  /// Each is a box, a gradient, a border and a shadow — nothing that measures
+  /// itself at layout time, so Flutter and the browser resolve them the same.
+  /// The CSS `::before` overlays become full-height gradients with matching
+  /// stops rather than percentage-height boxes, which is the same paint without
+  /// asking the layout for a height.
   Widget _foot(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 18, 24, 26),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                for (var i = 0; i < 3; i++)
+                for (var i = 0; i < 6; i++)
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: i == 0 ? 20 : 6,
+                    width: i == 1 ? 20 : 6,
                     height: 6,
                     decoration: BoxDecoration(
-                      color: i == 0 ? Colors.white : Colors.white.withValues(alpha: 0.38),
+                      color: i == 1 ? Colors.white : Colors.white.withValues(alpha: 0.38),
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 18),
-            // A frosted card gives the copy its own field without hiding the
-            // blue behind it. Everything inside is plain text in a plain box —
-            // nothing that measures itself, so it renders the same everywhere.
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.26)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Sužinok, kur dingsta', textAlign: TextAlign.center, style: _titleStyle),
-                  const Text('tavo pinigai',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.14,
-                          letterSpacing: -0.9, color: Color(0xFFBFD6FF))),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Vaultie automatiškai surenka tavo finansus\nį vieną vietą ir padeda lengviau\njuos suprasti.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13.5, height: 1.5, fontWeight: FontWeight.w500,
-                        color: Colors.white.withValues(alpha: 0.86)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 14),
+            _copy(),
+            const SizedBox(height: 16),
             GestureDetector(
               onTap: () => _start(context),
               child: Container(
@@ -209,6 +202,37 @@ class _OnbWelcomeState extends State<OnbWelcome> with TickerProviderStateMixin {
           ],
         ),
       );
+
+  /// The copy sits straight on the blue, with no card behind it — the same
+  /// treatment as page 2, so the two screens read as one flow.
+  ///
+  /// The black card that used to be here merged with the black phone above it
+  /// into a single dark shape once the phone grew. The blue is a field already.
+  Widget _copy() {
+    const glow = [Shadow(color: Color(0x730A1E4B), blurRadius: 14, offset: Offset(0, 2))];
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('Sužinok, kur dingsta',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+                letterSpacing: -0.9, color: Colors.white, shadows: glow)),
+        const Text('tavo pinigai',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+                letterSpacing: -0.9, color: Color(0xFFBFD6FF), shadows: glow)),
+        const SizedBox(height: 10),
+        Text(
+          // Balanced by hand at 28/30/30 characters so the centred block stays
+          // a block rather than tapering to a point.
+          'Vaultie automatiškai surenka\ntavo finansus į vieną vietą ir\npadeda lengviau juos suprasti.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13.5, height: 1.5, fontWeight: FontWeight.w500,
+              color: Colors.white.withValues(alpha: 0.92), shadows: glow),
+        ),
+      ],
+    );
+  }
 }
 
 /// Black frame; the screen inside holds [_HomeMock] at its natural size.

@@ -24,7 +24,6 @@ import 'screens/paywall_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onb_top.dart';
-import 'screens/onb_welcome.dart';
 import 'screens/onboarding/onboarding_flow.dart';
 import 'screens/verify_email_screen.dart';
 
@@ -275,10 +274,10 @@ class VaultieApp extends StatelessWidget {
             dialogTheme: DialogThemeData(backgroundColor: cCard),
             bottomSheetTheme: BottomSheetThemeData(backgroundColor: cCard),
           ),
-          // TEMP PREVIEW: launch into the onboarding hero screen so it can be
-          // reviewed on device; "Let's Start" continues into the normal splash
-          // flow. Revert `home` to SplashScreen when done previewing.
-          home: OnbWelcome(next: SplashScreen(hasOnboarded: hasOnboarded)),
+          // TEMP PREVIEW: forced to false so the splash leads into onboarding
+          // even on a device that has already completed it. Change back to
+          // `hasOnboarded` before release.
+          home: const SplashScreen(hasOnboarded: false),
           routes: {
             OnboardingScreen.route: (_) => const OnboardingScreen(),
             AuthScreen.route: (_) => const AuthScreen(),
@@ -325,6 +324,12 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       _wasBackgrounded = true;
     } else if (state == AppLifecycleState.resumed) {
+      // The biometric sheet backgrounds the app while it is up. Re-locking on
+      // that resume would undo the unlock that just happened and prompt again.
+      if (AppLock.biometricInFlight) {
+        _wasBackgrounded = false;
+        return;
+      }
       if (_wasBackgrounded && AppLock.isPinSet && !_locked) {
         setState(() => _locked = true);
       }

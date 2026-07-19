@@ -1,0 +1,261 @@
+<meta charset="utf-8">
+<title>Vaultie — prijungti banką → mokėjimas → bankas</title>
+
+<!--
+  The flow as specified: one button, then the plans with a 7-day trial, then
+  Apple's own sheet, then straight into the bank list with Lithuania already
+  chosen.
+
+  Two things in here do not exist yet and cannot ship without work outside this
+  repo — both are called out in the page itself:
+    · €4.99/mėn and €39.99/metams. PurchaseService.plans has €3.99 monthly and
+      €29.99 lifetime, and no yearly product at all.
+    · the 7-day trial. paywall_screen.dart:20 keeps kShowTrialTimeline = false
+      precisely because the RevenueCat products carry no introductory offer.
+-->
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root { --page:#EFF1F5; --ink:#101828; --muted:#667085; }
+  @media (prefers-color-scheme: dark) { :root { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; } }
+  :root[data-theme="dark"]  { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; }
+  :root[data-theme="light"] { --page:#EFF1F5; --ink:#101828; --muted:#667085; }
+
+  body { background:var(--page); color:var(--ink); padding:30px 20px 70px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1240px; margin:0 auto; }
+  h1 { font-size:24px; font-weight:750; letter-spacing:-.02em; margin:0 0 8px; }
+  h2 { font-size:17px; font-weight:750; margin:38px 0 4px; }
+  .lede { font-size:13.5px; line-height:1.6; color:var(--muted); max-width:88ch; margin:0 0 6px; }
+  .lede b { color:var(--ink); font-weight:650; }
+  .warn { border-left:3px solid #E0574F; padding:10px 0 10px 14px; margin:16px 0 0;
+    font-size:13px; line-height:1.6; color:var(--muted); max-width:88ch; }
+  .warn b { color:#E0574F; }
+  .note { border-left:3px solid #2F6BFF; padding:10px 0 10px 14px; margin:16px 0 0;
+    font-size:13px; line-height:1.6; color:var(--muted); max-width:88ch; }
+  .note b { color:#2F6BFF; }
+  code { font-size:12px; background:rgba(127,127,127,.14); padding:1px 5px; border-radius:4px; }
+
+  .set { display:flex; gap:26px; flex-wrap:wrap; align-items:flex-start; margin-top:18px; }
+  figure { display:flex; flex-direction:column; gap:9px; margin:0; }
+  cap { font-size:12.5px; font-weight:750; }
+  .meta { font-size:11px; color:var(--muted); line-height:1.5; max-width:250px; }
+
+  .p { position:relative; width:250px; aspect-ratio:390/844; border-radius:12.5%/5.8%; overflow:hidden;
+    container-type:inline-size; --p:0.2564cqw; background:#EEF1F7;
+    box-shadow:0 1px 2px rgba(16,24,40,.14), 0 16px 32px -12px rgba(16,24,40,.34);
+    --card:#FFF; --hair:#E3E9F2; --ink:#14203A; --muted:#5C6A85; --faint:#7C879E;
+    --purple:#2F6BFF; --psoft:#E4EDFD; --good:#2FA34E; }
+  .pad { padding:calc(56*var(--p)) calc(22*var(--p)) 0; }
+  .ttl { font-size:calc(28*var(--p)); font-weight:800; color:var(--ink); line-height:1.18;
+    letter-spacing:calc(-.6*var(--p)); }
+  .sub { margin-top:calc(10*var(--p)); font-size:calc(14*var(--p)); line-height:1.5; color:var(--muted); }
+  .cta { position:absolute; left:calc(22*var(--p)); right:calc(22*var(--p)); bottom:calc(30*var(--p)); }
+  .btn { height:calc(56*var(--p)); border-radius:calc(16*var(--p)); background:var(--purple);
+    display:flex; align-items:center; justify-content:center; gap:calc(9*var(--p));
+    font-size:calc(16.5*var(--p)); font-weight:750; color:#fff;
+    box-shadow:0 calc(8*var(--p)) calc(20*var(--p)) rgba(47,107,255,.34); }
+  .btn svg { width:calc(18*var(--p)); height:calc(18*var(--p)); fill:#fff; }
+  .btn.ghost { background:transparent; box-shadow:none; color:var(--muted);
+    height:calc(42*var(--p)); font-size:calc(14*var(--p)); font-weight:650; }
+  .legal { margin-top:calc(10*var(--p)); font-size:calc(10*var(--p)); line-height:1.45;
+    color:var(--faint); text-align:center; }
+
+  /* 1 — the hero */
+  .hero { width:calc(96*var(--p)); height:calc(96*var(--p)); border-radius:calc(28*var(--p));
+    background:var(--psoft); display:grid; place-items:center; margin-bottom:calc(22*var(--p)); }
+  .hero svg { width:calc(46*var(--p)); height:calc(46*var(--p)); fill:var(--purple); }
+  .pill { display:flex; align-items:center; gap:calc(9*var(--p)); background:var(--card);
+    border:1px solid var(--hair); border-radius:calc(13*var(--p));
+    padding:calc(12*var(--p)); margin-top:calc(9*var(--p)); }
+  .pill svg { width:calc(17*var(--p)); height:calc(17*var(--p)); fill:var(--good); flex:none; }
+  .pill span { font-size:calc(13*var(--p)); color:var(--ink); }
+
+  /* 2 — plans */
+  .plan { border:1.5px solid var(--hair); border-radius:calc(16*var(--p)); background:var(--card);
+    padding:calc(14*var(--p)); margin-top:calc(11*var(--p)); display:flex; align-items:center;
+    position:relative; }
+  .plan.on { border-color:var(--purple); background:var(--psoft); }
+  .plan .nm { font-size:calc(15*var(--p)); font-weight:750; color:var(--ink); }
+  .plan .sm { font-size:calc(11.5*var(--p)); color:var(--muted); margin-top:calc(2*var(--p)); }
+  .plan .pr { margin-left:auto; text-align:right; }
+  .plan .pr b { font-size:calc(19*var(--p)); font-weight:800; color:var(--ink); }
+  .plan .pr i { display:block; font-style:normal; font-size:calc(11*var(--p)); color:var(--muted); }
+  .plan .badge { position:absolute; top:calc(-8*var(--p)); right:calc(14*var(--p));
+    background:var(--good); color:#fff; font-size:calc(9*var(--p)); font-weight:800;
+    padding:calc(3*var(--p)) calc(8*var(--p)); border-radius:calc(7*var(--p)); letter-spacing:.04em; }
+  .trial { margin-top:calc(14*var(--p)); background:var(--psoft); border-radius:calc(13*var(--p));
+    padding:calc(13*var(--p)); display:flex; gap:calc(10*var(--p)); align-items:flex-start; }
+  .trial svg { width:calc(17*var(--p)); height:calc(17*var(--p)); fill:var(--purple); flex:none; margin-top:calc(1*var(--p)); }
+  .trial b { font-size:calc(13.5*var(--p)); font-weight:750; color:var(--ink); display:block; }
+  .trial span { font-size:calc(11.5*var(--p)); line-height:1.45; color:#2A3854; }
+
+  /* 3 — Apple's sheet */
+  .dim { position:absolute; inset:0; background:rgba(9,16,34,.45); }
+  .sheet { position:absolute; left:0; right:0; bottom:0; background:#F7F7FA;
+    border-radius:calc(16*var(--p)) calc(16*var(--p)) 0 0; padding:calc(16*var(--p)); }
+  .sheet .hd { display:flex; align-items:center; gap:calc(10*var(--p)); }
+  .sheet .ap { width:calc(38*var(--p)); height:calc(38*var(--p)); border-radius:calc(9*var(--p));
+    background:#1D1D1F; display:grid; place-items:center; }
+  .sheet .ap svg { width:calc(20*var(--p)); height:calc(20*var(--p)); fill:#fff; }
+  .sheet .t { font-size:calc(14*var(--p)); font-weight:700; color:#1D1D1F; }
+  .sheet .s { font-size:calc(11.5*var(--p)); color:#6E6E73; }
+  .sheet .row { display:flex; margin-top:calc(14*var(--p)); font-size:calc(12.5*var(--p)); color:#1D1D1F; }
+  .sheet .row span { margin-left:auto; font-weight:700; }
+  .sheet .hr { height:1px; background:#E0E0E5; margin-top:calc(12*var(--p)); }
+  .sheet .face { margin-top:calc(16*var(--p)); text-align:center; }
+  .sheet .face svg { width:calc(40*var(--p)); height:calc(40*var(--p)); fill:#1D1D1F; }
+  .sheet .face div { font-size:calc(12*var(--p)); font-weight:600; color:#1D1D1F; margin-top:calc(6*var(--p)); }
+
+  /* 4 — banks */
+  .chip { display:inline-flex; align-items:center; gap:calc(7*var(--p)); background:var(--card);
+    border:1px solid var(--hair); border-radius:calc(20*var(--p));
+    padding:calc(8*var(--p)) calc(13*var(--p)); font-size:calc(13*var(--p)); font-weight:650; color:var(--ink); }
+  .bank { display:flex; align-items:center; gap:calc(12*var(--p)); background:var(--card);
+    border:1px solid var(--hair); border-radius:calc(14*var(--p));
+    padding:calc(12*var(--p)); margin-top:calc(9*var(--p)); }
+  .bank i { width:calc(36*var(--p)); height:calc(36*var(--p)); border-radius:calc(9*var(--p));
+    flex:none; display:grid; place-items:center; font-size:calc(12*var(--p)); font-weight:800; color:#fff; }
+  .bank .n { font-size:calc(15*var(--p)); font-weight:650; color:var(--ink); }
+  .foot { position:absolute; left:calc(22*var(--p)); right:calc(22*var(--p)); bottom:calc(26*var(--p));
+    font-size:calc(11*var(--p)); line-height:1.45; color:var(--faint); text-align:center; }
+
+  .flow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:14px; }
+  .arrow { font-size:22px; color:var(--muted); }
+</style>
+
+<div class="wrap">
+  <h1>Prijungti banką → mokėjimas → bankas</h1>
+  <p class="lede">
+    Srautas taip, kaip aprašei: vienas mygtukas, tada planai su 7 dienų bandymu, tada Apple langas,
+    tada iškart bankų sąrašas. <b>Šalies ekrano nėra</b> — Lietuva parinkta iš anksto.
+  </p>
+
+  <div class="note">
+    <b>Dėl šalies — atsakymas ne toks, kokio tikėjaisi.</b> Enable Banking šalies pasirinkimo žmogui
+    <b>neduoda</b>. Jų API reikalauja šalies iš mūsų: <code>list_aspsps(country)</code> siunčia ją kaip
+    užklausos parametrą, o <code>start_auth(aspsp_name, aspsp_country, …)</code> reikalauja ir banko, ir
+    jo šalies. Puslapis, į kurį žmogus nukeliauja, yra <b>konkretaus banko prisijungimo langas</b>, ne
+    katalogas. Bet atskiro ekrano tikrai nereikia: <code>DEFAULT_COUNTRY</code> jau yra LT, tad rodom
+    Lietuvos bankus iškart, o šalies keitimą paliekam maža piliule viršuje — kaip 4 ekrane.
+  </div>
+
+  <div class="warn">
+    <b>Šito srauto šiandien nupirkti neįmanoma.</b> RevenueCat'e yra tik <code>€3.99/mėn</code> ir
+    <code>€29.99 visam laikui</code> — <b>metinio plano nėra</b>, o <b>bandomojo laikotarpio nėra nė
+    viename produkte</b>. Kad veiktų tai, ką aprašei, kažkam reikia App Store Connect'e: sukurti metinį
+    produktą už 39,99 €, pakeisti mėnesinio kainą iš 3,99 į 4,99 ir abiem prijungti 7 dienų
+    <i>introductory offer</i>, tada atnaujinti RevenueCat offering'ą. Kol to nėra, ekranas žadėtų tai,
+    ko nusipirkti negalima — o <code>paywall_screen.dart:20</code> jau turi komentarą, kad būtent tai
+    rizikuoja App Store atmetimu pagal 3.1.2.
+  </div>
+
+  <h2>Keturi ekranai</h2>
+  <div class="set" id="screens"></div>
+
+  <h2>Seka</h2>
+  <div class="flow" id="flow"></div>
+</div>
+
+<script>
+  const I = {
+    bank:'<path d="M12 3 2 8v2h20V8Zm-7 9h2v6H5Zm5 0h2v6h-2Zm5 0h2v6h-2ZM3 20h18v2H3Z"/>',
+    check:'<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4Z"/>',
+    lock:'<path d="M6 10V8a6 6 0 1 1 12 0v2h1v12H5V10Zm2 0h8V8a4 4 0 1 0-8 0Z"/>',
+    arrow:'<path d="M4 11h12.2l-5.6-5.6L12 4l8 8-8 8-1.4-1.4 5.6-5.6H4Z"/>',
+    gift:'<path d="M20 7h-2.2a3 3 0 0 0-4.3-4L12 4.3 10.5 3a3 3 0 0 0-4.3 4H4v5h16Zm-6-2a1 1 0 1 1 1 1h-1Zm-5 0a1 1 0 0 1 2 0v1h-1a1 1 0 0 1-1-1ZM5 13v7a1 1 0 0 0 1 1h5v-8Zm8 8h5a1 1 0 0 0 1-1v-7h-6Z"/>',
+    apple:'<path d="M16.4 12.7c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.8c-1.5 0-2.9.9-3.7 2.3-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.7 2.3 2.9 2.2 1.2 0 1.6-.7 3-.7s1.8.7 3 .7 2-1.1 2.8-2.2c.9-1.2 1.2-2.5 1.2-2.5s-2.4-.9-2.4-3.6Zm-2.3-6.6c.6-.8 1-1.9.9-3-.9 0-2 .6-2.7 1.4-.6.7-1.1 1.8-.9 2.9 1 .1 2-.5 2.7-1.3Z"/>',
+    face:'<path d="M4 4h5v2H6v3H4Zm11 0h5v5h-2V6h-3ZM4 15h2v3h3v2H4Zm14 0h2v5h-5v-2h3ZM9 9h2v3H9Zm4 0h2v3h-2Zm-3.5 5.5h5A2.5 2.5 0 0 1 12 17a2.5 2.5 0 0 1-2.5-2.5Z"/>',
+  };
+
+  const S1 = `
+    <div class="pad">
+      <div class="hero"><svg viewBox="0 0 24 24">${I.bank}</svg></div>
+      <div class="ttl">Prijunk banką ir<br>viskas susitvarkys</div>
+      <div class="sub">Sandoriai, prenumeratos ir kategorijos — automatiškai, be jokio rankinio darbo.</div>
+      <div class="pill"><svg viewBox="0 0 24 24">${I.check}</svg><span>Sandoriai atsinaujina patys</span></div>
+      <div class="pill"><svg viewBox="0 0 24 24">${I.check}</svg><span>Prenumeratos randamos automatiškai</span></div>
+      <div class="pill"><svg viewBox="0 0 24 24">${I.check}</svg><span>Išlaidos susirūšiuoja pačios</span></div>
+    </div>
+    <div class="cta">
+      <div class="btn">Prijungti banką <svg viewBox="0 0 24 24">${I.arrow}</svg></div>
+      <div class="btn ghost">Vėliau</div>
+    </div>`;
+
+  const S2 = `
+    <div class="pad">
+      <div class="ttl">Vaultie Premium</div>
+      <div class="sub" style="font-size:calc(13.5*var(--p))">Banko prijungimas ir viskas, kas iš jo seka.</div>
+      <div class="plan on"><div class="badge">SUTAUPAI 33%</div>
+        <div><div class="nm">Metinis</div><div class="sm">39,99 € per metus</div></div>
+        <div class="pr"><b>3,33 €</b><i>/mėn</i></div></div>
+      <div class="plan">
+        <div><div class="nm">Mėnesinis</div><div class="sm">Atšauk bet kada</div></div>
+        <div class="pr"><b>4,99 €</b><i>/mėn</i></div></div>
+      <div class="trial"><svg viewBox="0 0 24 24">${I.gift}</svg>
+        <div><b>7 dienos nemokamai</b>
+        <span>Šiandien nemokėsi nieko. Atšaukus iki bandymo pabaigos, mokestis nenuskaičiuojamas.</span></div></div>
+    </div>
+    <div class="cta">
+      <div class="btn">Pradėti 7 dienų bandymą</div>
+      <div class="btn ghost">Atkurti pirkimus</div>
+      <div class="legal">Po bandymo — 39,99 €/metams, kol atšauksi App Store nustatymuose.<br>Naudojimo sąlygos · Privatumo politika</div>
+    </div>`;
+
+  const S3 = `
+    <div class="pad" style="opacity:.35">
+      <div class="ttl">Vaultie Premium</div>
+      <div class="sub" style="font-size:calc(13.5*var(--p))">Banko prijungimas ir viskas, kas iš jo seka.</div>
+    </div>
+    <div class="dim"></div>
+    <div class="sheet">
+      <div class="hd">
+        <div class="ap"><svg viewBox="0 0 24 24">${I.apple}</svg></div>
+        <div><div class="t">Apple</div><div class="s">Vaultie Premium · Metinis</div></div>
+      </div>
+      <div class="hr"></div>
+      <div class="row">Bandymas<span>7 dienos nemokamai</span></div>
+      <div class="row">Vėliau<span>39,99 € / metams</span></div>
+      <div class="hr"></div>
+      <div class="face"><svg viewBox="0 0 24 24">${I.face}</svg>
+        <div>Du kartus spustelėk šoninį mygtuką</div></div>
+    </div>`;
+
+  const S4 = `
+    <div class="pad">
+      <div class="ttl">Pasirink banką</div>
+      <div class="chip" style="margin-top:calc(12*var(--p))">🇱🇹 Lietuva · Keisti</div>
+      <div class="sub" style="font-size:calc(13*var(--p))">Prisijungsi saugiai banko puslapyje — mes niekada nematome tavo slaptažodžio.</div>
+      <div class="bank"><i style="background:#F26A21">S</i><div class="n">Swedbank</div></div>
+      <div class="bank"><i style="background:#00A94F">SEB</i><div class="n">SEB</div></div>
+      <div class="bank"><i style="background:#E30613">L</i><div class="n">Luminor</div></div>
+      <div class="bank"><i style="background:#2F6BFF">R</i><div class="n">Revolut</div></div>
+      <div class="bank"><i style="background:#7B4B94">Š</i><div class="n">Šiaulių bankas</div></div>
+    </div>
+    <div class="foot">Sutikimas galioja 90 dienų · Enable Banking</div>`;
+
+  const SCREENS = [
+    { cap:'1 — Vienas mygtukas', html:S1,
+      meta:'Jokių planų, jokių kainų. Tik ką gausi ir vienas veiksmas. „Vėliau" palieku sąmoningai — be jo žmogus, kuris dar neapsisprendė, uždarys programėlę visai.' },
+    { cap:'2 — Planai su bandymu', html:S2,
+      meta:'Metinis pažymėtas kaip numatytasis, nes 39,99 € išeina 3,33 €/mėn prieš 4,99 €. Bandymas atskiroje kortelėje apačioje, kaip prašei. Šių kainų RevenueCat\'e dar nėra.' },
+    { cap:'3 — Apple langas', html:S3,
+      meta:'Kortelės mes neimame ir nematome. Paspaudus, iškyla Apple langas, žmogus patvirtina Face ID — jokios savo formos nekuriame ir negalime.' },
+    { cap:'4 — Bankai, be šalies žingsnio', html:S4,
+      meta:'Lietuva parinkta iš anksto, keitimas — piliulėje. Enable Banking šalies pats nesiūlo, tad ji vis tiek turi būti mūsų pusėje; tiesiog nebeklausiam.' },
+  ];
+
+  const scr = document.getElementById('screens');
+  for (const s of SCREENS) {
+    const f = document.createElement('figure');
+    f.innerHTML = `<cap>${s.cap}</cap><div class="p">${s.html}</div><div class="meta">${s.meta}</div>`;
+    scr.appendChild(f);
+  }
+
+  const flow = document.getElementById('flow');
+  ['Mygtukas','Planai','Apple','Bankas','Dashboardas'].forEach((n,i) => {
+    if (i) flow.insertAdjacentHTML('beforeend','<div class="arrow">→</div>');
+    flow.insertAdjacentHTML('beforeend',
+      `<div style="font-size:12px;font-weight:700;padding:9px 14px;border-radius:10px;background:rgba(127,127,127,.12)">${n}</div>`);
+  });
+</script>

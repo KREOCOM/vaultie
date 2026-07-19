@@ -33,7 +33,14 @@ class BankConnectScreen extends StatefulWidget {
 enum _Phase { country, loading, list, connecting, analysing, error }
 
 class _BankConnectScreenState extends State<BankConnectScreen> {
-  _Phase _phase = _Phase.country;
+  /// Starts on [_Phase.loading], not on the country picker.
+  ///
+  /// Enable Banking needs a country from us — /aspsps takes it as a parameter
+  /// and start_auth requires it alongside the bank — but asking for it is a
+  /// step almost nobody needs: the default is Lithuania and the chip at the top
+  /// of the list changes it. The picker itself is untouched, just no longer the
+  /// first thing between a person and their bank.
+  _Phase _phase = _Phase.loading;
   List<Bank> _banks = const [];
   String? _error;
   String? _connectingBank;
@@ -126,6 +133,12 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             c.en.toLowerCase().contains(q) ||
             c.code.toLowerCase().contains(q))
         .toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBanks();
   }
 
   void _pickCountry(_Country c) {
@@ -499,9 +512,35 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                   itemBuilder: (_, i) => _bankTile(_banks[i]),
                 ),
         ),
+        _consentFooter(),
       ],
     );
   }
+
+  /// The two facts that used to live on BankInfoScreen and nowhere else.
+  ///
+  /// The 90-day limit in particular existed on that one screen only: drop it
+  /// and nothing in the app would ever tell a person their bank access expires
+  /// and has to be granted again. Sitting here, it is read at the moment
+  /// consent is actually given rather than two screens earlier.
+  Widget _consentFooter() => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.lock_outline_rounded, size: 14, color: cSubtle),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                _isLt
+                    ? 'Duomenys saugomi tik tavo telefone · Sutikimas galioja 90 dienų'
+                    : 'Data is stored only on your phone · Consent lasts 90 days',
+                style: TextStyle(color: cSubtle, fontSize: 11.5, height: 1.35),
+              ),
+            ),
+          ],
+        ),
+      );
 
   Widget _bankTile(Bank bank) {
     return Material(

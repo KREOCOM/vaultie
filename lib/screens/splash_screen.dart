@@ -5,7 +5,13 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'login_screen.dart';
-import 'onboarding/onboarding_flow.dart';
+import 'onb_chat.dart';
+import 'onb_connect.dart';
+import 'onb_intro.dart';
+import 'onb_month.dart';
+import 'onb_planning.dart';
+import 'onb_security.dart';
+import 'onb_welcome.dart';
 import 'onboarding_choice_screen.dart';
 import 'verify_email_screen.dart';
 
@@ -61,7 +67,21 @@ class _SplashScreenState extends State<SplashScreen>
     }
     final Widget next;
     if (!widget.hasOnboarded) {
-      next = const OnboardingFlow();
+      // The five-screen onboarding built on top of the real dashboards. The
+      // old OnboardingFlow is still in the tree, unused from here.
+      next = const OnbIntro(
+        next: OnbWelcome(
+          next: OnbMonth(
+            next: OnbPlanning(
+              next: OnbSecurity(
+                next: OnbChat(
+                  next: OnbConnect(next: LoginScreen()),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
     } else if (auth.isLoggedIn) {
       next = auth.isEmailVerified
           ? landingAfterAuth()
@@ -92,15 +112,18 @@ class _SplashScreenState extends State<SplashScreen>
     // follows the app's language.
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
     return Scaffold(
-      // Deep green base + green radial glow, matching the auth screen.
-      backgroundColor: const Color(0xFF050F08),
+      // Brand blue, taken from the logo itself (#0144FB), with a lighter glow
+      // behind the mark. The previous deep green was left over from an older
+      // identity and clashed with both the new logo and the blue used across
+      // onboarding and the dashboard.
+      backgroundColor: const Color(0xFF0736C9),
       body: Container(
         decoration: const BoxDecoration(
           gradient: RadialGradient(
             center: Alignment(0, -0.35),
             radius: 0.95,
-            colors: [Color(0x59206B41), Color(0x00050F08)],
-            stops: [0.0, 0.72],
+            colors: [Color(0xFF0144FB), Color(0x000736C9)],
+            stops: [0.0, 0.78],
           ),
         ),
         child: Center(
@@ -109,15 +132,13 @@ class _SplashScreenState extends State<SplashScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Logo: the app icon, clipped to a rounded square.
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(32),
-                  child: Image.asset(
-                    'assets/icon/app_icon.png',
-                    width: 132,
-                    height: 132,
-                    fit: BoxFit.cover,
-                  ),
+                // The mark alone, on transparent — the full icon would put a
+                // blue tile on a blue field and disappear into it.
+                Image.asset(
+                  'assets/icon/logo_mark.png',
+                  width: 132,
+                  height: 132,
+                  fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 28),
                 const Text(
