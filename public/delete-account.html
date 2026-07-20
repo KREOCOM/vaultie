@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — Delete your account</title>
+<style>
+  :root {
+    --ink: #0B1533; --sub: #4C5B7D; --paper: #FCFCFD;
+    --card: #FFFFFF; --line: #E6EAF2; --blue: #003DE1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #EEF1F8; --sub: #A2ADC4; --paper: #0A1024;
+      --card: #121A36; --line: #222C4E; --blue: #6E96FF;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 40px 22px 72px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 34px; }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: -0.3px; font-size: 19px; }
+  .mark {
+    width: 34px; height: 34px; border-radius: 9px; background: var(--blue);
+    color: #fff; display: grid; place-items: center; font-size: 18px; font-weight: 800;
+  }
+  .langs { display: flex; gap: 6px; }
+  .langs button {
+    font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    padding: 6px 13px; border-radius: 9px; border: 1px solid var(--line);
+    background: transparent; color: var(--sub);
+  }
+  .langs button[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
+  h1 { font-size: 30px; line-height: 1.2; letter-spacing: -0.7px; margin: 0 0 8px; }
+  .intro { font-size: 17px; color: var(--sub); margin: 0 0 30px; }
+  section {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 15px; padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 9px; letter-spacing: -0.2px; }
+  section p { margin: 0 0 10px; color: var(--sub); }
+  section p:last-child { margin-bottom: 0; }
+  ol, ul { margin: 0; padding-left: 20px; color: var(--sub); }
+  li { margin-bottom: 7px; }
+  li:last-child { margin-bottom: 0; }
+  .note {
+    border-left: 3px solid var(--blue); background: transparent;
+    border-radius: 0 12px 12px 0; padding-left: 18px;
+  }
+  a { color: var(--blue); }
+  footer { margin-top: 34px; color: var(--sub); font-size: 13.5px; text-align: center; }
+  [data-lang] { display: none; }
+  [data-lang].on { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand"><span class="mark">V</span> Vaultie</div>
+    <div class="langs">
+      <button type="button" data-set="en" aria-pressed="true">EN</button>
+      <button type="button" data-set="lt" aria-pressed="false">LT</button>
+    </div>
+  </header>
+
+  <!-- ── English ─────────────────────────────────────────────── -->
+  <div data-lang="en" class="on">
+    <h1>Delete your account</h1>
+    <p class="intro">You can delete your Vaultie account and its data at any time. The fastest way is from inside the app.</p>
+
+    <section>
+      <h2>In the app (recommended)</h2>
+      <ol>
+        <li>Open Vaultie and go to <strong>Settings</strong>.</li>
+        <li>Tap <strong>Delete account</strong>.</li>
+        <li>Confirm. You may be asked to sign in again — Apple requires a recent sign-in before an account can be deleted.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>If you no longer have the app</h2>
+      <p>Email <a href="mailto:osva50042@gmail.com?subject=Delete%20my%20Vaultie%20account">osva50042@gmail.com</a> from the address you signed up with, asking us to delete your account. We will confirm once it is done, normally within 30 days.</p>
+      <p>We use the sending address to verify the request, so please write from the account's own email address.</p>
+    </section>
+
+    <section>
+      <h2>What gets deleted</h2>
+      <ul>
+        <li><strong>Your account and email address</strong> — removed from Firebase Authentication. This is permanent and cannot be undone.</li>
+        <li><strong>Your subscriptions, payments and settings</strong> — these are stored only on your device, and are removed when you delete the app.</li>
+        <li><strong>Bank data</strong> — we never store your transactions. Processing happens transiently on our server and nothing is kept.</li>
+      </ul>
+    </section>
+
+    <section class="note">
+      <h2>Two things to do separately</h2>
+      <p><strong>Cancel your subscription first.</strong> Deleting your account does not cancel an App Store subscription — only Apple can do that. Go to App Store settings → your name → Subscriptions.</p>
+      <p><strong>Revoke bank access.</strong> If you connected a bank, you can withdraw that consent at any time through your own bank's app or website.</p>
+    </section>
+
+    <section>
+      <h2>Questions</h2>
+      <p>Contact <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>. See also our <a href="privacy.html">Privacy Policy</a>.</p>
+    </section>
+  </div>
+
+  <!-- ── Lietuvių ────────────────────────────────────────────── -->
+  <div data-lang="lt">
+    <h1>Paskyros ištrynimas</h1>
+    <p class="intro">Savo Vaultie paskyrą ir jos duomenis gali ištrinti bet kada. Greičiausias būdas — pačioje programoje.</p>
+
+    <section>
+      <h2>Programoje (rekomenduojama)</h2>
+      <ol>
+        <li>Atidaryk Vaultie ir eik į <strong>Nustatymus</strong>.</li>
+        <li>Paspausk <strong>Ištrinti paskyrą</strong>.</li>
+        <li>Patvirtink. Gali tekti prisijungti iš naujo — „Apple“ reikalauja neseno prisijungimo prieš trinant paskyrą.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Jei programos nebeturi</h2>
+      <p>Parašyk adresu <a href="mailto:osva50042@gmail.com?subject=Prasau%20istrinti%20mano%20Vaultie%20paskyra">osva50042@gmail.com</a> iš to el. pašto, su kuriuo registravaisi, ir paprašyk ištrinti paskyrą. Patvirtinsime, kai bus padaryta — paprastai per 30 dienų.</p>
+      <p>Siuntėjo adresu patikriname, kad prašymas tikras, todėl rašyk iš pačios paskyros el. pašto.</p>
+    </section>
+
+    <section>
+      <h2>Kas ištrinama</h2>
+      <ul>
+        <li><strong>Paskyra ir el. pašto adresas</strong> — pašalinami iš Firebase Authentication. Tai negrįžtama.</li>
+        <li><strong>Prenumeratos, mokėjimai ir nustatymai</strong> — jie saugomi tik tavo įrenginyje ir pašalinami išdiegus programą.</li>
+        <li><strong>Banko duomenys</strong> — tavo operacijų nesaugome. Jos apdorojamos laikinai serveryje ir niekas neišlieka.</li>
+      </ul>
+    </section>
+
+    <section class="note">
+      <h2>Du dalykai, kuriuos reikia padaryti atskirai</h2>
+      <p><strong>Pirma atšauk prenumeratą.</strong> Paskyros ištrynimas neatšaukia „App Store“ prenumeratos — tai gali padaryti tik „Apple“. Eik į „App Store“ nustatymus → savo vardas → Prenumeratos.</p>
+      <p><strong>Atšauk banko prieigą.</strong> Jei buvai prijungęs banką, sutikimą gali atšaukti bet kada savo banko programėlėje ar svetainėje.</p>
+    </section>
+
+    <section>
+      <h2>Klausimai</h2>
+      <p>Rašyk <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>. Taip pat žiūrėk <a href="privacy.html">privatumo politiką</a>.</p>
+    </section>
+  </div>
+
+  <footer>Vaultie · <a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Use</a></footer>
+</div>
+
+<script>
+  var buttons = document.querySelectorAll('.langs button');
+  function setLang(code) {
+    document.documentElement.lang = code;
+    document.querySelectorAll('[data-lang]').forEach(function (el) {
+      el.classList.toggle('on', el.getAttribute('data-lang') === code);
+    });
+    buttons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-set') === code));
+    });
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { setLang(b.getAttribute('data-set')); });
+  });
+  setLang((navigator.language || 'en').toLowerCase().indexOf('lt') === 0 ? 'lt' : 'en');
+</script>
+</body>
+</html>

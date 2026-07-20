@@ -542,6 +542,12 @@ const Map<String, String> _en = {
       'Plans are unavailable right now. Try again later or skip.',
   'Pirkimas atkurtas.': 'Purchase restored.',
   'Nerasta pirkimų atkurti.': 'No purchases to restore.',
+  // Free-trial copy. Composed around the day count, which comes from the live
+  // store product — see OnbPaywall._trialLabel.
+  'Išbandyti': 'Try',
+  'd. nemokamai': 'days free',
+  'pirmos': 'first',
+  'd. nemokamai, tada': 'days free, then',
   '7 dienos nemokamai. Atšaukus iki bandomojo laikotarpio pabaigos, mokestis nebus nuskaičiuotas. Vėliau taikomas pasirinkto plano mokestis, kol atsisakysi App Store nustatymuose.':
       "7 days free. Cancel before the trial ends and you won't be charged. After that, the selected plan's price applies until you cancel in App Store settings.",
   // ── onboarding intro ──

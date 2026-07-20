@@ -74,6 +74,15 @@ abstract class PurchaseService {
   /// haven't loaded — callers fall back to the static [plans] price.
   String? priceString(PlanId id);
 
+  /// Length in days of the free trial the store actually offers on [id], or
+  /// null if there is none.
+  ///
+  /// Read from the live store product rather than a hand-set flag, so the
+  /// paywall advertises a trial exactly when one really exists. Promising a
+  /// free trial that isn't configured in App Store Connect is a Guideline
+  /// 3.1.2 rejection, and a flag someone forgot to flip is how that happens.
+  int? freeTrialDays(PlanId id);
+
   /// Attempts to purchase [id]; grants premium on success.
   Future<PurchaseResult> purchase(PlanId id);
 
@@ -110,6 +119,9 @@ class MockPurchaseService implements PurchaseService {
 
   @override
   String? priceString(PlanId id) => null; // fall back to static plan prices
+
+  @override
+  int? freeTrialDays(PlanId id) => null; // no store, so no offer to report
 
   @override
   Future<PurchaseResult> purchase(PlanId id) async {
@@ -171,6 +183,10 @@ class RevenueCatPurchaseService implements PurchaseService {
   final Map<PlanId, rc.Package> _packages = {};
   final Map<PlanId, String> _prices = {};
 
+  /// Free-trial length per plan, in days, for plans whose store product carries
+  /// a zero-price introductory offer.
+  final Map<PlanId, int> _trialDays = {};
+
   Box get _box => Hive.box(HiveBoxes.settings);
 
   String get _apiKey {
@@ -212,11 +228,32 @@ class RevenueCatPurchaseService implements PurchaseService {
         if (plan != null) {
           _packages[plan] = pkg;
           _prices[plan] = pkg.storeProduct.priceString;
+          final days = _trialDaysOf(pkg.storeProduct);
+          if (days != null) _trialDays[plan] = days;
         }
       }
     } catch (_) {
       // Leave prices to the static fallback if offerings can't be fetched.
     }
+  }
+
+  /// The free-trial length of [product] in days, or null if its introductory
+  /// offer isn't a free trial (or there is none).
+  ///
+  /// Only a zero-price introductory offer counts. A discounted-but-paid intro
+  /// offer is also an "introductory price" to StoreKit, and calling that a free
+  /// trial on the paywall would charge people who were told they wouldn't be.
+  static int? _trialDaysOf(rc.StoreProduct product) {
+    final intro = product.introductoryPrice;
+    if (intro == null || intro.price != 0) return null;
+    final n = intro.periodNumberOfUnits;
+    return switch (intro.periodUnit) {
+      rc.PeriodUnit.day => n,
+      rc.PeriodUnit.week => n * 7,
+      rc.PeriodUnit.month => n * 30,
+      rc.PeriodUnit.year => n * 365,
+      _ => null,
+    };
   }
 
   /// Reflects RevenueCat's entitlement state into [_premium] and persists it so
@@ -235,6 +272,9 @@ class RevenueCatPurchaseService implements PurchaseService {
 
   @override
   String? priceString(PlanId id) => _prices[id];
+
+  @override
+  int? freeTrialDays(PlanId id) => _trialDays[id];
 
   @override
   Future<PurchaseResult> purchase(PlanId id) async {

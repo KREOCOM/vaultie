@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — Terms of Use</title>
+<style>
+  :root {
+    --ink: #0B1533; --sub: #4C5B7D; --paper: #FCFCFD;
+    --card: #FFFFFF; --line: #E6EAF2; --blue: #003DE1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #EEF1F8; --sub: #A2ADC4; --paper: #0A1024;
+      --card: #121A36; --line: #222C4E; --blue: #6E96FF;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 40px 22px 72px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 34px; }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: -0.3px; font-size: 19px; }
+  .mark {
+    width: 34px; height: 34px; border-radius: 9px; background: var(--blue);
+    color: #fff; display: grid; place-items: center; font-size: 18px; font-weight: 800;
+  }
+  .langs { display: flex; gap: 6px; }
+  .langs button {
+    font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    padding: 6px 13px; border-radius: 9px; border: 1px solid var(--line);
+    background: transparent; color: var(--sub);
+  }
+  .langs button[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
+  h1 { font-size: 30px; line-height: 1.2; letter-spacing: -0.7px; margin: 0 0 8px; }
+  .updated { color: var(--sub); font-size: 14px; margin: 0 0 26px; }
+  .intro { font-size: 17px; color: var(--sub); margin: 0 0 34px; }
+  section {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 15px; padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 9px; letter-spacing: -0.2px; }
+  section p { margin: 0; color: var(--sub); }
+  a { color: var(--blue); }
+  footer { margin-top: 34px; color: var(--sub); font-size: 13.5px; text-align: center; }
+  [data-lang] { display: none; }
+  [data-lang].on { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand"><span class="mark">V</span> Vaultie</div>
+    <div class="langs">
+      <button type="button" data-set="en" aria-pressed="true">EN</button>
+      <button type="button" data-set="lt" aria-pressed="false">LT</button>
+    </div>
+  </header>
+
+  <!-- ── English ─────────────────────────────────────────────── -->
+  <div data-lang="en" class="on">
+    <h1>Terms of Use</h1>
+    <p class="updated">Last updated: 7 July 2026</p>
+    <p class="intro">By using Vaultie you agree to these terms. If you do not agree, please do not use the app.</p>
+
+    <section>
+      <h2>The service</h2>
+      <p>Vaultie is a subscription tracker that helps you monitor recurring costs and get reminders. An optional Vaultie Pro feature lets you connect a bank via Enable Banking, a licensed PSD2 provider, to automatically detect recurring payments (read-only — we do not initiate payments). Vaultie provides information, not financial advice.</p>
+    </section>
+
+    <section>
+      <h2>Your account</h2>
+      <p>You are responsible for keeping your credentials secure and for activity under your account. Provide an accurate email address.</p>
+    </section>
+
+    <section>
+      <h2>Acceptable use</h2>
+      <p>Do not use the app for unlawful purposes or attempt to disrupt its operation or security.</p>
+    </section>
+
+    <section>
+      <h2>Subscriptions &amp; payments</h2>
+      <p>Vaultie is subscription-only — using the app requires an active Vaultie Pro plan: monthly (€4.99/month) or yearly (€39.99/year). Where a free trial is offered, its length and terms are shown on the purchase screen before you confirm; you are charged only when it ends, unless you cancel first. Purchases are processed by the Apple App Store and charged to your Apple ID; prices are shown before you buy and may vary by region. The subscription renews automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in App Store settings → your name → Subscriptions; deleting the app does not cancel it. Refunds are subject to Apple’s policies and applicable law.</p>
+    </section>
+
+    <section>
+      <h2>Disclaimer</h2>
+      <p>Vaultie is provided “as is”. We are not liable for missed payments or decisions made based on the app’s data. Always verify with the official service providers.</p>
+    </section>
+
+    <section>
+      <h2>Changes</h2>
+      <p>We may update these terms. Continued use of the app means you accept the updated version.</p>
+    </section>
+
+    <section>
+      <h2>Contact</h2>
+      <p>Questions? Contact us at <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>.</p>
+    </section>
+  </div>
+
+  <!-- ── Lietuvių ────────────────────────────────────────────── -->
+  <div data-lang="lt">
+    <h1>Naudojimo sąlygos</h1>
+    <p class="updated">Atnaujinta: 2026-07-07</p>
+    <p class="intro">Naudodamasis Vaultie sutinki su šiomis sąlygomis. Jei nesutinki, programos nenaudok.</p>
+
+    <section>
+      <h2>Paslauga</h2>
+      <p>Vaultie – prenumeratų sekimo programa, padedanti stebėti pasikartojančias išlaidas ir gauti priminimus. Neprivaloma „Vaultie Pro“ funkcija leidžia prijungti banką per licencijuotą PSD2 teikėją „Enable Banking“ ir automatiškai aptikti pasikartojančius mokėjimus (tik skaitymui — mokėjimų neinicijuojame). Vaultie teikia informaciją, o ne finansines konsultacijas.</p>
+    </section>
+
+    <section>
+      <h2>Paskyra</h2>
+      <p>Esi atsakingas už savo prisijungimo duomenų saugumą ir už veiklą savo paskyroje. Pateik tikslų el. pašto adresą.</p>
+    </section>
+
+    <section>
+      <h2>Priimtinas naudojimas</h2>
+      <p>Nesinaudok programa neteisėtiems tikslams ir nebandyk trikdyti jos veikimo ar saugumo.</p>
+    </section>
+
+    <section>
+      <h2>Prenumeratos ir mokėjimai</h2>
+      <p>Vaultie veikia tik su prenumerata — programai naudoti reikia aktyvaus „Vaultie Pro“ plano: mėnesinio (4,99 €/mėn.) arba metinio (39,99 €/metus). Jei siūlomas nemokamas bandomasis laikotarpis, jo trukmė ir sąlygos parodomos pirkimo ekrane prieš patvirtinant; mokestis nuskaičiuojamas tik jam pasibaigus, nebent atšauksi anksčiau. Pirkimus tvarko „Apple App Store“ ir jie nuskaičiuojami iš „Apple ID“; kainos parodomos prieš pirkimą ir gali skirtis pagal regioną. Prenumerata atsinaujina automatiškai, nebent atšaukiama likus ne mažiau kaip 24 val. iki laikotarpio pabaigos. Valdyti ar atšaukti galima bet kada „App Store“ nustatymuose → jūsų vardas → Prenumeratos; programos ištrynimas jos neatšaukia. Grąžinimams taikomos „Apple“ taisyklės ir įstatymai.</p>
+    </section>
+
+    <section>
+      <h2>Atsakomybės ribojimas</h2>
+      <p>Vaultie teikiama „tokia, kokia yra“. Neatsakome už praleistus mokėjimus ar sprendimus, priimtus remiantis programos duomenimis. Visada pasitikrink oficialiuose paslaugų šaltiniuose.</p>
+    </section>
+
+    <section>
+      <h2>Pakeitimai</h2>
+      <p>Šias sąlygas galime atnaujinti. Toliau naudodamasis programa sutinki su atnaujinta versija.</p>
+    </section>
+
+    <section>
+      <h2>Susisiekimas</h2>
+      <p>Klausimais rašyk: <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>.</p>
+    </section>
+  </div>
+
+  <footer>Vaultie · <a href="privacy.html">Privacy Policy</a> · <a href="delete-account.html">Delete account</a></footer>
+</div>
+
+<script>
+  var buttons = document.querySelectorAll('.langs button');
+  function setLang(code) {
+    document.documentElement.lang = code;
+    document.querySelectorAll('[data-lang]').forEach(function (el) {
+      el.classList.toggle('on', el.getAttribute('data-lang') === code);
+    });
+    buttons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-set') === code));
+    });
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { setLang(b.getAttribute('data-set')); });
+  });
+  setLang((navigator.language || 'en').toLowerCase().indexOf('lt') === 0 ? 'lt' : 'en');
+</script>
+</body>
+</html>

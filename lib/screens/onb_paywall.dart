@@ -68,6 +68,15 @@ class _OnbPaywallState extends State<OnbPaywall> {
       PurchaseService.instance.priceString(id) ??
       _eur(id == PlanId.yearly ? _yearly : _monthly);
 
+  /// Free-trial length for [id], straight from the store product. Null until
+  /// the offer actually exists in App Store Connect — every bit of trial copy
+  /// on this screen is gated on it, so the paywall cannot promise a trial the
+  /// store won't honour.
+  int? _trialFor(PlanId id) => PurchaseService.instance.freeTrialDays(id);
+
+  /// "7 dienos nemokamai" / "7 days free".
+  String _trialLabel(int days) => '$days ${tr('d. nemokamai')}';
+
   void _advance() => Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 420),
@@ -182,6 +191,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           price: _priceFor(PlanId.monthly),
                           period: tr('/ mėn.'),
                           chip: '${_eur(_yearOfMonthly)} ${tr('per metus')}',
+                          trialDays: _trialFor(PlanId.monthly),
                         ),
                         const SizedBox(height: 10),
                         _planCard(
@@ -189,6 +199,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           title: tr('Metinis planas'),
                           price: _priceFor(PlanId.yearly),
                           period: tr('/ metus'),
+                          trialDays: _trialFor(PlanId.yearly),
                           chip: '${_eur(_yearlyPerMonth)} ${tr('/ mėn.')}',
                         ),
                         const SizedBox(height: 12),
@@ -250,6 +261,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
     required String price,
     required String period,
     required String chip,
+    int? trialDays,
   }) {
     final on = _annual == annual;
     return GestureDetector(
@@ -302,8 +314,15 @@ class _OnbPaywallState extends State<OnbPaywall> {
                               fontSize: 17, fontWeight: FontWeight.w800,
                               color: on ? _blue : _ink)),
                       const SizedBox(height: 2),
-                      Text(tr('Visos Premium funkcijos.'),
-                          style: const TextStyle(fontSize: 12.5, color: _sub)),
+                      Text(
+                          trialDays != null
+                              ? _trialLabel(trialDays)
+                              : tr('Visos Premium funkcijos.'),
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight:
+                                  trialDays != null ? FontWeight.w800 : null,
+                              color: trialDays != null ? _green : _sub)),
                       if (annual) ...[
                         const SizedBox(height: 3),
                         Text('${tr('Sutaupyk')} $_discount %',
@@ -391,6 +410,14 @@ class _OnbPaywallState extends State<OnbPaywall> {
     final plan = _annual ? tr('Metinis planas') : tr('Mėnesinis planas');
     final price = _priceFor(_plan);
     final per = _annual ? tr('metams') : tr('mėnesiui');
+    final trial = _trialFor(_plan);
+    // Apple requires the trial length, what happens after it, and the renewal
+    // terms on the purchase screen itself (Guideline 3.1.2).
+    final terms = trial != null
+        ? '$plan — ${tr('pirmos')} $trial ${tr('d. nemokamai, tada')} $price / $per. '
+            '${tr('Atsinaujina automatiškai, kol neatšauksi App Store nustatymuose likus ne mažiau kaip 24 val. iki laikotarpio pabaigos.')}'
+        : '$plan — $price / $per. '
+            '${tr('Atsinaujina automatiškai, kol neatšauksi App Store nustatymuose likus ne mažiau kaip 24 val. iki laikotarpio pabaigos.')}';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
@@ -423,7 +450,10 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           ),
                         ]
                       : [
-                          Text(tr('Tęsti'),
+                          Text(
+                              trial != null
+                                  ? '${tr('Išbandyti')} ${_trialLabel(trial)}'
+                                  : tr('Tęsti'),
                               style: const TextStyle(
                                   fontSize: 17, fontWeight: FontWeight.w800,
                                   color: Colors.white)),
@@ -444,7 +474,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
           ),
           const SizedBox(height: 8),
           Text(
-            '$plan — $price / $per. ${tr('Atsinaujina automatiškai, kol neatšauksi App Store nustatymuose likus ne mažiau kaip 24 val. iki laikotarpio pabaigos.')}',
+            terms,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 9.5, height: 1.35, color: Color(0xFF8A94A8)),
           ),
