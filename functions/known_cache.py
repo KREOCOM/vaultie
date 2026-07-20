@@ -61,11 +61,23 @@ def merge_known(all_txns: list, summaries: list, own_ibans: set, scan_diag: list
     excluded = answered | revoked
     cutoff = ((today or dt.date.today())
               - dt.timedelta(days=months_back * 31)).isoformat()
+    # An account that was just scanned fresh must NOT also be re-served from the
+    # cache under an old, differently-labelled record — that is what left the
+    # same physical account showing twice (once fresh "Revolut", once cached
+    # "Bankas") after reconnect churn. Identity is the IBAN, not the label, so a
+    # cached account whose IBAN was freshly scanned is dropped, and any cached
+    # bank label that has no surviving account with it is dropped wholesale.
+    fresh_ibans = {norm_iban(a.get("iban")) for a in summaries
+                   if norm_iban(a.get("iban"))}
+    kept_accts = [a for a in k_accts
+                  if bank_of(a) not in excluded
+                  and norm_iban(a.get("iban")) not in fresh_ibans]
+    kept_banks = {bank_of(a) for a in kept_accts}
     kept_txns = [t for t in k_txns
                  if bank_of(t) not in excluded
+                 and bank_of(t) in kept_banks
                  and t.get("status") == "BOOK"
                  and (t.get("booking_date") or "") >= cutoff]
-    kept_accts = [a for a in k_accts if bank_of(a) not in excluded]
     stale = sorted({b for b in (bank_of(a) for a in kept_accts) if b})
     if kept_txns or kept_accts:
         logging.info("known: reusing %d txns / %d accounts for quiet banks %s",
