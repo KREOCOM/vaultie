@@ -589,17 +589,25 @@ def _week(txns, salary_refs, resolve_cat, today, own_ibans=None):
         dd = monday + dt.timedelta(days=i)
         secagg = {}
         for t in bydate.get(dd.isoformat(), []):
-            if t.get("credit_debit_indicator") != "DBIT":
-                continue
-            _canon, _cat, _col, _ic, sec, secc, _pos, is_tr = _classify(t, resolve_cat, salary_refs, own_ibans)
+            _canon, cat, _col, _ic, sec, secc, _pos, is_tr = _classify(t, resolve_cat, salary_refs, own_ibans)
             if is_tr or sec in ("Pajamos", "Pervedimai"):
+                continue
+            a = _amt(t)
+            # Refunds net the week down, exactly as they net the month down.
+            # This loop used to skip every non-DBIT row, so week bars were GROSS
+            # while every other screen was net — the same week showed two
+            # different numbers depending on where you looked.
+            if _flow({"sec": sec, "cat": cat, "a": a}) not in ("expense", "refund"):
                 continue
             e = secagg.setdefault(sec, {"label": sec, "color": SECTION_BAR.get(sec, "indigo"),
                                         "icon": SEC_ICON.get(sec, "money"), "amount": 0.0})
-            e["amount"] += -_amt(t)
+            e["amount"] += -a
         cats = [secagg[l] for l in SEC_ORDER if l in secagg]
         for c in cats:
-            c["amount"] = round(c["amount"], 2)
+            # A refund bigger than that day's spending in the same section would
+            # otherwise draw a negative bar. Floor it: the refund still shows in
+            # the month totals, and a bar chart has no honest way to go below 0.
+            c["amount"] = round(max(c["amount"], 0.0), 2)
         total = round(sum(c["amount"] for c in cats), 2)
         days.append({"lbl": ["Pr", "An", "Tr", "Kt", "Pn", "Št", "Sk"][i], "total": total,
                      "cats": cats, "dlabel": f"{LT_GEN[dd.month]} {dd.day}"})
@@ -735,6 +743,15 @@ def _flow(r):
         return "transfer"       # own-account / P2P / exchange / cash / top-up
     if r["cat"] == "Grąžinimas":
         return "refund"         # money back — reduces spend, is NOT income
+    # Money coming back from a SPENDING category is a refund, whatever the bank
+    # called it. Only three transaction codes are recognised as refunds
+    # (_REFUND_CODES), and plenty of merchants don't use them — a returned
+    # jacket then landed here as "income", so `net = income − expenses` was
+    # wrong by twice the refund and the savings rate was inflated at both ends.
+    # Genuine income lands in Pajamos, and money movement in Pervedimai, so
+    # neither is caught by this.
+    if r["a"] > 0 and r["sec"] not in ("Pajamos", "Pervedimai"):
+        return "refund"
     return "income" if r["a"] > 0 else "expense"
 
 

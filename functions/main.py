@@ -17,6 +17,7 @@ Deploy region is ``europe-west1`` (close to LT users).
 import datetime as dt
 import json
 import logging
+import uuid
 
 import firebase_admin
 from firebase_functions import https_fn, options
@@ -112,6 +113,19 @@ def _uid(req: https_fn.CallableRequest) -> str:
     """The authenticated caller's uid. Always use this — never a uid from the
     request body, which the caller controls."""
     return req.auth.uid
+
+
+def _begin(req: https_fn.CallableRequest, name: str) -> str:
+    """Open a log record for one call and return its correlation id.
+
+    Support used to be impossible: no log line carried a uid, so given "my bank
+    won't connect" there was no way to find that user's attempt among everyone
+    else's. The id ties every line of one call together; the uid ties it to the
+    person who wrote in.
+    """
+    rid = uuid.uuid4().hex[:8]
+    logging.info("call=%s rid=%s uid=%s", name, rid, _uid(req))
+    return rid
 
 
 # The one thing this backend stores. Everything else — transactions, balances,
@@ -366,14 +380,19 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
 def list_banks(req: https_fn.CallableRequest) -> dict:
     """Return the banks a user can connect to for ``country`` (default LT)."""
     _require_auth(req)
+    rid = _begin(req, "list_banks")
     country = (req.data or {}).get("country", DEFAULT_COUNTRY)
     try:
         aspsps = _client().list_aspsps(country)
     except EnableBankingError as e:
+        # The three endpoints where connecting a bank actually breaks
+        # used to log NOTHING — the detail went only to the phone, so a
+        # user reporting "it won't connect" left no trace to look at.
+        logging.exception("list_banks failed rid=%s status=%s", rid,
+                          getattr(e, "status", None))
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
             message="Could not load banks.",
-            details=str(e),
         )
     banks = [
         {
@@ -392,6 +411,7 @@ def list_banks(req: https_fn.CallableRequest) -> dict:
 def start_bank_auth(req: https_fn.CallableRequest) -> dict:
     """Begin consent for ``aspspName`` and return the bank's authorization URL."""
     _require_auth(req)
+    rid = _begin(req, "start_bank_auth")
     data = req.data or {}
     name = data.get("aspspName")
     if not name:
@@ -416,10 +436,14 @@ def start_bank_auth(req: https_fn.CallableRequest) -> dict:
         redirect_url = requested if requested in redirects else redirects[0]
         url, state = client.start_auth(name, country, redirect_url)
     except EnableBankingError as e:
+        # The three endpoints where connecting a bank actually breaks
+        # used to log NOTHING — the detail went only to the phone, so a
+        # user reporting "it won't connect" left no trace to look at.
+        logging.exception("start_bank_auth failed rid=%s status=%s", rid,
+                          getattr(e, "status", None))
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
             message="Could not start bank authorization.",
-            details=str(e),
         )
     return {"url": url, "state": state}
 
@@ -439,6 +463,7 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     Returns only the recurring-payment *candidates* — never the raw transactions.
     """
     _require_auth(req)
+    rid = _begin(req, "finish_bank_auth")
     data = req.data or {}
     code = data.get("code")
     if not code:
@@ -464,10 +489,14 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     try:
         session = client.create_session(code)
     except EnableBankingError as e:
+        # The three endpoints where connecting a bank actually breaks
+        # used to log NOTHING — the detail went only to the phone, so a
+        # user reporting "it won't connect" left no trace to look at.
+        logging.exception("finish_bank_auth failed rid=%s status=%s", rid,
+                          getattr(e, "status", None))
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
             message="Could not fetch transactions.",
-            details=str(e),
         )
     metas = [_account_meta(a, bank) for a in session.get("accounts", [])]
     # Bind these accounts to the caller before fetching anything. This is the
@@ -523,6 +552,7 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
     by naming their account uid.
     """
     _require_auth(req)
+    rid = _begin(req, "refresh_dashboard")
     data = req.data or {}
     accounts_in = data.get("accounts") or []
     if not isinstance(accounts_in, list) or not accounts_in:
@@ -542,8 +572,8 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
         # user connected before ownership was recorded. Both end the same way:
         # we refuse, and the client asks them to reconnect.
         logging.warning(
-            "refresh_dashboard: uid=%s requested %d accounts, owns %d of them",
-            uid, len(requested), len(metas))
+            "refresh_dashboard rid=%s uid=%s requested %d accounts, owns %d",
+            rid, uid, len(requested), len(metas))
     if not metas:
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.PERMISSION_DENIED,
@@ -575,6 +605,7 @@ def finance_chat(req: https_fn.CallableRequest) -> dict:
     chat module returns a graceful fallback rather than raising.
     """
     _require_auth(req)
+    rid = _begin(req, "finance_chat")
     data = req.data or {}
     reply = _finance_chat(
         summary=str(data.get("summary") or ""),
@@ -599,6 +630,7 @@ def month_summary(req: https_fn.CallableRequest) -> dict:
     back to its own templated summary). Nothing is persisted.
     """
     _require_auth(req)
+    rid = _begin(req, "month_summary")
     data = req.data or {}
     text = _month_report(
         stats=str(data.get("stats") or ""),
