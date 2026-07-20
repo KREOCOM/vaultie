@@ -49,6 +49,20 @@ def test_ownership_is_not_substring_matched():
     assert kept == [], kept
 
 
+# ── bank name from IBAN (authoritative label + logo) ────────────────────────
+
+def test_bank_derived_from_lithuanian_iban():
+    assert main._bank_from_iban("LT857044090115306201") == "SEB"
+    assert main._bank_from_iban("LT123280012345678901") == "Revolut"
+    assert main._bank_from_iban("LT007300099887766554") == "Swedbank"
+
+
+def test_unknown_or_foreign_iban_defers_to_the_client_label():
+    assert main._bank_from_iban("GB33REVO60161331926819") is None
+    assert main._bank_from_iban("") is None
+    assert main._bank_from_iban(None) is None
+
+
 def main_():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -256,6 +256,34 @@ def _coerce_months(raw) -> int:
         return 12
 
 
+# Lithuanian bank identifier (IBAN chars 5-9) → bank name. The IBAN carries the
+# bank deterministically, so this labels an account correctly no matter what the
+# connect flow passed as the bank name — which turned out to be fragile (a
+# hand-off cancel could drop it, leaving accounts labelled the generic "Bankas"
+# with no logo). Only the majors are listed; an unknown code falls back to
+# whatever label the client sent.
+_LT_BANK_BY_CODE = {
+    "70440": "SEB",
+    "73000": "Swedbank",
+    "40100": "Luminor",
+    "21400": "Luminor",
+    "32800": "Revolut",
+    "35100": "Revolut",
+    "72900": "Citadele",
+    "71800": "Šiaulių bankas",
+    "30100": "Medicinos bankas",
+    "37500": "Urbo bankas",
+}
+
+
+def _bank_from_iban(iban):
+    """Bank name from a Lithuanian IBAN's bank code, or None if not recognised."""
+    n = _norm_iban(iban)
+    if not n or not n.startswith("LT") or len(n) < 9:
+        return None
+    return _LT_BANK_BY_CODE.get(n[4:9])
+
+
 def _norm_iban(iban) -> str | None:
     """Uppercase, strip spaces — so own-account IBANs compare regardless of
     formatting."""
@@ -347,7 +375,10 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
         norm = _norm_iban(m.get("iban"))
         if norm:
             own_ibans.add(norm)
-        bank = m.get("bank")
+        # Prefer the bank the IBAN identifies — it's authoritative and can't be
+        # lost the way the client-passed label can. Fall back to that label (and
+        # then a generic word) only when the IBAN isn't a recognised LT one.
+        bank = _bank_from_iban(m.get("iban")) or m.get("bank") or "Bankas"
         is_revolut = "revolut" in str(m.get("name", "")).lower() \
             or "revolut" in str(bank or "").lower()
         psu = client.psu_headers_for(bank, DEFAULT_COUNTRY, psu_available or {}) \
