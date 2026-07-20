@@ -13,6 +13,23 @@ import '../services/feature_flags.dart';
 import 'bank_import_screen.dart';
 import 'preview/dashboard_preview.dart';
 
+/// Ensures one authorisation code is exchanged exactly once.
+///
+/// A bank can deliver its callback through BOTH channels at once: the in-session
+/// ASWebAuthenticationSession the in-app flow is waiting on, AND the universal
+/// link the deep-link handler listens for. Each then tries to complete the same
+/// connection. The code is single-use — the first exchange connects the bank,
+/// the second gets HTTP 422 and shows a spurious "couldn't finish" over a
+/// connection that already succeeded (observed with SEB). Whichever path claims
+/// the code first completes it; the other backs off silently.
+class BankConnectClaim {
+  BankConnectClaim._();
+  static final Set<String> _claimed = <String>{};
+
+  /// True the first time [code] is seen this session, false for every repeat.
+  static bool claim(String code) => _claimed.add(code);
+}
+
 /// What [completeBankConnection] hands back: the fast dashboard to show now, the
 /// background 12-month backfill to swap in later, and the raw scan for the
 /// legacy import fallback.
@@ -263,6 +280,13 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         throw BankingException(_isLt
             ? 'Negavome prisijungimo kodo iš banko.'
             : 'The bank didn\'t return a sign-in code.');
+      }
+      // If the deep-link handler already claimed this code (the bank fired both
+      // channels), let it finish — don't exchange the same single-use code
+      // twice. Its BankCallbackScreen is on top and will land on the dashboard.
+      if (!BankConnectClaim.claim(code)) {
+        _stopStages();
+        return;
       }
       if (!mounted) return;
       setState(() => _phase = _Phase.analysing);

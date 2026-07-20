@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 
 import '../screens/bank_callback_screen.dart';
+import '../screens/bank_connect_screen.dart';
 import 'auth_service.dart';
 import 'banking_service.dart';
 
@@ -54,6 +55,11 @@ class BankingDeepLinks {
     // signed in. If somehow not, drop it rather than crash mid-flow — the user
     // can reconnect from inside the app.
     if (!AuthService().isLoggedIn) return;
+
+    // If the in-app flow already claimed this code (the bank delivered the
+    // callback through both the session and the universal link), back off — the
+    // code is single-use and a second exchange 422s over a working connection.
+    if (!BankConnectClaim.claim(code)) return;
 
     // Defer to after the current frame so the navigator exists and isn't locked.
     WidgetsBinding.instance.addPostFrameCallback((_) {
