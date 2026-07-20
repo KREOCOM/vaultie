@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_prefs.dart';
 import '../i18n.dart';
 
 /// The bank-connect call to action, shown after onboarding.
@@ -25,6 +26,23 @@ class OnbConnect extends StatelessWidget {
   /// the bank callables all call `_require_auth`, so an account has to exist
   /// before the bank list can even be fetched.
   final Widget next;
+
+  /// Last screen of the intro chain, so this is where the chain is recorded as
+  /// walked — before navigating, so a user who never signs in still isn't shown
+  /// the whole intro again on the next launch. Quitting mid-chain deliberately
+  /// leaves the flag unset: an unfinished intro should resume from the start.
+  Future<void> _finish(BuildContext context) async {
+    await AppPrefs.setOnboarded(true);
+    if (!context.mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 420),
+        pageBuilder: (_, __, ___) => next,
+        transitionsBuilder: (_, a, __, child) =>
+            FadeTransition(opacity: a, child: child),
+      ),
+    );
+  }
 
   static const _ink = Color(0xFF0B1533);
   static const _sub = Color(0xFF4C5B7D);
@@ -95,14 +113,7 @@ class OnbConnect extends StatelessWidget {
                         SizedBox(height: 16 * s),
                         const Spacer(),
                         GestureDetector(
-                          onTap: () => Navigator.of(context).pushReplacement(
-                            PageRouteBuilder(
-                              transitionDuration: const Duration(milliseconds: 420),
-                              pageBuilder: (_, __, ___) => next,
-                              transitionsBuilder: (_, a, __, child) =>
-                                  FadeTransition(opacity: a, child: child),
-                            ),
-                          ),
+                          onTap: () => _finish(context),
                           child: Container(
                             height: 58 * s,
                             decoration: BoxDecoration(

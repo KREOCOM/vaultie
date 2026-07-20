@@ -138,6 +138,25 @@ class AppPrefs {
   static Future<void> setOnboardingComplete(bool value) async {
     await _box.put(_kOnboardingComplete, value);
   }
+
+  static const _kOnboarded = 'onboarded';
+
+  /// Whether the pre-login intro chain (OnbIntro → … → OnbConnect) has been
+  /// walked. Distinct from [onboardingComplete], which covers the *post*-login
+  /// "How would you like to start?" choice — the two gate different screens and
+  /// a user can have one without the other.
+  ///
+  /// Lives here rather than as a raw `'onboarded'` Hive key: it used to be
+  /// written by hand in two screens that are no longer on any path, so the live
+  /// chain never set it and release builds replayed onboarding on every launch.
+  /// Debug hid it by force-setting the key at startup.
+  static bool get onboarded => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _box.get(_kOnboarded, defaultValue: false) as bool
+      : false;
+
+  static Future<void> setOnboarded(bool value) async {
+    await _box.put(_kOnboarded, value);
+  }
 }
 
 /// The default UI locale when the user hasn't chosen a language in Settings:

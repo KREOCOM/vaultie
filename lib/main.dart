@@ -97,7 +97,7 @@ Future<void> main() async {
     // enable the bank flow for testing. Remove this whole block before release.
     PurchaseService.instance = MockPurchaseService();
     await settings.put('premium', true);
-    await settings.put('onboarded', true);
+    await AppPrefs.setOnboarded(true);
   }
 
   await NotificationService.instance.init();
@@ -121,8 +121,7 @@ Future<void> main() async {
   // Snapshot this month's spend so the Monthly Recap has data to show later.
   RecapService.recordCurrentMonth(subsBox.values.toList());
 
-  runApp(
-      VaultieApp(hasOnboarded: settings.get('onboarded', defaultValue: false)));
+  runApp(VaultieApp(hasOnboarded: AppPrefs.onboarded));
 }
 
 /// Launch-time pass: (re)schedules payment reminders from the persisted dashboard

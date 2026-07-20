@@ -115,7 +115,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   /// Persists that onboarding + the start-choice are done, so the next launch
   /// goes straight to the dashboard instead of repeating onboarding.
   Future<void> _markOnboarded() async {
-    await Hive.box(HiveBoxes.settings).put('onboarded', true);
+    await AppPrefs.setOnboarded(true);
     await AppPrefs.setOnboardingComplete(true);
   }
 

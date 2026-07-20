@@ -1,10 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 
+import '../app_prefs.dart';
 import '../expense_categories.dart';
-import '../main.dart';
 import '../services/notification_service.dart';
 import '../widgets/subscription_icons.dart';
 import 'auth_screen.dart';
@@ -73,7 +72,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _finish() async {
-    await Hive.box(HiveBoxes.settings).put('onboarded', true);
+    await AppPrefs.setOnboarded(true);
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const AuthScreen()),

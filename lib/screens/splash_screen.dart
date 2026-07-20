@@ -59,14 +59,19 @@ class _SplashScreenState extends State<SplashScreen>
     // the dashboard; a signed-in but unverified user resumes at the verify
     // screen; everyone else lands on the auth screen.
     final auth = AuthService();
+    // Being signed in means the intro chain was already walked — signing in is
+    // its last step. Treating that as onboarded is a safety net for anyone whose
+    // flag is missing (an older build, or an install from before the flag was
+    // written at all): they get their dashboard, not the intro all over again.
+    final onboarded = widget.hasOnboarded || auth.isLoggedIn;
     // Before showing a returning user's data, make sure the local vault belongs
     // to them (wipes it if a different account owned this device).
-    if (widget.hasOnboarded && auth.isLoggedIn && auth.isEmailVerified) {
+    if (onboarded && auth.isLoggedIn && auth.isEmailVerified) {
       await ensureLocalDataForCurrentUser();
       if (!mounted) return;
     }
     final Widget next;
-    if (!widget.hasOnboarded) {
+    if (!onboarded) {
       // The five-screen onboarding built on top of the real dashboards. The
       // old OnboardingFlow is still in the tree, unused from here.
       next = const OnbIntro(
