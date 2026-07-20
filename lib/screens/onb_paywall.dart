@@ -2,16 +2,21 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../i18n.dart';
+import '../services/purchase_service.dart';
 import 'legal_screen.dart';
 
 /// The paywall, copied from the reference.
 ///
-/// **This screen does not charge anything.** It is a visual mock so the whole
-/// path can be walked end to end; "Tęsti" simply advances. The real purchase
-/// needs products that do not exist yet — App Store Connect has no yearly plan,
-/// no 4,99 €/mėn price and no trial. There is already one unwired paywall in
-/// this codebase (lib/screens/onboarding/paywall_screen.dart) that looks
-/// functional and silently succeeds, so this one says what it is.
+/// This screen charges for real: "Tęsti" buys the selected plan through
+/// [PurchaseService] and only advances once the entitlement is granted. The
+/// close button (X) always skips — onboarding must never trap the user behind
+/// a purchase, least of all when the store is unreachable.
+///
+/// The prices shown are the live, localized store prices when the RevenueCat
+/// offering has loaded, falling back to [_monthly]/[_yearly] otherwise. The
+/// derived figures (savings, discount %) are always computed from those EUR
+/// constants — they are display-only and the app is EUR-first, but they will
+/// read slightly off in regions Apple prices non-proportionally.
 ///
 /// Two departures from the reference, both deliberate:
 ///
@@ -53,14 +58,69 @@ String _eur(double v) => '${v.toStringAsFixed(2).replaceAll('.', ',')} €';
 
 class _OnbPaywallState extends State<OnbPaywall> {
   bool _annual = true;
+  bool _busy = false;
 
-  void _continue() => Navigator.of(context).pushReplacement(
+  PlanId get _plan => _annual ? PlanId.yearly : PlanId.monthly;
+
+  /// Live store price for [id], falling back to the constant above until the
+  /// RevenueCat offering has loaded (or if it never does).
+  String _priceFor(PlanId id) =>
+      PurchaseService.instance.priceString(id) ??
+      _eur(id == PlanId.yearly ? _yearly : _monthly);
+
+  void _advance() => Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 420),
           pageBuilder: (_, __, ___) => widget.next,
           transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
         ),
       );
+
+  void _toast(String message) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+
+  /// Buys the selected plan, advancing only once premium is actually granted.
+  ///
+  /// A cancelled purchase is silent — the user is still on the paywall and can
+  /// pick again or skip. Everything else explains itself and stays put: a
+  /// paywall that advances on failure is indistinguishable from one that works,
+  /// which is exactly the trap the old unwired paywall fell into.
+  Future<void> _buy() async {
+    setState(() => _busy = true);
+    final result = await PurchaseService.instance.purchase(_plan);
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    switch (result.status) {
+      case PurchaseStatus.success:
+        _advance();
+      case PurchaseStatus.cancelled:
+        break;
+      case PurchaseStatus.notFound:
+        // Offerings never loaded: offline, or the products aren't live in App
+        // Store Connect yet. Say so rather than pretending it worked.
+        _toast(tr('Planai kol kas nepasiekiami. Bandyk vėliau arba praleisk.'));
+      case PurchaseStatus.error:
+        _toast(result.message ?? tr('Pirkimas nepavyko. Bandyk dar kartą.'));
+    }
+  }
+
+  /// Restores a previous purchase — required on any subscription screen, and
+  /// the path back to premium for anyone reinstalling or on a new device.
+  Future<void> _restore() async {
+    setState(() => _busy = true);
+    final result = await PurchaseService.instance.restore();
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    if (result.isSuccess) {
+      _toast(tr('Pirkimas atkurtas.'));
+      _advance();
+    } else {
+      _toast(tr('Nerasta pirkimų atkurti.'));
+    }
+  }
 
   void _openLegal({required bool terms}) {
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
@@ -84,7 +144,8 @@ class _OnbPaywallState extends State<OnbPaywall> {
                   alignment: Alignment.centerLeft,
                   child: IconButton(
                     icon: const Icon(Icons.close_rounded, size: 26, color: _sub),
-                    onPressed: widget.onClose ?? _continue,
+                    // Always a skip, never a purchase — see the class doc.
+                    onPressed: _busy ? null : (widget.onClose ?? _advance),
                   ),
                 ),
                 // Scrolls on purpose: this is the densest screen in the app and
@@ -115,18 +176,18 @@ class _OnbPaywallState extends State<OnbPaywall> {
                         const SizedBox(height: 18),
                         _features(),
                         const SizedBox(height: 18),
-                        _plan(
+                        _planCard(
                           annual: false,
                           title: tr('Mėnesinis planas'),
-                          price: _eur(_monthly),
+                          price: _priceFor(PlanId.monthly),
                           period: tr('/ mėn.'),
                           chip: '${_eur(_yearOfMonthly)} ${tr('per metus')}',
                         ),
                         const SizedBox(height: 10),
-                        _plan(
+                        _planCard(
                           annual: true,
                           title: tr('Metinis planas'),
-                          price: _eur(_yearly),
+                          price: _priceFor(PlanId.yearly),
                           period: tr('/ metus'),
                           chip: '${_eur(_yearlyPerMonth)} ${tr('/ mėn.')}',
                         ),
@@ -183,7 +244,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
         ],
       );
 
-  Widget _plan({
+  Widget _planCard({
     required bool annual,
     required String title,
     required String price,
@@ -192,7 +253,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
   }) {
     final on = _annual == annual;
     return GestureDetector(
-      onTap: () => setState(() => _annual = annual),
+      onTap: _busy ? null : () => setState(() => _annual = annual),
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         decoration: BoxDecoration(
@@ -328,7 +389,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
   /// Button plus the disclosures Apple requires on a subscription screen.
   Widget _bottom() {
     final plan = _annual ? tr('Metinis planas') : tr('Mėnesinis planas');
-    final price = _annual ? _eur(_yearly) : _eur(_monthly);
+    final price = _priceFor(_plan);
     final per = _annual ? tr('metams') : tr('mėnesiui');
 
     return Padding(
@@ -336,32 +397,47 @@ class _OnbPaywallState extends State<OnbPaywall> {
       child: Column(
         children: [
           GestureDetector(
-            onTap: _continue,
-            child: Container(
-              height: 56,
-              decoration: BoxDecoration(
-                color: _blue,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(color: _blue.withValues(alpha: 0.32),
-                      blurRadius: 18, offset: const Offset(0, 8)),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(tr('Tęsti'),
-                      style: const TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
-                  const SizedBox(width: 10),
-                  const Icon(Icons.arrow_forward_rounded, size: 19, color: Colors.white),
-                ],
+            onTap: _busy ? null : _buy,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 150),
+              opacity: _busy ? 0.75 : 1,
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  color: _blue,
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(color: _blue.withValues(alpha: 0.32),
+                        blurRadius: 18, offset: const Offset(0, 8)),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: _busy
+                      ? const [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.2, color: Colors.white),
+                          ),
+                        ]
+                      : [
+                          Text(tr('Tęsti'),
+                              style: const TextStyle(
+                                  fontSize: 17, fontWeight: FontWeight.w800,
+                                  color: Colors.white)),
+                          const SizedBox(width: 10),
+                          const Icon(Icons.arrow_forward_rounded,
+                              size: 19, color: Colors.white),
+                        ],
+                ),
               ),
             ),
           ),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: _continue,
+            onTap: _busy ? null : _restore,
             child: Text(tr('Atkurti pirkimus'),
                 style: const TextStyle(
                     fontSize: 12.5, fontWeight: FontWeight.w700, color: _sub)),

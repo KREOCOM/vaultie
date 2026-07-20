@@ -45,7 +45,7 @@ class PaywallScreen extends StatefulWidget {
 
 class _PaywallScreenState extends State<PaywallScreen> {
   // Default to the best-value plan.
-  PlanId _selected = PlanId.lifetime;
+  PlanId _selected = PlanId.yearly;
   bool _busy = false;
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
@@ -180,12 +180,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final isLt = _isLt;
     // CTA reflects the selected plan and its price.
     final price = _priceFor(_selected);
-    // With the trial timeline on, the monthly plan leads with the free-trial CTA
-    // (the trial only applies to the auto-renewing subscription, not Lifetime).
+    // With the trial timeline on, the monthly plan leads with the free-trial CTA.
     final ctaLabel = kShowTrialTimeline && _selected == PlanId.monthly
         ? (isLt ? 'Pradėti 7 d. nemokamą bandymą' : 'Start my 7-day free trial')
-        : _selected == PlanId.lifetime
-            ? (isLt ? 'Pirkti — $price' : 'Unlock — $price')
+        : _selected == PlanId.yearly
+            ? (isLt ? 'Prenumeruoti — $price/metus' : 'Subscribe — $price/yr')
             : (isLt ? 'Prenumeruoti — $price/mėn.' : 'Subscribe — $price/mo');
 
     return PopScope(
@@ -279,7 +278,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     // trial timeline read as supporting detail below).
                     Row(
                       children: [
-                        _planPill(PlanId.lifetime, isLt),
+                        _planPill(PlanId.yearly, isLt),
                         const SizedBox(width: 10),
                         _planPill(PlanId.monthly, isLt),
                       ],
@@ -337,20 +336,18 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     Text(
                       isLt
                           ? 'Vaultie Pro Mėnesinė (${_priceFor(PlanId.monthly)}/mėn.) '
-                              'yra automatiškai atsinaujinanti prenumerata: ji '
+                              'ir Metinė (${_priceFor(PlanId.yearly)}/metus) yra '
+                              'automatiškai atsinaujinančios prenumeratos: jos '
                               'atsinaujina ta pačia kaina kiekvieną laikotarpį, '
-                              'nebent atšaukiama likus ne mažiau kaip 24 val. iki '
-                              'laikotarpio pabaigos. „Visam laikui" '
-                              '(${_priceFor(PlanId.lifetime)}) — vienkartinis '
-                              'pirkimas. Mokėjimas nuskaičiuojamas iš „Apple ID" '
-                              'ir valdomas „App Store" nustatymuose.'
+                              'nebent atšaukiamos likus ne mažiau kaip 24 val. iki '
+                              'laikotarpio pabaigos. Mokėjimas nuskaičiuojamas iš '
+                              '„Apple ID" ir valdomas „App Store" nustatymuose.'
                           : 'Vaultie Pro Monthly (${_priceFor(PlanId.monthly)}/month) '
-                              'is an auto-renewable subscription that renews at '
-                              'the same price each period unless cancelled at '
-                              'least 24 hours before the period ends. Lifetime '
-                              '(${_priceFor(PlanId.lifetime)}) is a one-time '
-                              'purchase. Payment is charged to your Apple ID and '
-                              'can be managed in your App Store settings.',
+                              'and Yearly (${_priceFor(PlanId.yearly)}/year) are '
+                              'auto-renewable subscriptions that renew at the same '
+                              'price each period unless cancelled at least 24 hours '
+                              'before the period ends. Payment is charged to your '
+                              'Apple ID and can be managed in your App Store settings.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.5),
@@ -532,15 +529,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
   /// is visible high on the paywall instead of buried below the value section.
   Widget _planPill(PlanId id, bool isLt) {
     final selected = _selected == id;
-    final lifetime = id == PlanId.lifetime;
-    final accent = lifetime ? _gold : _brightGreen;
-    final title = lifetime
-        ? (isLt ? 'Visam laikui' : 'Lifetime')
+    final yearly = id == PlanId.yearly;
+    final accent = yearly ? _gold : _brightGreen;
+    final title = yearly
+        ? (isLt ? 'Metinis' : 'Yearly')
         : (isLt ? 'Mėnesinis' : 'Monthly');
-    final period = lifetime
-        ? (isLt ? 'vienkart.' : 'one-time')
+    final period = yearly
+        ? (isLt ? '/metus' : '/yr')
         : (isLt ? '/mėn.' : '/mo');
-    final tag = lifetime
+    final tag = yearly
         ? (isLt ? 'Geriausia' : 'Best value')
         : (isLt ? 'Populiaru' : 'Popular');
 
@@ -588,7 +585,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 child: Text(
                   tag.toUpperCase(),
                   style: TextStyle(
-                    color: lifetime ? VaultieColors.primaryDark : Colors.white,
+                    color: yearly ? VaultieColors.primaryDark : Colors.white,
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.4,

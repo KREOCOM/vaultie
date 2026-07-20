@@ -9,7 +9,13 @@ import '../main.dart';
 const int kFreeSubscriptionLimit = 5;
 
 /// The plans offered on the paywall.
-enum PlanId { monthly, lifetime }
+///
+/// The one-time "lifetime" plan is retired: at €29.99 it undercut the €39.99
+/// yearly plan, so nobody would ever have bought the subscription. The product
+/// still exists in App Store Connect so previous buyers keep their access —
+/// their entitlement is "Vaultie Pro" like everyone else's, and [restore] is
+/// entitlement-based, so it works without the plan appearing here.
+enum PlanId { monthly, yearly }
 
 /// A purchasable plan. Prices live here so a real billing backend (RevenueCat)
 /// can later populate them from live store products instead of hard-coding.
@@ -19,7 +25,7 @@ class PurchasePlan {
   final PlanId id;
   final String price;
 
-  bool get isLifetime => id == PlanId.lifetime;
+  bool get isYearly => id == PlanId.yearly;
 }
 
 /// Outcome of a purchase or restore attempt.
@@ -49,8 +55,8 @@ abstract class PurchaseService {
   /// (and if offerings can't be fetched). The live, localized prices from
   /// [priceString] take precedence when available.
   static const List<PurchasePlan> plans = [
-    PurchasePlan(id: PlanId.monthly, price: '€3.99'),
-    PurchasePlan(id: PlanId.lifetime, price: '€29.99'),
+    PurchasePlan(id: PlanId.monthly, price: '€4.99'),
+    PurchasePlan(id: PlanId.yearly, price: '€39.99'),
   ];
 
   static PurchasePlan planFor(PlanId id) => plans.firstWhere((p) => p.id == id);
@@ -141,10 +147,16 @@ class RevenueCatPurchaseService implements PurchaseService {
   /// Entitlement identifier configured in the RevenueCat dashboard.
   static const _entitlementId = 'Vaultie Pro';
 
-  /// Store product identifiers, mapped to our plan enum.
+  /// Store product identifiers, mapped to our plan enum. These must match the
+  /// product IDs in App Store Connect exactly, and both products must sit in
+  /// the current RevenueCat offering or [purchase] returns [notFound].
+  ///
+  /// The retired `...pro.lifetime` product is deliberately absent: it stays
+  /// purchasable-in-name-only for past buyers but must never appear as an
+  /// option, so it is left unmapped and simply ignored in the offering.
   static const _productIds = {
     'com.kreocom.vaultie.pro.monthly': PlanId.monthly,
-    'com.kreocom.vaultie.pro.lifetime': PlanId.lifetime,
+    'com.kreocom.vaultie.pro.yearly': PlanId.yearly,
   };
 
   /// RevenueCat public SDK keys. iOS is live now; add the Android key when
