@@ -186,6 +186,24 @@ String _eur0(num v) {
   return '${v < 0 ? '−' : ''}$b €';
 }
 
+// ── Safe reads of the raw per-transaction fields the backend sends.
+//
+// These were forced casts and bare substrings at ~10 call sites — `(t['d'] as
+// String).substring(8, 10)`, `t['nm'] as String`. The backend always stamps
+// these fields, but the phone also feeds this code its own cache (from an older
+// build, a bank with an odd payload), and a single malformed row throwing a
+// TypeError or RangeError takes the whole screen down. One row's bad data must
+// cost that row, not the dashboard — so these degrade to a harmless default.
+// The safe idiom (`padRight` before slicing) was already used once in this
+// file; this just applies it everywhere raw rows are read.
+String _dOf(Map t) => (t['d'] as String?) ?? '';
+String _nmOf(Map t) => (t['nm'] as String?) ?? '';
+String _ymOf(Map t) => _dOf(t).padRight(7).substring(0, 7); // 'YYYY-MM'
+int _dayOf(Map t) {
+  final d = _dOf(t);
+  return d.length >= 10 ? (int.tryParse(d.substring(8, 10)) ?? 1) : 1;
+}
+
 // ── Canonical money rule — the ONE definition every screen uses so the same
 // concept shows the same number everywhere (mirrors functions/dashboard.py
 // _flow/_totals). Direction decides income vs expense; transfers/exchange are
@@ -481,8 +499,22 @@ class DashboardPreview extends StatefulWidget {
 }
 
 class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBindingObserver {
-  late Map<String, dynamic> _d =
-      widget.data ?? jsonDecode(utf8.decode(base64Decode(_dashB64))) as Map<String, dynamic>;
+  late Map<String, dynamic> _d = _normalizeDash(
+      widget.data ?? jsonDecode(utf8.decode(base64Decode(_dashB64))) as Map<String, dynamic>);
+
+  /// Guarantees the keys the build reads unconditionally (`all`, `balance` +
+  /// its `series`, `subs`) exist and are the right type. A payload missing or
+  /// mis-shaping any of them — a cache from an older build, a partially-built
+  /// dash — would otherwise crash the whole screen on a forced cast at build
+  /// time. This turns that into an empty-but-rendering dashboard.
+  static Map<String, dynamic> _normalizeDash(Map<String, dynamic> d) {
+    if (d['all'] is! List) d['all'] = <Map<String, dynamic>>[];
+    if (d['balance'] is! Map) d['balance'] = <String, dynamic>{};
+    final bal = d['balance'] as Map;
+    if (bal['series'] is! List) bal['series'] = <dynamic>[];
+    if (d['subs'] is! Map) d['subs'] = <String, dynamic>{};
+    return d;
+  }
   bool _deepening = false; // a fuller 12-month scan is still loading in the background
   int _tab = 0;
   bool _hideBal = false;
@@ -560,7 +592,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         }
         setState(() {
           if (full != null) {
-            _d = full;
+            _d = _normalizeDash(full);
             _otherTabs = null; // Overview/Planning rebuild from the fuller data
           }
           _deepening = false;
@@ -658,6 +690,33 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     await Future<void>.delayed(const Duration(milliseconds: 650));
   }
 
+  /// A bank the backend reported as revoked — its consent expired, or the user
+  /// withdrew Vaultie's access in their own bank. The server already stopped
+  /// serving its cached data; the phone must drop the dead connection and say
+  /// so, rather than keep showing it as if it were merely quiet.
+  Future<void> _handleRevokedBanks() async {
+    final revoked = <String>{
+      for (final e in _lastDiag)
+        if (e is Map && e['revoked'] == true && e['bank'] is String)
+          e['bank'] as String,
+    };
+    if (revoked.isEmpty) return;
+    for (final bank in revoked) {
+      await DashboardStore.removeConnection(bank);
+    }
+    if (!mounted) return;
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    final names = revoked.join(', ');
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(isLt
+            ? 'Prieiga prie $names atšaukta. Prijunk banką iš naujo, kad matytum naujus duomenis.'
+            : 'Access to $names was revoked. Reconnect the bank to see new data.'),
+        duration: const Duration(seconds: 6),
+      ));
+  }
+
   Future<void> _runSync() async {
     try {
       final refs = DashboardStore.accountRefs();
@@ -667,13 +726,15 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       final fresh = await BankingService.instance.refreshDashboard(refs,
           aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6, onDiag: (d) => _lastDiag = d);
       if (!mounted) return;
+      await _handleRevokedBanks();
+      if (!mounted) return;
       if (_refreshLostABank(fresh)) {
         setState(() => _deepening = false);
         return; // keep the complete last-known data; don't save the partial
       }
       setState(() {
         if (fresh != null) {
-          _d = fresh;
+          _d = _normalizeDash(fresh);
           _otherTabs = null;
         }
         _deepening = false;
@@ -699,13 +760,15 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       final fresh = await BankingService.instance.refreshDashboard(refs,
           aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6, onDiag: (d) => _lastDiag = d);
       if (!mounted) return;
+      await _handleRevokedBanks();
+      if (!mounted) return;
       if (_refreshLostABank(fresh)) {
         setState(() => _deepening = false);
         return; // keep the complete last-known data; don't save the partial
       }
       setState(() {
         if (fresh != null) {
-          _d = fresh;
+          _d = _normalizeDash(fresh);
           _otherTabs = null;
         }
         _deepening = false;
@@ -807,7 +870,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     final all = _feedAll;
     final keys = <String>{};
     for (final t in all) {
-      keys.add((t['d'] as String).substring(0, 7));
+      keys.add(_ymOf(t));
     }
     final monthKeys = keys.toList()..sort((a, b) => b.compareTo(a));
     final shown = monthKeys.take(1 + _shownPast).toList(); // current + N past months
@@ -3845,7 +3908,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_shortNm(s['nm'] as String), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
+                      Text(_shortNm(_nmOf(s)), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
                       const SizedBox(height: 2),
                       Row(children: [
                         Container(width: 5, height: 5, decoration: const BoxDecoration(shape: BoxShape.circle, color: _purple)),
@@ -4104,7 +4167,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final net = earned - spent;
     final savings = earned > 0 ? ((earned - spent) / earned * 100).round().clamp(0, 100) : 0;
     // Real saving streak (was hardcoded "2 mėn."), derived from all months.
-    final mkeys = (widget.all.map((t) => (t['d'] as String).substring(0, 7)).toSet().toList()..sort());
+    final mkeys = (widget.all.map((t) => _ymOf(t)).toSet().toList()..sort());
     int savOf(List<Map<String, dynamic>> r) {
       final e = _sumIncome(r);
       return e > 0 ? ((e - _sumExpenses(r)) / e * 100).round().clamp(0, 100) : 0;
@@ -4495,7 +4558,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final net = <int, double>{};
     final daySec = <int, Map<String, double>>{};
     for (final t in _rows) {
-      final d = int.parse((t['d'] as String).substring(8, 10));
+      final d = _dayOf(t);
       final a = (t['a'] as num).toDouble();
       net[d] = (net[d] ?? 0) + a;
       final label = t['sec'] as String;
@@ -5035,7 +5098,7 @@ class _OverviewTabState extends State<_OverviewTab> {
   }
 
   List<String> get _monthKeys {
-    final s = widget.all.map((t) => (t['d'] as String).substring(0, 7)).toSet().toList()..sort();
+    final s = widget.all.map((t) => _ymOf(t)).toSet().toList()..sort();
     return s; // ascending
   }
 
@@ -5346,7 +5409,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     final net = <int, double>{};
     final daySec = <int, Map<String, double>>{};
     for (final t in _rows) {
-      final d = int.parse((t['d'] as String).substring(8, 10));
+      final d = _dayOf(t);
       final a = (t['a'] as num).toDouble();
       net[d] = (net[d] ?? 0) + a;
       final label = t['sec'] as String;
@@ -5751,7 +5814,7 @@ class _PlanningTabState extends State<_PlanningTab> {
 
   // ── month scope ────────────────────────────────────────────────────────────
   List<String> get _monthKeys {
-    final s = widget.all.map((t) => (t['d'] as String).substring(0, 7)).toSet().toList()..sort();
+    final s = widget.all.map((t) => _ymOf(t)).toSet().toList()..sort();
     return s;
   }
 
@@ -7961,7 +8024,7 @@ class _SearchScreenState extends State<_SearchScreen> {
     if (q.isEmpty) return const [];
     final r = widget.all.where((t) {
       // Match merchant (raw + shortened), category AND section, all diacritic-folded.
-      final hay = _fold('${t['nm']} ${_shortNm(t['nm'] as String)} ${t['cat']} ${t['sec'] ?? ''}');
+      final hay = _fold('${t['nm']} ${_shortNm(_nmOf(t))} ${t['cat']} ${t['sec'] ?? ''}');
       return hay.contains(q);
     }).toList();
     r.sort((a, b) => (b['d'] as String).compareTo(a['d'] as String));
@@ -7971,7 +8034,7 @@ class _SearchScreenState extends State<_SearchScreen> {
   void _open(Map<String, dynamic> t) {
     final day = {
       'date': t['d'], 'label': t['md'], 'wd': t['wd'] ?? '',
-      'day': int.tryParse((t['d'] as String).substring(8, 10)) ?? 1,
+      'day': _dayOf(t),
       'total': t['a'], 'tx': [t],
     };
     Navigator.of(context).push(MaterialPageRoute(
@@ -8037,7 +8100,7 @@ class _SearchScreenState extends State<_SearchScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(_shortNm(t['nm'] as String), maxLines: 1, overflow: TextOverflow.ellipsis,
+                                Text(_shortNm(_nmOf(t)), maxLines: 1, overflow: TextOverflow.ellipsis,
                                     style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink)),
                                 Text('${tr((t['cat'] ?? '').toString())} · ${t['md']}', style: TextStyle(fontSize: 12.5, color: _muted)),
                               ]),
