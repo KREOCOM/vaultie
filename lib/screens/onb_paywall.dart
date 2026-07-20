@@ -2,15 +2,20 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../i18n.dart';
+import '../services/auth_service.dart';
 import '../services/purchase_service.dart';
+import '../user_session.dart';
 import 'legal_screen.dart';
+import 'login_screen.dart';
 
 /// The paywall, copied from the reference.
 ///
 /// This screen charges for real: "Tęsti" buys the selected plan through
-/// [PurchaseService] and only advances once the entitlement is granted. The
-/// close button (X) always skips — onboarding must never trap the user behind
-/// a purchase, least of all when the store is unreachable.
+/// [PurchaseService] and only advances once the entitlement is granted.
+///
+/// Vaultie is subscription-only, so this is a real gate: there is nothing
+/// behind it without a plan. The close button signs the user out and returns
+/// them to sign-in rather than advancing — it is a way out, not a way in.
 ///
 /// The prices shown are the live, localized store prices when the RevenueCat
 /// offering has loaded, falling back to [_monthly]/[_yearly] otherwise. The
@@ -115,6 +120,28 @@ class _OnbPaywallState extends State<OnbPaywall> {
     }
   }
 
+  /// Closing the paywall signs the user out and returns them to the start.
+  ///
+  /// Vaultie is subscription-only: there is nothing behind this screen without
+  /// a plan. Dismissing used to advance to the next screen, which handed out
+  /// the whole app for free to anyone who tapped the X. Closing must therefore
+  /// cost the session rather than grant access — the user is not trapped, but
+  /// they do not get in either.
+  Future<void> _exit() async {
+    setState(() => _busy = true);
+    try {
+      await AuthService().signOut();
+      await onSignedOut();
+    } catch (_) {
+      // Sign-out is best-effort; leaving the paywall must still work.
+    }
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (r) => false,
+    );
+  }
+
   /// Restores a previous purchase — required on any subscription screen, and
   /// the path back to premium for anyone reinstalling or on a new device.
   Future<void> _restore() async {
@@ -153,8 +180,8 @@ class _OnbPaywallState extends State<OnbPaywall> {
                   alignment: Alignment.centerLeft,
                   child: IconButton(
                     icon: const Icon(Icons.close_rounded, size: 26, color: _sub),
-                    // Always a skip, never a purchase — see the class doc.
-                    onPressed: _busy ? null : (widget.onClose ?? _advance),
+                    // Signs out and returns to the start — never a free pass.
+                    onPressed: _busy ? null : (widget.onClose ?? _exit),
                   ),
                 ),
                 // Scrolls on purpose: this is the densest screen in the app and
