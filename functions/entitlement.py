@@ -1,0 +1,129 @@
+"""Server-side "is this user actually paying?" check.
+
+Vaultie is subscription-only, but until now the entitlement was checked ONLY on
+the phone. Everything the backend does costs real money — a 12-month bank scan
+across several accounts, AI enrichment, chat — and every one of those endpoints
+was open to anyone with an account. A lapsed subscriber (or anyone who signed
+up and never paid) could keep using the expensive half of the product; the
+client-side gate they'd be bypassing is, after all, on their own device.
+
+RevenueCat is the source of truth, reached over its REST API rather than a
+webhook: a webhook needs dashboard configuration and can silently miss
+deliveries, and this needs no extra moving parts. Answers are cached in
+Firestore so the common path is one fast read, not an outbound HTTP call on
+every scan.
+
+Failure behaviour is deliberate. With a cached answer we trust it for
+[_CACHE_TTL]; without one, and with RevenueCat unreachable, we DENY. Falling
+open would restore the exact hole this file exists to close, and a subscription
+app that hands out its paid work when a third party has a bad minute is not
+protecting anything. The window is generous enough that an outage only touches
+people who haven't opened the app in a day.
+"""
+import datetime as dt
+import logging
+
+import requests
+
+_API = "https://api.revenuecat.com/v1/subscribers/"
+_TIMEOUT = 8
+_ENTITLEMENT = "Vaultie Pro"
+_COLLECTION = "entitlements"
+
+# How long a positive answer stays good without re-asking RevenueCat.
+_CACHE_TTL = dt.timedelta(hours=24)
+
+
+def _now():
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def _cached(db, uid):
+    """(is_active, checked_at) from the cache, or (None, None) if unusable."""
+    try:
+        snap = db.collection(_COLLECTION).document(uid).get()
+        if not snap.exists:
+            return None, None
+        d = snap.to_dict() or {}
+        ts = d.get("checkedAt")
+        if not ts:
+            return None, None
+        # Firestore returns a tz-aware datetime; normalise defensively.
+        checked = ts if isinstance(ts, dt.datetime) else None
+        if checked is None:
+            return None, None
+        if checked.tzinfo is None:
+            checked = checked.replace(tzinfo=dt.timezone.utc)
+        return bool(d.get("active")), checked
+    except Exception:
+        logging.exception("entitlement: cache read failed uid=%s", uid)
+        return None, None
+
+
+def _store(db, uid, active):
+    try:
+        db.collection(_COLLECTION).document(uid).set(
+            {"active": bool(active), "checkedAt": _now()}, merge=True)
+    except Exception:
+        logging.exception("entitlement: cache write failed uid=%s", uid)
+
+
+def _ask_revenuecat(uid, api_key):
+    """True/False from RevenueCat, or None if it couldn't be reached."""
+    try:
+        r = requests.get(_API + uid, timeout=_TIMEOUT,
+                         headers={"Authorization": f"Bearer {api_key}",
+                                  "accept": "application/json"})
+    except Exception as e:  # noqa: BLE001
+        logging.warning("entitlement: RevenueCat unreachable: %s", e)
+        return None
+    if r.status_code == 404:
+        return False  # RevenueCat has never seen this user — definitely not paying
+    if not r.ok:
+        logging.warning("entitlement: RevenueCat http %s", r.status_code)
+        return None
+    try:
+        ents = (r.json().get("subscriber") or {}).get("entitlements") or {}
+    except Exception:  # noqa: BLE001
+        logging.exception("entitlement: unparseable RevenueCat response")
+        return None
+    ent = ents.get(_ENTITLEMENT)
+    if not ent:
+        return False
+    expires = ent.get("expires_date")
+    if expires is None:
+        return True  # non-expiring (lifetime / promotional grant)
+    try:
+        # RevenueCat sends e.g. "2026-08-20T10:15:00Z".
+        exp = dt.datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
+    except ValueError:
+        logging.warning("entitlement: unparseable expiry %r", expires)
+        return None
+    return exp > _now()
+
+
+def is_premium(uid: str, api_key: str, db=None) -> bool:
+    """Whether [uid] currently holds the Vaultie Pro entitlement.
+
+    Reads the cache first, asks RevenueCat when it is missing or stale, and
+    denies when neither can answer — see the module docstring for why.
+    """
+    if not uid:
+        return False
+    if db is None:
+        from firebase_admin import firestore
+        db = firestore.client()
+
+    active, checked = _cached(db, uid)
+    if active is not None and checked is not None and _now() - checked < _CACHE_TTL:
+        return active
+
+    fresh = _ask_revenuecat(uid, api_key)
+    if fresh is None:
+        # Unreachable. A cached answer of any age beats guessing; with none, deny.
+        if active is not None:
+            logging.warning("entitlement: serving stale cache for uid=%s", uid)
+            return active
+        return False
+    _store(db, uid, fresh)
+    return fresh

@@ -25,6 +25,7 @@ from firebase_functions.params import SecretParam
 
 from dashboard import build_dashboard
 from enable_banking import DEFAULT_COUNTRY, EnableBankingClient, EnableBankingError
+from entitlement import is_premium as _is_premium
 from finance_chat import chat as _finance_chat
 from finance_chat import month_report as _month_report
 from known_cache import merge_known as _merge_known
@@ -73,6 +74,11 @@ SEED_TOKEN = SecretParam("SEED_TOKEN")
 # Stage-3 AI merchant classification (opt-in only). Used solely to classify
 # unresolved BUSINESS merchant names — never amounts/IBANs/identifiers/people.
 ANTHROPIC_API_KEY = SecretParam("ANTHROPIC_API_KEY")
+
+# RevenueCat v1 SECRET key (not the public SDK key the app ships). Lets the
+# backend verify a subscription itself instead of trusting the phone.
+# Set once with:  firebase functions:secrets:set REVENUECAT_API_KEY
+REVENUECAT_API_KEY = SecretParam("REVENUECAT_API_KEY")
 
 _REGION = "europe-west1"
 
@@ -126,6 +132,23 @@ def _begin(req: https_fn.CallableRequest, name: str) -> str:
     rid = uuid.uuid4().hex[:8]
     logging.info("call=%s rid=%s uid=%s", name, rid, _uid(req))
     return rid
+
+
+def _require_premium(req: https_fn.CallableRequest) -> None:
+    """Refuse the paid endpoints to users without a subscription.
+
+    Everything behind this costs real money to run — a multi-account 12-month
+    scan, AI enrichment, chat. The entitlement used to be checked only on the
+    phone, which is the one place the person being checked controls: someone
+    whose subscription lapsed kept the expensive half of a subscription-only
+    product, and nothing server-side noticed.
+    """
+    if _is_premium(_uid(req), REVENUECAT_API_KEY.value):
+        return
+    raise https_fn.HttpsError(
+        code=https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+        message="An active Vaultie Pro subscription is required.",
+    )
 
 
 # The one thing this backend stores. Everything else — transactions, balances,
@@ -463,7 +486,7 @@ def start_bank_auth(req: https_fn.CallableRequest) -> dict:
 
 @https_fn.on_call(
     region=_REGION,
-    secrets=[ENABLE_BANKING_PRIVATE_KEY, ANTHROPIC_API_KEY],
+    secrets=[ENABLE_BANKING_PRIVATE_KEY, ANTHROPIC_API_KEY, REVENUECAT_API_KEY],
     # The 12-month windowed scan (many bank pages) plus classification can run
     # well past the 60s default on a cold start — give it room, and more memory
     # for a faster cold start + the in-RAM merchant KB.
@@ -477,6 +500,7 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     """
     _require_auth(req)
     rid = _begin(req, "finish_bank_auth")
+    _require_premium(req)
     data = req.data or {}
     code = data.get("code")
     if not code:
@@ -544,7 +568,7 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
 
 @https_fn.on_call(
     region=_REGION,
-    secrets=[ENABLE_BANKING_PRIVATE_KEY, ANTHROPIC_API_KEY],
+    secrets=[ENABLE_BANKING_PRIVATE_KEY, ANTHROPIC_API_KEY, REVENUECAT_API_KEY],
     timeout_sec=300,
     memory=options.MemoryOption.MB_512,
 )
@@ -566,6 +590,7 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
     """
     _require_auth(req)
     rid = _begin(req, "refresh_dashboard")
+    _require_premium(req)
     data = req.data or {}
     accounts_in = data.get("accounts") or []
     if not isinstance(accounts_in, list) or not accounts_in:
@@ -604,7 +629,7 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
 
 @https_fn.on_call(
     region=_REGION,
-    secrets=[ANTHROPIC_API_KEY],
+    secrets=[ANTHROPIC_API_KEY, REVENUECAT_API_KEY],
     timeout_sec=60,
     memory=options.MemoryOption.MB_256,
 )
@@ -619,6 +644,7 @@ def finance_chat(req: https_fn.CallableRequest) -> dict:
     """
     _require_auth(req)
     rid = _begin(req, "finance_chat")
+    _require_premium(req)
     data = req.data or {}
     reply = _finance_chat(
         summary=str(data.get("summary") or ""),
@@ -630,7 +656,7 @@ def finance_chat(req: https_fn.CallableRequest) -> dict:
 
 @https_fn.on_call(
     region=_REGION,
-    secrets=[ANTHROPIC_API_KEY],
+    secrets=[ANTHROPIC_API_KEY, REVENUECAT_API_KEY],
     timeout_sec=60,
     memory=options.MemoryOption.MB_256,
 )
@@ -644,6 +670,7 @@ def month_summary(req: https_fn.CallableRequest) -> dict:
     """
     _require_auth(req)
     rid = _begin(req, "month_summary")
+    _require_premium(req)
     data = req.data or {}
     text = _month_report(
         stats=str(data.get("stats") or ""),
