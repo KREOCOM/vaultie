@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_prefs.dart';
@@ -28,8 +29,32 @@ Future<void> ensureLocalDataForCurrentUser() async {
     }
     await settings.put(_kDataOwner, uid);
   }
+  // Tie crash reports to the account, so "it crashed for me" can be matched to
+  // an actual stack trace. The uid is Vaultie's own identifier — no email, no
+  // name, nothing from the bank.
+  try {
+    await FirebaseCrashlytics.instance.setUserIdentifier(uid);
+  } catch (_) {
+    // Reporting is best-effort and must never block sign-in.
+  }
+
   // Point RevenueCat at this account so premium follows the account.
-  await PurchaseService.instance.setUser(uid);
+  //
+  // Bounded on purpose. This is awaited between the splash and the first real
+  // screen, and RevenueCat's logIn is a network call with no timeout of its
+  // own — so a hung billing server froze the app on the branded splash
+  // permanently: no spinner, no error, no retry, indistinguishable from a
+  // crash, on every launch for every signed-in user. Premium is already seeded
+  // from the cached entitlement at startup and the SDK pushes the real answer
+  // when it arrives, so continuing without waiting is correct rather than a
+  // shortcut. Nothing about who owns the vault depends on it.
+  try {
+    await PurchaseService.instance
+        .setUser(uid)
+        .timeout(const Duration(seconds: 6));
+  } catch (_) {
+    // Offline, slow, or not configured — the entitlement listener catches up.
+  }
 }
 
 /// Wipes all per-user local data and detaches the account. Used on account

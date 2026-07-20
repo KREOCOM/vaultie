@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../i18n.dart';
 import '../services/app_lock.dart';
+import '../services/auth_service.dart';
+import '../user_session.dart';
 
 // These are fixed rather than themed: the lock covers the whole app before any
 // theme is applied. They now match the near-black dark palette instead of the
@@ -81,16 +84,56 @@ class _LockScreenState extends State<LockScreen> {
     setState(() => _entry = _entry.substring(0, _entry.length - 1));
   }
 
+  /// Signs out and clears the PIN, landing on sign-in.
+  ///
+  /// The vault stays on the device and comes back when its owner signs in
+  /// again, so this costs nothing but the PIN. Without it, a forgotten PIN —
+  /// or a PIN left behind by whoever used the phone before — has no answer but
+  /// deleting the app.
+  Future<void> _forgotPin() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('Pamiršai PIN kodą?')),
+        content: Text(tr('Atjungsime tave, kad galėtum prisijungti iš naujo ir '
+            'nusistatyti naują PIN. Tavo duomenys liks šiame telefone.')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Atšaukti'))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Atsijungti'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await AppLock.clearPin();
+    try {
+      await AuthService().signOut();
+      await onSignedOut();
+    } catch (_) {
+      // Already signed out, or offline — the PIN is cleared either way, which
+      // is what unblocks the screen.
+    }
+    if (!mounted) return;
+    // Drops the overlay; the app underneath is already showing sign-in.
+    widget.onUnlocked();
+  }
+
   @override
   Widget build(BuildContext context) {
     return _PinScaffold(
-      title: 'Įvesk PIN kodą',
-      subtitle: _error ? 'Neteisingas PIN — bandyk dar' : 'Vaultie užrakinta',
+      title: tr('Įvesk PIN kodą'),
+      subtitle: _error
+          ? tr('Neteisingas PIN — bandyk dar')
+          : tr('Vaultie užrakinta'),
       entry: _entry,
       error: _error,
       onDigit: _press,
       onBackspace: _backspace,
       faceIdButton: AppLock.faceIdEnabled ? _tryFaceId : null,
+      onForgot: _forgotPin,
     );
   }
 }
@@ -145,12 +188,12 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return _PinScaffold(
-      title: _first == null ? 'Naujas PIN kodas' : 'Pakartok PIN',
+      title: _first == null ? tr('Naujas PIN kodas') : tr('Pakartok PIN'),
       subtitle: _error
-          ? 'PIN nesutapo — pradėk iš naujo'
+          ? tr('PIN nesutapo — pradėk iš naujo')
           : _first == null
-              ? 'Sugalvok 4 skaitmenų kodą'
-              : 'Įvesk tą patį kodą dar kartą',
+              ? tr('Sugalvok 4 skaitmenų kodą')
+              : tr('Įvesk tą patį kodą dar kartą'),
       entry: _entry,
       error: _error,
       onDigit: _press,
@@ -171,6 +214,7 @@ class _PinScaffold extends StatelessWidget {
     required this.onBackspace,
     this.faceIdButton,
     this.onClose,
+    this.onForgot,
   });
   final String title, subtitle, entry;
   final bool error;
@@ -178,6 +222,10 @@ class _PinScaffold extends StatelessWidget {
   final VoidCallback onBackspace;
   final Future<void> Function()? faceIdButton;
   final VoidCallback? onClose;
+
+  /// Way out for someone who cannot answer this screen. Without it a forgotten
+  /// PIN means reinstalling the app.
+  final VoidCallback? onForgot;
 
   @override
   Widget build(BuildContext context) {
@@ -230,6 +278,13 @@ class _PinScaffold extends StatelessWidget {
               ),
               const Spacer(flex: 3),
               _pad(),
+              if (onForgot != null)
+                TextButton(
+                  onPressed: onForgot,
+                  child: Text(tr('Pamiršai PIN kodą?'),
+                      style: const TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w600, color: _dim)),
+                ),
               const SizedBox(height: 20),
             ],
           ),

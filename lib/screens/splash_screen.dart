@@ -59,6 +59,15 @@ class _SplashScreenState extends State<SplashScreen>
     // the dashboard; a signed-in but unverified user resumes at the verify
     // screen; everyone else lands on the auth screen.
     final auth = AuthService();
+    // Google and Apple accounts are verified by the provider. Apple's private
+    // relay addresses in particular can report emailVerified=false forever, so
+    // routing them to the email-verification screen locked them out of their own
+    // app on the SECOND launch: that screen only polls reloadUser(), which never
+    // flips, and its only exit is "use a different account". auth_screen.dart
+    // already skips the gate for exactly this reason — this is the same rule,
+    // applied where the app actually starts.
+    final verified =
+        auth.isEmailVerified || auth.isGoogleUser || auth.isAppleUser;
     // Deliberately gated on the stored flag alone, never on "is signed in".
     // Firebase keeps its session in the Keychain, which survives deleting the
     // app, so a signed-in user is NOT proof that onboarding was ever seen — on
@@ -66,7 +75,7 @@ class _SplashScreenState extends State<SplashScreen>
     // session on a fresh install; this just trusts the flag.
     // Before showing a returning user's data, make sure the local vault belongs
     // to them (wipes it if a different account owned this device).
-    if (widget.hasOnboarded && auth.isLoggedIn && auth.isEmailVerified) {
+    if (widget.hasOnboarded && auth.isLoggedIn && verified) {
       await ensureLocalDataForCurrentUser();
       if (!mounted) return;
     }
@@ -88,9 +97,7 @@ class _SplashScreenState extends State<SplashScreen>
         ),
       );
     } else if (auth.isLoggedIn) {
-      next = auth.isEmailVerified
-          ? landingAfterAuth()
-          : const VerifyEmailScreen();
+      next = verified ? landingAfterAuth() : const VerifyEmailScreen();
     } else {
       next = const LoginScreen();
     }

@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -70,6 +73,25 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Crash reporting, wired before anything else can throw.
+  //
+  // Until this existed the app had no way to tell anyone that it had broken:
+  // an uncaught exception printed to a console nobody is attached to, and the
+  // only signal that something was wrong on a user's phone was whether they
+  // bothered to write in. Both handlers matter — FlutterError catches errors
+  // inside the widget tree, PlatformDispatcher catches everything outside it
+  // (async gaps, platform channels), which is where the interesting ones live.
+  // Debug builds report nothing: local crashes are already visible, and they
+  // would drown the real reports.
+  await FirebaseCrashlytics.instance
+      .setCrashlyticsCollectionEnabled(kReleaseMode);
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+
   await SystemChrome.setPreferredOrientations(
     const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
   );
@@ -311,7 +333,15 @@ class _LockGate extends StatefulWidget {
 }
 
 class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
-  bool _locked = AppLock.isPinSet;
+  /// A PIN protects a signed-in vault, so it only makes sense while someone is
+  /// signed in. It used to cover the sign-in screens too, and the PIN keys are
+  /// cleared only *after* a successful sign-in — so one user signing out with a
+  /// PIN set left the next person facing a lock screen they could not answer,
+  /// in front of the login they needed to reach to clear it. Reinstalling was
+  /// the only way out.
+  static bool get _shouldLock => AppLock.isPinSet && AuthService().isLoggedIn;
+
+  bool _locked = _shouldLock;
   bool _wasBackgrounded = false;
 
   @override
@@ -337,7 +367,7 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
         _wasBackgrounded = false;
         return;
       }
-      if (_wasBackgrounded && AppLock.isPinSet && !_locked) {
+      if (_wasBackgrounded && _shouldLock && !_locked) {
         setState(() => _locked = true);
       }
       _wasBackgrounded = false;

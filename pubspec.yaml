@@ -26,6 +26,9 @@ dependencies:
   firebase_auth: ^6.5.4
   # Remote feature flags / kill-switch (e.g. banking on/off without an update)
   firebase_remote_config: ^6.0.0
+  # Crash + non-fatal error reporting. Without it a crash on someone's phone
+  # leaves no trace anywhere — the only signal is whether they bother to write in.
+  firebase_crashlytics: ^5.0.4
   google_sign_in: ^6.2.1
   flutter_local_notifications: ^22.0.1
   timezone: ^0.11.1

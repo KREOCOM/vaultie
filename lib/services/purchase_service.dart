@@ -223,17 +223,53 @@ class RevenueCatPurchaseService implements PurchaseService {
       final offerings = await rc.Purchases.getOfferings();
       final current = offerings.current;
       if (current == null) return;
+      final ids = <String>[];
       for (final pkg in current.availablePackages) {
         final plan = _productIds[pkg.storeProduct.identifier];
         if (plan != null) {
           _packages[plan] = pkg;
           _prices[plan] = pkg.storeProduct.priceString;
-          final days = _trialDaysOf(pkg.storeProduct);
-          if (days != null) _trialDays[plan] = days;
+          ids.add(pkg.storeProduct.identifier);
         }
       }
+      await _loadTrials(ids);
     } catch (_) {
       // Leave prices to the static fallback if offerings can't be fetched.
+    }
+  }
+
+  /// Fills [_trialDays] only for products this user can *actually* get a trial
+  /// on.
+  ///
+  /// `introductoryPrice` describes the PRODUCT, not the person: the store
+  /// returns it to everyone, including someone who used their trial months ago.
+  /// Reading it alone meant the paywall promised "7 dienos nemokamai" and Apple
+  /// charged the full price immediately — the exact thing the disclosure said
+  /// wouldn't happen. Eligibility is per Apple ID and only RevenueCat can
+  /// answer it, so it is asked here.
+  ///
+  /// Anything other than a definite "eligible" leaves the plan without trial
+  /// copy. Missing a legitimate trial badge costs a conversion; showing a false
+  /// one costs a refund, a complaint, and a Guideline 3.1.2 rejection.
+  Future<void> _loadTrials(List<String> productIds) async {
+    _trialDays.clear();
+    if (productIds.isEmpty) return;
+    Map<String, rc.IntroEligibility> eligibility;
+    try {
+      eligibility =
+          await rc.Purchases.checkTrialOrIntroductoryPriceEligibility(productIds);
+    } catch (_) {
+      return; // unknown → no trial copy
+    }
+    for (final entry in _productIds.entries) {
+      final pkg = _packages[entry.value];
+      if (pkg == null) continue;
+      final status = eligibility[entry.key]?.status;
+      if (status != rc.IntroEligibilityStatus.introEligibilityStatusEligible) {
+        continue;
+      }
+      final days = _trialDaysOf(pkg.storeProduct);
+      if (days != null) _trialDays[entry.value] = days;
     }
   }
 

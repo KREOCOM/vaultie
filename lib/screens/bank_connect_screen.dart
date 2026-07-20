@@ -168,6 +168,11 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   }
 
   Future<void> _connect(Bank bank) async {
+    // Hard re-entrancy guard. The phase change below hides the bank list within
+    // a frame, but two taps inside that frame — or during the await — started
+    // two consent flows: two authorisation sessions at the bank, two entries
+    // against its daily quota, and a second browser session iOS then refuses.
+    if (_phase == _Phase.connecting || _phase == _Phase.analysing) return;
     setState(() {
       _phase = _Phase.connecting;
       _connectingBank = bank.name;
@@ -268,6 +273,26 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         _error = e.message;
         _phase = _Phase.error;
       });
+    } catch (e) {
+      // Everything else. Between the bank's approval and the dashboard there is
+      // a Hive write, a jsonEncode and several casts of the bank's payload —
+      // none of them a PlatformException or a BankingException. One of those
+      // throwing left the screen stuck on "analysing" forever, with the stage
+      // ticker still cycling "Almost done…" so it looked alive, under a hint
+      // telling the user not to close the app. The bank was already connected
+      // by then, so their only move — force-quit and retry — burned a second
+      // consent.
+      _stopStages();
+      if (!mounted) return;
+      setState(() {
+        _error = _isLt
+            ? 'Bankas prisijungė, bet duomenų parsisiųsti nepavyko. Bandyk dar kartą.'
+            : "Your bank connected, but we couldn't load the data. Please try again.";
+        _phase = _Phase.error;
+      });
+    } finally {
+      // Belt and braces: no path out of this method leaves the ticker running.
+      _stopStages();
     }
   }
 

@@ -541,6 +541,16 @@ const Map<String, String> _en = {
   'Planai kol kas nepasiekiami. Bandyk vėliau arba praleisk.':
       'Plans are unavailable right now. Try again later or skip.',
   'Pirkimas atkurtas.': 'Purchase restored.',
+  // ── app lock ──
+  'Įvesk PIN kodą': 'Enter your PIN',
+  'Vaultie užrakinta': 'Vaultie is locked',
+  'Neteisingas PIN — bandyk dar': 'Wrong PIN — try again',
+  'Pakartok PIN': 'Repeat your PIN',
+  'PIN nesutapo — pradėk iš naujo': "PINs didn't match — start again",
+  'Įvesk tą patį kodą dar kartą': 'Enter the same code again',
+  'Pamiršai PIN kodą?': 'Forgot your PIN?',
+  'Atjungsime tave, kad galėtum prisijungti iš naujo ir nusistatyti naują PIN. Tavo duomenys liks šiame telefone.':
+      'We\'ll sign you out so you can sign in again and set a new PIN. Your data stays on this phone.',
   'Nerasta pirkimų atkurti.': 'No purchases to restore.',
   // Free-trial copy. Composed around the day count, which comes from the live
   // store product — see OnbPaywall._trialLabel.
