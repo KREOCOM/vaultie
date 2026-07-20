@@ -2,7 +2,7 @@
  "schema_version": 2,
  "kb_version": "2026.07.2-wikidata",
  "sources": [
-  "curated:kb_entities.json@sha256:bba92e77f17fdd05",
+  "curated:kb_entities.json@sha256:d5939d3f65d3aa00",
   "wikidata:CC0:1618records",
   "osm:ODbL:disabled"
  ],
@@ -17,8 +17,8 @@
   "PL",
   "SE"
  ],
- "entity_count": 1542,
- "curated_count": 6,
+ "entity_count": 1543,
+ "curated_count": 7,
  "wikidata_count": 1536,
  "entities": [
   {
@@ -20462,6 +20462,43 @@
    "popularity_prior": 0.5,
    "recurring_type": "frequent",
    "_source": "wikidata"
+  },
+  {
+   "entity_id": "ikea",
+   "canonical_name": "IKEA",
+   "entity_type": "BRAND",
+   "aliases": [
+    "ikea"
+   ],
+   "related_aliases": [],
+   "country_coverage": [
+    "LT",
+    "LV",
+    "EE",
+    "SE",
+    "FI",
+    "PL",
+    "DE"
+   ],
+   "categories": [
+    "hardware"
+   ],
+   "merchant_type": "FURNITURE_STORE",
+   "icon_key": null,
+   "known_domains": [
+    "ikea.com",
+    "ikea.lt"
+   ],
+   "known_locations": [],
+   "is_processor": false,
+   "is_brand": true,
+   "brand_relationships": [],
+   "popularity_prior": 0.6,
+   "recurring_type": "frequent",
+   "alias_norms": [
+    "ikea"
+   ],
+   "_source": "curated"
   },
   {
    "entity_id": "iki",

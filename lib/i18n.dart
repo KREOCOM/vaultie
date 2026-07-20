@@ -541,6 +541,9 @@ const Map<String, String> _en = {
   'Planai kol kas nepasiekiami. Bandyk vėliau arba praleisk.':
       'Plans are unavailable right now. Try again later or skip.',
   'Pirkimas atkurtas.': 'Purchase restored.',
+  'AI kategorizavimas': 'AI categorisation',
+  'Tiksliau atpažįsta parduotuves. Siunčia tik verslo pavadinimus.':
+      'More accurate merchant recognition. Sends business names only.',
   // ── subscription info ──
   'Valdyti prenumeratą': 'Manage subscription',
   'Planą pakeisti ar atšaukti gali „App Store“ nustatymuose.':

@@ -7279,6 +7279,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   bool _faceId = AppLock.faceIdEnabled;
   bool _faceAvailable = false;
   bool _notif = AppPrefs.notificationsEnabled;
+  bool _aiCat = AppPrefs.aiEnrichment;
   bool _busy = false;
 
   @override
@@ -7337,6 +7338,9 @@ class _SettingsScreenState extends State<_SettingsScreen> {
             _valueItem('LT', tr('Kalba'), tr(_langLabel), _pickLanguage),
             _iconValueItem(Icons.brightness_6_rounded, tr('Tema'), tr(_theme), _pickTheme),
             _toggleItem(Icons.notifications_none_rounded, tr('Pranešimai'), tr('Priminimai apie mokėjimus'), _notif, _toggleNotif),
+            _toggleItem(Icons.auto_awesome_outlined, tr('AI kategorizavimas'),
+                tr('Tiksliau atpažįsta parduotuves. Siunčia tik verslo pavadinimus.'),
+                _aiCat, _toggleAiCat),
           ]),
           _group(tr('Paskyra'), [
             _navItem(Icons.workspace_premium_rounded, tr('Vaultie prenumerata'), tr('Atsiskaitymo informacija'), onTap: _subInfo),
@@ -7633,6 +7637,11 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   Future<void> _toggleNotif(bool on) async {
     await AppPrefs.setNotificationsEnabled(on);
     if (mounted) setState(() => _notif = on);
+  }
+
+  Future<void> _toggleAiCat(bool on) async {
+    await AppPrefs.setAiEnrichment(on);
+    if (mounted) setState(() => _aiCat = on);
   }
 
   // ── CSV export + feedback ────────────────────────────────────────────────

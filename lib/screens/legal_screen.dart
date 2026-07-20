@@ -122,9 +122,13 @@ class LegalScreen extends StatelessWidget {
                   'AI pokalbis įjungiamas tik po tavo aiškaus sutikimo. „Anthropic" '
                   'nenaudoja šių duomenų dirbtinio intelekto treniravimui, o mes '
                   'jų nesaugome — jie egzistuoja tik tos vienos užklausos metu. '
-                  'Jei prijungei banką, gali papildomai leisti verslo prekybininkų '
-                  'pavadinimus siųsti AI geresnei kategorizacijai (įjungiama '
-                  'nustatymuose); tai neapima žmonių vardų, sumų ar IBAN‑ų.'
+                  'Prekybininkų kategorizavimui, kai prijungtas bankas, verslo '
+                  'prekybininkų pavadinimus (pvz. parduotuvės) siunčiame AI, kad '
+                  'atpažintume kategoriją. Ši funkcija įjungta pagal nutylėjimą ir '
+                  'gali būti išjungta nustatymuose. Siunčiami TIK verslo pavadinimai '
+                  '— niekada žmonių vardai, sumos, datos ar IBAN‑ai (veikia žmonių '
+                  'vardų filtras). Rezultatas išsaugomas mūsų serveryje pakartotiniam '
+                  'naudojimui, kad tas pats prekybininkas nebūtų siunčiamas antrą kartą.'
               : 'The AI chat and monthly summaries use the Anthropic AI service. '
                   'To answer questions or write a summary we send ONLY a summary: '
                   'bank balances, spending by category, and the names of your '
@@ -133,9 +137,13 @@ class LegalScreen extends StatelessWidget {
                   'only after your explicit consent. Anthropic does not use this '
                   'data to train AI models, and we do not store it — it exists only '
                   'for that single request. If you connect a bank, you may '
-                  'additionally allow business merchant names to be sent to the AI '
-                  'for better categorisation (opt-in in Settings); this never '
-                  'includes people\'s names, amounts, or IBANs.',
+                  'For merchant categorisation, when a bank is connected, we send '
+                  'business merchant names (e.g. a shop) to the AI to recognise the '
+                  'category. This is on by default and can be turned off in Settings. '
+                  'Only business names are sent — never people\'s names, amounts, '
+                  'dates, or IBANs (a person-name filter applies). The result is '
+                  'stored on our server for reuse, so the same merchant is never sent '
+                  'twice.',
         ),
         LegalSection(
           isLt ? 'Pranešimai' : 'Notifications',

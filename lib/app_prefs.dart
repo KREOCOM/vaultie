@@ -91,11 +91,17 @@ class AppPrefs {
   // IBANs, identifiers, dates or person/P2P names.
   static const _kAiEnrichment = 'aiEnrichment';
 
-  // Default OFF, so it is the opt-in the doc comment above and the privacy
-  // policy both describe. It shipped defaulting to ON "for testing".
+  // Default ON. It is what categorises the long tail — any shop in Europe the
+  // deterministic pipeline (name rules → KB → offline index) can't place, since
+  // banks send no MCC over Enable Banking (measured: 0% on the tested banks). A
+  // merchant is classified once, cached server-side, and the answer is reused
+  // for every user, so "Kita" is the exception, not the rule. Only BUSINESS
+  // merchant names are sent — a person-name guard drops likely P2P names, and
+  // never any amount, IBAN, date, or identifier. Disclosed in the privacy policy
+  // and switchable off in Settings, so it is on-by-default with a real opt-out.
   static bool get aiEnrichment => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _box.get(_kAiEnrichment, defaultValue: false) as bool
-      : false;
+      ? _box.get(_kAiEnrichment, defaultValue: true) as bool
+      : true;
 
   static Future<void> setAiEnrichment(bool value) async {
     await _box.put(_kAiEnrichment, value);

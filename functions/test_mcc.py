@@ -66,11 +66,12 @@ def test_unknown_or_junk_defers_to_the_resolver():
 
 # ── the cascade through the real classifier ────────────────────────────────
 
-def test_mcc_fixes_a_shop_the_name_resolver_gets_wrong():
-    # IKEA fuzzy-matched the "IKI" grocery chain → groceries. With its furniture
-    # MCC it lands in home goods regardless of the name.
-    assert _cat("IKEA VILNIUS") in ("Maisto prekės", "Kita")  # without MCC: wrong/unknown
-    assert _cat("IKEA VILNIUS", "5712") == "Namų prekės"
+def test_mcc_overrides_a_wrong_resolver_category():
+    # A merchant the name resolver would place wrong (grocery MCC on a name that
+    # doesn't resolve) — the MCC wins the category.
+    assert _cat("QWX MARKET 88", "5411") == "Maisto prekės"
+    # And a furniture MCC lands in home goods regardless of the name.
+    assert _cat("QWX FURNITURE 88", "5712") == "Namų prekės"
 
 
 def test_mcc_categorises_a_merchant_the_app_has_never_heard_of():
