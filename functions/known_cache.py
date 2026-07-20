@@ -52,13 +52,20 @@ def merge_known(all_txns: list, summaries: list, own_ibans: set, scan_diag: list
     # that weren't asked at all (not in scan_diag) are quiet too — that's what
     # lets a caller deliberately skip a bank and still show its data.
     answered = {d.get("bank") for d in scan_diag if not d.get("error")}
+    # A bank that REFUSED us is not a quiet bank. When a consent expires or the
+    # user withdraws it in their own bank, re-serving that bank from cache means
+    # the app keeps showing data for an account the user has revoked access to —
+    # which is the one thing withdrawing consent is supposed to stop. Treated
+    # like an answer so nothing of theirs is reused.
+    revoked = {d.get("bank") for d in scan_diag if d.get("revoked")}
+    excluded = answered | revoked
     cutoff = ((today or dt.date.today())
               - dt.timedelta(days=months_back * 31)).isoformat()
     kept_txns = [t for t in k_txns
-                 if bank_of(t) not in answered
+                 if bank_of(t) not in excluded
                  and t.get("status") == "BOOK"
                  and (t.get("booking_date") or "") >= cutoff]
-    kept_accts = [a for a in k_accts if bank_of(a) not in answered]
+    kept_accts = [a for a in k_accts if bank_of(a) not in excluded]
     stale = sorted({b for b in (bank_of(a) for a in kept_accts) if b})
     if kept_txns or kept_accts:
         logging.info("known: reusing %d txns / %d accounts for quiet banks %s",

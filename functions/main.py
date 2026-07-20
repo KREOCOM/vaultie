@@ -324,9 +324,16 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
             # A rate-limited bank is a "come back in a bit", not a broken
             # connection — the client must say so rather than send the user to
             # reconnect (which would burn even more of the bank's quota).
+            status = getattr(e, "status", None)
             scan_diag.append({
                 "account": m["name"], "bank": bank, "error": str(e),
-                "rateLimited": getattr(e, "status", None) == 429,
+                "rateLimited": status == 429,
+                # 401/403 means the bank is refusing us, not failing: the consent
+                # expired or the user withdrew it in their bank. That has to be
+                # told apart from a quiet bank, because the two deserve opposite
+                # treatment — one gets its cached data re-served, the other must
+                # stop being shown at all.
+                "revoked": status in (401, 403),
             })
     return all_txns, summaries, scan_diag, own_ibans
 
@@ -363,6 +370,12 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
         "frequent": detection["frequent"],
         "dash": dash,
         "scanDiag": scan_diag,
+        # Banks that refused us outright — expired or withdrawn consent. Split
+        # out from scanDiag so the phone doesn't have to know which HTTP codes
+        # mean "gone": these connections should be dropped locally and the user
+        # asked to reconnect, unlike a merely quiet bank.
+        "revokedBanks": sorted({d.get("bank") for d in scan_diag
+                                if d.get("revoked") and d.get("bank")}),
         # What the phone should keep and hand back on the next scan, so a bank
         # that goes quiet then can be filled in from here instead of vanishing.
         # Booked only: pending entries still move, and a cancelled one must not
