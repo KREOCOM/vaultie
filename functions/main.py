@@ -648,6 +648,11 @@ def month_summary(req: https_fn.CallableRequest) -> dict:
     text = _month_report(
         stats=str(data.get("stats") or ""),
         api_key=ANTHROPIC_API_KEY.value,
+        # The phone's UI language. Nothing in a monthly summary is written by
+        # the user, so the language can't be inferred from it the way the chat
+        # infers it from the question — it has to be passed in. Defaults to
+        # Lithuanian for older clients that don't send it.
+        lang=str(data.get("lang") or "lt"),
     )
     return {"text": text}
 

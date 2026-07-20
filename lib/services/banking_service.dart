@@ -202,8 +202,8 @@ class BankingService {
   /// Ask the AI to write a short narrative for a month's review card. [stats] is
   /// a compact, PII-free block of pre-computed figures. Returns the narrative, or
   /// an empty string on failure so the caller can fall back to a templated text.
-  Future<String> monthSummary({required String stats}) {
-    return _call('month_summary', {'stats': stats},
+  Future<String> monthSummary({required String stats, required String lang}) {
+    return _call('month_summary', {'stats': stats, 'lang': lang},
         (m) => (m['text'] as String?)?.trim() ?? '',
         timeout: const Duration(seconds: 60));
   }

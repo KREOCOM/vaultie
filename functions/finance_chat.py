@@ -34,7 +34,10 @@ _MAX_REPLY_TOKENS = 700
 _SYSTEM = (
     "Tu esi „Vaultie“ asistentas — draugiškas, konkretus pagalbininkas, "
     "atsakantis į vartotojo klausimus apie JO PATIES asmeninius finansus. "
-    "Kalbėk lietuviškai, trumpai ir aiškiai (2–5 sakiniai; sąrašai tik kai "
+    "ATSAKYK TA PAČIA KALBA, KURIA PARAŠYTAS VARTOTOJO KLAUSIMAS — jei jis rašo "
+    "angliškai, atsakyk angliškai; jei lietuviškai — lietuviškai. Niekada "
+    "neperjunk kalbos savo nuožiūra. "
+    "Rašyk trumpai ir aiškiai (2–5 sakiniai; sąrašai tik kai "
     "tikrai padeda). Sumas rašyk eurais.\n\n"
     "GRIEŽTOS TAISYKLĖS:\n"
     "1. Remkis TIK žemiau pateikta vartotojo finansų santrauka. Jei santraukoje "
@@ -56,7 +59,8 @@ _SYSTEM = (
 # raw transactions or names.
 _REPORT_SYSTEM = (
     "Tu esi „Vaultie“ asistentas. Parašyk TRUMPĄ, draugišką vieno mėnesio "
-    "finansų santrauką lietuviškai pagal žemiau pateiktus skaičius. "
+    "finansų santrauką pagal žemiau pateiktus skaičius. "
+    "{lang_rule} "
     "3–5 sakiniai, šiltas bet neutralus tonas. Natūraliai paminėk pajamas, "
     "išlaidas, grynąjį rezultatą, didžiausią išlaidų kategoriją ir santaupų "
     "normą, jei tie skaičiai pateikti. Gali trumpai palyginti su praėjusiu "
@@ -70,9 +74,26 @@ _REPORT_SYSTEM = (
     "formatavimo simbolių)."
 )
 
+# The one line that differs per language. Two variants means two cached system
+# prompts, which is fine — far better than one that is always Lithuanian.
+_REPORT_LANG_RULE = {
+    "lt": "Rašyk lietuviškai.",
+    "en": "Write the summary in English.",
+}
 
-def month_report(stats: str, api_key: str) -> str:
-    """Write a short Lithuanian narrative for a month's figures.
+
+def _report_system(lang: str) -> str:
+    rule = _REPORT_LANG_RULE.get((lang or "lt").lower(), _REPORT_LANG_RULE["lt"])
+    return _REPORT_SYSTEM.replace("{lang_rule}", rule)
+
+
+def month_report(stats: str, api_key: str, lang: str = "lt") -> str:
+    """Write a short narrative for a month's figures, in the app's language.
+
+    Unlike the chat — where the reply can simply follow the language the
+    question was asked in — nothing here is written by the user, so the UI
+    locale has to be passed in. It used to be hard-coded Lithuanian, so an
+    English user's monthly summary arrived in Lithuanian.
 
     ``stats`` is a compact, PII-free block of pre-computed numbers. Returns the
     narrative text, or "" on any failure so the client can fall back to its own
@@ -83,7 +104,7 @@ def month_report(stats: str, api_key: str) -> str:
     payload = json.dumps({
         "model": _MODEL,
         "max_tokens": 400,
-        "system": [{"type": "text", "text": _REPORT_SYSTEM}],
+        "system": [{"type": "text", "text": _report_system(lang)}],
         "messages": [{"role": "user", "content": "Mėnesio skaičiai:\n\n" + stats}],
     })
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",

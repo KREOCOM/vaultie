@@ -42,6 +42,19 @@ _KEY_STOPWORDS = {
 _FOLD = str.maketrans("ąčęėįšųūž", "aceeisuuz")
 
 
+# Bank transaction codes that mean "the user moved their own money" rather than
+# "the user paid someone". Kept in step with dashboard.py's Pervedimai section:
+# exchanges, top-ups and cash. Transfers proper are handled by the own-IBAN
+# check, which is more precise where an IBAN exists.
+_MOVEMENT_CODES = {"EXCHANGE", "TOPUP", "CWDL", "ATM", "CSHW"}
+
+
+def _is_money_movement(t: dict) -> bool:
+    """True when this transaction is the user shifting their own money."""
+    code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
+    return code in _MOVEMENT_CODES
+
+
 def counterparty_name(t: dict):
     """Best-effort merchant/counterparty name across ASPSP shapes."""
     for key in ("creditor", "debtor", "ultimate_creditor", "ultimate_debtor"):
@@ -519,6 +532,19 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             continue
         # Stage 1 — stable counterparty identity from structured fields.
         canon = canonical.build_canonical(t)
+        # Money movement is never a subscription, whatever its rhythm.
+        #
+        # A currency exchange, a top-up or a cash withdrawal is the user moving
+        # their own money. Someone who converts to EUR whenever they need it
+        # produces a run of similar amounts, which is exactly what the detector
+        # is built to notice — so "Exchanged to EUR, 860 €" was being presented
+        # as a monthly bill. The IBAN check below only catches transfers between
+        # known accounts; an in-app exchange has no counterparty IBAN at all,
+        # so it sailed straight through. Same vocabulary dashboard.py files
+        # under "Pervedimai".
+        if _is_money_movement(t):
+            n_skipped += 1
+            continue
         # Own-account transfer (SEB↔Revolut etc.): never a recurring bill.
         if own:
             cpi = (canon.get("counterparty") or {}).get("iban")

@@ -4001,7 +4001,8 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     }
     setState(() => _aiLoading = true);
     try {
-      final text = await BankingService.instance.monthSummary(stats: _buildStats());
+      final text = await BankingService.instance.monthSummary(
+          stats: _buildStats(), lang: effectiveLocale().languageCode);
       if (!mounted) return;
       if (text.isNotEmpty) _monthAiCache[widget.month] = text;
       setState(() {
@@ -8229,7 +8230,11 @@ class _AiChatTabState extends State<_AiChatTab> {
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: GestureDetector(
-              onTap: () => _send(s),
+              // Send what the chip SAYS, not the Lithuanian it was written in.
+              // The label goes through tr() but the tap sent the original, so an
+              // English user tapped "Where can I save money?" and watched their
+              // own question appear in Lithuanian — and be answered in it.
+              onTap: () => _send(tr(s)),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
