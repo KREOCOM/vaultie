@@ -8,6 +8,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'app_prefs.dart';
 import 'content_theme.dart';
 import 'services/app_lock.dart';
+import 'services/auth_service.dart';
 import 'screens/lock_screen.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
@@ -27,18 +28,25 @@ import 'screens/onb_top.dart';
 import 'screens/onboarding/onboarding_flow.dart';
 import 'screens/verify_email_screen.dart';
 
-/// Vaultie brand palette. The hero colour is the deep "vault green".
+/// Vaultie brand palette. The hero colour is the brand blue.
+///
+/// These are the app-wide defaults behind [ThemeData] — dialogs, text fields,
+/// buttons and pickers inherit them, so anything a screen doesn't colour itself
+/// is coloured here. They were the old green identity long after the logo,
+/// splash and onboarding had gone blue, which is how green kept surfacing in
+/// dialogs and input fields on otherwise-blue screens. Values match the blue
+/// screens: ink/subtle/line from onb_paywall, brand blue from login_screen.
 class VaultieColors {
-  static const Color primary = Color(0xFF174E35);
-  static const Color primaryDark = Color(0xFF0E3322);
-  static const Color primaryLight = Color(0xFF2E6B4D);
-  static const Color accent = Color(0xFF8BD3A7);
-  static const Color surface = Color(0xFFF4F8F5); // page background (light)
+  static const Color primary = Color(0xFF003DE1);
+  static const Color primaryDark = Color(0xFF002B9E);
+  static const Color primaryLight = Color(0xFF2F6BFF);
+  static const Color accent = Color(0xFF9CBBFF);
+  static const Color surface = Color(0xFFFCFCFD); // page background (light)
   static const Color card = Color(0xFFFFFFFF); // cards / sheets / dialogs
-  static const Color ink = Color(0xFF11231A); // primary text
-  static const Color subtle = Color(0xFF6B7E74); // secondary text
-  static const Color line = Color(0xFFE1E8E3); // borders / dividers
-  static const Color brightGreen = Color(0xFF4CAF72); // green accent (fixed)
+  static const Color ink = Color(0xFF0B1533); // primary text
+  static const Color subtle = Color(0xFF4C5B7D); // secondary text
+  static const Color line = Color(0xFFE6EAF2); // borders / dividers
+  static const Color brightBlue = Color(0xFF0A4DFD); // accent (fixed)
   static const Color danger = Color(0xFFD9534F);
 }
 
@@ -58,6 +66,10 @@ class HiveBoxes {
   /// dashboard instead of forcing a re-connect (see DashboardStore).
   static const String dashboard = 'dashboard';
 }
+
+/// Set on first launch after an install. Its absence is what identifies a fresh
+/// install, since Hive is wiped on delete but the Keychain is not.
+const String _kInstalled = 'installed';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,10 +93,19 @@ Future<void> main() async {
   // Load persisted language/currency preferences into their notifiers.
   AppPrefs.load();
 
-  // Existing users (who already have tracked payments) skip the first-run
-  // "How would you like to start?" choice screen — it's for fresh installs.
-  if (!AppPrefs.onboardingComplete && subsBox.isNotEmpty) {
-    await AppPrefs.setOnboardingComplete(true);
+  // A fresh install must start genuinely fresh. Deleting an iOS app clears its
+  // Hive data but NOT the Keychain, and Firebase keeps its session there — so
+  // without this, a reinstalled app silently opens already signed in as the
+  // previous user, skipping onboarding and handing them an account that may not
+  // be theirs. An empty settings box means "never launched on this install", so
+  // that is where the leftover session gets cleared.
+  if (!settings.containsKey(_kInstalled)) {
+    try {
+      await AuthService().signOut();
+    } catch (_) {
+      // No session, or plugins unavailable — nothing to clear either way.
+    }
+    await settings.put(_kInstalled, true);
   }
 
   // TEST HARNESS (debug only). Remove before release.
@@ -245,7 +266,7 @@ class VaultieApp extends StatelessWidget {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: const BorderSide(
-                    color: VaultieColors.brightGreen, width: 2),
+                    color: VaultieColors.brightBlue, width: 2),
               ),
             ),
             // Date picker: dark surface, filled green OK, outlined Cancel.

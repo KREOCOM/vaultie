@@ -256,11 +256,11 @@ class SavingsScreen extends StatelessWidget {
           color: VaultieColors.card,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: VaultieColors.brightGreen.withValues(alpha: 0.40),
+              color: VaultieColors.brightBlue.withValues(alpha: 0.40),
               width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: VaultieColors.brightGreen.withValues(alpha: 0.10),
+              color: VaultieColors.brightBlue.withValues(alpha: 0.10),
               blurRadius: 14,
               offset: const Offset(0, 5),
             ),

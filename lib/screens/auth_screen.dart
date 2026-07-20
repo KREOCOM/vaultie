@@ -50,8 +50,13 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     duration: const Duration(milliseconds: 550),
   )..forward();
 
-  static const _bg = Color(0xFF050F08);
-  static const _accent = Color(0xFF4CAF72);
+  // The blue identity. This screen is pushed straight from the blue LoginScreen
+  // and used to arrive in the old green one, which read as a different app at
+  // the exact moment a user is asked to hand over an email and password. Kept
+  // dark (the layout and every text colour assume a dark ground) — deep navy
+  // from the same palette rather than a light rebuild that risks the form.
+  static const _bg = Color(0xFF061439);
+  static const _accent = Color(0xFF2F6BFF);
 
   @override
   void dispose() {
@@ -555,7 +560,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF2E7D4F), Color(0xFF4CAF72)],
+          colors: [Color(0xFF003DE1), Color(0xFF2F6BFF)],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [

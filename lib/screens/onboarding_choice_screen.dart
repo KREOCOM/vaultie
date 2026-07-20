@@ -15,7 +15,9 @@ const Color _gold = Color(0xFFFFD24A);
 /// start?" choice on first run; otherwise the saved dashboard (persisted from
 /// the last bank scan) if there is one, else the bank flow to connect.
 Widget landingAfterAuth() {
-  if (!AppPrefs.onboardingComplete) return const OnboardingChoiceScreen();
+  // No first-run choice screen any more: it was the last screen still wearing
+  // the old green identity, and the intro chain's own "Prijungti banką" screen
+  // already makes the same pitch in the current one.
   final saved = DashboardStore.load();
   // Straight to the bank list. BankInfoScreen said four things: three are now
   // on the blue "Prijungti banką" screen, and the remaining two facts moved to
