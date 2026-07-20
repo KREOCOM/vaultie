@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — edge-case ir gedimų auditas</title>
+<style>
+  :root{--ink:#0B1533;--sub:#4C5B7D;--paper:#FCFCFD;--card:#fff;--line:#E6EAF2;--blue:#003DE1;
+        --crit:#C0392B;--high:#D97706;--med:#2563EB;--low:#12A366;}
+  @media (prefers-color-scheme:dark){:root{--ink:#EEF1F8;--sub:#A2ADC4;--paper:#0A1024;--card:#121A36;--line:#222C4E;--blue:#6E96FF;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1100px;margin:0 auto;padding:36px 20px 80px}
+  h1{font-size:30px;letter-spacing:-.7px;margin:0 0 6px}
+  .sub{color:var(--sub);margin:0 0 28px}
+  h2{font-size:21px;letter-spacing:-.3px;margin:38px 0 12px;padding-top:18px;border-top:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px}
+  p{color:var(--sub)}
+  .verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--crit);
+           border-radius:12px;padding:18px 20px;margin-bottom:8px}
+  .verdict strong{color:var(--ink)}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;min-width:900px;font-size:13.5px}
+  th{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);color:var(--sub);
+     font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+  td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--sub)}
+  tr:last-child td{border-bottom:none}
+  td.n{color:var(--ink);font-weight:700;width:34px}
+  td.what{color:var(--ink);min-width:230px}
+  code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(128,150,200,.14);
+       padding:1px 5px;border-radius:4px;color:var(--ink)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:800;
+       letter-spacing:.03em;white-space:nowrap;color:#fff}
+  .crit{background:var(--crit)} .high{background:var(--high)} .med{background:var(--med)} .low{background:var(--low)}
+  .yes{color:var(--crit);font-weight:700} .no{color:var(--low);font-weight:700}
+  ul{color:var(--sub);padding-left:20px} li{margin-bottom:6px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0}
+  .good{border-left:4px solid var(--low)}
+  .warn{border-left:4px solid var(--high)}
+  .foot{margin-top:40px;color:var(--sub);font-size:13px;text-align:center}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>Vaultie — edge-case, chaos ir gedimų auditas</h1>
+<p class="sub">2026-07-20 · šaka <code>onboarding-and-brand</code> · šeši nepriklausomi auditoriai, kiekvienas skaitė tikrą kodą</p>
+
+<div class="verdict">
+<strong>Išvada: šiandien leisti į App Store negalima.</strong> Ne dėl kosmetikos — rasta viena saugumo spraga, kuria vienas vartotojas gali pasiekti kito žmogaus banko istoriją, keli scenarijai, kurie visam laikui užrakina žmogų lauke iš jo paties programos, ir kelios vietos, kur rodomi neteisingi pinigai.
+<br><br>
+Gera žinia: <strong>maždaug pusė kritinių dalykų taisoma serveryje, be Apple peržiūros</strong> — kai kurie per kelias eilutes.
+</div>
+
+<div class="box good">
+<strong>Ką auditoriai pagyrė.</strong> Banko 429 ribojimo apdorojimas, PSU antraštės, atsisakymas rodyti dalinį duomenų langą kaip pilną, operacijų dublikatų šalinimas, atsarginė nutilusio banko talpykla, prisijungimo ekrano apsaugos. Bendras vertinimas visų šešių sutampa: <em>numatytos gedimo situacijos apgalvotos kruopščiai, o priešiški ir netvarkingi vartotojo veiksmai — nemodeliuoti visai.</em>
+</div>
+
+<h2>20 pavojingiausių, pagal prioritetą</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>#</th><th>Scenarijus</th><th>Kas vyksta dabar</th><th>Rizika</th><th>Sritis</th><th>Naujas build?</th></tr></thead>
+<tbody>
+
+<tr><td class="n">1</td><td class="what">Vienas vartotojas pasiima kito banko duomenis</td>
+<td><code>main.py:431-460</code> priima sąskaitų UID tiesiai iš telefono ir jais siunčia užklausas. <code>req.auth.uid</code> nenaudojamas niekur — serveris neturi įrašo, kas kurią sąskaitą prijungė. UID guli telefone neužšifruotas ir patenka į atsargines kopijas.</td>
+<td><span class="tag crit">critical</span></td><td>backend</td><td class="no">NE</td></tr>
+
+<tr><td class="n">2</td><td class="what">Programa amžinai užstringa splash'e</td>
+<td><code>splash_screen.dart:70</code> laukia RevenueCat <code>logIn</code> be timeout'o, po 2 s laikmačio ir prieš perėjimą. RevenueCat nutylus — mėlynas ekranas be ratuko ir be klaidos. Liečia kiekvieną grįžtantį vartotoją.</td>
+<td><span class="tag crit">critical</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">3</td><td class="what">Apple vartotojai neįleidžiami per antrą paleidimą</td>
+<td><code>splash_screen.dart:90-93</code> siunčia nepatvirtintą el. paštą į <code>VerifyEmailScreen</code>, o Apple „Hide My Email" jo niekada nepatvirtins. Iš to ekrano išeities nėra. <code>auth_screen.dart:166</code> komentaras šitą tiksliai aprašo ir nuo to saugo — splash'as ne.</td>
+<td><span class="tag crit">critical</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">4</td><td class="what">Likęs PIN užrakina programą kitam žmogui</td>
+<td><code>main.dart:314</code> užraktas uždėtas ant visos programos, įskaitant prisijungimą; <code>lock_screen.dart:86</code> neturi „pamiršau PIN". Raktai valomi tik po sėkmingo prisijungimo, kurio pasiekti nebeįmanoma. Padeda tik perinstaliavimas.</td>
+<td><span class="tag crit">critical</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">5</td><td class="what">„7 dienos nemokamai" rodoma ir netinkamiems</td>
+<td><code>purchase_service.dart:246</code> skaito <code>introductoryPrice</code> — produkto, ne vartotojo savybę. <code>checkTrialOrIntroductoryPriceEligibility</code> nekviečiamas. Bandymą išnaudojusiam žadama nemokamai, Apple nuskaito visą sumą iškart.</td>
+<td><span class="tag crit">critical</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">6</td><td class="what">Nemokama prieiga be interneto</td>
+<td><code>premium</code> vėliavėlė Hive'e be galiojimo laiko ir parašo; abu skaitymai yra klaidų šakose. Prenumeratai pasibaigus užtenka paleisti be tinklo. Serveryje prenumerata netikrinama <em>išvis</em> — banko skenavimas ir AI veikia bet kam prisijungusiam.</td>
+<td><span class="tag crit">critical</span></td><td>flutter + backend</td><td>dalinai</td></tr>
+
+<tr><td class="n">7</td><td class="what">Atšaukus sutikimą duomenys rodomi toliau</td>
+<td><code>known_cache.py:54-61</code> nutilusį banką užpildo iš talpyklos, o atšauktas sutikimas nuo nutilusio banko kode neatskiriamas. Žmogus atšaukė prieigą — programa rodo jo duomenis toliau. GDPR/PSD2 klausimas.</td>
+<td><span class="tag crit">critical</span></td><td>backend</td><td class="no">NE</td></tr>
+
+<tr><td class="n">8</td><td class="what">Atjungus banką sutikimas neatšaukiamas</td>
+<td><code>removeConnection</code> keičia tik telefoną. Enable Banking sesija nenaikinama niekada — <code>DELETE /sessions</code> kode nėra. Kitas įrenginys toliau sėkmingai siunčia užklausas.</td>
+<td><span class="tag crit">critical</span></td><td>backend</td><td class="no">NE</td></tr>
+
+<tr><td class="n">9</td><td class="what">Viena bloga data ištrina visą dashboardą</td>
+<td><code>dashboard.py:418</code> <code>map(int, ...split("-"))</code> — data su laiko dalimi meta <code>ValueError</code>, o <code>main.py:263</code> paverčia visą dashboardą į <code>null</code>. Viena eilutė iš vieno banko panaikina visus duomenis. <code>recurring.py:157</code> tą pačią vietą jau daro saugiai.</td>
+<td><span class="tag crit">critical</span></td><td>backend</td><td class="no">NE</td></tr>
+
+<tr><td class="n">10</td><td class="what">Valiutos pasirinkimas perrašo etiketę, bet ne sumą</td>
+<td>Galima pasirinkti USD ar NOK, bet <code>Money.format</code> visada rašo <code>€</code> ir ignoruoja nustatymą, o trys kiti failai keičia simbolį <em>nekonvertuodami</em>. 100 € virsta „$100.00".</td>
+<td><span class="tag crit">critical</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">11</td><td class="what">Grąžinimai skaičiuojami kaip pajamos</td>
+<td><code>dashboard.py:702</code>: grąžinimas be vieno iš trijų atpažįstamų kodų tampa pajamomis, tad <code>net</code> klysta dvigubai, o santaupų procentas išpučiamas. Savaitės stulpeliai ir biudžetai grąžinimų neniveliuoja apskritai.</td>
+<td><span class="tag crit">critical</span></td><td>backend</td><td class="no">NE</td></tr>
+
+<tr><td class="n">12</td><td class="what">Nežinoma valiuta sudedama nominalu</td>
+<td><code>fx.py:15-23</code> kursai įrašyti kietai, o <code>_FX_TO_EUR.get(cur, 1.0)</code> nežinomą valiutą prilygina eurui. 50 000 ¥ tampa 50 000 € — tyliai, be įspėjimo.</td>
+<td><span class="tag crit">critical</span></td><td>backend</td><td class="no">NE</td></tr>
+
+<tr><td class="n">13</td><td class="what">Amžinas krautuvas iškart po banko sutikimo</td>
+<td><code>bank_connect_screen.dart:251-271</code> gaudo tik dvi klaidų rūšis; Hive įrašymas ar <code>jsonEncode</code> sprogę palieka <code>analysing</code> visam laikui, o laikmatis toliau rodo „Beveik baigta…". Bankas jau prijungtas, tad bandant iš naujo sukuriamas antras sutikimas.</td>
+<td><span class="tag crit">critical</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">14</td><td class="what">Prenumerata baigiasi — prieiga lieka</td>
+<td>Entitlement tikrinamas vieninteliame taške <code>landing.dart:24</code>, tik prisijungimo metu. <code>isPremiumListenable</code> neturi nė vieno klausytojo, tad pasibaigusi prenumerata galioja iki kito šalto paleidimo.</td>
+<td><span class="tag high">high</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">15</td><td class="what">Deep link'ai sukonfigūruoti, bet neapdorojami</td>
+<td>AASA, entitlements, URL schema ir <code>app_links</code> priklausomybė — viskas vietoje, o Dart kodo nėra nė eilutės. Bankas, perdavęs valdymą savo programai (SEB, Swedbank), grąžina žmogų į niekur; <code>codeFromCallback</code> parašytas ir nenaudojamas.</td>
+<td><span class="tag high">high</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">16</td><td class="what">Biudžetai niekur nesaugomi</td>
+<td><code>dashboard_preview.dart:5811</code> per kiekvieną <code>initState</code> nustato <code>_budgets = []</code>; įrašymo nėra nei Hive, nei serveryje. Žmogaus sukurtas biudžetas dingsta išėjus iš ekrano.</td>
+<td><span class="tag high">high</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">17</td><td class="what">Dubliuota sąskaita — parodo daugiau pinigų</td>
+<td><code>main.py:227-231</code> sudeda likučius be dublikatų patikros. Prisijungus tam pačiam bankui dukart, likutis sudedamas du kartus. Trijų eilučių pataisa.</td>
+<td><span class="tag high">high</span></td><td>backend</td><td class="no">NE</td></tr>
+
+<tr><td class="n">18</td><td class="what">IBAN'ai ir sąskaitų UID loguose</td>
+<td><code>enable_banking.py:33</code> į klaidą įrašo užklausos kelią su sąskaitos UID ir 300 simbolių neapdoroto banko atsakymo; <code>main.py:270</code> tai išveda į Cloud Logging, o <code>details=str(e)</code> grąžina ir į telefoną.</td>
+<td><span class="tag high">high</span></td><td>backend</td><td class="no">NE</td></tr>
+
+<tr><td class="n">19</td><td class="what">Mokančiam rodoma „Bandomasis laikotarpis"</td>
+<td><code>dashboard_preview.dart:7615</code> būsena įrašyta kietai — visada „Bandomasis laikotarpis", nepriklausomai nuo tikrovės. Šalia „Susisiekti su pagalba" be <code>onTap</code>. Prenumeratos valdymo ar plano keitimo nėra.</td>
+<td><span class="tag high">high</span></td><td>flutter</td><td class="yes">TAIP</td></tr>
+
+<tr><td class="n">20</td><td class="what">Laiko juostos: serveris UTC, telefonas vietinis</td>
+<td>Pirmadienį 01:30 Lietuvos laiku serveris skaičiuoja praėjusią savaitę; mėnesio 1 d. iki 03:00 „šis mėnuo" dar praėjęs. Pasikartojančių mokėjimų terminai keičiasi priklausomai nuo valandos, kurią paleistas skenavimas.</td>
+<td><span class="tag high">high</span></td><td>backend</td><td class="no">NE</td></tr>
+
+</tbody></table>
+</div>
+
+<h3>Toliau sąraše, bet verta žinoti</h3>
+<ul>
+<li><strong>Stebėjimo nėra jokio</strong> — nei Crashlytics, nei Sentry, nei Analytics, nei globalaus klaidų gaudytuvo. Nė vienas iš 20 tavo išvardytų įvykių nefiksuojamas.</li>
+<li><strong>Bankininkystės jungiklis nieko nevaldo</strong> — <code>bankingEnabled</code> parsisiunčiamas, bet jo neskaito nė vienas ekranas. Tai buvo mano klaida ankstesniame vertinime.</li>
+<li><strong>~40 neapsaugotų tipų vertimų</strong> <code>dashboard_preview.dart</code> — <code>substring</code>, <code>int.parse</code>, <code>as String</code> ant banko duomenų. Saugus būdas tame pačiame faile jau naudojamas (<code>:7983</code>), tik nenuosekliai.</li>
+<li><strong>Užrakto ekranas visiškai neišverstas</strong> — angliškai kalbantis žmogus per kiekvieną paleidimą mato lietuvišką „Įvesk PIN kodą".</li>
+<li><strong>Backend'as į kiekvieną operaciją įrašo lietuviškas datas</strong> (<code>dashboard.py:421</code>) — angliškoje sąsajoje matomos „Liepos 20". Taisoma serveryje.</li>
+<li><strong>AI visada atsako lietuviškai</strong> — sistemos tekstai <code>finance_chat.py</code> įrašyti kietai, kalba iš telefono nesiunčiama.</li>
+<li><strong>Registracijos mygtukas apeinamas klaviatūra</strong> — <code>auth_screen.dart:419</code> <code>onFieldSubmitted</code> nepatikrina <code>_busy</code>, tad Enter gali pakartoti registraciją.</li>
+<li><strong>PIN be bandymų ribojimo</strong> — keturi skaitmenys, neribotai spėjimų.</li>
+<li><strong>Android:</strong> <code>PopScope</code> nėra niekur, tad sisteminis „atgal" išjungtų programą bet kuriame onboardingo ekrane. Prieš Android — privaloma.</li>
+</ul>
+
+<h2>Ką galima sutvarkyti be Apple peržiūros</h2>
+<div class="box good">
+<p>Tai atsako į tavo klausimą „ar kiekvieną kartą reikės naujo build'o". Ne — štai kas keičiama gyvai:</p>
+<ul>
+<li><strong>Cloud Functions</strong> (<code>firebase deploy --only functions</code>, ~1 min): #1 saugumo spraga, #7 sutikimo atšaukimas, #8 sesijos naikinimas, #9 datų parsinimas, #11 grąžinimai, #12 valiutų kursai, #17 dublikatai, #18 logai, #20 laiko juostos, lietuviškos datos, AI kalba, serverio logai su vartotojo ID.</li>
+<li><strong>Firestore taisyklės</strong> — prieigos ribojimai.</li>
+<li><strong>Hosting</strong> — teisiniai puslapiai ir banko callback tarpinis puslapis.</li>
+<li><strong>RevenueCat</strong> — kainos, pasiūlymai, <em>Restore Behavior</em> politika.</li>
+<li><strong>Firebase konsolė</strong> — „Multiple accounts per email" nustatymas išsprendžia Apple/Google konfliktą be kodo.</li>
+</ul>
+<p><strong>Iš 20 pavojingiausių — 9 taisomi serveryje.</strong> Įskaitant patį pirmą.</p>
+</div>
+
+<div class="box warn">
+<p><strong>Reikia naujo build'o:</strong> #2 splash, #3 Apple, #4 PIN, #5 bandymas, #6 klientinė pusė, #10 valiuta, #13 krautuvas, #14 prenumeratos galiojimas, #15 deep link'ai, #16 biudžetai, #19 prenumeratos ekranas, plius Crashlytics, jungiklio prijungimas, tipų apsaugos ir užrakto vertimai.</p>
+<p>Jie visi telpa į <strong>vieną build'ą</strong> — nereikia dvylikos peržiūrų. Apple peržiūra dabar ~24 val., o kritiniam gedimui yra <em>expedited review</em>.</p>
+</div>
+
+<h2>Testavimo planas prieš paleidimą</h2>
+
+<h3>1. Ką galima automatizuoti</h3>
+<ul>
+<li><strong>Backend vienetiniai testai</strong> (jau yra <code>functions/test_*.py</code> — plėsti): sugadinta data, netinkamas skaičius, nežinoma valiuta, grąžinimas be kodo, dubliuota sąskaita, dubliuotas <code>entry_reference</code>, tuščias sąskaitų sąrašas, laiko juostos riba (pirmadienis 01:30 EEST).</li>
+<li><strong>Idempotencijos testai:</strong> tas pats <code>code</code> siunčiamas du kartus; svetimas sąskaitos UID — turi būti atmestas.</li>
+<li><strong>Flutter vienetiniai:</strong> <code>tr()</code> raktų pilnumas, <code>Money.format</code> su didelėmis ir neigiamomis sumomis, saugūs eilučių pjaustymai su <code>null</code>.</li>
+<li><strong>Statinis patikrinimas:</strong> lint, draudžiantis <code>as String</code> ir <code>substring</code> ant banko duomenų.</li>
+</ul>
+
+<h3>2. Ką būtina daryti ranka ant tikro iPhone</h3>
+<ul>
+<li>Prisijungimas per Apple → <strong>uždaryti ir paleisti iš naujo</strong> (tikrina #3 — dabar užrakintų).</li>
+<li>Nustatyti PIN → atsijungti → bandyti prisijungti kita paskyra (tikrina #4).</li>
+<li>Pirkimas su sandbox paskyra, kuri <strong>jau naudojo bandymą</strong> (tikrina #5).</li>
+<li>Prenumeratos atšaukimas sandbox'e → laukti galiojimo pabaigos programoje neuždarius (tikrina #14).</li>
+<li>Skrydžio režimas paleidžiant, po prenumeratos pabaigos (tikrina #6).</li>
+<li>Banko prijungimas: telefono išjungimas viduryje, skrydžio režimas prieš grįžtant, atšaukimas banko puslapyje, dvigubas paspaudimas ant banko.</li>
+<li>Prijungimas per banką, kuris perduoda valdymą <strong>savo programai</strong> (SEB, Swedbank) — tikrina #15.</li>
+<li>Sutikimo atšaukimas banko programėlėje → grįžti į Vaultie (tikrina #7).</li>
+<li>Biudžeto sukūrimas → išeiti iš ekrano → grįžti (tikrina #16).</li>
+<li>Sąsaja angliškai: užrakto ekranas, datos, AI atsakymas.</li>
+<li>Didelis šriftas (Accessibility) — sumų ir etikečių netilpimas.</li>
+</ul>
+
+<h3>3. Eilės tvarka</h3>
+<ul>
+<li><strong>Pirma, šiandien, be Apple:</strong> #1 saugumo spraga, #9 datos, #18 logai, #17 dublikatai — visi serveryje, visi trumpi.</li>
+<li><strong>Antra:</strong> Crashlytics ir serverio logai su vartotojo ID bei bendru užklausos numeriu. Kol nematai, kas lūžta, taisai tai, ką atspėjai.</li>
+<li><strong>Trečia:</strong> vienas build'as su visais kliento pataisymais.</li>
+<li><strong>Ketvirta:</strong> rankinis testų sąrašas ant tikro telefono.</li>
+<li><strong>Penkta:</strong> submit.</li>
+</ul>
+
+<div class="box">
+<strong>Metodinė pastaba.</strong> Šis auditas rado tai, ką rado, skaitydamas kodą. Jis <em>neįrodo</em>, kad daugiau problemų nėra — įrodo, kad šitos yra. Po pataisymų verta pakartoti bent kritinėms sritims, nes taisant atsiranda naujų kelių.
+</div>
+
+<p class="foot">Parengta 2026-07-20 · šeši lygiagretūs auditoriai · visi teiginiai su nuorodomis į failą ir eilutę</p>
+</div></body></html>
