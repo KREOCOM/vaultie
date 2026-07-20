@@ -208,6 +208,20 @@ class BankingService {
         timeout: const Duration(seconds: 60));
   }
 
+  /// Today's date where the USER is, as YYYY-MM-DD.
+  ///
+  /// The backend runs in UTC and the user does not. At 01:30 on a Monday in
+  /// Lithuania it is still Sunday in UTC, so the server computed the previous
+  /// week and the whole week view shifted seven days; in the first hours of a
+  /// month, "this month" was still the last one. Only the device knows where
+  /// its owner is, so the date travels with the request.
+  static String _localToday() {
+    final n = DateTime.now();
+    final m = n.month.toString().padLeft(2, '0');
+    final d = n.day.toString().padLeft(2, '0');
+    return '${n.year}-$m-$d';
+  }
+
   Future<T> _call<T>(String name, Map<String, dynamic> data,
       T Function(Map<Object?, Object?>) parse, {Duration? timeout}) async {
     try {
@@ -271,7 +285,7 @@ class BankingService {
         // name the right bank.
         {'code': code, 'debug': kDebugMode, 'aiEnrichment': aiEnrichment,
          'monthsBack': monthsBack, if (bank != null) 'bank': bank,
-         'known': DashboardStore.knownScan()}, (m) {
+         'today': _localToday(), 'known': DashboardStore.knownScan()}, (m) {
       known = _known(m);
       final cands = (m['candidates'] as List?) ?? const [];
       final freq = (m['frequent'] as List?) ?? const [];
@@ -369,7 +383,8 @@ class BankingService {
     Map<String, dynamic>? known;
     final dash = await _call('refresh_dashboard',
         {'accounts': accounts, 'aiEnrichment': aiEnrichment,
-         'monthsBack': monthsBack, 'known': DashboardStore.knownScan()},
+         'monthsBack': monthsBack, 'today': _localToday(),
+         'known': DashboardStore.knownScan()},
         (m) {
       known = _known(m);
       if (kDebugMode) {

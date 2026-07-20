@@ -361,8 +361,30 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
     return all_txns, summaries, scan_diag, own_ibans
 
 
+def _client_today(data: dict):
+    """The phone's local date, or None to fall back to the server's.
+
+    Cloud Run runs in UTC and the user does not. At 01:30 on a Monday in
+    Lithuania it is still Sunday 22:30 UTC, so "this week" was computed as the
+    PREVIOUS week and the whole week view shifted seven days; in the first hours
+    of a month, "this month" was still last month. Recurring due dates and their
+    active/late status flipped depending on the hour the scan happened to run.
+    The date has to come from the device, because only it knows where the user
+    is.
+    """
+    raw = data.get("today")
+    if not raw:
+        return None
+    try:
+        return dt.date.fromisoformat(str(raw)[:10])
+    except (TypeError, ValueError):
+        logging.warning("today: unusable value %r from client", raw)
+        return None
+
+
 def _build_result(all_txns: list, summaries: list, own_ibans: set,
-                  scan_diag: list, ai_enabled: bool, stale_banks=None) -> dict:
+                  scan_diag: list, ai_enabled: bool, stale_banks=None,
+                  today=None) -> dict:
     """Shared tail for finish_bank_auth + refresh_dashboard: dedupe, detect
     recurring, build the (multi-bank-aware) dashboard, and package the response.
     Nothing is persisted server-side (privacy-first)."""
@@ -371,14 +393,15 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     if len(all_txns) != raw:
         logging.info("scan: deduped %d -> %d transactions", raw, len(all_txns))
     try:
-        detection = detect_recurring(all_txns, own_ibans=own_ibans)
+        detection = detect_recurring(all_txns, own_ibans=own_ibans,
+                                     today=today)
     except Exception:  # noqa: BLE001
         logging.exception("detect_recurring failed")
         detection = {"candidates": [], "frequent": []}
     ai_key = ANTHROPIC_API_KEY.value if ai_enabled else None
     try:
         dash = build_dashboard(all_txns, summaries, own_ibans=own_ibans,
-                               ai_key=ai_key)
+                               ai_key=ai_key, today=today)
     except Exception:  # noqa: BLE001
         logging.exception("build_dashboard failed")
         dash = None
@@ -545,11 +568,12 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     ai_enabled = bool(data.get("aiEnrichment"))
     # This scan only covers the bank being connected, so the phone's cache of the
     # OTHER banks is what keeps them whole in the combined payload.
+    today = _client_today(data)
     all_txns, summaries, own_ibans, stale = _merge_known(
         all_txns, summaries, own_ibans, scan_diag, data.get("known") or {},
-        months_back)
+        months_back, today=today)
     result = _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled,
-                           stale_banks=stale)
+                           stale_banks=stale, today=today)
     # `connection` lets the client STORE this bank (session id + account uids +
     # IBANs) so it can be re-fetched later — without another login — and merged
     # with other banks by refresh_dashboard. The account IBANs are the user's own
@@ -620,11 +644,12 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
         )
     all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
         _client(), metas, months_back=months_back, psu_available=_psu_available(req))
+    today = _client_today(data)
     all_txns, summaries, own_ibans, stale = _merge_known(
         all_txns, summaries, own_ibans, scan_diag, data.get("known") or {},
-        months_back)
+        months_back, today=today)
     return _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled,
-                         stale_banks=stale)
+                         stale_banks=stale, today=today)
 
 
 @https_fn.on_call(
