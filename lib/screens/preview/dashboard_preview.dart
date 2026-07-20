@@ -783,8 +783,16 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                   : SystemUiOverlayStyle.dark,
               child: _dashboard(),
             ),
+            // Same backdrop as home, behind each of the other tabs — they paint
+            // no background of their own, so without this they showed the flat
+            // scaffold colour while home had the gradient.
             for (final w in (_otherTabs ??= _buildOtherTabs()))
-              SafeArea(bottom: false, child: w),
+              Stack(
+                children: [
+                  Positioned.fill(child: _frostBackdrop()),
+                  SafeArea(bottom: false, child: w),
+                ],
+              ),
           ],
         ),
       ),
@@ -810,27 +818,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     // The ListView and banner are transparent so nothing shows a hard block edge.
     return Stack(
       children: [
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: _darkMode
-                ? const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFF07060E), Color(0xFF0A0910), Color(0xFF141220)],
-                      stops: [0.0, 0.5, 1.0],
-                    ),
-                  )
-                : const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFFEDF1F9), Color(0xFFF3F0F9)],
-                    ),
-                  ),
-          ),
-        ),
-        if (!_darkMode) ..._frostMesh,
+        Positioned.fill(child: _frostBackdrop()),
         RefreshIndicator(
       onRefresh: _forceSync,
       color: _purple,
@@ -872,6 +860,36 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       ],
     );
   }
+
+  /// The app's shared backdrop: a soft gradient, plus (in light "Frost") three
+  /// faint colour glows. Painted behind every tab so the whole app stands on the
+  /// same ground — the home tab used to have this while Overview, AI chat,
+  /// Planning and Account were flat white.
+  Widget _frostBackdrop() => Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: _darkMode
+                  ? const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0xFF07060E), Color(0xFF0A0910), Color(0xFF141220)],
+                        stops: [0.0, 0.5, 1.0],
+                      ),
+                    )
+                  : const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0xFFEDF1F9), Color(0xFFF3F0F9)],
+                      ),
+                    ),
+            ),
+          ),
+          if (!_darkMode) ..._frostMesh,
+        ],
+      );
 
   /// Light "Frost" mesh: three faint colour glows over the base gradient, kept
   /// low-alpha so cards and dark ink stay perfectly legible on top.
