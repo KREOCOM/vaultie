@@ -616,11 +616,13 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     if (state == AppLifecycleState.resumed) _maybeAutoSync();
   }
 
-  // Background auto-sync (Bilance-style ~30-min freshness): when the dashboard is
-  // shown or the app returns to the foreground and the last sync is stale,
-  // silently re-fetch all connected banks (6-month window + AI) and swap the
-  // fresher data in. No-op in the standalone preview (no connected banks).
-  static const _autoSyncEvery = Duration(minutes: 30);
+  // Auto-sync on open and on resume: re-fetch all connected banks and swap the
+  // fresher data in, so a user who just made a purchase sees it without knowing
+  // to pull-to-refresh. A short throttle keeps rapid re-opens from re-scanning,
+  // but it's low because the user is present (PSU headers → Enable Banking's
+  // quota is uncapped for attended calls), so opening the app can sync freely.
+  // No-op in the standalone preview (no connected banks).
+  static const _autoSyncEvery = Duration(minutes: 3);
   // Bank names currently represented in a dashboard payload's accounts.
   Set<String> _banksIn(Map<String, dynamic>? d) {
     final accts = ((d?['balance'] as Map?)?['accounts'] as List?) ?? const [];
