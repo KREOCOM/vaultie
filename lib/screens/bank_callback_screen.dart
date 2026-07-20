@@ -74,6 +74,12 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
   Widget _busyView() => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Image.asset('assets/icon/app_icon.png',
+                width: 72, height: 72, fit: BoxFit.cover),
+          ),
+          const SizedBox(height: 28),
           const CircularProgressIndicator(),
           const SizedBox(height: 20),
           Text(
