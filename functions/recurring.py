@@ -639,18 +639,27 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
                 return "filtered"
             avg = round(sum(amounts) / len(amounts), 2)
             category = _category_for_unknown(st_items[0][2], avg)
-            typ = "bill" if category in ("housing", "finance") else "subscription"
-            if stable and typ == "subscription":
-                typ = "bill"       # deliberate transfers lean bill, not subscription
-            # Weak person-like hint: demote to "transfer" ONLY when this is NOT a
-            # confident regular stream. A CONFIDENT, regular payment is a real
-            # commitment (rent to a private landlord, a monthly allowance) and
-            # stays a bill so it counts — the person-name heuristic is too weak to
-            # override a strong recurrence signal (it also fires on 2-word
-            # business names). One-off / irregular person payments still become
-            # transfers (excluded from the total).
-            if not confident and (canon_g.get("counterparty") or {}).get("party_kind_hint") == "person_like":
+            is_person = (canon_g.get("counterparty") or {}).get(
+                "party_kind_hint") == "person_like"
+            # A person-to-person transfer is a transfer, not a bill — however
+            # regularly it repeats. Sending family money every month, splitting
+            # rent with a flatmate, repaying a friend: none of these are
+            # subscriptions, and showing them as such is the single most obvious
+            # "this app is broken" bug for a new user paying an actual person.
+            #
+            # The exception is a genuine COMMITMENT to a private individual —
+            # rent to a landlord, a loan repayment. Those surface as housing or
+            # finance from the memo (`_category_for_unknown`), so they stay bills;
+            # only person-like streams that are NEITHER become transfers. This
+            # replaces the old rule that kept CONFIDENT person streams as bills,
+            # which is exactly what surfaced a personal transfer as a
+            # subscription.
+            if is_person and category not in ("housing", "finance"):
                 typ = "transfer"
+            else:
+                typ = "bill" if category in ("housing", "finance") else "subscription"
+                if stable and typ == "subscription":
+                    typ = "bill"   # deliberate transfers lean bill, not subscription
             disp = cp_name if stable else _clean_name(st_items[0][2])
             cand = _build_candidate(disp, typ, category, None, st_items, dates,
                                     needs_review=True, auto_detected=False,
