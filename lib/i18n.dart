@@ -541,6 +541,10 @@ const Map<String, String> _en = {
   'Planai kol kas nepasiekiami. Bandyk vėliau arba praleisk.':
       'Plans are unavailable right now. Try again later or skip.',
   'Pirkimas atkurtas.': 'Purchase restored.',
+  'Labas 👋': 'Hi 👋',
+  'Apie ką pakalbam?': 'What would you like to discuss?',
+  'Matau tik suvestines — jokių atskirų operacijų ar vardų.':
+      'I only see summaries — no individual transactions or names.',
   'AI kategorizavimas': 'AI categorisation',
   'Tiksliau atpažįsta parduotuves. Siunčia tik verslo pavadinimus.':
       'More accurate merchant recognition. Sends business names only.',

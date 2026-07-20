@@ -8413,40 +8413,69 @@ class _AiChatTabState extends State<_AiChatTab> {
         ),
       );
     }
+    // A warm, conversational opening rather than a bare list of buttons — a
+    // finance chat should feel like it's ready to talk, not like a menu. First
+    // chip is filled (the obvious starter), the rest sit quietly under it.
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      padding: const EdgeInsets.fromLTRB(22, 40, 22, 12),
       children: [
-        Text(tr('Pabandyk paklausti:'),
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _muted)),
-        const SizedBox(height: 12),
-        for (final s in _starters)
+        Text(tr('Labas 👋'),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _muted)),
+        const SizedBox(height: 6),
+        Text(tr('Apie ką pakalbam?'),
+            style: TextStyle(
+                fontSize: 30, fontWeight: FontWeight.w800, color: _ink,
+                height: 1.15, letterSpacing: -0.6)),
+        const SizedBox(height: 24),
+        for (var i = 0; i < _starters.length; i++)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: GestureDetector(
-              // Send what the chip SAYS, not the Lithuanian it was written in.
-              // The label goes through tr() but the tap sent the original, so an
-              // English user tapped "Where can I save money?" and watched their
-              // own question appear in Lithuanian — and be answered in it.
-              onTap: () => _send(tr(s)),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: _card,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _hair),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.chat_bubble_outline_rounded, size: 17, color: _purple),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(tr(s), style: TextStyle(fontSize: 15, color: _ink))),
-                ]),
-              ),
-            ),
+            child: _starterChip(_starters[i], primary: i == 0),
           ),
+        const SizedBox(height: 8),
+        Row(children: [
+          Icon(Icons.lock_outline_rounded, size: 14, color: _faint),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+                tr('Matau tik suvestines — jokių atskirų operacijų ar vardų.'),
+                style: TextStyle(fontSize: 12.5, color: _faint, height: 1.4)),
+          ),
+        ]),
       ],
     );
   }
+
+  Widget _starterChip(String s, {required bool primary}) => GestureDetector(
+        // Send what the chip SAYS, not the Lithuanian it was written in — the
+        // label goes through tr(), so the tap must send tr(s) too, or an English
+        // user's own question would appear (and be answered) in Lithuanian.
+        onTap: () => _send(tr(s)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: primary ? _purple : _card,
+            borderRadius: BorderRadius.circular(15),
+            border: primary ? null : Border.all(color: _hair),
+            boxShadow: primary
+                ? [BoxShadow(color: _purple.withValues(alpha: 0.28),
+                    blurRadius: 16, offset: const Offset(0, 6))]
+                : null,
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(primary ? Icons.auto_awesome_rounded : Icons.chat_bubble_outline_rounded,
+                size: 17, color: primary ? Colors.white : _purple),
+            const SizedBox(width: 11),
+            Flexible(
+              child: Text(tr(s),
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: primary ? FontWeight.w700 : FontWeight.w500,
+                      color: primary ? Colors.white : _ink)),
+            ),
+          ]),
+        ),
+      );
 
   Widget _bubble(_ChatMsg m) {
     final isUser = m.role == 'user';
