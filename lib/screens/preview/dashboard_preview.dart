@@ -7163,7 +7163,53 @@ class _AccountTabState extends State<_AccountTab> {
                 .push(MaterialPageRoute(builder: (_) => const BankConnectScreen()))),
           ]),
         ),
+        if (DashboardStore.bankCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: GestureDetector(
+              onTap: _disconnectAllBanks,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Text(tr('Atjungti bankus ir pradėti iš naujo'),
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _muted)),
+              ),
+            ),
+          ),
       ]),
+    );
+  }
+
+  Future<void> _disconnectAllBanks() async {
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        title: Text(tr('Atjungti bankus?'),
+            style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        content: Text(
+            tr('Pašalinsime visus prijungtus bankus ir jų duomenis iš šio '
+                'telefono. Galėsi prijungti iš naujo. Tavo paskyra ir '
+                'prenumerata nenukentės.'),
+            style: TextStyle(color: _muted, height: 1.4)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Atšaukti'))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(isLt ? 'Atjungti' : 'Disconnect',
+                  style: const TextStyle(color: DS.danger, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await DashboardStore.disconnectAllBanks();
+    if (!mounted) return;
+    // Straight to the bank flow with a clean slate.
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const BankConnectScreen()),
+      (r) => false,
     );
   }
 

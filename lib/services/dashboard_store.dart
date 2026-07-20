@@ -152,10 +152,21 @@ class DashboardStore {
   /// refresh_dashboard: {uid, bank, iban, name, currency}.
   static List<Map<String, dynamic>> accountRefs() {
     final out = <Map<String, dynamic>>[];
-    for (final c in connections()) {
+    // One ref per physical account (by IBAN). Reconnecting a bank mints a new
+    // Enable Banking session with new account UIDs for the SAME accounts, so a
+    // few reconnects leave several sessions all pointing at one account — each
+    // would otherwise be scanned and shown as a separate balance. The IBAN is
+    // the stable identity; the newest connection's UID for it wins (connections
+    // are appended, so the last one is freshest). Refs without an IBAN are all
+    // kept — nothing to dedupe them by.
+    final seenIban = <String>{};
+    for (final c in connections().reversed) {
       final bank = c['bank'];
       for (final a in ((c['accounts'] as List?) ?? const [])) {
-        out.add({...(a as Map).cast<String, dynamic>(), 'bank': bank});
+        final m = (a as Map).cast<String, dynamic>();
+        final iban = (m['iban'] as String?)?.replaceAll(' ', '').toUpperCase();
+        if (iban != null && iban.isNotEmpty && !seenIban.add(iban)) continue;
+        out.add({...m, 'bank': bank});
       }
     }
     return out;
@@ -169,6 +180,20 @@ class DashboardStore {
 
   /// Number of connected banks (0 before any connection).
   static int get bankCount => connections().length;
+
+  /// Forgets every bank connection and the data derived from it, so the user can
+  /// reconnect from a clean slate. Leaves manual assets, settings and the
+  /// account itself untouched — this is a bank reset, not a wipe.
+  static Future<void> disconnectAllBanks() async {
+    try {
+      await _box.delete(_kBanks);
+      await _box.delete(_kBank);
+      await _box.delete(_kDash);
+      await _box.delete(_kKnown);
+      await _box.delete(_kSyncedAt);
+      await _box.delete(_kPendingBank);
+    } catch (_) {/* no box (preview) */}
+  }
 
   // ── Recurring lifecycle overrides (Monarch/Copilot-style) ────────────────
   // The backend classifies each recurring stream active/ended, but the user is

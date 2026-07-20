@@ -107,6 +107,32 @@ def _dedupe_transactions(txns: list) -> list:
     return out
 
 
+def _dedupe_summaries(summaries: list) -> list:
+    """One balance card per physical account, keyed on IBAN.
+
+    Reconnecting a bank makes Enable Banking mint a NEW session with NEW account
+    UIDs for the SAME physical accounts, so a few reconnects leave several
+    sessions all pointing at one account — and each one produced its own balance
+    card. The IBAN is the account's stable identity across sessions; the UID is
+    not. Accounts with no IBAN (rare) fall back to their UID so they aren't all
+    collapsed into one. Balances are NOT summed — these are the same money seen
+    twice, not two accounts.
+    """
+    out: list = []
+    seen: set = set()
+    for s in summaries:
+        # No IBAN → keep it (unique per-object key), never collapse blindly.
+        key = _norm_iban(s.get("iban")) or f"obj:{id(s)}"
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(s)
+    if len(out) != len(summaries):
+        logging.info("scan: deduped %d -> %d account summaries",
+                     len(summaries), len(out))
+    return out
+
+
 def _require_auth(req: https_fn.CallableRequest) -> None:
     if req.auth is None:
         raise https_fn.HttpsError(
@@ -392,6 +418,7 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     all_txns = _dedupe_transactions(all_txns)
     if len(all_txns) != raw:
         logging.info("scan: deduped %d -> %d transactions", raw, len(all_txns))
+    summaries = _dedupe_summaries(summaries)
     try:
         detection = detect_recurring(all_txns, own_ibans=own_ibans,
                                      today=today)
