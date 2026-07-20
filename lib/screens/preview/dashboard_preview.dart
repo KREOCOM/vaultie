@@ -21,6 +21,7 @@ import '../../services/banking_service.dart';
 import '../../services/dashboard_store.dart';
 import '../../services/logo_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/purchase_service.dart';
 import '../../ui/design_system.dart';
 import '../../user_session.dart';
 import '../bank_connect_screen.dart';
@@ -7656,27 +7657,81 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   }
 
   void _subInfo() {
+    // The status line used to be hard-coded "Bandomasis laikotarpis" for
+    // everyone — a false billing statement to anyone paying full price. It now
+    // reflects the store's own record, loaded from RevenueCat.
     _sheet(tr('Prenumeratos informacija'), [
       Padding(
         padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(tr('Būsena: Bandomasis laikotarpis'), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
-          const SizedBox(height: 10),
-          Text(tr('Vaultie — prenumerata pagrįstas produktas. Mūsų nefinansuoja reklama ir mes neparduodame duomenų — mus finansuoji tu. Tavo mokestis išlaiko Vaultie be reklamų, privatų ir nuolat tobulėjantį. 💜'),
-              style: TextStyle(fontSize: 14.5, color: _muted, height: 1.5)),
-        ]),
+        child: FutureBuilder<SubscriptionInfo?>(
+          future: PurchaseService.instance.subscriptionInfo(),
+          builder: (context, snap) {
+            final Widget status;
+            if (snap.connectionState != ConnectionState.done) {
+              status = Text(tr('Kraunama…'),
+                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _muted));
+            } else {
+              status = Text(_subStatusLine(snap.data),
+                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink));
+            }
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              status,
+              const SizedBox(height: 10),
+              Text(tr('Vaultie — prenumerata pagrįstas produktas. Mūsų nefinansuoja reklama ir mes neparduodame duomenų — mus finansuoji tu. Tavo mokestis išlaiko Vaultie be reklamų, privatų ir nuolat tobulėjantį. 💜'),
+                  style: TextStyle(fontSize: 14.5, color: _muted, height: 1.5)),
+            ]);
+          },
+        ),
       ),
       const SizedBox(height: 14),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
-          child: Text(tr('Susisiekti su pagalba'), style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _purple)),
+        child: GestureDetector(
+          onTap: () {
+            Navigator.of(context).maybePop();
+            PurchaseService.instance.openManageSubscriptions();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
+            child: Text(tr('Valdyti prenumeratą'), style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _purple)),
+          ),
         ),
       ),
+      const SizedBox(height: 8),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: Text(tr('Planą pakeisti ar atšaukti gali „App Store“ nustatymuose.'),
+            style: TextStyle(fontSize: 12.5, color: _muted, height: 1.4)),
+      ),
     ]);
+  }
+
+  /// A human status line from the live subscription, e.g.
+  /// "Metinis planas · atsinaujina 2027-07-20" or "Bandomasis laikotarpis iki …".
+  String _subStatusLine(SubscriptionInfo? info) {
+    if (info == null) return tr('Nepavyko įkelti būsenos.');
+    if (!info.isActive) return tr('Būsena: neaktyvi');
+    final plan = info.plan == PlanId.yearly
+        ? tr('Metinis planas')
+        : info.plan == PlanId.monthly
+            ? tr('Mėnesinis planas')
+            : tr('Vaultie Pro');
+    final date = info.renewsOn == null
+        ? null
+        : '${info.renewsOn!.year}-${info.renewsOn!.month.toString().padLeft(2, '0')}-${info.renewsOn!.day.toString().padLeft(2, '0')}';
+    if (info.isTrial) {
+      return date == null
+          ? '$plan · ${tr('bandomasis laikotarpis')}'
+          : '$plan · ${tr('nemokamas bandymas iki')} $date';
+    }
+    if (!info.willRenew) {
+      return date == null
+          ? '$plan · ${tr('atšaukta')}'
+          : '$plan · ${tr('galioja iki')} $date';
+    }
+    return date == null ? plan : '$plan · ${tr('atsinaujina')} $date';
   }
 
   Widget _radioRow(String title, String sub, String trailing, bool sel, VoidCallback onTap) => InkWell(

@@ -541,6 +541,19 @@ const Map<String, String> _en = {
   'Planai kol kas nepasiekiami. Bandyk vėliau arba praleisk.':
       'Plans are unavailable right now. Try again later or skip.',
   'Pirkimas atkurtas.': 'Purchase restored.',
+  // ── subscription info ──
+  'Valdyti prenumeratą': 'Manage subscription',
+  'Planą pakeisti ar atšaukti gali „App Store“ nustatymuose.':
+      'You can change or cancel your plan in App Store settings.',
+  'Nepavyko įkelti būsenos.': "Couldn't load your status.",
+  'Būsena: neaktyvi': 'Status: inactive',
+  'Vaultie Pro': 'Vaultie Pro',
+  'bandomasis laikotarpis': 'free trial',
+  'nemokamas bandymas iki': 'free trial until',
+  'atšaukta': 'cancelled',
+  'galioja iki': 'active until',
+  'atsinaujina': 'renews',
+  'Kraunama…': 'Loading…',
   // ── app lock ──
   'Įvesk PIN kodą': 'Enter your PIN',
   'Vaultie užrakinta': 'Vaultie is locked',

@@ -65,6 +65,35 @@ class _OnbPaywallState extends State<OnbPaywall> {
   bool _annual = true;
   bool _busy = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // If the entitlement is already there, or arrives while this screen is up,
+    // don't sit on a paywall a paying user has no reason to see. It can arrive
+    // late — an offline launch seeded from the cached flag, then confirmed by
+    // the network; a renewal pushed from another device — and nothing here
+    // listened, so a subscriber could be stranded on it until they tapped
+    // Restore.
+    final premium = PurchaseService.instance.isPremiumListenable;
+    if (premium.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _advance());
+      return;
+    }
+    premium.addListener(_onPremiumChanged);
+  }
+
+  void _onPremiumChanged() {
+    if (mounted && PurchaseService.instance.isPremiumListenable.value) {
+      _advance();
+    }
+  }
+
+  @override
+  void dispose() {
+    PurchaseService.instance.isPremiumListenable.removeListener(_onPremiumChanged);
+    super.dispose();
+  }
+
   PlanId get _plan => _annual ? PlanId.yearly : PlanId.monthly;
 
   /// Live store price for [id], falling back to the constant above until the

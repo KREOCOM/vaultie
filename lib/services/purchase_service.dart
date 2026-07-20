@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:purchases_flutter/purchases_flutter.dart' as rc;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 
@@ -26,6 +27,38 @@ class PurchasePlan {
   final String price;
 
   bool get isYearly => id == PlanId.yearly;
+}
+
+/// A snapshot of the user's live subscription, for the account screen.
+///
+/// Everything here comes from the store's own record via RevenueCat — the
+/// subscription screen used to say "Bandomasis laikotarpis" to everyone, a
+/// factually false billing statement shown to people paying full price.
+class SubscriptionInfo {
+  const SubscriptionInfo({
+    required this.isActive,
+    required this.plan,
+    required this.isTrial,
+    required this.willRenew,
+    this.renewsOn,
+  });
+
+  /// Holds Vaultie Pro right now.
+  final bool isActive;
+
+  /// Which plan, when it maps to one we sell (monthly/yearly). Null for the
+  /// retired lifetime product or anything unrecognised.
+  final PlanId? plan;
+
+  /// In the free-trial part of the subscription (charged only when it ends).
+  final bool isTrial;
+
+  /// Renews automatically at the end of the period (false = cancelled but still
+  /// active until it lapses).
+  final bool willRenew;
+
+  /// When the current period ends — the renewal date, or the trial's end.
+  final DateTime? renewsOn;
 }
 
 /// Outcome of a purchase or restore attempt.
@@ -73,6 +106,14 @@ abstract class PurchaseService {
   /// Live, localized store price for [id] (e.g. "\$2.99"), or null if offerings
   /// haven't loaded — callers fall back to the static [plans] price.
   String? priceString(PlanId id);
+
+  /// The live subscription snapshot for the account screen, or null while it
+  /// hasn't loaded (or offline). Reflects the store's own record.
+  Future<SubscriptionInfo?> subscriptionInfo();
+
+  /// Opens the OS "manage subscriptions" screen so the user can switch plans or
+  /// cancel — the only place either is allowed to happen.
+  Future<void> openManageSubscriptions();
 
   /// Length in days of the free trial the store actually offers on [id], or
   /// null if there is none.
@@ -122,6 +163,20 @@ class MockPurchaseService implements PurchaseService {
 
   @override
   int? freeTrialDays(PlanId id) => null; // no store, so no offer to report
+
+  @override
+  Future<SubscriptionInfo?> subscriptionInfo() async => SubscriptionInfo(
+        isActive: _premium.value,
+        plan: PlanId.monthly,
+        isTrial: false,
+        willRenew: _premium.value,
+        renewsOn: null,
+      );
+
+  @override
+  Future<void> openManageSubscriptions() async {
+    // Nothing to open without a real store.
+  }
 
   @override
   Future<PurchaseResult> purchase(PlanId id) async {
@@ -311,6 +366,45 @@ class RevenueCatPurchaseService implements PurchaseService {
 
   @override
   int? freeTrialDays(PlanId id) => _trialDays[id];
+
+  @override
+  Future<SubscriptionInfo?> subscriptionInfo() async {
+    final rc.CustomerInfo info;
+    try {
+      info = await rc.Purchases.getCustomerInfo();
+    } catch (_) {
+      return null; // offline — the screen shows a neutral "couldn't load"
+    }
+    final ent = info.entitlements.active[_entitlementId];
+    if (ent == null) {
+      return const SubscriptionInfo(
+          isActive: false, plan: null, isTrial: false, willRenew: false);
+    }
+    DateTime? renews;
+    if (ent.expirationDate != null) {
+      renews = DateTime.tryParse(ent.expirationDate!);
+    }
+    return SubscriptionInfo(
+      isActive: true,
+      plan: _productIds[ent.productIdentifier],
+      isTrial: ent.periodType == rc.PeriodType.trial,
+      willRenew: ent.willRenew,
+      renewsOn: renews,
+    );
+  }
+
+  @override
+  Future<void> openManageSubscriptions() async {
+    // This SDK version has no showManageSubscriptions(); Apple's documented
+    // deep link opens the same screen — the one place a plan can be switched or
+    // cancelled.
+    final uri = Uri.parse('https://apps.apple.com/account/subscriptions');
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // No handler (unlikely on-device) — nothing more we can do here.
+    }
+  }
 
   @override
   Future<PurchaseResult> purchase(PlanId id) async {
