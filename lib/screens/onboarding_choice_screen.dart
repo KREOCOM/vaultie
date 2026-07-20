@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_prefs.dart';
 import '../main.dart';
 import '../services/dashboard_store.dart';
+import '../services/purchase_service.dart';
 import 'bank_connect_screen.dart';
 import 'onb_paywall.dart';
 import 'preview/dashboard_preview.dart';
@@ -11,23 +12,30 @@ import 'preview/dashboard_preview.dart';
 const Color _brightGreen = Color(0xFF4CAF72);
 const Color _gold = Color(0xFFFFD24A);
 
-/// Where a user lands after signing in: the one-time "How would you like to
-/// start?" choice on first run; otherwise the saved dashboard (persisted from
-/// the last bank scan) if there is one, else the bank flow to connect.
+/// Where a user lands after signing in: the paywall without an active plan,
+/// otherwise the saved dashboard (persisted from the last bank scan) if there
+/// is one, else the bank flow to connect.
+///
+/// No first-run choice screen any more: it was the last screen still wearing
+/// the old green identity, and the intro chain's own "Prijungti banką" screen
+/// already makes the same pitch in the current one.
 Widget landingAfterAuth() {
-  // No first-run choice screen any more: it was the last screen still wearing
-  // the old green identity, and the intro chain's own "Prijungti banką" screen
-  // already makes the same pitch in the current one.
+  // Vaultie is subscription-only, so the entitlement — not the presence of
+  // local data — decides who gets in. This used to key off the saved dashboard
+  // alone, which meant connecting a bank once bought permanent free access:
+  // the paywall was skipped for anyone who had data, including after their
+  // subscription lapsed.
+  if (!PurchaseService.instance.isPremium) {
+    return const OnbPaywall(next: BankConnectScreen());
+  }
   final saved = DashboardStore.load();
   // Straight to the bank list. BankInfoScreen said four things: three are now
   // on the blue "Prijungti banką" screen, and the remaining two facts moved to
   // the bank list's own footer. It was also the last screen still wearing the
   // old green identity. The file stays on disk, just off this path.
-  //
-  // The paywall sits in front of it. It charges nothing yet — see OnbPaywall.
   return saved != null
       ? DashboardPreview(data: saved)
-      : const OnbPaywall(next: BankConnectScreen());
+      : const BankConnectScreen();
 }
 
 /// First-run screen shown right after login: connect a bank (recommended) or
