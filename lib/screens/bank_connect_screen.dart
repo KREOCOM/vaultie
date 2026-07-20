@@ -344,12 +344,14 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     } finally {
       // Belt and braces: no path out of this method leaves the ticker running.
       _stopStages();
-      // Clear the pending marker on any exit but the success path (which already
-      // cleared it inside completeBankConnection). A cancel or error must not
-      // leave a stale "resume this bank" record for the next launch.
-      if (_phase != _Phase.analysing) {
-        await DashboardStore.setPendingConnect(null);
-      }
+      // Deliberately does NOT clear the pending-connect marker here. When a bank
+      // hands off to its own app, this session reports CANCELED and lands in the
+      // catch above — but the connection isn't cancelled, it's continuing via
+      // the universal link, and BankCallbackScreen still needs the bank name
+      // this marker holds. Clearing it here set it to null before the deep-link
+      // path read it, so the bank came back labelled "Bankas". It's overwritten
+      // at the start of the next connect and cleared on success, so a stale
+      // marker after a real cancel is harmless.
     }
   }
 
