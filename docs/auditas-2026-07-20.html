@@ -46,8 +46,16 @@
 <h1>Vaultie — edge-case, chaos ir gedimų auditas</h1>
 <p class="sub">2026-07-20 · šaka <code>onboarding-and-brand</code> · šeši nepriklausomi auditoriai, kiekvienas skaitė tikrą kodą</p>
 
+<div class="box good">
+<strong>ATNAUJINTA tą pačią dieną, po pataisymų.</strong> Iš 20 žemiau išvardytų — <strong>13 sutvarkyta, patikrinta testais ir įdiegta</strong> (serveris + telefonas). Papildomai sutvarkyta: bankininkystės jungiklis (buvo prijungtas prie nieko), užrakto ekrano vertimai, AI pokalbio kalba, ir valiutos keitimas, rodytas kaip prenumerata.
+<br><br>
+<strong>Liko septyni:</strong> #6 prieigos patikra serveryje (dalinai — klientinė pusė), #8 sutikimo atšaukimas banko pusėje, #14 prenumeratos galiojimas seanso metu, #15 deep link'ai, #19 prenumeratos ekranas su įrašyta „Bandomasis laikotarpis", #20 laiko juostos, plius ~40 neapsaugotų tipų vertimų <code>dashboard_preview.dart</code>.
+<br><br>
+Žemiau esantis sąrašas paliktas nepakeistas — jis rodo, kas buvo rasta, ir yra likusių darbų šaltinis.
+</div>
+
 <div class="verdict">
-<strong>Išvada: šiandien leisti į App Store negalima.</strong> Ne dėl kosmetikos — rasta viena saugumo spraga, kuria vienas vartotojas gali pasiekti kito žmogaus banko istoriją, keli scenarijai, kurie visam laikui užrakina žmogų lauke iš jo paties programos, ir kelios vietos, kur rodomi neteisingi pinigai.
+<strong>Išvada auditavimo metu: šiandien leisti į App Store negalima.</strong> Ne dėl kosmetikos — rasta viena saugumo spraga, kuria vienas vartotojas gali pasiekti kito žmogaus banko istoriją, keli scenarijai, kurie visam laikui užrakina žmogų lauke iš jo paties programos, ir kelios vietos, kur rodomi neteisingi pinigai.
 <br><br>
 Gera žinia: <strong>maždaug pusė kritinių dalykų taisoma serveryje, be Apple peržiūros</strong> — kai kurie per kelias eilutes.
 </div>
