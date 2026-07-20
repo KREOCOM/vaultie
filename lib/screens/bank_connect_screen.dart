@@ -13,6 +13,60 @@ import '../services/feature_flags.dart';
 import 'bank_import_screen.dart';
 import 'preview/dashboard_preview.dart';
 
+/// What [completeBankConnection] hands back: the fast dashboard to show now, the
+/// background 12-month backfill to swap in later, and the raw scan for the
+/// legacy import fallback.
+typedef BankConnectionResult = ({
+  Map<String, dynamic>? dash,
+  Future<Map<String, dynamic>?>? deeper,
+  BankScanResult scan,
+});
+
+/// Turns an authorisation [code] into a connected, saved dashboard.
+///
+/// Everything after we hold the code lives here so the two ways of getting one
+/// — the in-app ASWebAuthenticationSession, and a universal-link return that
+/// cold-launches the app — finish identically: fetch a fast 3-month scan,
+/// record the connection, build a combined dashboard when more than one bank is
+/// linked, persist it, and kick off the full 12-month backfill in the
+/// background. Throws [BankingException] on failure; the caller shows it.
+Future<BankConnectionResult> completeBankConnection(String code,
+    {String? bank}) async {
+  final scan = await BankingService.instance.finishBankAuth(
+      code, aiEnrichment: AppPrefs.aiEnrichment, bank: bank, monthsBack: 3);
+  final conn = scan.connection;
+  if (conn != null) {
+    await DashboardStore.addConnection(
+      bank: bank ?? conn['bank'] as String? ?? 'Bankas',
+      sessionId: conn['sessionId'] as String?,
+      accounts: (((conn['accounts'] as List?) ?? const [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList()),
+    );
+  }
+  Map<String, dynamic>? dash = scan.dash;
+  if (DashboardStore.bankCount > 1) {
+    try {
+      final combined = await BankingService.instance.refreshDashboard(
+          DashboardStore.accountRefs(),
+          aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 3);
+      if (combined != null) dash = combined;
+    } on BankingException {
+      // keep the single-bank dash as a fallback
+    }
+  }
+  if (dash != null) {
+    await DashboardStore.save(dash, bank: bank);
+  }
+  final deeper = (dash != null)
+      ? BankingService.instance.refreshDashboard(DashboardStore.accountRefs(),
+          aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6)
+      : null;
+  // The flow is finished — clear the pending marker either path set.
+  await DashboardStore.setPendingConnect(null);
+  return (dash: dash, deeper: deeper, scan: scan);
+}
+
 /// A country Vaultie can list banks for (Enable Banking coverage).
 class _Country {
   const _Country(this.code, this.flag, this.lt, this.en);
@@ -194,6 +248,10 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       _error = null;
     });
     try {
+      // Remember which bank this is BEFORE the browser opens: if it hands off to
+      // its own app and the return cold-launches Vaultie, the callback carries
+      // only a code, and the resume path recovers the label from here.
+      await DashboardStore.setPendingConnect(bank.name);
       final url = await BankingService.instance.startBankAuth(bank.name,
           country: bank.country.isNotEmpty ? bank.country : _country.code);
       final result = await FlutterWebAuth2.authenticate(
@@ -209,63 +267,17 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       if (!mounted) return;
       setState(() => _phase = _Phase.analysing);
       _startStages();
-      // RECENT-FIRST: fetch a fast 3-month window so the dashboard appears in
-      // ~15–20s instead of 60–80s. The full 12-month history is backfilled in
-      // the background (below) and swapped in when ready.
-      final scan = await BankingService.instance.finishBankAuth(
-          code, aiEnrichment: AppPrefs.aiEnrichment, bank: bank.name, monthsBack: 3);
-      if (!mounted) return;
-      // Record this bank's accounts (session id + uids + IBANs) so it can be
-      // re-fetched and merged with other banks later — without another login.
-      final conn = scan.connection;
-      if (conn != null) {
-        await DashboardStore.addConnection(
-          bank: bank.name,
-          sessionId: conn['sessionId'] as String?,
-          accounts: (((conn['accounts'] as List?) ?? const [])
-              .map((e) => (e as Map).cast<String, dynamic>())
-              .toList()),
-        );
-      }
-      // With more than one bank connected, rebuild ONE combined (still 3-month)
-      // dashboard across all of them for the fast first paint. If the combined
-      // refresh fails, fall back to this scan's data so the user is never left
-      // with nothing.
-      Map<String, dynamic>? dash = scan.dash;
-      if (DashboardStore.bankCount > 1) {
-        try {
-          final combined = await BankingService.instance.refreshDashboard(
-              DashboardStore.accountRefs(),
-              aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 3);
-          if (combined != null) dash = combined;
-        } on BankingException {
-          // keep the single-bank dash as a fallback
-        }
-      }
-      if (!mounted) return;
-      // Persist the fast dashboard so a restart mid-backfill still has data.
-      if (dash != null) {
-        await DashboardStore.save(dash, bank: bank.name);
-      }
-      // Kick off the FULL 12-month backfill in the background (not awaited): the
-      // dashboard opens on the fast (heuristic) data and swaps this in — with
-      // complete recurring history, AI-refined categories, and reminders — when
-      // it lands. AI runs ONLY here (background), so the fast first paint stays
-      // quick while categorisation quality is upgraded a few seconds later.
-      final Future<Map<String, dynamic>?>? deeper = (dash != null)
-          ? BankingService.instance.refreshDashboard(
-              DashboardStore.accountRefs(),
-              aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6)
-          : null;
+      // Everything past the code is shared with the deep-link resume path.
+      final r = await completeBankConnection(code, bank: bank.name);
       _stopStages();
       if (!mounted) return;
       // Land straight in the new dashboard. Fall back to the legacy import screen
       // only if the backend couldn't build the dashboard payload.
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => dash != null
-              ? DashboardPreview(data: dash, deeper: deeper)
-              : BankImportScreen(result: scan),
+          builder: (_) => r.dash != null
+              ? DashboardPreview(data: r.dash!, deeper: r.deeper)
+              : BankImportScreen(result: r.scan),
         ),
       );
     } on PlatformException catch (e) {
@@ -308,6 +320,12 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     } finally {
       // Belt and braces: no path out of this method leaves the ticker running.
       _stopStages();
+      // Clear the pending marker on any exit but the success path (which already
+      // cleared it inside completeBankConnection). A cancel or error must not
+      // leave a stale "resume this bank" record for the next launch.
+      if (_phase != _Phase.analysing) {
+        await DashboardStore.setPendingConnect(null);
+      }
     }
   }
 

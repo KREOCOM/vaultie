@@ -17,6 +17,7 @@ import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'models/subscription.dart';
 import 'services/dashboard_store.dart';
+import 'services/banking_deep_links.dart';
 import 'services/feature_flags.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
@@ -67,6 +68,10 @@ class HiveBoxes {
 /// Set on first launch after an install. Its absence is what identifies a fresh
 /// install, since Hive is wiped on delete but the Keychain is not.
 const String _kInstalled = 'installed';
+
+/// App-wide navigator, so the banking deep-link handler can present the resume
+/// screen without a BuildContext of its own.
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -141,6 +146,10 @@ Future<void> main() async {
   // Configures RevenueCat and resolves the "Vaultie Pro" entitlement so premium
   // gating is correct from the first frame.
   await PurchaseService.instance.init();
+
+  // Catch a bank's callback when it returns as an app link (a bank that hands
+  // off to its own app). No-op for every other launch. Not awaited.
+  BankingDeepLinks.instance.init(navigatorKey);
 
   // Last known flag values first, so an offline launch doesn't look like a
   // kill-switch. The live fetch below overwrites them a moment later.
@@ -226,6 +235,7 @@ class VaultieApp extends StatelessWidget {
         );
         return MaterialApp(
           title: 'Vaultie',
+          navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
           // Gate every route behind the PIN/Face ID lock when the user set one.
           builder: (context, child) => _LockGate(child: child ?? const SizedBox.shrink()),

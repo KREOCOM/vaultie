@@ -237,6 +237,32 @@ class DashboardStore {
     }
   }
 
+  // ── Pending bank connection ─────────────────────────────────────────────────
+  // The bank whose consent flow is in progress, stored before the bank's page
+  // opens. If the bank hands off to its own app and the return cold-launches
+  // Vaultie via a universal link, the callback carries only a `code` — not which
+  // bank it was — so this is how the resumed connection recovers the label it
+  // needs to store the connection under. Cleared on completion, cancel or error.
+  static const _kPendingBank = 'pendingConnectBank';
+
+  static Future<void> setPendingConnect(String? bank) async {
+    try {
+      if (bank == null) {
+        await _box.delete(_kPendingBank);
+      } else {
+        await _box.put(_kPendingBank, bank);
+      }
+    } catch (_) {/* no box (preview) → nothing to resume anyway */}
+  }
+
+  static String? pendingConnect() {
+    try {
+      return _box.get(_kPendingBank) as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Per-category budgets ────────────────────────────────────────────────────
   // The user's spending limits, one per section. Each entry:
   // {sec, limit, auto} where `auto` records whether the limit was our suggestion
