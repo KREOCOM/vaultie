@@ -19,15 +19,16 @@ class DS {
   static const hairline = Color(0xFFE8ECE7); // borders / dividers
   static const track = Color(0xFFE9ECE8); // chart/ring track
 
-  // Ink ramp (green-black, softened from pure black)
-  static const ink = Color(0xFF1A2620); // primary text
-  static const ink2 = Color(0xFF6C7972); // secondary text
-  static const ink3 = Color(0xFF9AA69E); // tertiary / captions
+  // Ink ramp (blue-black, softened from pure black)
+  static const ink = Color(0xFF0B1533); // primary text
+  static const ink2 = Color(0xFF4C5B7D); // secondary text
+  static const ink3 = Color(0xFF8A94A8); // tertiary / captions
 
-  // Brand + semantic
-  static const brand = Color(0xFF174E35);
-  static const accent = Color(0xFF1E8E4E);
-  static const paid = Color(0xFF1E8E4E); // positive / settled
+  // Brand + semantic. Brand follows the blue identity; `paid` stays green
+  // because there it means "positive", not "Vaultie".
+  static const brand = Color(0xFF003DE1);
+  static const accent = Color(0xFF2F6BFF);
+  static const paid = Color(0xFF12A366); // positive / settled
   static const pending = Color(0xFFB5831A); // awaiting / expected
   static const danger = Color(0xFFC0402B);
 

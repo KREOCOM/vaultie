@@ -12,7 +12,7 @@ import 'onb_month.dart';
 import 'onb_planning.dart';
 import 'onb_security.dart';
 import 'onb_welcome.dart';
-import 'onboarding_choice_screen.dart';
+import 'landing.dart';
 import 'verify_email_screen.dart';
 
 /// Branded splash shown for ~2 seconds on launch, then fades into the app.

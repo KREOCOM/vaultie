@@ -81,7 +81,7 @@ class Subscription {
     required this.billingCycle,
     required this.category,
     required this.nextBillingDate,
-    this.colorValue = 0xFF174E35,
+    this.colorValue = 0xFF003DE1,
     this.isEstimated = false,
     this.notes,
     this.logoDomain,
@@ -191,7 +191,7 @@ class SubscriptionAdapter extends TypeAdapter<Subscription> {
       billingCycle: BillingCycle.values[fields[3] as int],
       category: fields[4] as String,
       nextBillingDate: DateTime.fromMillisecondsSinceEpoch(fields[5] as int),
-      colorValue: fields[6] as int? ?? 0xFF174E35,
+      colorValue: fields[6] as int? ?? 0xFF003DE1,
       // Fields 7–9 were added later; older records default them.
       isEstimated: fields[7] as bool? ?? false,
       notes: fields[8] as String?,

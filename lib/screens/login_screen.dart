@@ -6,7 +6,7 @@ import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'auth_screen.dart';
 import 'legal_screen.dart';
-import 'onboarding_choice_screen.dart';
+import 'landing.dart';
 
 /// Standalone login / sign-up for returning-but-signed-out users, and the
 /// screen the onboarding hands off to.

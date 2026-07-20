@@ -18,14 +18,8 @@ import 'services/feature_flags.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
 import 'services/recap_service.dart';
-import 'screens/onboarding_screen.dart';
 import 'screens/auth_screen.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/paywall_screen.dart';
-import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
-import 'screens/onb_top.dart';
-import 'screens/onboarding/onboarding_flow.dart';
 import 'screens/verify_email_screen.dart';
 
 /// Vaultie brand palette. The hero colour is the brand blue.
@@ -296,12 +290,8 @@ class VaultieApp extends StatelessWidget {
           ),
           home: SplashScreen(hasOnboarded: hasOnboarded),
           routes: {
-            OnboardingScreen.route: (_) => const OnboardingScreen(),
             AuthScreen.route: (_) => const AuthScreen(),
             VerifyEmailScreen.route: (_) => const VerifyEmailScreen(),
-            DashboardScreen.route: (_) => const DashboardScreen(),
-            PaywallScreen.route: (_) => const PaywallScreen(),
-            SettingsScreen.route: (_) => const SettingsScreen(),
           },
         );
       },

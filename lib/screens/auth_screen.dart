@@ -7,7 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
-import 'onboarding_choice_screen.dart';
+import 'landing.dart';
 import 'verify_email_screen.dart';
 
 /// Email/password sign-in & registration backed by Firebase Auth.

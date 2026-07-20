@@ -7,7 +7,7 @@ import '../main.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'login_screen.dart';
-import 'onboarding_choice_screen.dart';
+import 'landing.dart';
 
 /// Gate shown to a signed-in-but-unverified user.
 ///
