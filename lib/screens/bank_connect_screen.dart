@@ -9,6 +9,7 @@ import '../content_theme.dart';
 import '../main.dart';
 import '../services/banking_service.dart';
 import '../services/dashboard_store.dart';
+import '../services/feature_flags.dart';
 import 'bank_import_screen.dart';
 import 'preview/dashboard_preview.dart';
 
@@ -147,6 +148,20 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   }
 
   Future<void> _loadBanks() async {
+    // The kill-switch, finally connected to something. It was fetched from
+    // Remote Config, updated in realtime, and read by nothing — flipping it in
+    // the Firebase console changed precisely nothing in the app. This is the
+    // one screen it needs to reach: during an Enable Banking outage, saying so
+    // beats sending everyone into a flow that cannot succeed.
+    if (!FeatureFlags.instance.bankingEnabled.value) {
+      setState(() {
+        _error = _isLt
+            ? 'Banko prijungimas laikinai nepasiekiamas. Pabandyk vėliau.'
+            : 'Bank connection is temporarily unavailable. Please try later.';
+        _phase = _Phase.error;
+      });
+      return;
+    }
     setState(() {
       _phase = _Phase.loading;
       _error = null;

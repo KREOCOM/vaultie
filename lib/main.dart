@@ -142,6 +142,9 @@ Future<void> main() async {
   // gating is correct from the first frame.
   await PurchaseService.instance.init();
 
+  // Last known flag values first, so an offline launch doesn't look like a
+  // kill-switch. The live fetch below overwrites them a moment later.
+  FeatureFlags.instance.loadCached();
   // Fetch remote feature flags (e.g. the banking kill-switch) in the background
   // — not awaited so a slow network can't delay the first frame; the UI updates
   // reactively when the flags arrive.

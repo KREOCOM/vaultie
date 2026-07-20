@@ -237,6 +237,36 @@ class DashboardStore {
     }
   }
 
+  // ── Per-category budgets ────────────────────────────────────────────────────
+  // The user's spending limits, one per section. Each entry:
+  // {sec, limit, auto} where `auto` records whether the limit was our suggestion
+  // or their own number.
+  //
+  // These lived only in a State field, reset to [] on every initState, and were
+  // never written anywhere: a budget survived until the user navigated away and
+  // then silently ceased to exist. Local, like the rest of the vault.
+  static const _kBudgets = 'budgets';
+
+  static List<Map<String, dynamic>> budgets() {
+    try {
+      final raw = _box.get(_kBudgets) as String?;
+      if (raw == null) return [];
+      return (jsonDecode(raw) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> setBudgets(List<Map<String, dynamic>> items) async {
+    try {
+      await _box.put(_kBudgets, jsonEncode(items));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   // ── Subscription aliases (user-given names for anonymous recurring series) ──
   // Maps a recurring series id (sid, from the dashboard payload) → a display
   // name, e.g. an unnameable "APPLE.COM/BILL" stream → "ChatGPT". Attached to the

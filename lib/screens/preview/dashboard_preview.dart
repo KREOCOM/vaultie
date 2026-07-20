@@ -5805,10 +5805,26 @@ class _PlanningTabState extends State<_PlanningTab> {
     for (final e in _taxonomy) {
       _secColorKey.putIfAbsent(e['sec'] as String, () => e['c'] as String);
     }
-    // Start with NO budgets — auto-creating them confused users ("where did this
-    // limit come from?"). The user adds their own; the add sheet still offers a
-    // data-based suggested limit (median of real spend) to accept or edit.
-    _budgets = [];
+    // No budgets are created for the user — auto-creating them confused people
+    // ("where did this limit come from?"). The add sheet offers a data-based
+    // suggested limit (median of real spend) to accept or edit. What IS loaded
+    // is whatever they set previously: this used to be a bare `[]`, so every
+    // budget they created vanished the moment they left the screen.
+    _budgets = [
+      for (final b in DashboardStore.budgets())
+        if (b['sec'] is String && b['limit'] is num)
+          (_Budget(b['sec'] as String, (b['limit'] as num).toDouble())
+            ..auto = b['auto'] as bool?),
+    ];
+  }
+
+  /// Persists the current budgets. Called after every add, edit and delete —
+  /// there is no "save" button, so each change is the save.
+  void _saveBudgets() {
+    DashboardStore.setBudgets([
+      for (final b in _budgets)
+        {'sec': b.sec, 'limit': b.limit, 'auto': b.auto},
+    ]);
   }
 
   // pace-aware colour: red if already over, orange if trending over, else green
@@ -6105,7 +6121,7 @@ class _PlanningTabState extends State<_PlanningTab> {
           Row(children: [
             Expanded(
               child: GestureDetector(
-                onTap: () { setState(() => _budgets.remove(b)); Navigator.pop(ctx); },
+                onTap: () { setState(() => _budgets.remove(b)); _saveBudgets(); Navigator.pop(ctx); },
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 15), alignment: Alignment.center,
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
@@ -6119,7 +6135,7 @@ class _PlanningTabState extends State<_PlanningTab> {
               child: GestureDetector(
                 onTap: () {
                   final v = double.tryParse(ctl.text.replaceAll(',', '.')) ?? 0;
-                  if (v > 0) setState(() { b.limit = v; b.auto = false; });
+                  if (v > 0) { setState(() { b.limit = v; b.auto = false; }); _saveBudgets(); }
                   Navigator.pop(ctx);
                 },
                 child: Container(
@@ -6233,7 +6249,7 @@ class _PlanningTabState extends State<_PlanningTab> {
         colorOf: _colorOfSec,
         iconOf: _iconOfSec,
         suggestOf: _suggestLimit,
-        onSave: (sec, limit) => setState(() => _budgets.add(_Budget(sec, limit))),
+        onSave: (sec, limit) { setState(() => _budgets.add(_Budget(sec, limit))); _saveBudgets(); },
       ),
     );
   }
@@ -7368,19 +7384,27 @@ class _SettingsScreenState extends State<_SettingsScreen> {
 
   // ── preference sheets ────────────────────────────────────────────────────────
   void _pickCurrency() {
-    // Curated set matching Vaultie's EU rollout (EUR base, NOK for salary, USD)
-    const opts = [
-      ['Euras (EUR)', '€', 'Bazinė valiuta'],
-      ['Norvegijos krona (NOK)', 'kr', '1 EUR = 11,14 NOK'],
-      ['JAV doleris (USD)', '\$', '1 EUR = 1,14 USD'],
-    ];
+    // EUR only, on purpose.
+    //
+    // This offered NOK and USD, and picking one changed nothing but the symbol:
+    // the dashboard formats through Money.format, which is hard-coded to '€',
+    // and the few places that do read the setting swapped the symbol WITHOUT
+    // converting the value — so a €100 charge was relabelled "$100.00". A
+    // mislabelled amount is worse than an absent feature, so the other options
+    // are gone until amounts are actually converted (which needs a live rate
+    // source and a decision about restating past months).
     _sheet(tr('Numatytoji valiuta'), [
-      for (final o in opts)
-        _radioRow(tr(o[0]), tr(o[2]), o[1], _currency == o[0], () {
-          AppPrefs.setCurrency(o[1]);
-          setState(() => _currency = o[0]);
-          Navigator.pop(context);
-        }),
+      _radioRow(tr('Euras (EUR)'), tr('Bazinė valiuta'), '€', true, () {
+        Navigator.pop(context);
+      }),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+        child: Text(
+          tr('Kitos valiutos atsiras, kai sumos bus ir perskaičiuojamos, o ne '
+              'tik perrašomos kitu ženklu.'),
+          style: TextStyle(fontSize: 12.5, height: 1.4, color: _muted),
+        ),
+      ),
     ]);
   }
 
