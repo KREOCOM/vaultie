@@ -53,7 +53,7 @@ def test_ownership_is_not_substring_matched():
 
 def test_bank_derived_from_lithuanian_iban():
     assert main._bank_from_iban("LT857044090115306201") == "SEB"
-    assert main._bank_from_iban("LT123280012345678901") == "Revolut"
+    assert main._bank_from_iban("LT383250012345678901") == "Revolut"
     assert main._bank_from_iban("LT007300099887766554") == "Swedbank"
 
 

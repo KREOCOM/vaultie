@@ -130,6 +130,16 @@ def _dedupe_summaries(summaries: list) -> list:
     if len(out) != len(summaries):
         logging.info("scan: deduped %d -> %d account summaries",
                      len(summaries), len(out))
+    # Relabel every account from its IBAN, fresh OR cache-served. A cached
+    # summary keeps whatever label it was stored with (often the generic
+    # "Bankas" from a connect flow that dropped the name), so normalising here
+    # is what makes the label — and therefore the logo — correct everywhere.
+    for s in out:
+        derived = _bank_from_iban(s.get("iban"))
+        if derived:
+            s["bank"] = derived
+            if "revolut" in derived.lower():
+                s["icon"] = "R"
     return out
 
 
@@ -263,12 +273,11 @@ def _coerce_months(raw) -> int:
 # with no logo). Only the majors are listed; an unknown code falls back to
 # whatever label the client sent.
 _LT_BANK_BY_CODE = {
-    "70440": "SEB",
+    "70440": "SEB",             # confirmed from real data
     "73000": "Swedbank",
     "40100": "Luminor",
     "21400": "Luminor",
-    "32800": "Revolut",
-    "35100": "Revolut",
+    "32500": "Revolut",         # Revolut Payments UAB — confirmed from real data
     "72900": "Citadele",
     "71800": "Šiaulių bankas",
     "30100": "Medicinos bankas",
