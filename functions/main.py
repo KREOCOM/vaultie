@@ -108,6 +108,72 @@ def _require_auth(req: https_fn.CallableRequest) -> None:
         )
 
 
+def _uid(req: https_fn.CallableRequest) -> str:
+    """The authenticated caller's uid. Always use this — never a uid from the
+    request body, which the caller controls."""
+    return req.auth.uid
+
+
+# The one thing this backend stores. Everything else — transactions, balances,
+# the built dashboard — stays in memory and on the phone.
+_BANK_LINKS = "bank_links"
+
+
+def _remember_accounts(uid: str, account_uids: list) -> None:
+    """Record which Enable Banking accounts this user consented to.
+
+    Stored deliberately, and it is the minimum that closes a real hole: without
+    it the backend cannot tell WHOSE accounts it is being asked to fetch, so any
+    signed-in user could read anyone else's transactions just by supplying their
+    account uid. Only opaque account identifiers are written — no transactions,
+    no balances, no IBANs.
+    """
+    ids = sorted({str(a) for a in account_uids if a})
+    if not ids:
+        return
+    try:
+        from firebase_admin import firestore
+        firestore.client().collection(_BANK_LINKS).document(uid).set(
+            {"accounts": firestore.ArrayUnion(ids)}, merge=True)
+    except Exception:
+        # Don't fail a connection the user just completed — their data is in
+        # this response and they should see it. The next refresh will deny and
+        # ask them to reconnect, which runs this write again. Denying later is
+        # the safe direction to fail in.
+        logging.exception("bank_links: could not record ownership for uid=%s", uid)
+
+
+def _owned_accounts(uid: str) -> set:
+    """The Enable Banking account uids this user is allowed to fetch.
+
+    Raises on lookup failure rather than returning an empty set: an empty set is
+    indistinguishable from "owns nothing", and falling open here would restore
+    exactly the hole this function exists to close.
+    """
+    try:
+        from firebase_admin import firestore
+        snap = firestore.client().collection(_BANK_LINKS).document(uid).get()
+    except Exception as e:
+        logging.exception("bank_links: ownership lookup failed for uid=%s", uid)
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.UNAVAILABLE,
+            message="Could not verify your bank connections. Please try again.",
+        ) from e
+    if not snap.exists:
+        return set()
+    return {str(a) for a in (snap.to_dict() or {}).get("accounts") or [] if a}
+
+
+def _authorised_metas(requested: list, owned: set) -> list:
+    """Keep only the requested accounts this user actually connected.
+
+    An account with no uid is dropped too — there is nothing to check it
+    against, and letting it through would mean fetching an account we cannot
+    attribute to anyone.
+    """
+    return [m for m in requested if m.get("uid") and m["uid"] in owned]
+
+
 def _client() -> EnableBankingClient:
     return EnableBankingClient(ENABLE_BANKING_PRIVATE_KEY.value)
 
@@ -203,10 +269,18 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
     summaries: list = []
     scan_diag: list = []
     own_ibans: set = set()
+    seen_uids: set = set()
     for m in metas:
         uid = m.get("uid")
         if not uid:
             continue
+        # The same account can arrive twice — a bank reconnected under a second
+        # label, or a stale stored ref alongside a fresh one. Transactions are
+        # de-duplicated later, but balances are not: scanning it twice appends
+        # the summary twice and shows the user more money than they have.
+        if uid in seen_uids:
+            continue
+        seen_uids.add(uid)
         norm = _norm_iban(m.get("iban"))
         if norm:
             own_ibans.add(norm)
@@ -396,6 +470,10 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
             details=str(e),
         )
     metas = [_account_meta(a, bank) for a in session.get("accounts", [])]
+    # Bind these accounts to the caller before fetching anything. This is the
+    # only moment we can prove ownership — the consent that produced `code` was
+    # granted by the person holding this Firebase session.
+    _remember_accounts(_uid(req), [m.get("uid") for m in metas])
     all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
         client, metas, months_back=months_back, psu_available=_psu_available(req))
     ai_enabled = bool(data.get("aiEnrichment"))
@@ -437,7 +515,12 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
     Enable Banking addresses accounts directly, so as long as each bank's consent
     is still valid (~90 days) this needs no user interaction. An account whose
     consent expired surfaces in ``scanDiag[].error`` so the client can prompt a
-    reconnect for just that bank. Nothing is persisted server-side.
+    reconnect for just that bank.
+
+    The requested accounts are checked against the ones this user actually
+    connected (see [_remember_accounts]). They arrive from the phone, so without
+    that check any signed-in user could read anyone else's bank history simply
+    by naming their account uid.
     """
     _require_auth(req)
     data = req.data or {}
@@ -449,8 +532,24 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
         )
     months_back = _coerce_months(data.get("monthsBack", 12))
     ai_enabled = bool(data.get("aiEnrichment"))
-    metas = [_account_meta(a, a.get("bank")) for a in accounts_in
-             if isinstance(a, dict)]
+    uid = _uid(req)
+    owned = _owned_accounts(uid)
+    requested = [_account_meta(a, a.get("bank")) for a in accounts_in
+                 if isinstance(a, dict)]
+    metas = _authorised_metas(requested, owned)
+    if len(metas) != len(requested):
+        # Either someone is probing with account uids that aren't theirs, or a
+        # user connected before ownership was recorded. Both end the same way:
+        # we refuse, and the client asks them to reconnect.
+        logging.warning(
+            "refresh_dashboard: uid=%s requested %d accounts, owns %d of them",
+            uid, len(requested), len(metas))
+    if not metas:
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+            message="These bank connections aren't linked to your account. "
+                    "Please reconnect your bank.",
+        )
     all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
         _client(), metas, months_back=months_back, psu_available=_psu_available(req))
     all_txns, summaries, own_ibans, stale = _merge_known(

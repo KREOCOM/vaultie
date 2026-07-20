@@ -13,6 +13,7 @@ persisted server-side — the payload goes straight back to the user's device.
 """
 
 import datetime as dt
+import logging
 import re
 from collections import OrderedDict, defaultdict
 
@@ -170,9 +171,31 @@ _HOUSING_HINTS = ["artus", "nuoma", "rent", "busto adm", "namu prieziur"]
 from fx import to_eur as _to_eur  # noqa: E402
 
 
+def _ymd(value):
+    """``(year, month, day)`` from a bank's booking date, or None if unusable.
+
+    Banks send more date shapes than the bare ISO day this once assumed — some
+    append a time, some an offset. It used to be ``map(int, s.split("-"))``, so
+    a single odd row raised ValueError out of build_dashboard and the caller
+    turned the WHOLE dashboard into null. One bad row must cost that row only.
+    Mirrors the parsing recurring.py already does defensively.
+    """
+    try:
+        d = dt.date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return None
+    return d.year, d.month, d.day
+
+
 def _amt(t):
     ta = t.get("transaction_amount") or {}
-    v = float(ta.get("amount") or 0)
+    try:
+        v = float(ta.get("amount") or 0)
+    except (TypeError, ValueError):
+        # A non-numeric amount is a broken row, not a free transaction — but it
+        # must not take the whole dashboard down with it (see _ymd).
+        logging.warning("dashboard: unparseable amount %r", ta.get("amount"))
+        v = 0.0
     v = v if t.get("credit_debit_indicator") == "CRDT" else -v
     return _to_eur(v, ta.get("currency"))
 
@@ -413,9 +436,14 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
 
     # ── flat `all` list ──
     all_rows = []
-    for t in sorted(txns, key=lambda x: x["booking_date"], reverse=True):
+    skipped = 0
+    for t in sorted(txns, key=lambda x: str(x.get("booking_date") or ""), reverse=True):
+        ymd = _ymd(t.get("booking_date"))
+        if ymd is None:
+            skipped += 1
+            continue
         canonical, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs, own_ibans)
-        y, m, day = map(int, t["booking_date"].split("-"))
+        y, m, day = ymd
         all_rows.append({
             "nm": _name(t), "mkey": (canonical or _name(t)).lower()[:24],
             "d": t["booking_date"], "wd": LT_WD[dt.date(y, m, day).weekday()][:3],
@@ -424,6 +452,11 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
             "amb": False, "badges": (["res"] if t.get("status") == "PDNG" else []),
             "pos": pos,
         })
+    if skipped:
+        # Dropping a row silently is how a bank's odd date format turns into
+        # "some payments are missing" with nothing to point at.
+        logging.warning("dashboard: skipped %d row(s) with an unusable "
+                        "booking_date", skipped)
 
     # ── month → day feed (latest 2 months), merging same merchant same day ──
     months = _month_feed(txns, salary_refs, resolve_cat, own_ibans)
@@ -509,7 +542,10 @@ def _month_feed(txns, salary_refs, resolve_cat, own_ibans=None):
         bydate[t["booking_date"]].append(t)
     months = OrderedDict()
     for dtk in sorted(bydate, reverse=True):
-        y, m, day = map(int, dtk.split("-"))
+        ymd = _ymd(dtk)
+        if ymd is None:
+            continue
+        y, m, day = ymd
         mkey = f"{y}-{m:02d}"
         months.setdefault(mkey, {"name": LT_MON[m], "y": y, "m": m, "total": 0.0, "days": []})
         merged = _merge_day(bydate[dtk], salary_refs, resolve_cat, own_ibans)

@@ -8,6 +8,7 @@ Secret and never lives in source or on the device.
 import datetime as dt
 import json
 import logging
+import re
 import time
 import uuid
 
@@ -26,12 +27,29 @@ DEFAULT_COUNTRY = "LT"
 _TIMEOUT = 30  # seconds
 
 
+_UID_IN_PATH = re.compile(r"/accounts/[^/]+")
+
+
 class EnableBankingError(RuntimeError):
-    """Raised when the Enable Banking API returns a non-2xx response."""
+    """Raised when the Enable Banking API returns a non-2xx response.
+
+    The message is deliberately thin. It used to carry the full request path
+    plus 300 raw characters of the bank's response — and this string travels
+    further than it looks: into Cloud Logging via scan_diag, and back to the
+    phone as ``HttpsError.details``. The path contains the account uid (the
+    identifier that addresses someone's account) and the body can echo the
+    account holder's own details. Neither belongs in a log sink.
+
+    The full body is still available on the instance for local debugging; it is
+    just not part of what gets printed and forwarded.
+    """
 
     def __init__(self, status: int, path: str, body: str):
-        super().__init__(f"[HTTP {status}] {path}: {body[:300]}")
+        safe_path = _UID_IN_PATH.sub("/accounts/…", path or "")
+        super().__init__(f"[HTTP {status}] {safe_path}")
         self.status = status
+        self.path = safe_path
+        self.body = body  # not in the message — see the docstring
 
 
 def _is_period_error(e: "EnableBankingError") -> bool:
@@ -39,8 +57,14 @@ def _is_period_error(e: "EnableBankingError") -> bool:
     far back (PSD2 history limit). Documented error name is
     ``WRONG_TRANSACTIONS_PERIOD``; some banks return a plain 4xx. Used to stop
     the backward window walk gracefully instead of treating it as a hard failure.
+
+    Reads ``e.body`` rather than ``str(e)``: the marker lives in the bank's
+    response, which is no longer part of the exception message (it carried the
+    account uid into logs). Keep both — a plain str() check here would silently
+    turn "no more history" into a failed scan.
     """
-    return "WRONG_TRANSACTIONS_PERIOD" in str(e).upper()
+    haystack = f"{getattr(e, 'body', '') or ''} {e}".upper()
+    return "WRONG_TRANSACTIONS_PERIOD" in haystack
 
 
 def _build_jwt(private_key: str) -> str:
