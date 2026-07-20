@@ -419,6 +419,15 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     if len(all_txns) != raw:
         logging.info("scan: deduped %d -> %d transactions", raw, len(all_txns))
     summaries = _dedupe_summaries(summaries)
+    # How much of this scan carried an MCC — the universal category signal. Some
+    # banks send it on every card purchase (Revolut), some send none (older
+    # banks). Logging it per scan is how we learn, from real usage, which banks
+    # cover the long tail via MCC and which lean entirely on the name resolver.
+    _dbit = [t for t in all_txns if t.get("credit_debit_indicator") == "DBIT"]
+    _with_mcc = sum(1 for t in _dbit if t.get("merchant_category_code"))
+    if _dbit:
+        logging.info("scan: mcc coverage %d/%d card txns (%.0f%%)",
+                     _with_mcc, len(_dbit), 100 * _with_mcc / len(_dbit))
     try:
         detection = detect_recurring(all_txns, own_ibans=own_ibans,
                                      today=today)

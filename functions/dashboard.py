@@ -17,6 +17,7 @@ import logging
 import re
 from collections import OrderedDict, defaultdict
 
+import mcc as mcc_module
 import resolver
 from recurring import detect_recurring
 
@@ -355,9 +356,19 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
     if code in _FEE_CODES or any(k in nl for k in _FEE_HINTS):
         return (name, "Bankas, komisiniai", "finance", "money", "Finansai", "red", amt > 0, False)
 
-    # ── unknown business → resolver (KB first, global index fallback) ──
+    # ── merchant → category ──
+    #
+    # MCC is the most reliable category signal the bank gives us: the card
+    # network's own code for what KIND of merchant this is, independent of the
+    # name, so it categorises every shop in Europe without a merchant list. It
+    # only arrives on card purchases and only from banks that pass it through
+    # (Revolut yes, some banks no), so it is the FIRST signal, not the only one.
+    # The name resolver still runs — it supplies the canonical name and logo, and
+    # its own category is the fallback when there is no MCC.
+    mcc_cat = mcc_module.category_for_mcc(t.get("merchant_category_code"))
     canonical, category = resolve_cat(t)
-    cat_lt, col, ic, sec, secc = CAT_MAP.get((category or "other").lower(), OTHER)
+    final = (mcc_cat or category or "other").lower()
+    cat_lt, col, ic, sec, secc = CAT_MAP.get(final, OTHER)
     return (canonical or name, cat_lt, col, ic, sec, secc, amt > 0, False)
 
 
