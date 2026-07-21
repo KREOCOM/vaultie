@@ -1712,7 +1712,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
             child: Column(children: [
               for (var i = 0; i < tx.length; i++) ...[
                 _txRow(tx[i], dd),
-                if (i != tx.length - 1) const RowDivider(indent: 62),
+                if (i != tx.length - 1) const RowDivider(indent: 57),
               ],
             ]),
           ),
@@ -1729,13 +1729,16 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     return InkWell(
       onTap: () => _openTx(t, dd),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+        // Tighter than before: smaller icon + less row height + snugger gaps,
+        // so more transactions fit a screen and the feed reads calmer. The
+        // amount stays full-size and bright — that's the part worth glancing at.
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
         child: Row(
           children: [
             Stack(
               clipBehavior: Clip.none,
               children: [
-                CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 38, circle: false, merchant: _logoOf(t)),
+                CategoryIcon(icon: _iconOf(t['ic'] as String?), color: _colOf(t['col'] as String?), size: 32, circle: false, merchant: _logoOf(t)),
                 if (count > 1)
                   Positioned(
                     top: -6,
@@ -1755,7 +1758,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                   ),
               ],
             ),
-            const SizedBox(width: 11),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1764,7 +1767,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink, letterSpacing: -0.2)),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Row(children: [
                     Container(
                       width: 6,
