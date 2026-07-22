@@ -6783,6 +6783,10 @@ class _RecurringScreenState extends State<_RecurringScreen> {
   // Sids the user deleted from the list. Live in state so delete AND restore both
   // re-render instantly; persisted to DashboardStore so they survive re-sync.
   late final Set<String> _hiddenSids = {...DashboardStore.recurringHidden()};
+  // The "Paslėpti" list stays collapsed so deleted rows don't pile up as visible
+  // clutter — the sids are still remembered (so they never re-appear as active),
+  // just tucked away behind a count the user can open to restore.
+  bool _hiddenExpanded = false;
   // A STABLE order fixed on entry — counted first, then by amount. Toggling never
   // re-sorts (that made rows jump around and feel like the switch "sprang back").
   late final List<Map<String, dynamic>> _ordered = [
@@ -6825,13 +6829,16 @@ class _RecurringScreenState extends State<_RecurringScreen> {
       _hiddenSids.add(sid);
       _ordered.remove(it);
     });
-    // A quick toast (no undo button — restore lives in the "Paslėpti" section).
+    // Immediate one-tap undo (in case it was a mis-tap); the item also stays
+    // restorable later under the collapsed "Paslėpti" list.
     final messenger = _msgr ?? ScaffoldMessenger.of(context);
     messenger.clearSnackBars();
     messenger.showSnackBar(SnackBar(
       content: Text(tr('Pašalinta iš sąrašo')),
       behavior: SnackBarBehavior.floating,
-      duration: const Duration(milliseconds: 1100),
+      duration: const Duration(seconds: 4),
+      action: SnackBarAction(
+        label: tr('Grąžinti'), textColor: _purple, onPressed: () => _restore(it)),
     ));
   }
 
@@ -6857,6 +6864,23 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             Text(tr(subtitle), style: TextStyle(fontSize: 11.5, color: _faint, height: 1.25)),
           ],
         ]),
+      );
+
+  // Collapsed by default: "Paslėpti (N) ▾" — tap to reveal/restore. Keeps deleted
+  // rows out of sight (the sids are still remembered) instead of piling up.
+  Widget _hiddenHeader(int n) => GestureDetector(
+        onTap: () => setState(() => _hiddenExpanded = !_hiddenExpanded),
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(4, 10, 4, 8),
+          child: Row(children: [
+            Text('${tr('Paslėpti')} ($n)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.2)),
+            const SizedBox(width: 4),
+            Icon(_hiddenExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                size: 20, color: _muted),
+          ]),
+        ),
       );
 
   Widget _howToRow(IconData icon, String text) => Padding(
@@ -7070,8 +7094,8 @@ class _RecurringScreenState extends State<_RecurringScreen> {
       for (final it in bills) _row(it),
       if (hidden.isNotEmpty) ...[
         const SizedBox(height: 6),
-        _groupHeader('Paslėpti'),
-        for (final it in hidden) _hiddenRow(it),
+        _hiddenHeader(hidden.length),
+        if (_hiddenExpanded) for (final it in hidden) _hiddenRow(it),
       ],
     ];
   }
