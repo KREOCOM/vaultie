@@ -273,6 +273,23 @@ def _is_person_name(n):
 #    banks use ISO 20022 4-letter codes). Normalised so classification is
 #    bank-agnostic. ──
 _EXCHANGE_CODES = {"EXCHANGE"}
+# A currency conversion of the user's OWN money. Banks label it inconsistently:
+# some stamp a bank_transaction_code (EXCHANGE), Revolut/others only put it in the
+# description ("Exchanged to EUR", "NOK → EUR"). Detect BOTH so a conversion is
+# never mistaken for income or spending — generic across banks and currency pairs.
+_EXCHANGE_HINT = re.compile(
+    r"exchanged?\s+to\b|currency\s+exchange|valiut\w*\s+keit|konvertav|"
+    r"[a-z]{3}\s*(?:→|->)\s*[a-z]{3}", re.I)
+
+
+def _is_exchange(t):
+    """True when this is a same-owner currency conversion (any bank, any pair)."""
+    code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
+    if code in _EXCHANGE_CODES:
+        return True
+    text = " ".join([str(t.get("note") or "")]
+                    + [str(x) for x in (t.get("remittance_information") or [])])
+    return bool(_EXCHANGE_HINT.search(text))
 _REFUND_CODES = {"CARD_REFUND", "CARD_CREDIT", "RRTN"}
 _TOPUP_CODES = {"TOPUP"}
 _CASH_CODES = {"CWDL", "ATM", "CSHW"}
@@ -352,7 +369,9 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
 
     # currency exchange is ALWAYS just a conversion of your own money — never
     # income and never spending (moving money between your own currencies).
-    if code in _EXCHANGE_CODES:
+    # Detected by code OR description ("Exchanged to EUR"), so Revolut-style FX
+    # conversions no longer land in "Pervedimai" as if they were real transfers.
+    if _is_exchange(t):
         return (name, "Valiutos keitimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
     if code in _REFUND_CODES:
         return (name, "Grąžinimas", "income", "swap", "Pajamos", "amber", True, False)
