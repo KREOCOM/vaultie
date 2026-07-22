@@ -6847,10 +6847,25 @@ class _RecurringScreenState extends State<_RecurringScreen> {
     });
   }
 
-  Widget _groupHeader(String label) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
-        child: Text(tr(label),
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.2)),
+  Widget _groupHeader(String label, [String? subtitle]) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 10, 4, 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(tr(label),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.2)),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(tr(subtitle), style: TextStyle(fontSize: 11.5, color: _faint, height: 1.25)),
+          ],
+        ]),
+      );
+
+  Widget _howToRow(IconData icon, String text) => Padding(
+        padding: const EdgeInsets.only(top: 7),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 15, color: _purple),
+          const SizedBox(width: 8),
+          Expanded(child: Text(tr(text), style: TextStyle(fontSize: 12, color: _muted, height: 1.3))),
+        ]),
       );
 
   // A deleted row: dimmed, with a ＋ to bring it back into the list.
@@ -7012,16 +7027,24 @@ class _RecurringScreenState extends State<_RecurringScreen> {
           ),
           Container(
             margin: const EdgeInsets.fromLTRB(2, 12, 2, 8),
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
-            child: Row(children: [
-              const Icon(Icons.lightbulb_outline_rounded, size: 18, color: _purple),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                    tr('Pasikartojančius mokėjimus atpažinti sunku — patikrink. Įjungti (žali) skaičiuojami į mėnesio sumą; nebemoki arba tai ne sąskaita — išjunk.'),
-                    style: TextStyle(fontSize: 12.5, color: _muted, height: 1.35)),
-              ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.lightbulb_outline_rounded, size: 18, color: _purple),
+                const SizedBox(width: 8),
+                Text(tr('Kaip naudotis'),
+                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _purple)),
+              ]),
+              const SizedBox(height: 8),
+              Text(tr('Sistema pati atrinko galimus pasikartojančius mokėjimus — tavo darbas patvirtinti, kurie tikri:'),
+                  style: TextStyle(fontSize: 12.5, color: _ink, height: 1.35, fontWeight: FontWeight.w600)),
+              _howToRow(Icons.toggle_on_rounded,
+                  'Jungiklis — įjungtas skaičiuojasi į mėnesio sumą. Nebemoki ar tai ne prenumerata → išjunk.'),
+              _howToRow(Icons.delete_outline_rounded,
+                  'Šiukšlinė — paslėpti visai (jei tai ne pasikartojantis mokėjimas).'),
+              _howToRow(Icons.edit_outlined,
+                  'Bakstelk pavadinimą — pervadinti arba pakeisti tipą (prenumerata ↔ sąskaita).'),
             ]),
           ),
           if (_ordered.isEmpty)
@@ -7039,9 +7062,11 @@ class _RecurringScreenState extends State<_RecurringScreen> {
     final bills = _ordered.where((it) => _recType(it) != 'subscription').toList();
     final hidden = _hiddenItems;
     return [
-      if (subs.isNotEmpty) _groupHeader('Prenumeratos'),
+      if (subs.isNotEmpty)
+        _groupHeader('Prenumeratos', 'Reguliarios paslaugos — Netflix, sporto salė, programėlės.'),
       for (final it in subs) _row(it),
-      if (bills.isNotEmpty) _groupHeader('Sąskaitos'),
+      if (bills.isNotEmpty)
+        _groupHeader('Sąskaitos', 'Nuoma, komunaliniai, telefonas, paskolos, draudimas.'),
       for (final it in bills) _row(it),
       if (hidden.isNotEmpty) ...[
         const SizedBox(height: 6),
