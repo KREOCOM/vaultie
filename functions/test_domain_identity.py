@@ -59,6 +59,16 @@ CASES = [
      _tx(1043.00, "Uz nuoma + komunaliniai",
          creditor="MB Artusgrupe", cred_iban="LT301010012345678901", ref="r1"),
      "iban:"),   # must stay IBAN-identified, NOT a domain
+    # processor '*' prefix — the merchant is after the star (any processor)
+    ("Pronas* processor prefix",
+     _tx(4.80, "Pronas*Skani Mesa", creditor="Pronas*Skani Mesa", ref="p2"),
+     "skanimesa"),
+    ("SumUp * processor prefix",
+     _tx(8.00, "SumUp *Cafe Sol", creditor="SumUp *Cafe Sol", ref="p3"),
+     "cafesol"),
+    ("PTL* prefix hiding a domain",
+     _tx(2.29, "PTL*Vr.fi korttimaksu", creditor="PTL*Vr.fi korttimaksu", ref="p4"),
+     "vr.fi"),
 ]
 
 

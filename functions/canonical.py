@@ -83,17 +83,32 @@ _DOMAIN_TOK = re.compile(
     re.I)
 
 
-def _domain_of(pr):
+def _strip_star(name):
+    """The real merchant behind a card-processor '*' prefix. The convention is
+    PROCESSOR*MERCHANT ("SumUp *Cafe Sol", "Pronas*Skani Mesa", "PTL*Vr.fi",
+    "Delfiplius* Uab Delfi") — the merchant is everything after the first '*'. So
+    two different processors fronting one merchant collapse to the same identity,
+    for any processor, any country. Returns the name unchanged when there is no '*'
+    or nothing usable after it."""
+    if name and "*" in name:
+        after = name.split("*", 1)[1].strip()
+        if len(after) >= 2:
+            return after
+    return name
+
+
+def _domain_of(pr, *extra):
     """A clean registrable domain from ANY merchant signal — the website line
     ("Mokėjimas tinklalapyje gymplius.lt"), a leading domain ("APPLE.COM/BILL"),
-    or a card acceptor ("www.savasld.lt/ VILNIUS/LTU") — else None. Strips 'www.'.
+    a card acceptor ("www.savasld.lt/ VILNIUS/LTU"), or any ``extra`` text passed
+    (counterparty name, raw remittance) — else None. Strips 'www.'.
 
     This is the GLOBAL identity rule: the domain names the real merchant regardless
     of which processor (OPAY, Paysera…) or which display-name variant the bank
     happened to send, so every descriptor form of one merchant collapses to one
     identity — for any merchant, any country."""
     for cand in (pr.get("web_merchant"), pr.get("domain_merchant"),
-                 pr.get("card_merchant")):
+                 pr.get("card_merchant"), *extra):
         if not cand:
             continue
         m = _DOMAIN_TOK.search(str(cand))
@@ -127,7 +142,11 @@ def build_canonical(t):
     lines = t.get("remittance_information") or []
     acceptor = pr.get("card_merchant")
     domain = pr.get("domain_merchant") or pr.get("web_merchant")
-    web_domain = _domain_of(pr)   # clean registrable domain from any signal
+    cp_name = _strip_star(cp_name)   # "SumUp *Cafe Sol" → "Cafe Sol"
+    # clean registrable domain from any signal — incl. the star-stripped name and
+    # the raw remittance (so "PTL*Vr.fi korttimaksu" → vr.fi).
+    _rmt_text = " ".join(str(x) for x in lines)
+    web_domain = _domain_of(pr, cp_name, _rmt_text)
 
     # GLOBAL RULE — Named Entity Linking anchor: a website domain in the descriptor
     # IS the merchant, ahead of a processor's IBAN and ahead of a variant name. This
