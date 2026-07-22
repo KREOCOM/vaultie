@@ -401,6 +401,59 @@ def _category_for_unknown(raw_name: str, avg: float) -> str:
     return "other"
 
 
+# First char uppercase (incl. LT), then >=2 lowercase — a single capitalised NAME
+# token like "Sulajeva" / "Petrauskas". An ALL-CAPS brand ("NETFLIX") or a dotted
+# domain ("apple.com") deliberately does NOT match.
+_PERSON_TOKEN_RE = re.compile(r"^[A-ZŠŽĖČĄĮŲŪ][a-zšžėčąįųū\-]{2,}$")
+
+
+def _bare_person_like(canon_g: dict, name: str) -> bool:
+    """A bare single-token surname on a transfer with NO card-acceptor / web-domain
+    evidence — i.e. a P2P to a private individual whose descriptor is just their
+    name. ``_looks_like_person`` misses this because it demands two tokens; a bare
+    surname on a CARD purchase is still excluded here by the acceptor/domain guard,
+    so a one-word merchant stays a merchant. Heuristic (a bare capitalised brand
+    paid by SEPA and unknown to the DB could slip through), but in this domain P2P
+    transfers dominate the single-token-no-acceptor case, and known brands are DB
+    hits that never reach here."""
+    rmt = canon_g.get("remittance") or {}
+    if rmt.get("acceptor") or rmt.get("domain"):
+        return False
+    toks = [x for x in re.split(r"\s+", (name or "").strip()) if x]
+    return len(toks) == 1 and bool(_PERSON_TOKEN_RE.match(toks[0]))
+
+
+# Distinctive Lithuanian SURNAME endings (ASCII, matched after _FOLD). Unlike the
+# bare -a/-ė that Maxima, Norfa, Litena, Camelia also end in, these are almost never
+# brand names, so a 2–4 token counterparty carrying one is a natural person, not a
+# merchant. Validated on real names + brands in test_lt_person.py (13/13 people
+# caught, 0 brands mistaken). Folding means ALLCAPS / diacritic-stripped bank forms
+# ("GABRIELE MAZEIKAITE", "Rasa Konciute") still match.
+_LT_SURNAME_END = ("iene", "aite", "yte", "iute", "ute", "ske", "evicius",
+                   "avicius", "icius", "auskas", "iauskas", "inskas", "ynas",
+                   "unas", "evas", "ovas", "eva", "ova", "auske", "inske",
+                   "aitis", "utis")
+_LT_PERSON_LEGAL = {"uab", "ab", "mb", "vsi", "ii", "kub", "tub", "zub", "vi",
+                    "si", "llc", "pay", "ltd", "oy", "ou"}
+
+
+def _lt_person(name: str) -> bool:
+    """A Lithuanian personal name (first name + surname) by its DISTINCTIVE surname
+    ending: 2–4 tokens, no legal form, no digits, at least one token ending in a
+    surname suffix after folding diacritics. Pure name-shape — the caller still
+    gates on transfer context (no card acceptor/domain), so a card merchant that
+    happens to match can never be mistaken for a person."""
+    toks = [t for t in re.split(r"[\s.*/\\]+", (name or "").strip()) if t]
+    if not (2 <= len(toks) <= 4):
+        return False
+    folded = [t.lower().translate(_FOLD) for t in toks]
+    if any(t in _LT_PERSON_LEGAL for t in folded):
+        return False
+    if any(any(c.isdigit() for c in t) for t in toks):
+        return False
+    return any(t.endswith(_LT_SURNAME_END) for t in folded)
+
+
 # ── Recurring stream LIFECYCLE (Plaid/Tink-style) ───────────────────────────
 # A historical recurring pattern is NOT an active future commitment forever. A
 # finished tax plan / paid-off loan / cancelled subscription keeps its history
@@ -635,12 +688,43 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
                 auto_detected=True, confident=confident, today=today)
         else:
             cp_name = (canon_g.get("counterparty") or {}).get("name")
-            if not stable and not _include_unknown(st_items[0][2], st_items):
+            raw_name = st_items[0][2]
+            if not stable and not _include_unknown(raw_name, st_items):
                 return "filtered"
             avg = round(sum(amounts) / len(amounts), 2)
-            category = _category_for_unknown(st_items[0][2], avg)
+            category = _category_for_unknown(raw_name, avg)
+
+            # EVERYDAY-SPENDING GUARD. An unrecognised card counterparty (no DB hit,
+            # no IBAN/scheme id) in the generic "other" category, whose stream is
+            # NOT a credible recurring pattern (amounts vary and/or the cadence is
+            # irregular) and whose name is not a digital service, is spending at a
+            # local shop/café we simply don't know — "Skani mėsa" (a butcher stall),
+            # "Tiltų" (a bar). By SHAPE it is indistinguishable from a subscription
+            # except that a subscription bills a near-constant amount on a regular
+            # monthly+ cadence; without that evidence it belongs in `frequent`, not
+            # the subscription list. Bank-agnostic: keyed on the stream, never a name.
+            if not stable and category == "other" \
+                    and not _stream_credible(dates, amounts) \
+                    and not any(h in raw_name.lower() for h in _SERVICE_HINTS):
+                fk = _merchant_key(raw_name) or raw_name.lower()
+                if fk:
+                    freq_amounts[fk] = list(amounts)
+                    freq_meta[fk] = (_clean_name(raw_name), "frequent", "other", None)
+                    return "spending"
+
+            # A confidently-detected Lithuanian personal name (first name + surname
+            # ending) on a NON-card transfer is a person, full stop — never a bill or
+            # subscription, whatever the amount. This overrides the housing/finance
+            # exception below, which was surfacing "Lina Gliožerienė" / "Gabrielė
+            # Mažeikaitė" as €200-a-month "bills". Card purchases (acceptor/domain
+            # present) are excluded, so a brand is never read as a person.
+            rmt = canon_g.get("remittance") or {}
+            is_card = bool(rmt.get("acceptor") or rmt.get("domain"))
+            lt_person = not is_card and _lt_person(cp_name or raw_name)
+
             is_person = (canon_g.get("counterparty") or {}).get(
-                "party_kind_hint") == "person_like"
+                "party_kind_hint") == "person_like" \
+                or _bare_person_like(canon_g, cp_name or raw_name)
             # A person-to-person transfer is a transfer, not a bill — however
             # regularly it repeats. Sending family money every month, splitting
             # rent with a flatmate, repaying a friend: none of these are
@@ -654,7 +738,9 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             # replaces the old rule that kept CONFIDENT person streams as bills,
             # which is exactly what surfaced a personal transfer as a
             # subscription.
-            if is_person and category not in ("housing", "finance"):
+            if lt_person:
+                typ = "transfer"   # a named LT person is never a bill/subscription
+            elif is_person and category not in ("housing", "finance"):
                 typ = "transfer"
             else:
                 typ = "bill" if category in ("housing", "finance") else "subscription"

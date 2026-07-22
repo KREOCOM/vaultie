@@ -43,6 +43,10 @@ import '../login_screen.dart';
 // Brand accent. Frost = an electric royal blue (was violet). Named `_purple`
 // for historical reasons — it's the single accent used across the app.
 const _purple = Color(0xFF2F6BFF);
+// Amber = "deserves a second look" — the same signal the onboarding import uses
+// to flag uncertain recurring candidates.
+const _reviewAmber = Color(0xFFF0A322);
+const _reviewAmberInk = Color(0xFFB9770F);
 const _purpleDeep = Color(0xFF1E50C8);
 const _good = Color(0xFF2FA34E);
 
@@ -57,8 +61,8 @@ void Function()? _dashRefresh;
 // with dark ink, so text is always legible.
 Color _bg = const Color(0xFFEEF1F7);
 Color _purpleSoft = const Color(0xFFE4EDFD);
-Color _muted = const Color(0xFF5C6A85); // secondary text — readable on light
-Color _faint = const Color(0xFF7C879E); // captions — lighter, still legible
+Color _muted = const Color(0xFF2E3A54); // secondary text — darkened for legibility
+Color _faint = const Color(0xFF47536D); // captions — darkened, still a step below muted
 Color _ink = const Color(0xFF14203A);
 Color _navOff = const Color(0xFF97A2B5);
 Color _card = const Color(0xFFFFFFFF); // card / surface background
@@ -74,8 +78,8 @@ void _applyTheme(bool dark) {
   // eyeballed — text ≥ 4.5:1, block edges ≥ 1.25:1, dividers ≥ 1.3:1.
   _bg         = dark ? const Color(0xFF0A0910) : const Color(0xFFEEF1F7);
   _purpleSoft = dark ? const Color(0xFF1B2A55) : const Color(0xFFE4EDFD);
-  _muted      = dark ? const Color(0xFFBDB7CE) : const Color(0xFF5C6A85);
-  _faint      = dark ? const Color(0xFF948DAC) : const Color(0xFF7C879E);
+  _muted      = dark ? const Color(0xFFBDB7CE) : const Color(0xFF2E3A54);
+  _faint      = dark ? const Color(0xFF948DAC) : const Color(0xFF47536D);
   _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF14203A);
   _navOff     = dark ? const Color(0xFF8C86A0) : const Color(0xFF97A2B5);
   _card       = dark ? const Color(0xFF262436) : const Color(0xFFFFFFFF);
@@ -334,6 +338,16 @@ String _txDisplayName(Map r) {
   return (r['nm'] as String?) ?? '—';
 }
 
+/// Local "HH:MM" from the backend's UTC epoch-seconds, or null when absent.
+/// Revolut carries the transaction time in its id; banks that send only a date
+/// (SEB) have no `ts`, so the time simply isn't shown for them.
+String? _hm(Object? ts) {
+  if (ts is! int) return null;
+  final d = DateTime.fromMillisecondsSinceEpoch(ts * 1000, isUtc: true).toLocal();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(d.hour)}:${two(d.minute)}';
+}
+
 /// The backend `subs.items` as typed maps
 /// ({name, monthly, cost, cycle, status, active, type, occ, lastCharge}).
 /// Tolerant of the legacy baked-preview shape (a `[name, cost]` pair) so the
@@ -351,6 +365,22 @@ List<Map<String, dynamic>> _recItems(Map subs) {
     return {'name': '—', 'monthly': 0, 'active': false, 'type': 'subscription'};
   }).toList();
 }
+
+/// The EFFECTIVE type of a recurring stream — the user's reclassification
+/// (subscription <-> bill) if set, otherwise the engine's guess.
+String _recType(Map it) {
+  final sid = it['sid'] as String?;
+  if (sid != null) {
+    final o = DashboardStore.recurringTypes()[sid];
+    if (o != null) return o;
+  }
+  return (it['type'] as String?) ?? 'subscription';
+}
+
+/// Backend recurring items PLUS the user's hand-added manual entries — the full
+/// set shown and totalled everywhere the recurring block appears.
+List<Map<String, dynamic>> _recItemsFull(Map subs) =>
+    [..._recItems(subs), ...DashboardStore.manualRecurring()];
 
 /// Whether a stream counts toward the monthly commitment: the backend says it's
 /// an ACTIVE bill (not a transfer), unless the user overrode that verdict.
@@ -402,6 +432,42 @@ String _recDetail(Map it) {
   return parts.join(' · ');
 }
 
+// Correct Lithuanian plural for "aktyvus" (1 aktyvus · 2–9 aktyvūs · 10–20 /
+// 0 aktyvių), so a tile never reads "1 aktyvūs".
+String _ltActive(int n) {
+  final t = n % 100;
+  if (t >= 11 && t <= 19) return 'aktyvių';
+  switch (n % 10) {
+    case 1: return 'aktyvus';
+    case 2: case 3: case 4: case 5: case 6: case 7: case 8: case 9: return 'aktyvūs';
+    default: return 'aktyvių';
+  }
+}
+
+String _activeLabel(int n) => _enUi ? '$n active' : '$n ${_ltActive(n)}';
+
+// A category glyph for a recurring row's tile (CategoryIcon falls back to this
+// when no bundled brand logo resolves). Keyed by the backend `category` string.
+IconData _reviewCatIcon(String? cat) {
+  switch (cat) {
+    case 'food': return Icons.restaurant_rounded;
+    case 'fuel':
+    case 'transport':
+    case 'vehicle': return Icons.local_gas_station_rounded;
+    case 'shopping': return Icons.shopping_bag_rounded;
+    case 'housing': return Icons.home_rounded;
+    case 'connectivity': return Icons.wifi_rounded;
+    case 'entertainment': return Icons.play_circle_fill_rounded;
+    case 'health':
+    case 'fitness': return Icons.favorite_rounded;
+    case 'finance':
+    case 'taxes':
+    case 'invest': return Icons.account_balance_rounded;
+    case 'edu': return Icons.school_rounded;
+    default: return Icons.autorenew_rounded;
+  }
+}
+
 // Lowercase + strip Lithuanian diacritics so search matches "ivairus" ↔ "įvairūs".
 String _fold(String s) {
   const m = {'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's', 'ų': 'u', 'ū': 'u', 'ž': 'z'};
@@ -446,25 +512,42 @@ List<String> _ptype(Map t) {
 // glyph, 'R' or a revolut-named account → the Revolut letter, otherwise the
 // first letter of the account name (SEB → "S"). The connected bank varies per
 // user, so every account row must read this, not assume Revolut.
+/// Each bank's brand colour, matched loosely on the backend `bank` label so it
+/// works whoever the user connected. Used for the account avatar's ring + letter.
+/// Falls back to the app accent for an unrecognised bank.
+Color _bankColor(String bank) {
+  final b = bank.toLowerCase();
+  if (b.contains('revolut')) return const Color(0xFF12100E);
+  if (b.contains('seb')) return const Color(0xFF5FB130);
+  if (b.contains('swedbank') || b.contains('swed')) return const Color(0xFFFF5F00);
+  if (b.contains('luminor')) return const Color(0xFFE1523D);
+  if (b.contains('citadele')) return const Color(0xFF00A0E1);
+  if (b.contains('inbank')) return const Color(0xFFE30613);
+  if (b.contains('šiaulių') || b.contains('siauliu') || b.contains('artea')) return const Color(0xFF0A6BB0);
+  return _purple;
+}
+
 Widget _acctGlyph(Map a, {double diameter = 40, double fontSize = 18}) {
   final icon = ((a['icon'] as String?) ?? '').trim();
   final name = ((a['name'] as String?) ?? '').trim();
   final isCash = icon == 'cash';
+  // The bank's own logo when we SHIP it (SEB, Revolut, Swedbank…), keyed off the
+  // backend's `bank` label — never a hardcoded bank, since which one is connected
+  // varies per user. Bundled asset only; the letter is the fallback. No network
+  // fetch, so an account avatar never discloses the user's bank to a third party.
+  final bankName = (a['bank'] as String?) ?? name;
+  // Brand-coloured ring (option A): logo/letter stays on white so real logos
+  // never clash; only the ring + fallback letter carry the brand colour.
+  final ring = isCash ? _purple : _bankColor(bankName);
   Widget child;
   if (isCash) {
     child = Icon(Icons.payments_outlined, size: diameter * 0.5, color: _purple);
   } else if (icon == 'R' || name.toLowerCase().contains('revolut')) {
-    child = Text('R', style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: _ink));
+    child = Text('R', style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: ring));
   } else {
     final letter = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '•';
-    child = Text(letter, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: _ink));
+    child = Text(letter, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: ring));
   }
-  // The bank's own logo when we SHIP it (SEB, Revolut, Swedbank…), keyed off the
-  // backend's `bank` label — never a hardcoded bank, since which one is connected
-  // varies per user. Bundled asset only; the letter above is the fallback. No
-  // network fetch, so an account avatar never discloses the user's bank to a
-  // third party.
-  final bankName = (a['bank'] as String?) ?? name;
   final asset = isCash ? null : logoAssetForName(bankName);
   if (asset != null) {
     child = Padding(
@@ -478,7 +561,7 @@ Widget _acctGlyph(Map a, {double diameter = 40, double fontSize = 18}) {
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: isCash ? _purpleSoft : _card,
-      border: Border.all(color: _hair, width: 1.5),
+      border: Border.all(color: ring.withValues(alpha: isCash ? 1 : 0.85), width: 2.2),
     ),
     clipBehavior: Clip.antiAlias,
     child: child,
@@ -672,7 +755,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // again while the last scan is barely cold spends that quota for data that
   // cannot have changed — and a rate-limited bank comes back with no payments at
   // all. Say when the data is already fresh instead of burning the budget.
-  static const _minBetweenManualSyncs = Duration(minutes: 2);
+  static const _minBetweenManualSyncs = Duration(seconds: 15);
 
   Future<void> _forceSync() async {
     if (DashboardStore.bankCount == 0 || _deepening) return;
@@ -948,7 +1031,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Color(0xFFEDF1F9), Color(0xFFF3F0F9)],
+                        colors: [Color(0xFFEDF1F9), Color(0xFFEAF0FB)],
                       ),
                     ),
             ),
@@ -980,12 +1063,14 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         ),
       ),
     ),
+    // Bottom glow: blue (was pink) so the page reads all-blue top-to-bottom
+    // instead of cooling to a warm/red tint at the fold.
     Positioned.fill(
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: RadialGradient(
             center: Alignment(0.3, 1.15), radius: 1.2,
-            colors: [Color(0x12EC4899), Color(0x00EC4899)], stops: [0.0, 1.0],
+            colors: [Color(0x142F6BFF), Color(0x002F6BFF)], stops: [0.0, 1.0],
           ),
         ),
       ),
@@ -1053,10 +1138,12 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               // identity + fields so the detail screen can find/edit/delete the
               // underlying row(s): a group shares (mkey, date).
               'mkey': k, 'd': d, 'sec': t['sec'], 'secc': t['secc'], 'star': t['star'] == true,
+              'ts': t['ts'],
             });
         if (t['star'] == true) m['star'] = true;
         m['a'] = (m['a'] as double) + (t['a'] as num).toDouble();
         m['count'] = (m['count'] as int) + 1;
+        if ((m['count'] as int) > 1) m['ts'] = null; // merged → no single time
       }
       final tx = merged.values.map((m) => {...m, 'count': (m['count'] as int) > 1 ? m['count'] : 0}).toList();
       // Day "spent" uses the canonical rule (expenses only) so it stays
@@ -1360,111 +1447,148 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     );
   }
 
+  // Dashboard recurring block (Bilance-style, calm): ONE card. The top half
+  // splits the monthly commitment into Subscriptions | Bills and opens the
+  // manager (see & toggle every stream in/out). Below it, a PERMANENT "review
+  // recurring payments" row opens the ＋/✗ sheet — amber with a count when the
+  // engine is unsure, calm otherwise. No outer title: the halves label it.
   Widget _subsCard() {
     final subs = _d['subs'] as Map<String, dynamic>;
-    final items = _recItems(subs);
+    final hidden = DashboardStore.recurringHidden();
+    // allItems (incl. hidden + manual) go to the manager so it can restore hidden
+    // ones; items (hidden dropped) drive the totals/split/review count.
+    final allItems = _recItemsFull(subs);
+    final items = allItems.where((it) => !hidden.contains(it['sid'])).toList();
     final excl = DashboardStore.recurringExcluded();
     final incl = DashboardStore.recurringIncluded();
-    final counted = items.where((it) => _recCounted(it, excl, incl)).toList()
+    final reviewed = DashboardStore.recurringReviewed();
+    final counted = items.where((it) => _recCounted(it, excl, incl)).toList();
+    double subsSum = 0, billsSum = 0;
+    int subsN = 0, billsN = 0;
+    for (final it in counted) {
+      final m = ((it['monthly'] ?? 0) as num).toDouble();
+      if (_recType(it) == 'subscription') {
+        subsSum += m;
+        subsN++;
+      } else {
+        billsSum += m;
+        billsN++;
+      }
+    }
+    final pending = items.where((it) =>
+        it['needsReview'] == true &&
+        !reviewed.contains(it['sid']) &&
+        !excl.contains(((it['name'] as String?) ?? '').trim().toLowerCase())).toList()
       ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
-    final total = _recMonthlyTotal(items, excl, incl);
-    final endedCount = items.length - counted.length;
+    final n = pending.length;
+
+    Future<void> openManager() async {
+      await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => _RecurringScreen(items: allItems)));
+      if (mounted) setState(() {});
+    }
+
+    Future<void> openReview() async {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _RecurringReviewSheet(items: pending),
+      );
+      if (mounted) setState(() {});
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      child: GestureDetector(
-        onTap: () async {
-          await Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => _RecurringScreen(items: items)));
-          if (mounted) setState(() {});
-        },
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            // A saturated hero card so the white-alpha inner chips read cleanly:
-            // deep violet on the dark theme, a rich Frost blue on the light page.
-            gradient: _darkMode
-                ? const RadialGradient(
-                    center: Alignment(-0.5, -1), radius: 1.6,
-                    colors: [Color(0xFF2E1D63), Color(0xFF150E2C)])
-                : const RadialGradient(
-                    center: Alignment(-0.5, -1), radius: 1.6,
-                    colors: [Color(0xFF3B78FF), Color(0xFF1D45C4)]),
-            border: Border.all(color: _darkMode ? const Color(0xFF3A2A66) : const Color(0xFF5A8BFF)),
-            boxShadow: _darkMode
-                ? null
-                : [BoxShadow(color: const Color(0xFF2F6BFF).withValues(alpha: 0.28), blurRadius: 22, offset: const Offset(0, 10))],
+      child: Container(
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _hair),
+          boxShadow: _darkMode
+              ? null
+              : [BoxShadow(color: const Color(0xFF1E284A).withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 6))],
+        ),
+        child: Column(children: [
+          GestureDetector(
+            onTap: openManager,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 15, 12, 15),
+              child: Row(children: [
+                Expanded(child: _recHalf(tr('Prenumeratos'), subsSum, subsN, _catColors['entertainment']!)),
+                Container(width: 1, height: 46, color: _hair),
+                const SizedBox(width: 16),
+                Expanded(child: _recHalf(tr('Sąskaitos'), billsSum, billsN, _catColors['housing']!)),
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
+              ]),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
+          Container(height: 1, color: _hair),
+          GestureDetector(
+            onTap: openReview,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+              child: Row(children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(8)),
-                  child: Text(tr('PRENUMERATOS IR SĄSKAITOS'),
-                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.9)),
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: _purple.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Icon(Icons.fact_check_outlined, color: _purple, size: 20),
                 ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.only(left: 10, right: 6, top: 4, bottom: 4),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(20)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text(tr('Tvarkyti'), style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                    const Icon(Icons.chevron_right_rounded, size: 17, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(tr('Patikrink pasikartojančius mokėjimus'),
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
+                    const SizedBox(height: 1),
+                    Text(n > 0 ? tr('Ar tikrai juos seki?') : tr('Viskas patikrinta'),
+                        style: TextStyle(fontSize: 12, color: _muted)),
                   ]),
                 ),
-              ]),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${_eur(total)} ${tr('/ mėn')}',
-                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
-                        const SizedBox(height: 2),
-                        Text('= ${_eur(total * 12)} ${tr('per metus')}',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
-                        const SizedBox(height: 3),
-                        Text(
-                            '${counted.length} ${tr('aktyvūs mokėjimai')}'
-                            '${endedCount > 0 ? ' · $endedCount ${tr('baigėsi')}' : ''}',
-                            style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
-                      ],
-                    ),
+                if (n > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                    decoration: BoxDecoration(color: _reviewAmber, borderRadius: BorderRadius.circular(9)),
+                    child: Text('$n',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.white)),
                   ),
-                  SizedBox(width: 52, height: 52, child: CustomPaint(painter: _MiniRingPainter())),
-                ],
-              ),
-              if (counted.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final it in counted.take(3))
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(11)),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.circle, size: 7, color: Color(0xFF6EE7FF)),
-                          const SizedBox(width: 7),
-                          Text('${_recName(it)} · ${((it['monthly'] ?? 0) as num).round()} €',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
-                        ]),
-                      ),
-                  ],
-                ),
-              ],
-            ],
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded, color: _purple),
+              ]),
+            ),
           ),
-        ),
+        ]),
       ),
     );
   }
+
+  Widget _recHalf(String label, double sum, int n, Color dot) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 9, height: 9, decoration: BoxDecoration(color: dot, borderRadius: BorderRadius.circular(3))),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _muted)),
+          ),
+        ]),
+        const SizedBox(height: 7),
+        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+          Flexible(
+            child: Text(_eur(sum), maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
+          ),
+          const SizedBox(width: 4),
+          Text(tr('/ mėn'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _faint)),
+        ]),
+        const SizedBox(height: 2),
+        Text(_activeLabel(n), style: TextStyle(fontSize: 11.5, color: _faint)),
+      ]);
 
   Widget _weekSection() {
     // When a filter is active, recompute the week chart from the filtered rows
@@ -1822,6 +1946,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         all: (_d['all'] as List).cast<Map<String, dynamic>>(),
         balance: _d['balance'] as Map<String, dynamic>,
         budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
+        subs: (_d['subs'] as Map).cast<String, dynamic>(),
         month: mk,
         monthNom: _monNom[m - 1],
         monthGen: _monGen[m - 1],
@@ -2929,29 +3054,6 @@ class _WeekAvgPainter extends CustomPainter {
       old.avg != avg || old.maxV != maxV || old.label != label || old.dark != dark;
 }
 
-class _MiniRingPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.width / 2 - 3;
-    canvas.drawCircle(c, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 5..color = Colors.white.withValues(alpha: 0.25));
-    canvas.drawArc(
-      Rect.fromCircle(center: c, radius: r),
-      -1.5708,
-      4.4,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5
-        ..strokeCap = StrokeCap.round
-        ..color = Colors.white,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_MiniRingPainter old) => false;
-}
-
 class _Chip extends StatelessWidget {
   const _Chip({required this.icon, required this.label, this.active = false});
   final IconData icon;
@@ -3554,6 +3656,9 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     return '${widget.day['wd']}, ${two(d.day)}.${two(d.month)}.${d.year}';
   }
 
+  /// Local HH:MM from the backend's epoch (Revolut only; null otherwise).
+  String? get _txTime => _hm(widget.tx['ts']);
+
   List<Map<String, dynamic>> get _similar {
     // Group by the transaction's OWN merge key (set by the backend / feed), not
     // a client-recomputed brand key — the two formulas don't agree on real data,
@@ -3700,7 +3805,8 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
         children: [
           Text(tr('Data'), style: TextStyle(fontSize: 15, color: _muted)),
           const Spacer(),
-          Text(_dateFull, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink)),
+          Text(_txTime != null ? '$_dateFull · $_txTime' : _dateFull,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink)),
         ],
       ),
     );
@@ -4052,10 +4158,11 @@ class _SecAgg {
 }
 
 class _MonthReviewScreen extends StatefulWidget {
-  const _MonthReviewScreen({required this.all, required this.balance, required this.budgets, required this.month, required this.monthNom, required this.monthGen, required this.onGoToBudgets});
+  const _MonthReviewScreen({required this.all, required this.balance, required this.budgets, required this.subs, required this.month, required this.monthNom, required this.monthGen, required this.onGoToBudgets});
   final List<Map<String, dynamic>> all;
   final Map<String, dynamic> balance;
   final Map<String, dynamic> budgets;
+  final Map<String, dynamic> subs;
   final String month, monthNom, monthGen;
   final VoidCallback onGoToBudgets;
   @override
@@ -4068,6 +4175,30 @@ final Map<String, String> _monthAiCache = {};
 
 class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   List<Map<String, dynamic>> get _rows => widget.all.where((t) => (t['d'] as String).startsWith(widget.month)).toList();
+
+  // Category-list sort: 0 = amount (€), 1 = share (% of total), 2 = change (vs
+  // previous month). Mirrors Bilance's "⟳% / ↕% / Amount" toggles.
+  int _catSort = 0;
+  bool _merchantsOpen = false;
+  bool _recOpen = false;
+
+  /// The previous month key ("2026-05") if it has any data, else null.
+  String? get _prevMonthKey {
+    final y = int.parse(widget.month.substring(0, 4));
+    final mo = int.parse(widget.month.substring(5, 7));
+    final p = DateTime(y, mo - 1, 1);
+    final k = '${p.year}-${p.month.toString().padLeft(2, '0')}';
+    return widget.all.any((t) => (t['d'] as String).startsWith(k)) ? k : null;
+  }
+
+  Map<String, double> _netByLabelFor(String mk) {
+    final m = <String, double>{};
+    for (final t in widget.all) {
+      if (!(t['d'] as String).startsWith(mk)) continue;
+      m[t['sec'] as String] = (m[t['sec'] as String] ?? 0) + (t['a'] as num).toDouble();
+    }
+    return m;
+  }
 
   // AI-written month narrative: null until it arrives; falls back to a templated
   // summary if the AI is unavailable.
@@ -4200,6 +4331,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 _savingsClub(savings, earned, streak),
                 _categoryList(secs),
                 _budgets(),
+                _recurringSection(),
                 _insights(),
                 _avgDaily(expenseSecs),
                 _merchants(),
@@ -4481,41 +4613,111 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     );
   }
 
+  Widget _catSortToggle(int mode, String label) {
+    final on = _catSort == mode;
+    return GestureDetector(
+      onTap: () => setState(() => _catSort = mode),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+        decoration: BoxDecoration(
+          color: on ? _purple : _card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: on ? _purple : _hair),
+        ),
+        child: Text(label,
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700,
+                color: on ? Colors.white : _muted)),
+      ),
+    );
+  }
+
   Widget _categoryList(List<_SecAgg> secs) {
+    final total = secs.fold(0.0, (s, x) => s + x.net.abs());
+    final prevMk = _prevMonthKey;
+    final prev = prevMk != null ? _netByLabelFor(prevMk) : const <String, double>{};
+    double changePct(_SecAgg s) {
+      final p = prev[s.label];
+      if (p == null || p == 0) return s.net == 0 ? 0 : double.infinity;
+      return ((s.net - p) / p.abs()) * 100;
+    }
+
+    final sorted = [...secs];
+    if (_catSort == 2) {
+      sorted.sort((a, b) {
+        final ca = changePct(a).abs(), cb = changePct(b).abs();
+        return (cb.isFinite ? cb : 1e9).compareTo(ca.isFinite ? ca : 1e9);
+      });
+    } else {
+      sorted.sort((a, b) => b.net.abs().compareTo(a.net.abs()));
+    }
+
+    String valueOf(_SecAgg s) {
+      if (_catSort == 1) {
+        final pct = total > 0 ? s.net.abs() / total * 100 : 0;
+        return '${pct.toStringAsFixed(0)}%';
+      }
+      if (_catSort == 2) {
+        final c = changePct(s);
+        if (!c.isFinite) return tr('nauja');
+        return '${c > 0 ? '+' : ''}${c.toStringAsFixed(0)}%';
+      }
+      return _eur(s.net, signed: true);
+    }
+
+    Color colorOf(_SecAgg s) {
+      if (_catSort == 0) return s.net >= 0 ? _good : _ink;
+      if (_catSort == 2) {
+        final c = changePct(s);
+        if (!c.isFinite) return _purple;
+        // For SPENDING sections, spending more is up (red), less is down (green).
+        final expense = !_isIncome(s.label) && !_isTransfer(s.label);
+        if (!expense || c == 0) return _ink;
+        return c > 0 ? const Color(0xFFD9534F) : _good;
+      }
+      return _ink;
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-            child: Row(children: [
-              Text(tr('Kategorija'), style: TextStyle(fontSize: 13.5, color: _muted)),
-              const Spacer(),
-              Text(tr('Suma'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _purple)),
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tr('Rūšiuoti pagal'),
+                  style: TextStyle(fontSize: 13, color: _muted, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Row(children: [
+                _catSortToggle(0, tr('Suma')),
+                _catSortToggle(1, tr('Procentai')),
+                _catSortToggle(2, tr('Pokytis')),
+              ]),
             ]),
           ),
-          AppCard(color: _card, border: _hair, 
+          AppCard(color: _card, border: _hair,
             child: Column(children: [
-              for (var i = 0; i < secs.length; i++) ...[
+              for (var i = 0; i < sorted.length; i++) ...[
                 InkWell(
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => _CategoryDetailScreen(section: secs[i], rows: _rows.where((t) => t['sec'] == secs[i].label).toList(), monthName: widget.monthGen),
+                    builder: (_) => _CategoryDetailScreen(section: sorted[i], rows: _rows.where((t) => t['sec'] == sorted[i].label).toList(), monthName: widget.monthGen),
                   )),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                     child: Row(children: [
-                      CategoryIcon(icon: secs[i].icon, color: secs[i].color, size: 40),
+                      CategoryIcon(icon: sorted[i].icon, color: sorted[i].color, size: 40),
                       const SizedBox(width: 13),
-                      Expanded(child: Text(tr(secs[i].label), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
-                      Text(_eur(secs[i].net, signed: true),
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: secs[i].net >= 0 ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
+                      Expanded(child: Text(tr(sorted[i].label), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
+                      Text(valueOf(sorted[i]),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colorOf(sorted[i]), fontFeatures: const [FontFeature.tabularFigures()])),
                       const SizedBox(width: 4),
                       Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
                     ]),
                   ),
                 ),
-                if (i != secs.length - 1) const RowDivider(indent: 66),
+                if (i != sorted.length - 1) const RowDivider(indent: 66),
               ],
             ]),
           ),
@@ -4862,24 +5064,131 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   }
 
   // ── MERCHANTS ──
+  // ── RECURRING spent this month (collapsible) ──
+  // Shows what recurring merchants actually COST this month — grouped by merchant
+  // (no per-item "pending", which made no sense for a finished month). A charge
+  // counts as recurring when its merchant matches one of the detected recurring
+  // streams by normalized name. Collapsed by default; tap to expand.
+  Widget _recurringSection() {
+    final recNames = <String>{};
+    for (final it in _recItems(widget.subs)) {
+      final f = _fold((it['name'] as String?) ?? '');
+      if (f.length >= 4) recNames.add(f);
+    }
+    if (recNames.isEmpty) return const SizedBox.shrink();
+    final byMerch = <String, Map<String, dynamic>>{};
+    for (final t in _rows) {
+      if ((t['a'] as num) >= 0) continue;
+      final rn = _fold((t['nm'] as String?) ?? '');
+      if (rn.length < 4) continue;
+      final isRec = recNames.any((n) => rn == n || rn.contains(n) || n.contains(rn));
+      if (!isRec) continue;
+      final k = t['mkey'] as String;
+      final m = byMerch.putIfAbsent(k, () => {'nm': t['nm'], 'a': 0.0, 'ic': t['ic'], 'col': t['col'], 'row': t});
+      m['a'] = (m['a'] as double) + (t['a'] as num).toDouble();
+    }
+    if (byMerch.isEmpty) return const SizedBox.shrink();
+    final list = byMerch.values.toList()..sort((a, b) => (a['a'] as double).compareTo(b['a'] as double));
+    final total = list.fold(0.0, (s, m) => s + (m['a'] as double).abs());
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionLabel('Pasikartojantys'),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+        child: Container(
+          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
+          child: Column(children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => setState(() => _recOpen = !_recOpen),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                child: Row(children: [
+                  Text(_eur(total), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                  const SizedBox(width: 8),
+                  Text('${list.length}×', style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  AnimatedRotation(
+                    turns: _recOpen ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.keyboard_arrow_down_rounded, color: _purple),
+                  ),
+                ]),
+              ),
+            ),
+            if (_recOpen)
+              for (final m in list) ...[
+                const RowDivider(indent: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  child: Row(children: [
+                    CategoryIcon(icon: _iconOf(m['ic'] as String?), color: _colOf(m['col'] as String?), size: 34, circle: false, merchant: _logoOf(m['row'] as Map<String, dynamic>)),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(_shortNm(m['nm'] as String), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink))),
+                    Text(_eur((m['a'] as double), signed: true),
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
+                  ]),
+                ),
+              ],
+          ]),
+        ),
+      ),
+    ]);
+  }
+
   Widget _merchants() {
-    final count = _rows
-        .where((t) => !_isIncome(t['sec'] as String) && !_isTransfer(t['sec'] as String) && (t['a'] as num) < 0)
-        .map((t) => t['mkey'])
-        .toSet()
-        .length;
+    // Group this month's spending by merchant (mkey), most spent first.
+    final byMerch = <String, Map<String, dynamic>>{};
+    for (final t in _rows) {
+      if (_isIncome(t['sec'] as String) || _isTransfer(t['sec'] as String) || (t['a'] as num) >= 0) {
+        continue;
+      }
+      final k = t['mkey'] as String;
+      final m = byMerch.putIfAbsent(k, () => {'nm': t['nm'], 'a': 0.0, 'n': 0, 'ic': t['ic'], 'col': t['col'], 'row': t});
+      m['a'] = (m['a'] as double) + (t['a'] as num).toDouble();
+      m['n'] = (m['n'] as int) + 1;
+    }
+    final list = byMerch.values.toList()..sort((a, b) => (a['a'] as double).compareTo(b['a'] as double));
+    final count = list.length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionLabel('Prekybininkai'),
         Container(
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
-          child: Row(children: [
-            Text('$count ${tr('prekybininkai')}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
-            const Spacer(),
-            const Icon(Icons.keyboard_arrow_down_rounded, color: _purple),
+          child: Column(children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => setState(() => _merchantsOpen = !_merchantsOpen),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                child: Row(children: [
+                  Text('$count ${tr('prekybininkai')}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
+                  const Spacer(),
+                  AnimatedRotation(
+                    turns: _merchantsOpen ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.keyboard_arrow_down_rounded, color: _purple),
+                  ),
+                ]),
+              ),
+            ),
+            if (_merchantsOpen)
+              for (var i = 0; i < list.length; i++) ...[
+                const RowDivider(indent: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  child: Row(children: [
+                    CategoryIcon(icon: _iconOf(list[i]['ic'] as String?), color: _colOf(list[i]['col'] as String?), size: 34, circle: false, merchant: _logoOf(list[i]['row'] as Map<String, dynamic>)),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(_shortNm(list[i]['nm'] as String), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink))),
+                    Text('${list[i]['n']}×', style: TextStyle(fontSize: 12.5, color: _faint)),
+                    const SizedBox(width: 10),
+                    Text(_eur((list[i]['a'] as double), signed: true),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
+                  ]),
+                ),
+              ],
           ]),
         ),
       ],
@@ -4908,7 +5217,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(_shortNm(top[i]['nm'] as String), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
                         const SizedBox(height: 2),
-                        Text('${top[i]['md']}; ${tr((top[i]['cat'] ?? '').toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted)),
+                        Text('${top[i]['md']}${_hm(top[i]['ts']) != null ? ', ${_hm(top[i]['ts'])}' : ''}; ${tr((top[i]['cat'] ?? '').toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted)),
                       ]),
                     ),
                     const SizedBox(width: 8),
@@ -6343,61 +6652,116 @@ class _PlanningTabState extends State<_PlanningTab> {
   }
 
   // ── recurring block (reuses detected subscriptions) ──────────────────────────
+  // The Planning recurring section, inbox-first (Bilance-style): a review card
+  // for the streams the engine wasn't sure about (only those — never every
+  // transaction), then a calm one-line summary of the confirmed commitment.
   Widget _recurringCard() {
-    final items = _recItems(widget.subs);
+    final hidden = DashboardStore.recurringHidden();
+    final allItems = _recItemsFull(widget.subs);
+    final items = allItems.where((it) => !hidden.contains(it['sid'])).toList();
     final excl = DashboardStore.recurringExcluded();
     final incl = DashboardStore.recurringIncluded();
-    final counted = items.where((it) => _recCounted(it, excl, incl)).toList()
-      ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
+    final reviewed = DashboardStore.recurringReviewed();
+    final counted = items.where((it) => _recCounted(it, excl, incl)).toList();
     final total = _recMonthlyTotal(items, excl, incl);
-    return GestureDetector(
-      onTap: () async {
-        await Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => _RecurringScreen(items: items)));
-        if (mounted) setState(() {});
-      },
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-        padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1D45C4), Color(0xFF3B78FF)]),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
+    // Pending review: flagged uncertain, not yet confirmed OR removed by the user.
+    final pending = items.where((it) =>
+        it['needsReview'] == true &&
+        !reviewed.contains(it['sid']) &&
+        !excl.contains(((it['name'] as String?) ?? '').trim().toLowerCase())).toList()
+      ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
+    return Column(children: [
+      if (pending.isNotEmpty) _reviewInbox(pending),
+      _recSummary(total, counted, allItems),
+    ]);
+  }
+
+  Widget _reviewInbox(List<Map<String, dynamic>> pending) => GestureDetector(
+        onTap: () => _openReview(pending),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          padding: const EdgeInsets.fromLTRB(15, 14, 14, 14),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _reviewAmber.withValues(alpha: 0.55), width: 1.3),
+          ),
+          child: Row(children: [
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(color: _reviewAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.fact_check_outlined, color: _reviewAmberInk, size: 22),
+            ),
+            const SizedBox(width: 13),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${_eur(total)} ${tr('/ mėn')}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.4)),
+                Row(children: [
+                  Text(tr('Patikrink pasikartojančius'),
+                      style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: _ink)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                    decoration: BoxDecoration(color: _reviewAmber, borderRadius: BorderRadius.circular(9)),
+                    child: Text('${pending.length}',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ),
+                ]),
                 const SizedBox(height: 2),
-                Text('= ${_eur(total * 12)} ${tr('per metus')}',
-                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95))),
-                const SizedBox(height: 3),
-                Text('${counted.length} ${tr('aktyvūs mokėjimai — bakstelėk tvarkyti')}',
-                    style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82))),
+                Text(tr('Šių tiksliai neatpažinome — ar tikrai juos seki?'),
+                    style: TextStyle(fontSize: 12.5, color: _muted, height: 1.3)),
               ]),
             ),
-            Container(
-              width: 52, height: 52,
-              decoration: BoxDecoration(color: _card.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(16)),
-              child: const Icon(Icons.event_repeat_rounded, color: Colors.white, size: 26),
-            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right_rounded, color: _reviewAmberInk),
           ]),
-          if (counted.isNotEmpty) const SizedBox(height: 14),
-          for (final it in counted.take(5)) ...[
-            Row(children: [
-              const Icon(Icons.circle, size: 7, color: Colors.white),
-              const SizedBox(width: 10),
-              Expanded(child: Text(_recName(it), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Colors.white))),
-              Text('${((it['monthly'] ?? 0) as num).round()} € ${tr('/ mėn')}', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.92))),
-            ]),
-            if (it != counted.take(5).last) Padding(
-              padding: const EdgeInsets.symmetric(vertical: 9),
-              child: Container(height: 1, color: Colors.white.withValues(alpha: 0.14)),
+        ),
+      );
+
+  Widget _recSummary(double total, List<Map<String, dynamic>> counted,
+          List<Map<String, dynamic>> items) =>
+      GestureDetector(
+        onTap: () async {
+          await Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => _RecurringScreen(items: items)));
+          if (mounted) setState(() {});
+        },
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _hair),
+          ),
+          child: Row(children: [
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(color: _purple.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.event_repeat_rounded, color: _purple, size: 22),
             ),
-          ],
-        ]),
-      ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${_eur(total)} ${tr('/ mėn')}',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
+                const SizedBox(height: 2),
+                Text('${counted.length} ${tr('aktyvūs mokėjimai — bakstelėk tvarkyti')}',
+                    style: TextStyle(fontSize: 12.5, color: _muted)),
+              ]),
+            ),
+            Icon(Icons.chevron_right_rounded, color: _faint),
+          ]),
+        ),
+      );
+
+  Future<void> _openReview(List<Map<String, dynamic>> pending) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _RecurringReviewSheet(items: pending),
     );
+    if (mounted) setState(() {});
   }
 }
 
@@ -6416,13 +6780,108 @@ class _RecurringScreen extends StatefulWidget {
 class _RecurringScreenState extends State<_RecurringScreen> {
   late Set<String> _excl = DashboardStore.recurringExcluded();
   late Set<String> _incl = DashboardStore.recurringIncluded();
+  // Sids the user deleted from the list. Live in state so delete AND restore both
+  // re-render instantly; persisted to DashboardStore so they survive re-sync.
+  late final Set<String> _hiddenSids = {...DashboardStore.recurringHidden()};
   // A STABLE order fixed on entry — counted first, then by amount. Toggling never
   // re-sorts (that made rows jump around and feel like the switch "sprang back").
-  late final List<Map<String, dynamic>> _ordered = [...widget.items]..sort((a, b) {
-        final ca = _recCounted(a, _excl, _incl), cb = _recCounted(b, _excl, _incl);
-        if (ca != cb) return ca ? -1 : 1;
-        return ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num);
-      });
+  late final List<Map<String, dynamic>> _ordered = [
+    for (final it in widget.items)
+      if (!_hiddenSids.contains(it['sid'])) it
+  ]..sort(_byCountedThenAmount);
+
+  int _byCountedThenAmount(Map a, Map b) {
+    final ca = _recCounted(a, _excl, _incl), cb = _recCounted(b, _excl, _incl);
+    if (ca != cb) return ca ? -1 : 1;
+    return ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num);
+  }
+
+  // Currently-deleted items (to offer restore). Derived from the full input.
+  List<Map<String, dynamic>> get _hiddenItems =>
+      widget.items.where((it) => _hiddenSids.contains(it['sid'])).toList();
+
+  // Captured so a lingering floating snackbar (app-level messenger) is cleared
+  // when we leave this screen.
+  ScaffoldMessengerState? _msgr;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _msgr = ScaffoldMessenger.of(context);
+  }
+
+  @override
+  void dispose() {
+    _msgr?.clearSnackBars();
+    super.dispose();
+  }
+
+  Future<void> _delete(Map<String, dynamic> it) async {
+    final sid = (it['sid'] as String?) ?? '';
+    if (sid.isEmpty) return;
+    await DashboardStore.setRecurringHidden(sid, true);
+    if (!mounted) return;
+    setState(() {
+      _hiddenSids.add(sid);
+      _ordered.remove(it);
+    });
+    // A quick toast (no undo button — restore lives in the "Paslėpti" section).
+    final messenger = _msgr ?? ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(SnackBar(
+      content: Text(tr('Pašalinta iš sąrašo')),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(milliseconds: 1100),
+    ));
+  }
+
+  Future<void> _restore(Map<String, dynamic> it) async {
+    final sid = (it['sid'] as String?) ?? '';
+    if (sid.isEmpty) return;
+    await DashboardStore.setRecurringHidden(sid, false);
+    if (!mounted) return;
+    setState(() {
+      _hiddenSids.remove(sid);
+      _ordered.add(it);
+      _ordered.sort(_byCountedThenAmount);
+    });
+  }
+
+  Widget _groupHeader(String label) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
+        child: Text(tr(label),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.2)),
+      );
+
+  // A deleted row: dimmed, with a ＋ to bring it back into the list.
+  Widget _hiddenRow(Map<String, dynamic> it) {
+    final monthly = ((it['monthly'] ?? 0) as num).round();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(color: _card.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
+      child: Row(children: [
+        Expanded(
+          child: Text('${_recName(it)} · $monthly € ${tr('/ mėn')}',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: _faint)),
+        ),
+        GestureDetector(
+          onTap: () => _restore(it),
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(color: _purple.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.add_rounded, size: 17, color: _purple),
+              const SizedBox(width: 4),
+              Text(tr('Grąžinti'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _purple)),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
 
   Future<void> _toggle(Map it, bool counted) async {
     final name = it['name'] as String;
@@ -6437,65 +6896,91 @@ class _RecurringScreenState extends State<_RecurringScreen> {
     });
   }
 
-  // Name an anonymous recurring series (e.g. an "APPLE.COM/BILL" stream the bank
-  // won't identify → "ChatGPT"). Stored against the series id (sid), so it only
-  // renames THIS stream's charges — not one-off purchases at other amounts.
+  Widget _typeChoice(String label, bool active, VoidCallback onTap) => Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: active ? _purpleSoft : _card,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: active ? _purple : _hair, width: active ? 1.5 : 1),
+            ),
+            child: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: active ? _purple : _muted)),
+          ),
+        ),
+      );
+
+  // Edit a stream: rename the series (an "APPLE.COM/BILL" charge → "ChatGPT") AND
+  // reclassify subscription <-> bill (e.g. a gym billed via a processor). Both are
+  // stored against the sid so they only affect THIS stream and survive re-sync.
   Future<void> _rename(Map<String, dynamic> it) async {
     final sid = it['sid'] as String?;
     if (sid == null) return; // legacy/preview item without a series id
     final merchant = _shortNm((it['name'] as String?) ?? '—');
     final monthly = ((it['monthly'] ?? 0) as num).round();
+    final backendType = (it['type'] as String?) ?? 'subscription';
     final ctl = TextEditingController(
         text: DashboardStore.subscriptionAliases()[sid] ?? '');
+    String selType = _recType(it) == 'subscription' ? 'subscription' : 'bill';
     final action = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(tr('Pavadinti prenumeratą'),
-            style: TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 18)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text('$merchant · $monthly € ${tr('/ mėn')}',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: _card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text(tr('Redaguoti'),
+              style: TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 18)),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('$merchant · $monthly € ${tr('/ mėn')}',
                 style: TextStyle(color: _muted, fontSize: 13)),
-          ),
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(tr('Bankas nepasako, kas tai. Pavadink, kad atpažintum.'),
+            const SizedBox(height: 4),
+            Text(tr('Bankas nepasako, kas tai. Pavadink, kad atpažintum.'),
                 style: TextStyle(color: _faint, fontSize: 12)),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: ctl,
-            autofocus: true,
-            textCapitalization: TextCapitalization.sentences,
-            style: TextStyle(color: _ink, fontSize: 16, fontWeight: FontWeight.w600),
-            decoration: InputDecoration(
-              hintText: tr('pvz. ChatGPT, iCloud, Spotify'),
-              hintStyle: TextStyle(color: _faint),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              style: TextStyle(color: _ink, fontSize: 16, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: tr('pvz. ChatGPT, iCloud, Spotify'),
+                hintStyle: TextStyle(color: _faint),
+              ),
             ),
-          ),
-        ]),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, 'clear'),
-              child: Text('${tr('Palikti kaip')} $merchant',
-                  style: TextStyle(color: _muted, fontSize: 13))),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, 'save'),
-              child: Text(tr('Išsaugoti'),
-                  style: const TextStyle(color: _purple, fontWeight: FontWeight.w700))),
-        ],
+            const SizedBox(height: 16),
+            Text(tr('Tipas'), style: TextStyle(color: _muted, fontSize: 12.5, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Row(children: [
+              _typeChoice(tr('Prenumerata'), selType == 'subscription', () => setLocal(() => selType = 'subscription')),
+              const SizedBox(width: 8),
+              _typeChoice(tr('Sąskaita'), selType == 'bill', () => setLocal(() => selType = 'bill')),
+            ]),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 'clear'),
+                child: Text('${tr('Palikti kaip')} $merchant',
+                    style: TextStyle(color: _muted, fontSize: 13))),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 'save'),
+                child: Text(tr('Išsaugoti'),
+                    style: const TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+          ],
+        ),
       ),
     );
     if (action == null) return;
     await DashboardStore.setSubscriptionAlias(
         sid, action == 'clear' ? null : ctl.text);
+    // Clear the type override when it matches the engine's guess again.
+    await DashboardStore.setRecurringType(sid, selType == backendType ? null : selType);
     _reloadSubAliases();
     if (mounted) setState(() {});
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -6541,10 +7026,29 @@ class _RecurringScreenState extends State<_RecurringScreen> {
           ),
           if (_ordered.isEmpty)
             Padding(padding: const EdgeInsets.all(16), child: Text(tr('Pasikartojančių mokėjimų nerasta.'), style: TextStyle(color: _muted))),
-          for (final it in _ordered) _row(it),
+          ..._groupedRows(),
         ],
       ),
     );
+  }
+
+  // Split the (stably ordered) list into Subscriptions vs Bills so the manager
+  // makes clear which is which — each with its own header.
+  List<Widget> _groupedRows() {
+    final subs = _ordered.where((it) => _recType(it) == 'subscription').toList();
+    final bills = _ordered.where((it) => _recType(it) != 'subscription').toList();
+    final hidden = _hiddenItems;
+    return [
+      if (subs.isNotEmpty) _groupHeader('Prenumeratos'),
+      for (final it in subs) _row(it),
+      if (bills.isNotEmpty) _groupHeader('Sąskaitos'),
+      for (final it in bills) _row(it),
+      if (hidden.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        _groupHeader('Paslėpti'),
+        for (final it in hidden) _hiddenRow(it),
+      ],
+    ];
   }
 
   Widget _row(Map<String, dynamic> it) {
@@ -6604,10 +7108,188 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             ]),
           ]),
         ),
+        GestureDetector(
+          onTap: () => _delete(it),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Icon(Icons.delete_outline_rounded, size: 21, color: _faint),
+          ),
+        ),
         Switch.adaptive(value: counted, activeThumbColor: _purple, onChanged: (v) => _toggle(it, v)),
       ]),
     );
   }
+}
+
+// ── Recurring review sheet (Bilance-style "Add recurrings") ──────────────────
+// A bottom sheet listing ONLY the streams the engine flagged uncertain (unknown
+// merchant / KB 'possible') — never every transaction. Each row mirrors Bilance:
+// a coloured category tile, the merchant + cadence, the amount, and two circular
+// actions — green ＋ to keep it tracked, red ✗ to drop it from the monthly total.
+// Acting marks the sid reviewed so it never returns to the Planning inbox.
+class _RecurringReviewSheet extends StatefulWidget {
+  const _RecurringReviewSheet({required this.items});
+  final List<Map<String, dynamic>> items;
+  @override
+  State<_RecurringReviewSheet> createState() => _RecurringReviewSheetState();
+}
+
+class _RecurringReviewSheetState extends State<_RecurringReviewSheet> {
+  late final List<Map<String, dynamic>> _queue = [...widget.items];
+  int _done = 0;
+
+  Future<void> _decide(Map<String, dynamic> it, bool keep) async {
+    final sid = (it['sid'] as String?) ?? '';
+    final name = (it['name'] as String?) ?? '';
+    // Green ＋ = "yes, I track it" → force-INCLUDE so it actually lands in the
+    // counted subscriptions (before, keep only marked it reviewed, so a stream
+    // the engine hadn't counted just vanished). Red ✗ = force-EXCLUDE. Either way
+    // it leaves the review queue.
+    await DashboardStore.setRecurringOverride(name, keep);
+    await DashboardStore.markRecurringReviewed(sid);
+    if (!mounted) return;
+    setState(() {
+      _queue.remove(it);
+      _done++;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.of(context).size.height;
+    return Container(
+      height: h * 0.86,
+      decoration: const BoxDecoration(
+        color: Colors.transparent,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        child: Column(children: [
+          const SizedBox(height: 10),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(3))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 18, 12),
+            child: Row(children: [
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: SizedBox(
+                  width: 42, height: 42,
+                  child: Icon(Icons.close_rounded, color: _ink, size: 25),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(tr('PASIKARTOJANTYS'),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _muted, letterSpacing: 0.5)),
+                  const SizedBox(height: 1),
+                  Text(tr('Patikrink pasikartojančius'),
+                      style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.6)),
+                ]),
+              ),
+            ]),
+          ),
+          Container(height: 1, color: _hair),
+          Expanded(
+            child: _queue.isEmpty
+                ? _doneState()
+                : ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 26),
+                    itemCount: _queue.length,
+                    separatorBuilder: (_, __) => Padding(
+                      padding: const EdgeInsets.only(left: 77),
+                      child: Container(height: 1, color: _hair),
+                    ),
+                    itemBuilder: (_, i) => _row(_queue[i]),
+                  ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _row(Map<String, dynamic> it) {
+    final cat = it['category'] as String?;
+    final amount = ((it['monthly'] ?? 0) as num).round();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 13, 14, 13),
+      child: Row(children: [
+        CategoryIcon(
+            icon: _reviewCatIcon(cat), color: _colOf(cat), size: 48,
+            circle: false, merchant: it['name'] as String?),
+        const SizedBox(width: 13),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_recName(it), maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
+            const SizedBox(height: 2),
+            Text(tr(_recCycleLabel(it['cycle'] as String?)),
+                style: TextStyle(fontSize: 13, color: _muted)),
+          ]),
+        ),
+        const SizedBox(width: 6),
+        Text('-$amount€',
+            style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: _ink)),
+        const SizedBox(width: 10),
+        _actionCircle(
+            bg: const Color(0xFFFBE6E6), fg: const Color(0xFFE0574F),
+            icon: Icons.close_rounded, onTap: () => _decide(it, false)),
+        const SizedBox(width: 10),
+        _actionCircle(
+            bg: const Color(0xFFE4F5E9), fg: _good,
+            icon: Icons.add_rounded, onTap: () => _decide(it, true)),
+      ]),
+    );
+  }
+
+  Widget _actionCircle({
+    required Color bg,
+    required Color fg,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) =>
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+          child: Icon(icon, color: fg, size: 24),
+        ),
+      );
+
+  Widget _doneState() => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(color: _good.withValues(alpha: 0.14), shape: BoxShape.circle),
+              child: const Icon(Icons.check_rounded, color: _good, size: 34),
+            ),
+            const SizedBox(height: 16),
+            Text(tr('Viskas patikrinta'),
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _ink)),
+            const SizedBox(height: 6),
+            Text(_done == 0 ? tr('Nieko tikrinti nereikėjo.') : tr('Ačiū — pasikartojantys sutvarkyti.'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13.5, color: _muted, height: 1.4)),
+            const SizedBox(height: 22),
+            GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+                decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(12)),
+                child: Text(tr('Gerai'),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
+            ),
+          ]),
+        ),
+      );
 }
 
 // add-budget sheet: pick a section, edit the data-suggested limit, save
@@ -8422,10 +9104,10 @@ class _AiChatTabState extends State<_AiChatTab> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(22, 40, 22, 12),
       children: [
-        Text(tr('Labas 👋'),
+        Text(tr('Sveiki 👋'),
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _muted)),
         const SizedBox(height: 6),
-        Text(tr('Apie ką pakalbam?'),
+        Text(tr('Kuo galiu padėti?'),
             style: TextStyle(
                 fontSize: 30, fontWeight: FontWeight.w800, color: _ink,
                 height: 1.15, letterSpacing: -0.6)),

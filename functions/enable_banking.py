@@ -212,12 +212,21 @@ class EnableBankingClient:
         Returns [] on any error so a missing-balances endpoint never blocks the
         transaction scan.
         """
-        try:
-            data = self._request("GET", f"/accounts/{account_uid}/balances",
-                                 psu=psu)
-            return data.get("balances", [])
-        except EnableBankingError:
-            return []
+        for attempt in range(3):
+            try:
+                data = self._request("GET", f"/accounts/{account_uid}/balances",
+                                     psu=psu)
+                return data.get("balances", [])
+            except EnableBankingError as e:
+                # A rate-limited balance (Swedbank's cap) used to fall silently to
+                # 0. Retry on 429, and log any other failure instead of hiding it.
+                if e.status == 429 and attempt < 2:
+                    time.sleep(1.0 * (attempt + 1))
+                    continue
+                logging.warning("balances: %s failed (%s): %s",
+                                account_uid[:8], e.status, e)
+                return []
+        return []
 
     def _fetch_window(self, account_uid, *, date_from, date_to, page_budget,
                       psu=None):

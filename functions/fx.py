@@ -24,6 +24,10 @@ _FX_TO_EUR = {
     # produces; all approximate, all better than treating them as euros.
     "JPY": 0.0060, "HUF": 0.0025, "RON": 0.20, "BGN": 0.511, "UAH": 0.022,
     "CAD": 0.66, "AUD": 0.60, "TRY": 0.026,
+    # 'XXX' = ISO "no currency": some banks (Swedbank) tag an account/amount with
+    # it though the money is real euros. Treat as EUR rather than zeroing it. The
+    # normalize layer already prefers a real currency where one exists.
+    "XXX": 1.0,
 }
 
 # Currencies already reported once this process lifetime — keeps a busy scan

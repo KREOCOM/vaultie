@@ -150,14 +150,27 @@ NAME_OVERRIDES = [
     (("circle k", "viada", "neste", "orlen", "1-2-3", "123 ", "lukoil", "emsi",
       "baltic petroleum", "st1", "yx ", "uno-x", "uno x", "okq8", "7-eleven", "shell",
       "bensinautomat", "circlek", "gulf ", "amic", "dus ", "degalin"), _FUEL),
+    # NB: no bare "parduotuv" here — "parduotuvė" just means "shop" (a carpet or
+    # electronics store is one too), so it must NOT force groceries. Only real
+    # grocery signals: chain names + "maisto prek" (grocery goods). A generic
+    # "UAB X, parduotuvė" falls through to the resolver → AI → "Kita".
     (("maxima", "rimi", "iki ", "lidl", "aibė", "aibe", "norfa", "prisma", "coop",
       "rema 1000", "minipreco", "minimani", "joker ", "t-market", "grocer",
-      "maisto prek", "parduotuv", "spar ", "hemkop", "kiwi ", "meny "), _GROC),
+      "maisto prek", "spar ", "hemkop", "kiwi ", "meny "), _GROC),
     (("mcdonald", "hesburger", "kfc", "burger king", "litriukas", "pocien", "skoniai",
       "birzu duona", "duona myli", "kavin", "restoran", "pizza", "sushi", "coffee",
       "caffe", "cili", "charlie", "vero cafe", "baras", "bardakas", " pub", "uzeiga",
       "bistro", "delano", "subway", "bhaji", "kebab", "kepyk", "prezo", "mcdroval"), _DINE),
 ]
+
+# Canonical brand for NAME_OVERRIDES keywords whose bank descriptor carries a
+# unique per-charge ref (ride/order id), so same-day charges share one merge key
+# and collapse into a single "Brand N×" feed row. Keyed by the matched keyword.
+_BRAND_CANON = {
+    "bolt.eu": "Bolt",
+    "bolt ": "Bolt",
+    "uber": "Uber",
+}
 
 _FINANCE_HINTS = ["mogo", "general financing", "sb lizing", "swedbank lizing",
                   "citadele faktoring", "luminor lizing", "paskola", "lizing"]
@@ -207,6 +220,24 @@ def _name(t):
     else:
         n = (t.get("debtor") or {}).get("name")
     return (n or (t.get("remittance_information") or [""])[0] or "—").strip()
+
+
+def _txn_epoch(t):
+    """Best-effort transaction UTC epoch seconds, or None.
+
+    PSD2 gives only a date — no time of day. But Revolut's ``entry_reference`` is
+    a time-ordered id whose first 8 hex chars ARE the Unix timestamp (verified:
+    they decode to the booking date + a real HH:MM). Other banks (SEB) use a plain
+    numeric ref with no time, so this returns None and the row stays date-only.
+    Guarded by a 2020-2035 sanity window so a non-timestamp id is never misread."""
+    ref = t.get("entry_reference")
+    if not isinstance(ref, str) or len(ref) < 9 or ref[8] != "-":
+        return None
+    try:
+        ts = int(ref[:8], 16)
+    except ValueError:
+        return None
+    return ts if 1_577_836_800 <= ts <= 2_051_222_400 else None
 
 
 def _norm(n):
@@ -348,9 +379,15 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
     # known merchant by name (BEFORE the fee check, so an oddly-coded Apple/Google
     # — e.g. MCOP/MDOP — isn't swallowed as a bank fee)
     for kws, mapped in NAME_OVERRIDES:
-        if any(k in nl for k in kws):
+        matched = next((k for k in kws if k in nl), None)
+        if matched:
             cat_lt, col, ic, sec, secc = mapped
-            return (name, cat_lt, col, ic, sec, secc, amt > 0, False)
+            # Some banks bake a unique ride/order ref into the descriptor
+            # ("Bolt.euo2607161334", "Bolt.eu/r/2605221012"), so every charge got a
+            # different merge key and same-day rides never collapsed. A canonical
+            # brand name for those keywords fixes it (Bolt taxi → one "Bolt" row).
+            disp = _BRAND_CANON.get(matched, name)
+            return (disp, cat_lt, col, ic, sec, secc, amt > 0, False)
 
     # bank fees / charges
     if code in _FEE_CODES or any(k in nl for k in _FEE_HINTS):
@@ -461,7 +498,7 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
             "md": f"{LT_GEN[m]} {day}", "cat": cat, "col": col, "ic": ic,
             "sec": sec, "secc": secc, "a": round(_amt(t), 2),
             "amb": False, "badges": (["res"] if t.get("status") == "PDNG" else []),
-            "pos": pos,
+            "pos": pos, "ts": _txn_epoch(t),
         })
     if skipped:
         # Dropping a row silently is how a bank's odd date format turns into
@@ -541,9 +578,11 @@ def _merge_day(day_txns, salary_refs, resolve_cat, own_ibans=None):
             merged[key] = {"nm": _name(t), "cat": cat, "ic": ic, "col": col,
                            "sec": sec, "secc": secc, "a": 0.0, "count": 0,
                            "badges": (["res"] if t.get("status") == "PDNG" else []),
-                           "amb": False, "pos": pos}
+                           "amb": False, "pos": pos, "ts": _txn_epoch(t)}
         merged[key]["a"] += _amt(t)
         merged[key]["count"] += 1
+        if merged[key]["count"] > 1:
+            merged[key]["ts"] = None  # several charges merged → no single time
     return merged
 
 
@@ -570,7 +609,8 @@ def _month_feed(txns, salary_refs, resolve_cat, own_ibans=None):
             "total": round(daytot, 2),
             "tx": [{"nm": x["nm"], "cat": x["cat"], "ic": x["ic"], "col": x["col"],
                     "a": round(x["a"], 2), "count": x["count"] if x["count"] > 1 else 0,
-                    "badges": x["badges"], "amb": x["amb"], "pos": x["pos"]}
+                    "badges": x["badges"], "amb": x["amb"], "pos": x["pos"],
+                    "ts": x["ts"]}
                    for x in merged.values()]})
         months[mkey]["total"] += daytot
     for mk in months:
@@ -677,6 +717,9 @@ def _collapse_recurring(cands):
                         k[0]["status"], k[0]["active"] = "active", True
                     if (c.get("lastChargeDate") or "") > (k[0]["lastCharge"] or ""):
                         k[0]["lastCharge"] = c.get("lastChargeDate")
+                    # Any uncertain leg makes the merged obligation uncertain.
+                    if c.get("needsReview"):
+                        k[0]["needsReview"] = True
                     folded = True
                     break
             if folded:
@@ -693,6 +736,10 @@ def _collapse_recurring(cands):
                 "occ": int(c.get("occurrences", 0)),
                 "lastCharge": c.get("lastChargeDate"),
                 "category": c.get("category"),
+                # Recurring-shaped but uncertain (unknown merchant / KB 'possible').
+                # Still counted, but the client surfaces these in a review queue so
+                # the user can confirm ("yes, my rent") or remove ("not a sub").
+                "needsReview": bool(c.get("needsReview")),
             }, m])
         out.extend(k[0] for k in kept)
     return out

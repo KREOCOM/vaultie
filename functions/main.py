@@ -17,6 +17,7 @@ Deploy region is ``europe-west1`` (close to LT users).
 import datetime as dt
 import json
 import logging
+import re
 import uuid
 
 import firebase_admin
@@ -29,6 +30,7 @@ from entitlement import is_premium as _is_premium
 from finance_chat import chat as _finance_chat
 from finance_chat import month_report as _month_report
 from known_cache import merge_known as _merge_known
+import normalize
 from recurring import detect_recurring
 from seed_merchants import seed as _run_seed
 
@@ -38,25 +40,6 @@ from seed_merchants import seed as _run_seed
 # scan without it means guessing.
 logging.getLogger().setLevel(logging.INFO)
 
-
-def _pick_balance(balances: list) -> float:
-    """Choose the most 'spendable' balance from an account's balance list.
-
-    Prefer interim-available (ITAV), then closing-booked (CLBD), else the first.
-    Returns 0.0 when none are present.
-    """
-    if not balances:
-        return 0.0
-    def amt(b):
-        try:
-            return float((b.get("balance_amount") or {}).get("amount") or 0)
-        except (TypeError, ValueError):
-            return 0.0
-    by_type = {str(b.get("balance_type") or "").upper(): b for b in balances}
-    for pref in ("ITAV", "CLBD", "XPCD", "OTHR"):
-        if pref in by_type:
-            return round(amt(by_type[pref]), 2)
-    return round(amt(balances[0]), 2)
 
 # Initialize the Admin SDK so the callable framework can verify the caller's
 # Firebase Auth ID token. Without this the token is rejected and every call
@@ -82,29 +65,10 @@ REVENUECAT_API_KEY = SecretParam("REVENUECAT_API_KEY")
 
 _REGION = "europe-west1"
 
-
-def _dedupe_transactions(txns: list) -> list:
-    """Drop duplicate bank entries before detection.
-
-    A single connection (especially a multi-account one like Revolut EUR+NOK)
-    can return the same entry more than once — pagination windows that overlap,
-    or a connection re-scanned within a session. Every Enable Banking entry
-    carries a stable, unique ``entry_reference``; de-duplicating on it keeps the
-    first sighting and discards exact repeats, so nothing is double-counted.
-    Entries without a reference are kept as-is (can't safely be matched).
-    """
-    seen: set = set()
-    out: list = []
-    for t in txns:
-        ref = t.get("entry_reference")
-        if ref is None:
-            out.append(t)
-            continue
-        if ref in seen:
-            continue
-        seen.add(ref)
-        out.append(t)
-    return out
+# ⚠️ TEMP — bypasses the server-side subscription gate so a tester (wife's
+# Swedbank run) can use the paid endpoints without an App Store purchase. Pairs
+# with the client kBypassPaywall flag. SET BACK TO False before any real release.
+_TEST_BYPASS_PREMIUM = True
 
 
 def _dedupe_summaries(summaries: list) -> list:
@@ -179,6 +143,11 @@ def _require_premium(req: https_fn.CallableRequest) -> None:
     whose subscription lapsed kept the expensive half of a subscription-only
     product, and nothing server-side noticed.
     """
+    # ⚠️ TEMP TEST BYPASS — allow the paid endpoints during the wife's Swedbank
+    # test (she can't complete the App Store purchase). Pairs with the client
+    # kBypassPaywall flag. REVERT before any real release.
+    if _TEST_BYPASS_PREMIUM:
+        return
     if _is_premium(_uid(req), REVENUECAT_API_KEY.value):
         return
     raise https_fn.HttpsError(
@@ -393,6 +362,10 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
         psu = client.psu_headers_for(bank, DEFAULT_COUNTRY, psu_available or {}) \
             if psu_available else {}
         try:
+            # Balance FIRST — before the heavy transaction paging burns through the
+            # bank's rate limit. Swedbank has a low cap: fetched after ~2 min of
+            # paging it returned 429 → silently 0. Fresh at the top, it succeeds.
+            bal, bal_ccy = normalize.pick_balance(client.balances(uid, psu=psu))
             acc_txns, diag = client.transactions(uid, months_back=months_back,
                                                  psu=psu)
             # Tag every entry with the bank it came from: it's what lets the
@@ -400,11 +373,12 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
             for t in acc_txns:
                 t["_bank"] = bank
             all_txns.extend(acc_txns)
-            bal = _pick_balance(client.balances(uid, psu=psu))
+            # Prefer the balance's own currency; 'XXX' ("no currency") isn't real.
+            ccy = normalize.real_currency(bal_ccy, m.get("currency"))
             summaries.append({
                 "name": m["name"], "amount": bal, "sub": None,
                 "icon": "R" if is_revolut else "bank",
-                "currency": m["currency"], "bank": bank, "iban": m.get("iban"),
+                "currency": ccy, "bank": bank, "iban": m.get("iban"),
             })
             scan_diag.append({"account": m["name"], "bank": bank, **diag})
         except EnableBankingError as e:
@@ -455,7 +429,10 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     recurring, build the (multi-bank-aware) dashboard, and package the response.
     Nothing is persisted server-side (privacy-first)."""
     raw = len(all_txns)
-    all_txns = _dedupe_transactions(all_txns)
+    # Normalise FIRST (fills empty names, string→list remittance, missing indicator,
+    # bare amount) so dedup's composite key + every downstream stage see clean data.
+    normalize.normalize_transactions(all_txns)
+    all_txns = normalize.dedupe(all_txns)
     if len(all_txns) != raw:
         logging.info("scan: deduped %d -> %d transactions", raw, len(all_txns))
     summaries = _dedupe_summaries(summaries)

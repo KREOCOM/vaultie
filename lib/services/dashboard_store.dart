@@ -113,19 +113,37 @@ class DashboardStore {
   // ── Multi-bank connections ──────────────────────────────────────────────
 
   /// Record (or replace) a connected bank's accounts so they can be re-fetched
-  /// and merged later, WITHOUT another login. Keyed by bank name — reconnecting
-  /// the same bank replaces its record (fresh session id) rather than
-  /// duplicating it. [accounts] items carry {uid, iban, name, currency}.
+  /// and merged later, WITHOUT another login. Keyed by the connection's ACCOUNT
+  /// IBANs — reconnecting the SAME account (fresh session id, same IBANs)
+  /// replaces its record, while a DIFFERENT account at the same bank (e.g. a
+  /// spouse's Revolut) has disjoint IBANs and is KEPT, so two "Revolut" records
+  /// can coexist. [accounts] items carry {uid, iban, name, currency}.
   static Future<void> addConnection({
     required String bank,
     String? sessionId,
     required List<Map<String, dynamic>> accounts,
   }) async {
+    Set<String> ibansOf(List? accts) => ((accts ?? const [])
+            .map((a) =>
+                ((a as Map)['iban'] as String?)?.replaceAll(' ', '').toUpperCase())
+            .whereType<String>()
+            .where((s) => s.isNotEmpty)
+            .toSet());
+    final newIbans = ibansOf(accounts);
     // Spread into a fresh GROWABLE list — connections() can return an empty
     // const list on the first connect, and add()/removeWhere() on a const list
     // throws (silently aborting the very first bank, so the list never grows).
     final list = [...connections()]
-      ..removeWhere((c) => (c['bank'] as String?) == bank);
+      ..removeWhere((c) {
+        final old = ibansOf(c['accounts'] as List?);
+        // Replace only when this is the SAME account (IBANs overlap). When
+        // neither side exposes an IBAN there is nothing to tell them apart, so
+        // fall back to the old bank-name replacement to avoid duplicate records.
+        if (old.isEmpty && newIbans.isEmpty) {
+          return (c['bank'] as String?) == bank;
+        }
+        return old.intersection(newIbans).isNotEmpty;
+      });
     list.add({
       'bank': bank,
       'sessionId': sessionId,
@@ -234,6 +252,120 @@ class DashboardStore {
       await _box.put(_kRecIncluded, jsonEncode(incl.toList()));
     } catch (_) {
       // No Hive box (standalone preview) → override is in-memory only.
+    }
+  }
+
+  // ── Recurring review queue (uncertain streams the user has acted on) ──────
+  // A stream the backend flagged needsReview (unknown merchant / KB 'possible')
+  // shows in the Planning "review" inbox until the user acts. Acknowledging it —
+  // keep OR remove — records its sid here so it leaves the inbox and never nags
+  // again. The keep/remove effect on the monthly total goes through
+  // setRecurringOverride; this set only tracks "seen and decided".
+  static const _kRecReviewed = 'recReviewed';
+
+  /// Series ids (sid) the user has already confirmed or removed from the queue.
+  static Set<String> recurringReviewed() => _loadSet(_kRecReviewed);
+
+  static Future<void> markRecurringReviewed(String sid) async {
+    if (sid.isEmpty) return;
+    final seen = recurringReviewed()..add(sid);
+    try {
+      await _box.put(_kRecReviewed, jsonEncode(seen.toList()));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  // ── Recurring hidden (deleted from the list entirely) ─────────────────────
+  // Turning a stream OFF (setRecurringOverride) keeps it in the manager so it can
+  // be turned back on. DELETING it (trash icon) hides it from the list AND the
+  // totals for good — for streams the user never wants to see again. Keyed by
+  // sid, re-applied on every sync.
+  static const _kRecHidden = 'recHidden';
+
+  static Set<String> recurringHidden() => _loadSet(_kRecHidden);
+
+  static Future<void> setRecurringHidden(String sid, bool hidden) async {
+    if (sid.isEmpty) return;
+    final set = recurringHidden();
+    if (hidden) {
+      set.add(sid);
+    } else {
+      set.remove(sid);
+    }
+    try {
+      await _box.put(_kRecHidden, jsonEncode(set.toList()));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  // ── Recurring TYPE overrides (subscription <-> bill), by sid ──────────────
+  // The engine guesses whether a stream is a subscription or a bill; the user can
+  // reclassify (e.g. a gym billed via a payment processor → subscription). Keyed
+  // by sid, re-applied on every sync.
+  static const _kRecType = 'recType';
+
+  static Map<String, String> recurringTypes() {
+    try {
+      final raw = _box.get(_kRecType) as String?;
+      if (raw == null) return {};
+      return (jsonDecode(raw) as Map).map((k, v) => MapEntry(k as String, v as String));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> setRecurringType(String sid, String? type) async {
+    if (sid.isEmpty) return;
+    final m = recurringTypes();
+    if (type == null) {
+      m.remove(sid);
+    } else {
+      m[sid] = type;
+    }
+    try {
+      await _box.put(_kRecType, jsonEncode(m));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  // ── Manual recurring entries (bills/subscriptions the user adds by hand) ───
+  // Streams the bank data didn't surface (cash rent, a card the app isn't linked
+  // to). Same shape as a backend `subs.item`, plus manual:true. Counted like any
+  // other. Keyed/removed by sid.
+  static const _kRecManual = 'recManual';
+
+  static List<Map<String, dynamic>> manualRecurring() {
+    try {
+      final raw = _box.get(_kRecManual) as String?;
+      if (raw == null) return [];
+      return (jsonDecode(raw) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> addManualRecurring(Map<String, dynamic> item) async {
+    final list = manualRecurring()
+      ..removeWhere((e) => e['sid'] == item['sid'])
+      ..add(item);
+    try {
+      await _box.put(_kRecManual, jsonEncode(list));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  static Future<void> removeManualRecurring(String sid) async {
+    final list = manualRecurring()..removeWhere((e) => e['sid'] == sid);
+    try {
+      await _box.put(_kRecManual, jsonEncode(list));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
     }
   }
 

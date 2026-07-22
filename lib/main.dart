@@ -129,6 +129,18 @@ Future<void> main() async {
     await settings.put(_kInstalled, true);
   }
 
+  // ⚠️ TEMP TEST BYPASS — lets a tester (wife's Swedbank run) get past the paywall
+  // WITHOUT an App Store purchase she can't complete. Forces the Vaultie Pro
+  // entitlement so the paywall auto-advances, but does NOT touch `onboarded`, so
+  // she still walks onboarding and connects her bank. Pairs with the server-side
+  // _require_premium bypass. REVERT BOTH before any real release.
+  // ignore: dead_code
+  const kBypassPaywall = true;
+  if (kBypassPaywall) {
+    PurchaseService.instance = MockPurchaseService();
+    await settings.put('premium', true);
+  }
+
   // TEST HARNESS (debug only). Remove before release.
   // Review mode: force the onboarding flow (Landing → … → Two paths → Account →
   // Paywall) to show on launch so we can walk it. Flip `onboarded` back to true

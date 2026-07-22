@@ -122,7 +122,13 @@ def _cache_key(surface, cache_key):
     surface when no usable key is supplied or it is too short to be a safe
     identity (avoids over-merging degenerate 1-3 char stubs)."""
     ck = re.sub(r"[^a-z0-9]", "", (cache_key or "").lower())
-    return ck if len(ck) >= 4 else _norm(surface)
+    base = ck if len(ck) >= 4 else _norm(surface)
+    # Prompt version prefix: bumping it retires every previously-cached answer so
+    # merchants re-classify under the current prompt (v3 = require a positive
+    # "known" recognition flag, else "other" — v2's conservative wording alone
+    # still let the model guess groceries for generic local shops). Old docs are
+    # simply never read again.
+    return "v3_" + base if base else base
 
 
 def classify(surface, api_key, cache_key=None, merchant_context=False):
@@ -156,14 +162,20 @@ def classify(surface, api_key, cache_key=None, merchant_context=False):
         return None  # already failed this instance — don't call the API again
 
     prompt = (
-        "You categorise a payment merchant/payee name into ONE category and give "
-        "its clean brand name. This is a business name only; there is no personal "
+        "You label a payment merchant/payee name. Business name only; no personal "
         "data.\n"
         f'Name: "{surface}"\n'
         f"Allowed categories: {', '.join(_CATEGORIES)}\n"
-        "Rules: pick the single best category; if it is not a recognisable "
-        'business, use "other". Reply with ONLY compact JSON, no prose: '
-        '{"canonical":"<clean name>","category":"<one category>"}'
+        'Return JSON {"canonical":"<clean name>","known":true|false,'
+        '"category":"<one category>"}.\n'
+        '"known" = true ONLY if you specifically recognise this exact brand/'
+        "business and know what it sells. For a generic or unfamiliar company — a "
+        "plain legal form + generic word like 'UAB X', 'MB X', 'parduotuve', "
+        "'prekyba', 'shop', 'store' — set false. When in doubt, false.\n"
+        '"category" = if known is false, ALWAYS "other"; never guess (especially '
+        "not groceries) for something you don't recognise. If known is true, the "
+        "single best category.\n"
+        "Reply with ONLY compact JSON, no prose."
     )
     payload = json.dumps({"model": _MODEL, "max_tokens": 80,
                           "messages": [{"role": "user", "content": prompt}]})
@@ -194,7 +206,11 @@ def classify(surface, api_key, cache_key=None, merchant_context=False):
             logging.warning("ai_enrichment parse failed for %r: %s", surface[:40], e)
             break
         cat = (obj.get("category") or "other").strip().lower()
-        if cat not in _CATSET:
+        known = obj.get("known")
+        known_true = known is True or str(known).strip().lower() == "true"
+        # The model must POSITIVELY recognise the brand; otherwise leave it "Kita"
+        # (Undefined) rather than guess a wrong category for a generic local shop.
+        if not known_true or cat not in _CATSET:
             cat = "other"
         canon = (obj.get("canonical") or surface).strip() or surface
         _cache_put(key, {"canonical": canon, "category": cat})
