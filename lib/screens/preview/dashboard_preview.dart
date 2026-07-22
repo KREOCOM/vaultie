@@ -2051,7 +2051,19 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
             Expanded(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => setState(() => _tab = i),
+                // Re-tapping the ALREADY-active tab scrolls it back to the top
+                // (the iOS convention), so you don't have to scroll up by hand.
+                onTap: () {
+                  if (_tab == i) {
+                    if (i == 0 && _homeScroll.hasClients) {
+                      _homeScroll.animateTo(0,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut);
+                    }
+                  } else {
+                    setState(() => _tab = i);
+                  }
+                },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
