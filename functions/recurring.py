@@ -713,9 +713,19 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             # except that a subscription bills a near-constant amount on a regular
             # monthly+ cadence; without that evidence it belongs in `frequent`, not
             # the subscription list. Bank-agnostic: keyed on the stream, never a name.
+            #
+            # ALSO route a WEEKLY-cadence unknown to spending, even when the amounts
+            # are near-constant: a subscription bills monthly-or-longer, so a regular
+            # sub-monthly charge at an unrecognised merchant is a shop/café visited
+            # weekly (groceries, coffee), not a subscription — "Uab Litena Parduotuvė"
+            # (two shop payments a week apart read as a weekly €462/mo sub). The user
+            # confirms the residual few; the point is not to DEFAULT them to a sub.
+            _gaps = sorted((dates[i + 1] - dates[i]).days
+                           for i in range(len(dates) - 1)) if len(dates) >= 2 else []
+            _sub_monthly = bool(_gaps) and _gaps[len(_gaps) // 2] < 20
             if not stable and category == "other" \
-                    and not _stream_credible(dates, amounts) \
-                    and not any(h in raw_name.lower() for h in _SERVICE_HINTS):
+                    and not any(h in raw_name.lower() for h in _SERVICE_HINTS) \
+                    and (_sub_monthly or not _stream_credible(dates, amounts)):
                 fk = _merchant_key(raw_name) or raw_name.lower()
                 if fk:
                     freq_amounts[fk] = list(amounts)
