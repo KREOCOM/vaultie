@@ -436,6 +436,11 @@ _LT_SURNAME_END = ("iene", "aite", "yte", "iute", "ute", "ske", "evicius",
 _LT_PERSON_LEGAL = {"uab", "ab", "mb", "vsi", "ii", "kub", "tub", "zub", "vi",
                     "si", "llc", "pay", "ltd", "oy", "ou"}
 
+# Payment processors / aggregators — when one of these is the counterparty, its
+# name must NOT be shown as the merchant (the real merchant is the domain).
+_PROC_TOKENS = ("opay", "paysera", "montonio", "maksekeskus", "makecommerce",
+                "neopay", "kevin", "sumup", "stripe", "adyen", "paypal", "klarna")
+
 
 def _lt_person(name: str) -> bool:
     """A Lithuanian personal name (first name + surname) by its DISTINCTIVE surname
@@ -646,8 +651,13 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
         # payment to an unknown merchant still clusters — cold start, unseen
         # country. Otherwise fall back to the KB brand canonical (collapses card
         # acceptor variants) and then to the normalized name (LAST RESORT).
-        if canon["identity_source"] in (canonical.S_IBAN, canonical.S_SCHEME):
-            key = canon["identity_key"]
+        _idkey = canon.get("identity_key") or ""
+        if canon["identity_source"] in (canonical.S_IBAN, canonical.S_SCHEME) \
+                or _idkey.startswith("dom:"):
+            # Structured IBAN/scheme, OR a web-domain identity (dom:gymplius.lt) —
+            # the domain groups every processor/name variant of one merchant into
+            # a single stream, ahead of the KB name (which varies: Gym+/GymPlius).
+            key = _idkey
         elif hit is not None:
             key = "k:" + hit[0].lower()          # canonical brand → collapses variants
         else:
@@ -746,7 +756,20 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
                 typ = "bill" if category in ("housing", "finance") else "subscription"
                 if stable and typ == "subscription":
                     typ = "bill"   # deliberate transfers lean bill, not subscription
-            disp = cp_name if stable else _clean_name(st_items[0][2])
+            # Display name: for a web-domain identity whose counterparty is a
+            # PROCESSOR (OPAY, Paysera…), show the merchant domain-brand instead of
+            # the processor's name ("UAB OPAY SOLUTIONS" → "Gymplius"). When the
+            # counterparty already IS the merchant (card "APPLE.COM/BILL",
+            # "www.savasld.lt"), keep that name so it still matches its feed rows.
+            _gk = str(canon_g.get("identity_key") or "")
+            _cpl = (cp_name or "").lower()
+            _is_proc = any(p in _cpl for p in _PROC_TOKENS)
+            if _gk.startswith("dom:") and _is_proc:
+                disp = _gk[4:].rsplit(".", 1)[0].replace("-", " ").title()
+            elif stable:
+                disp = cp_name
+            else:
+                disp = _clean_name(st_items[0][2])
             cand = _build_candidate(disp, typ, category, None, st_items, dates,
                                     needs_review=True, auto_detected=False,
                                     confident=confident, today=today)
@@ -763,7 +786,8 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
         canon_g = group_canon.get(key, {})
         src = canon_g.get("identity_source")
         conf = canon_g.get("identity_confidence")
-        stable = src in (canonical.S_IBAN, canonical.S_SCHEME)
+        stable = src in (canonical.S_IBAN, canonical.S_SCHEME) \
+            or str(canon_g.get("identity_key") or "").startswith("dom:")
         # Segment the merchant group into payment streams. Each RECURRING stream
         # is emitted separately (so one merchant's one-off can never inherit
         # another stream's recurrence); the merchant's non-recurring one-offs are

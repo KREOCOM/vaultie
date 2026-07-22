@@ -75,6 +75,34 @@ def _scheme_id(party):
     return party.get("scheme_identification") or None
 
 
+# A registrable web domain anywhere in a merchant signal — the STABLE identity of
+# an online / processor-routed payment (Plaid-style Named Entity Linking anchor).
+_DOMAIN_TOK = re.compile(
+    r"\b((?:[a-z0-9][a-z0-9-]*\.)+"
+    r"(?:com|lt|net|io|app|eu|co|org|shop|store|de|fr|es|it|pl|lv|ee|fi|se|no|dk|nl|ie|uk))\b",
+    re.I)
+
+
+def _domain_of(pr):
+    """A clean registrable domain from ANY merchant signal — the website line
+    ("Mokėjimas tinklalapyje gymplius.lt"), a leading domain ("APPLE.COM/BILL"),
+    or a card acceptor ("www.savasld.lt/ VILNIUS/LTU") — else None. Strips 'www.'.
+
+    This is the GLOBAL identity rule: the domain names the real merchant regardless
+    of which processor (OPAY, Paysera…) or which display-name variant the bank
+    happened to send, so every descriptor form of one merchant collapses to one
+    identity — for any merchant, any country."""
+    for cand in (pr.get("web_merchant"), pr.get("domain_merchant"),
+                 pr.get("card_merchant")):
+        if not cand:
+            continue
+        m = _DOMAIN_TOK.search(str(cand))
+        if m:
+            d = m.group(1).lower()
+            return d[4:] if d.startswith("www.") else d
+    return None
+
+
 def build_canonical(t):
     """Return the canonical identity model for one raw provider transaction."""
     direction = t.get("credit_debit_indicator")
@@ -99,8 +127,17 @@ def build_canonical(t):
     lines = t.get("remittance_information") or []
     acceptor = pr.get("card_merchant")
     domain = pr.get("domain_merchant") or pr.get("web_merchant")
+    web_domain = _domain_of(pr)   # clean registrable domain from any signal
 
-    if cp_iban:
+    # GLOBAL RULE — Named Entity Linking anchor: a website domain in the descriptor
+    # IS the merchant, ahead of a processor's IBAN and ahead of a variant name. This
+    # is what collapses "gymplius.lt via OPAY" (whose counterparty is OPAY's IBAN)
+    # and every display-name variant to ONE merchant. A DIRECT SEPA payment with no
+    # domain in the memo (rent to a real recipient) carries no web_domain, so it
+    # keeps its IBAN identity untouched.
+    if web_domain:
+        key, src, conf = "dom:" + web_domain, S_REMIT, C_HIGH
+    elif cp_iban:
         key, src, conf = "iban:" + _norm(cp_iban), S_IBAN, C_EXACT
     elif cp_scheme:
         key, src, conf = "cid:" + _norm(cp_scheme), S_SCHEME, C_HIGH
