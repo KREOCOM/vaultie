@@ -18,6 +18,7 @@ import '../../content_theme.dart';
 import '../../i18n.dart';
 import '../../services/app_lock.dart';
 import '../../services/banking_service.dart';
+import '../../services/feature_flags.dart';
 import '../../services/dashboard_store.dart';
 import '../../services/logo_service.dart';
 import '../../services/notification_service.dart';
@@ -852,6 +853,8 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
 
   Future<void> _runSync() async {
     try {
+      // Kill-switch also gates manual pull-to-refresh — no bank calls when off.
+      if (!FeatureFlags.instance.bankingEnabled.value) return;
       final refs = DashboardStore.accountRefs();
       if (refs.isEmpty) return;
       if (!mounted) return;
@@ -883,6 +886,10 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
 
   Future<void> _maybeAutoSync() async {
     try {
+      // Respect the banking kill-switch: during an Enable Banking outage it must
+      // actually stop existing connections from auto-hammering the down provider,
+      // not just hide new connections.
+      if (!FeatureFlags.instance.bankingEnabled.value) return;
       if (_deepening || DashboardStore.bankCount == 0) return;
       final last = DashboardStore.syncedAt;
       if (last != null && DateTime.now().difference(last) < _autoSyncEvery) return;
