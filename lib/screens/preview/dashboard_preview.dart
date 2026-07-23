@@ -1969,7 +1969,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     final res = b == 'res';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(color: res ? const Color(0xFFEFEFF2) : _purpleSoft, borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: res ? _hair : _purpleSoft, borderRadius: BorderRadius.circular(6)),
       child: Text(res ? tr('Rezervuota') : tr('Sąskaita'),
           style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: res ? _muted : _purple)),
     );
@@ -9078,7 +9078,7 @@ class _AiChatTabState extends State<_AiChatTab> {
         title: Text(tr('AI pokalbis apie tavo finansus'),
             style: TextStyle(fontWeight: FontWeight.w800, color: _ink, fontSize: 19)),
         content: Text(
-          tr('Kad atsakytų į klausimus, appsas siunčia mūsų AI tiekėjui (Anthropic) '
+          tr('Kad atsakytų į klausimus, „Vaultie" siunčia mūsų AI tiekėjui (Anthropic) '
           'TAVO finansų SANTRAUKĄ — banko likučius, išlaidas pagal kategoriją ir '
           'tavo pasikartojančių mokėjimų pavadinimus (pvz. „Netflix").\n\n'
           '• Nesiunčiami atskiri sandoriai, IBAN‑ai ar kortelių numeriai.\n'
