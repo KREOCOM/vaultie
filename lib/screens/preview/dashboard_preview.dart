@@ -42,12 +42,12 @@ import '../login_screen.dart';
 // Brand + semantic colours stay constant across themes.
 // Brand accent. Frost = an electric royal blue (was violet). Named `_purple`
 // for historical reasons — it's the single accent used across the app.
-const _purple = Color(0xFF2F6BFF);
+Color _purple = const Color(0xFF2F6BFF);
 // Amber = "deserves a second look" — the same signal the onboarding import uses
 // to flag uncertain recurring candidates.
 const _reviewAmber = Color(0xFFF0A322);
 const _reviewAmberInk = Color(0xFFB9770F);
-const _purpleDeep = Color(0xFF1E50C8);
+Color _purpleDeep = const Color(0xFF1E50C8);
 const _good = Color(0xFF2FA34E);
 
 // Theme-dependent tokens: reassigned by _applyTheme; _themeVN drives rebuilds.
@@ -77,14 +77,16 @@ void _applyTheme(bool dark) {
   // invisible. Every pair below was solved for a target ratio rather than
   // eyeballed — text ≥ 4.5:1, block edges ≥ 1.25:1, dividers ≥ 1.3:1.
   _bg         = dark ? const Color(0xFF0A0910) : const Color(0xFFEEF1F7);
-  _purpleSoft = dark ? const Color(0xFF1B2A55) : const Color(0xFFE4EDFD);
+  _purpleSoft = dark ? const Color(0xFF2A2150) : const Color(0xFFE4EDFD);
   _muted      = dark ? const Color(0xFFBDB7CE) : const Color(0xFF2E3A54);
   _faint      = dark ? const Color(0xFF948DAC) : const Color(0xFF47536D);
   _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF14203A);
   _navOff     = dark ? const Color(0xFF8C86A0) : const Color(0xFF97A2B5);
   _card       = dark ? const Color(0xFF262436) : const Color(0xFFFFFFFF);
   _hair       = dark ? const Color(0xFF3D3951) : const Color(0xFFE3E9F2);
-  _soft       = dark ? const Color(0xFF0A0912) : const Color(0xFFEEF2F8);
+  _soft       = dark ? const Color(0xFF1A1726) : const Color(0xFFEEF2F8);
+  _purple     = dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
+  _purpleDeep = dark ? const Color(0xFF6D3EE0) : const Color(0xFF1E50C8);
   _themeVN.value = dark;
 }
 
@@ -1030,7 +1032,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
                 child: Text('Rodyti senesnius (${monthKeys.length - shown.length})',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _purple)),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _purple)),
               ),
             ),
           ),
@@ -1574,7 +1576,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                     color: _purple.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: const Icon(Icons.fact_check_outlined, color: _purple, size: 20),
+                  child: Icon(Icons.fact_check_outlined, color: _purple, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2004,7 +2006,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_purpleDeep, _purple]),
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_purpleDeep, _purple]),
         ),
         child: Column(
           children: [
@@ -2356,7 +2358,7 @@ Future<_TxFilter?> _showFilterSheet(BuildContext context, _TxFilter current, Lis
                       type = 'all';
                       secs.clear();
                     }),
-                    child: Text(tr('Išvalyti'), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
+                    child: Text(tr('Išvalyti'), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
                   ),
                 ]),
               ),
@@ -2693,7 +2695,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                               Text(tr(c.sec), style: TextStyle(fontSize: 12, color: _muted)),
                             ]),
                           ),
-                          if (sel) const Icon(Icons.check_circle_rounded, color: _purple, size: 22),
+                          if (sel) Icon(Icons.check_circle_rounded, color: _purple, size: 22),
                         ]),
                       ),
                     );
@@ -3383,7 +3385,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline_rounded, size: 16, color: _purple),
+                  Icon(Icons.info_outline_rounded, size: 16, color: _purple),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -3819,7 +3821,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
               onPressed: _toggleStar,
               icon: Icon(_starred ? Icons.star_rounded : Icons.star_border_rounded,
                   size: 24, color: _starred ? const Color(0xFFF5B301) : _muted)),
-          IconButton(onPressed: _edit, icon: const Icon(Icons.edit_outlined, size: 21, color: _purple)),
+          IconButton(onPressed: _edit, icon: Icon(Icons.edit_outlined, size: 21, color: _purple)),
         ],
       ),
     );
@@ -3886,7 +3888,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(5)),
-                              child: Text(tr(pt[0]), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _purple)),
+                              child: Text(tr(pt[0]), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _purple)),
                             ),
                           ]),
                         ],
@@ -3902,7 +3904,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 26),
                 decoration: BoxDecoration(border: Border(left: BorderSide(color: _hair))),
-                child: const Icon(Icons.edit_outlined, size: 20, color: _purple),
+                child: Icon(Icons.edit_outlined, size: 20, color: _purple),
               ),
             ),
           ],
@@ -4069,7 +4071,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                       Text(_shortNm(_nmOf(s)), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
                       const SizedBox(height: 2),
                       Row(children: [
-                        Container(width: 5, height: 5, decoration: const BoxDecoration(shape: BoxShape.circle, color: _purple)),
+                        Container(width: 5, height: 5, decoration: BoxDecoration(shape: BoxShape.circle, color: _purple)),
                         const SizedBox(width: 6),
                         Flexible(child: Text('${s['md']}; ${tr((s['cat'] ?? '').toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted))),
                       ]),
@@ -4143,7 +4145,7 @@ class _SelectCategorySheetState extends State<_SelectCategorySheet> {
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
                 enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _hair)),
-                focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _purple)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _purple)),
               ),
             ),
           ),
@@ -4181,7 +4183,7 @@ class _SelectCategorySheetState extends State<_SelectCategorySheet> {
             padding: const EdgeInsets.fromLTRB(60, 11, 20, 11),
             child: Row(children: [
               Expanded(child: Text(tr(sub), style: TextStyle(fontSize: 15, color: _ink))),
-              if (sub == widget.current) const Icon(Icons.check_rounded, size: 20, color: _purple),
+              if (sub == widget.current) Icon(Icons.check_rounded, size: 20, color: _purple),
             ]),
           ),
         ),
@@ -4511,7 +4513,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(14)),
       child: Row(children: [
-        const Icon(Icons.currency_exchange_rounded, size: 18, color: _purple),
+        Icon(Icons.currency_exchange_rounded, size: 18, color: _purple),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
@@ -4540,16 +4542,16 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text(tr('SANTRAUKA'), style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.8)),
+            Text(tr('SANTRAUKA'), style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.8)),
             const SizedBox(width: 8),
             if (isAi)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
                 decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(5)),
-                child: const Text('AI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.5)),
+                child: Text('AI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _purple, letterSpacing: 0.5)),
               ),
             const Spacer(),
-            const Icon(Icons.auto_awesome_rounded, size: 20, color: _purple),
+            Icon(Icons.auto_awesome_rounded, size: 20, color: _purple),
           ]),
           const SizedBox(height: 12),
           Text('${widget.monthGen} ${tr('finansų momentas 📸')}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
@@ -4625,14 +4627,14 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(20)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.military_tech_rounded, size: 16, color: _purple),
+                    Icon(Icons.military_tech_rounded, size: 16, color: _purple),
                     const SizedBox(width: 6),
-                    Text(noInc ? '—' : '$savings %', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _purple)),
+                    Text(noInc ? '—' : '$savings %', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _purple)),
                     if (streak >= 2) ...[
                       const SizedBox(width: 10),
-                      const Icon(Icons.local_fire_department_rounded, size: 16, color: _purple),
+                      Icon(Icons.local_fire_department_rounded, size: 16, color: _purple),
                       const SizedBox(width: 4),
-                      Text('$streak ${tr('mėn. iš eilės')}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
+                      Text('$streak ${tr('mėn. iš eilės')}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
                     ],
                   ]),
                 ),
@@ -4649,7 +4651,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     return Container(
       width: 76,
       height: 76,
-      decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle),
+      decoration: BoxDecoration(color: _purple, shape: BoxShape.circle),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -4898,7 +4900,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_purpleDeep, _purple]),
+            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_purpleDeep, _purple]),
           ),
           child: Text(
             // Honest scope: these are example limits covering only a few
@@ -5041,7 +5043,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _purple)),
-                child: Text(tr('Nusistatyti biudžetą'), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
+                child: Text(tr('Nusistatyti biudžetą'), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
               ),
             ),
           ],
@@ -5157,7 +5159,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                   AnimatedRotation(
                     turns: _recOpen ? 0.5 : 0,
                     duration: const Duration(milliseconds: 180),
-                    child: const Icon(Icons.keyboard_arrow_down_rounded, color: _purple),
+                    child: Icon(Icons.keyboard_arrow_down_rounded, color: _purple),
                   ),
                 ]),
               ),
@@ -5215,7 +5217,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                   AnimatedRotation(
                     turns: _merchantsOpen ? 0.5 : 0,
                     duration: const Duration(milliseconds: 180),
-                    child: const Icon(Icons.keyboard_arrow_down_rounded, color: _purple),
+                    child: Icon(Icons.keyboard_arrow_down_rounded, color: _purple),
                   ),
                 ]),
               ),
@@ -5510,7 +5512,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink),
                         ),
                       ),
-                      if (k == _curKey) const Icon(Icons.check_rounded, size: 22, color: _purple),
+                      if (k == _curKey) Icon(Icons.check_rounded, size: 22, color: _purple),
                     ]),
                   ),
                 ),
@@ -5689,14 +5691,14 @@ class _OverviewTabState extends State<_OverviewTab> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(20)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.military_tech_rounded, size: 15, color: _purple),
+                Icon(Icons.military_tech_rounded, size: 15, color: _purple),
                 const SizedBox(width: 4),
-                Text(prevStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
+                Text(prevStr, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
                 if (streak >= 2) ...[
                   const SizedBox(width: 8),
-                  const Icon(Icons.local_fire_department_rounded, size: 15, color: _purple),
+                  Icon(Icons.local_fire_department_rounded, size: 15, color: _purple),
                   const SizedBox(width: 2),
-                  Text('$streak', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
+                  Text('$streak', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
                 ],
               ]),
             ),
@@ -5752,7 +5754,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
-            child: Row(children: [const Icon(Icons.add_rounded, size: 22, color: _purple), const SizedBox(width: 12), Text(tr('Pridėti žymą'), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink))]),
+            child: Row(children: [Icon(Icons.add_rounded, size: 22, color: _purple), const SizedBox(width: 12), Text(tr('Pridėti žymą'), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink))]),
           ),
         ]),
       );
@@ -6022,7 +6024,7 @@ class _SavingsRateScreen extends StatelessWidget {
                   decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(16)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      const Icon(Icons.savings_outlined, size: 18, color: _purple),
+                      Icon(Icons.savings_outlined, size: 18, color: _purple),
                       const SizedBox(width: 8),
                       Text(tr('Kas tai?'), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
                     ]),
@@ -6059,7 +6061,7 @@ class _SavingsRateScreen extends StatelessWidget {
                         Text('${_monNom[curMon - 1]} ${tr('pajamos')}', style: TextStyle(fontSize: 13, color: _muted)),
                         const SizedBox(height: 6),
                         Row(children: [
-                          Container(width: 26, height: 26, alignment: Alignment.center, decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.add_rounded, size: 16, color: Colors.white)),
+                          Container(width: 26, height: 26, alignment: Alignment.center, decoration: BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.add_rounded, size: 16, color: Colors.white)),
                           const SizedBox(width: 8),
                           Text('${earned.round()} €', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                         ]),
@@ -6067,7 +6069,7 @@ class _SavingsRateScreen extends StatelessWidget {
                         Text('${_monNom[curMon - 1]} ${tr('santaupos')}', style: TextStyle(fontSize: 13, color: _muted)),
                         const SizedBox(height: 6),
                         Row(children: [
-                          Container(width: 26, height: 26, alignment: Alignment.center, decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.savings_outlined, size: 15, color: Colors.white)),
+                          Container(width: 26, height: 26, alignment: Alignment.center, decoration: BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.savings_outlined, size: 15, color: Colors.white)),
                           const SizedBox(width: 8),
                           Text(earned > 0 ? '${(earned * savings / 100).round()} €' : '—', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                         ]),
@@ -6095,14 +6097,14 @@ class _SavingsRateScreen extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(20)),
                             child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              const Icon(Icons.military_tech_rounded, size: 15, color: _purple),
+                              Icon(Icons.military_tech_rounded, size: 15, color: _purple),
                               const SizedBox(width: 4),
-                              Text(prevStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
+                              Text(prevStr, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _purple)),
                               if (streak >= 2) ...[
                                 const SizedBox(width: 10),
-                                const Icon(Icons.local_fire_department_rounded, size: 15, color: _purple),
+                                Icon(Icons.local_fire_department_rounded, size: 15, color: _purple),
                                 const SizedBox(width: 2),
-                                Text('$streak ${tr('mėn.')}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
+                                Text('$streak ${tr('mėn.')}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _purple)),
                               ],
                             ]),
                           ),
@@ -6110,7 +6112,7 @@ class _SavingsRateScreen extends StatelessWidget {
                       ),
                       Container(
                         width: 76, height: 76, alignment: Alignment.center,
-                        decoration: const BoxDecoration(color: _purple, shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: _purple, shape: BoxShape.circle),
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                           Text(earnedOf(prevRows) > 0 ? '$prevSavings' : '—', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
                           Text(tr('% klubas'), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: Colors.white)),
@@ -6329,11 +6331,11 @@ class _PlanningTabState extends State<_PlanningTab> {
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
             decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(20), border: Border.all(color: _hair)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.calendar_today_rounded, size: 16, color: _purple),
+              Icon(Icons.calendar_today_rounded, size: 16, color: _purple),
               const SizedBox(width: 7),
               Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
               const SizedBox(width: 4),
-              const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _purple),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _purple),
             ]),
           ),
         ),
@@ -6371,7 +6373,7 @@ class _PlanningTabState extends State<_PlanningTab> {
                             style: TextStyle(fontSize: 16.5, fontWeight: k == _curKey ? FontWeight.w800 : FontWeight.w500, color: _ink)),
                         const Spacer(),
                         if (k == _monthKeys.last) Text(tr('Šis mėnuo'), style: TextStyle(fontSize: 12.5, color: _muted)),
-                        if (k == _curKey) const Padding(padding: EdgeInsets.only(left: 8), child: Icon(Icons.check_rounded, size: 20, color: _purple)),
+                        if (k == _curKey) Padding(padding: EdgeInsets.only(left: 8), child: Icon(Icons.check_rounded, size: 20, color: _purple)),
                       ]),
                     ),
                   ),
@@ -6604,9 +6606,9 @@ class _PlanningTabState extends State<_PlanningTab> {
             alignment: Alignment.center,
             decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.add_rounded, size: 22, color: _purple),
+              Icon(Icons.add_rounded, size: 22, color: _purple),
               const SizedBox(width: 10),
-              Text(tr('Pridėti biudžetą'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
+              Text(tr('Pridėti biudžetą'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
             ]),
           ),
         ),
@@ -6636,7 +6638,7 @@ class _PlanningTabState extends State<_PlanningTab> {
                 Container(
                   width: 52, height: 52, alignment: Alignment.center,
                   decoration: BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
-                  child: const Icon(Icons.savings_outlined, size: 26, color: _purple),
+                  child: Icon(Icons.savings_outlined, size: 26, color: _purple),
                 ),
                 const SizedBox(height: 12),
                 Text(tr('Dar neturi biudžetų'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
@@ -6784,7 +6786,7 @@ class _PlanningTabState extends State<_PlanningTab> {
             Container(
               width: 42, height: 42,
               decoration: BoxDecoration(color: _purple.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.event_repeat_rounded, color: _purple, size: 22),
+              child: Icon(Icons.event_repeat_rounded, color: _purple, size: 22),
             ),
             const SizedBox(width: 13),
             Expanded(
@@ -6959,9 +6961,9 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(color: _purple.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.add_rounded, size: 17, color: _purple),
+              Icon(Icons.add_rounded, size: 17, color: _purple),
               const SizedBox(width: 4),
-              Text(tr('Grąžinti'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _purple)),
+              Text(tr('Grąžinti'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _purple)),
             ]),
           ),
         ),
@@ -7053,7 +7055,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(ctx, 'save'),
                 child: Text(tr('Išsaugoti'),
-                    style: const TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+                    style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
           ],
         ),
       ),
@@ -7102,10 +7104,10 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                const Icon(Icons.lightbulb_outline_rounded, size: 18, color: _purple),
+                Icon(Icons.lightbulb_outline_rounded, size: 18, color: _purple),
                 const SizedBox(width: 8),
                 Text(tr('Kaip naudotis'),
-                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _purple)),
+                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _purple)),
               ]),
               const SizedBox(height: 8),
               Text(tr('Sistema pati atrinko galimus pasikartojančius mokėjimus — tavo darbas patvirtinti, kurie tikri:'),
@@ -7463,7 +7465,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(8)),
                     child: Text('${tr('siūlome')} ${widget.suggestOf(_sec!).round()} €',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _purple)),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _purple)),
                   ),
                 ]),
                 const SizedBox(height: 10),
@@ -7670,7 +7672,7 @@ class _AccountTabState extends State<_AccountTab> {
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
-                child: const Icon(Icons.person_rounded, size: 22, color: _purple),
+                child: Icon(Icons.person_rounded, size: 22, color: _purple),
               ),
             ]),
           ),
@@ -7692,7 +7694,7 @@ class _AccountTabState extends State<_AccountTab> {
             Container(
               width: 58, height: 58,
               decoration: BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
-              child: const Icon(Icons.insights_rounded, size: 28, color: _purple),
+              child: Icon(Icons.insights_rounded, size: 28, color: _purple),
             ),
             GestureDetector(onTap: () => setState(() => _promo = false), child: Padding(padding: const EdgeInsets.only(left: 6), child: Icon(Icons.close_rounded, size: 20, color: _faint))),
           ]),
@@ -7701,10 +7703,10 @@ class _AccountTabState extends State<_AccountTab> {
               style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
           const SizedBox(height: 12),
           Row(children: [
-            const Icon(Icons.auto_awesome_rounded, size: 18, color: _purple),
+            Icon(Icons.auto_awesome_rounded, size: 18, color: _purple),
             const SizedBox(width: 8),
             Expanded(child: Text(tr('Geresni AI patarimai, kai Vaultie mato visą tavo situaciją.'),
-                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _purpleDeep, height: 1.35))),
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _purpleDeep, height: 1.35))),
           ]),
         ]),
       );
@@ -7823,7 +7825,7 @@ class _AccountTabState extends State<_AccountTab> {
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: Text(tr('Išsaugoti'),
-                  style: const TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+                  style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
         ],
       ),
     );
@@ -8000,9 +8002,9 @@ class _AccountTabState extends State<_AccountTab> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(children: [
-            const Icon(Icons.add_rounded, size: 22, color: _purple),
+            Icon(Icons.add_rounded, size: 22, color: _purple),
             const SizedBox(width: 14),
-            Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
+            Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _purple)),
           ]),
         ),
       );
@@ -8024,7 +8026,7 @@ class _AccountTabState extends State<_AccountTab> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _purple)),
-              child: Text(tr('Palikti atsiliepimą'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _purple)),
+              child: Text(tr('Palikti atsiliepimą'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _purple)),
             ),
           ),
         ]),
@@ -8156,9 +8158,9 @@ class _SettingsScreenState extends State<_SettingsScreen> {
             decoration: BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
             alignment: Alignment.center,
             child: _name == 'Vartotojas'
-                ? const Icon(Icons.person_rounded, size: 44, color: _purple)
+                ? Icon(Icons.person_rounded, size: 44, color: _purple)
                 : Text(_name.trim().isEmpty ? '?' : _name.trim()[0].toUpperCase(),
-                    style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w800, color: _purple)),
+                    style: TextStyle(fontSize: 38, fontWeight: FontWeight.w800, color: _purple)),
           ),
           const SizedBox(height: 12),
           GestureDetector(
@@ -8189,7 +8191,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
             hintText: tr('Įrašyk vardą'),
             hintStyle: TextStyle(color: _faint),
             enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _hair)),
-            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
           ),
           onSubmitted: (_) => _saveName(ctx, ctl.text),
         ),
@@ -8197,7 +8199,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx),
               child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
           TextButton(onPressed: () => _saveName(ctx, ctl.text),
-              child: Text(tr('Išsaugoti'), style: const TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+              child: Text(tr('Išsaugoti'), style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
         ],
       ),
     );
@@ -8266,7 +8268,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           child: Row(children: [
-            SizedBox(width: 30, child: Text(badge, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _purple))),
+            SizedBox(width: 30, child: Text(badge, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _purple))),
             const SizedBox(width: 14),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -8370,7 +8372,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
               const SizedBox(width: 16),
               Text(tr(o[0] as String), style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w600, color: _ink)),
               const Spacer(),
-              if (_theme == o[0]) const Icon(Icons.check_rounded, size: 22, color: _purple),
+              if (_theme == o[0]) Icon(Icons.check_rounded, size: 22, color: _purple),
             ]),
           ),
         ),
@@ -8401,7 +8403,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
             TextButton(onPressed: () => Navigator.pop(ctx, true),
-                child: Text(tr('Išjungti'), style: const TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+                child: Text(tr('Išjungti'), style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
           ],
         ),
       );
@@ -8595,7 +8597,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
             padding: const EdgeInsets.symmetric(vertical: 15),
             alignment: Alignment.center,
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
-            child: Text(tr('Valdyti prenumeratą'), style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _purple)),
+            child: Text(tr('Valdyti prenumeratą'), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _purple)),
           ),
         ),
       ),
@@ -8646,7 +8648,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
               ]),
             ),
             if (trailing.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 10), child: Text(trailing, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _muted))),
-            if (sel) const Icon(Icons.check_rounded, size: 22, color: _purple),
+            if (sel) Icon(Icons.check_rounded, size: 22, color: _purple),
           ]),
         ),
       );
@@ -8699,7 +8701,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
           TextButton(onPressed: () => Navigator.pop(ctx, true),
-              child: Text(tr('Atsijungti'), style: const TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+              child: Text(tr('Atsijungti'), style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
         ],
       ),
     );
@@ -8829,14 +8831,14 @@ class _PasswordPromptState extends State<_PasswordPrompt> {
           hintText: tr('Slaptažodis'),
           hintStyle: TextStyle(color: _faint),
           enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _hair)),
-          focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
+          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _purple, width: 2)),
         ),
         onSubmitted: (v) => Navigator.pop(context, v),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
         TextButton(onPressed: () => Navigator.pop(context, _ctl.text),
-            child: Text(tr('Patvirtinti'), style: const TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+            child: Text(tr('Patvirtinti'), style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
       ],
     );
   }
@@ -9094,7 +9096,7 @@ class _AiChatTabState extends State<_AiChatTab> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(tr('Sutinku ir tęsiu'),
-                style: const TextStyle(color: _purple, fontWeight: FontWeight.w800)),
+                style: TextStyle(color: _purple, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -9154,7 +9156,7 @@ class _AiChatTabState extends State<_AiChatTab> {
             Container(
               width: 40, height: 40, alignment: Alignment.center,
               decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(13)),
-              child: const Icon(Icons.auto_awesome_rounded, color: _purple, size: 22),
+              child: Icon(Icons.auto_awesome_rounded, color: _purple, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
