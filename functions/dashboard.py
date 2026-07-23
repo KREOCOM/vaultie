@@ -315,23 +315,33 @@ def _salary_sources(txns):
     income would book the salary in the wrong month and inflate any conversion.
     """
     months_by = defaultdict(set)
+    _diag = []  # TEMP SALDIAG — remove after diagnosing the NOK-salary case
     for t in txns:
-        if t.get("credit_debit_indicator") != "CRDT":
-            continue
+        ind = t.get("credit_debit_indicator")
         code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
+        a = _amt(t)
+        if ind == "CRDT" and a >= 100:
+            _diag.append({"nm": _norm(_name(t)), "code": code, "amt": round(a),
+                          "mo": (t.get("booking_date") or "")[:7],
+                          "per": _is_person_name(_name(t))})
+        if ind != "CRDT":
+            continue
         if code in _EXCHANGE_CODES | _REFUND_CODES:
             continue  # conversions / refunds are not employer pay
         # TOPUP is deliberately NOT excluded: Revolut codes an incoming salary as
         # a top-up, so a recurring, substantial, non-person credit from the same
         # named source IS the salary. The >=3-months + amount + non-person guards
         # below keep genuine self-top-ups (card/own money) out.
-        if _amt(t) < 300:
+        if a < 300:
             continue
         name = _name(t)
         if _is_person_name(name):
             continue  # a person sending you money is not an employer
         months_by[_norm(name)].add(t["booking_date"][:7])
-    return {k for k, mos in months_by.items() if len(mos) >= 3}
+    refs = {k for k, mos in months_by.items() if len(mos) >= 3}
+    logging.info("SALDIAG credits=%s grouped=%s refs=%s", _diag[:40],
+                 {k: sorted(v) for k, v in months_by.items()}, sorted(refs))
+    return refs
 
 
 def _cp_iban_norm(t):
