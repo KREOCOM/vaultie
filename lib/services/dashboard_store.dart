@@ -218,6 +218,32 @@ class DashboardStore {
     await _box.put(_kBanks, jsonEncode(list));
   }
 
+  /// Remove ONLY the specified revoked accounts (keys of `IBAN|CURRENCY`), not
+  /// every same-named bank. A connection keeps its surviving accounts; a
+  /// connection whose accounts are all revoked is dropped. This preserves a
+  /// still-valid Revolut EUR wallet when its NOK sibling's consent is revoked
+  /// (they share one IBAN, so removing by bank name would wipe both).
+  static Future<void> removeRevokedAccounts(Set<String> revokedKeys) async {
+    String keyOf(Map a) {
+      final iban = (a['iban'] as String?)?.replaceAll(' ', '').toUpperCase() ?? '';
+      if (iban.isEmpty) return '';
+      final cur = (a['currency'] as String?)?.toUpperCase() ?? '';
+      return '$iban|$cur';
+    }
+
+    final out = <Map<String, dynamic>>[];
+    for (final c in connections()) {
+      final accts = (((c['accounts'] as List?) ?? const [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList());
+      final kept =
+          accts.where((a) => !revokedKeys.contains(keyOf(a))).toList();
+      if (kept.isEmpty) continue; // every account revoked → drop the connection
+      out.add({...c, 'accounts': kept});
+    }
+    await _box.put(_kBanks, jsonEncode(out));
+  }
+
   /// Number of connected banks (0 before any connection).
   static int get bankCount => connections().length;
 

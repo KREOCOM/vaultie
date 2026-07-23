@@ -401,6 +401,10 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
             status = getattr(e, "status", None)
             scan_diag.append({
                 "account": m["name"], "bank": bank, "error": str(e),
+                # Account identity so the client can drop ONLY the revoked wallet,
+                # not every same-named bank connection (a Revolut EUR + NOK pair
+                # shares an IBAN, so name/IBAN alone would wipe both).
+                "iban": m.get("iban"), "currency": m.get("currency"),
                 "rateLimited": status == 429,
                 # 401/403 means the bank is refusing us, not failing: the consent
                 # expired or the user withdrew it in their bank. That has to be

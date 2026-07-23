@@ -839,14 +839,26 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   /// serving its cached data; the phone must drop the dead connection and say
   /// so, rather than keep showing it as if it were merely quiet.
   Future<Set<String>> _handleRevokedBanks() async {
-    final revoked = <String>{
-      for (final e in _lastDiag)
-        if (e is Map && e['revoked'] == true && e['bank'] is String)
-          e['bank'] as String,
-    };
+    final revoked = <String>{}; // bank names — for the message + lost-guard
+    final revokedKeys = <String>{}; // IBAN|CURRENCY of the exact revoked accounts
+    for (final e in _lastDiag) {
+      if (e is! Map || e['revoked'] != true) continue;
+      if (e['bank'] is String) revoked.add(e['bank'] as String);
+      final iban = (e['iban'] as String?)?.replaceAll(' ', '').toUpperCase();
+      if (iban != null && iban.isNotEmpty) {
+        final cur = (e['currency'] as String?)?.toUpperCase() ?? '';
+        revokedKeys.add('$iban|$cur');
+      }
+    }
     if (revoked.isEmpty) return const <String>{};
-    for (final bank in revoked) {
-      await DashboardStore.removeConnection(bank);
+    if (revokedKeys.isNotEmpty) {
+      // Drop only the revoked wallet(s), keeping any still-valid same-bank sibling.
+      await DashboardStore.removeRevokedAccounts(revokedKeys);
+    } else {
+      // No account identity in the diag — fall back to removing by bank name.
+      for (final bank in revoked) {
+        await DashboardStore.removeConnection(bank);
+      }
     }
     if (!mounted) return revoked;
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
