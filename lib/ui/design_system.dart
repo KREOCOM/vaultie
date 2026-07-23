@@ -100,7 +100,12 @@ class AppType {
 /// euro. Always 2 decimals, tabular-safe. Optional leading sign.
 class Money {
   Money._();
+  // Display currency. Amounts are stored in EUR; multiply by [rate] (EUR → base)
+  // and show [symbol] to present the user's chosen base currency. Default = EUR.
+  static double rate = 1.0;
+  static String symbol = '€';
   static String format(double v, {bool signed = false}) {
+    v = v * rate;
     final sign = signed ? (v < 0 ? '−' : '+') : (v < 0 ? '−' : '');
     // Round to whole cents FIRST, then split — otherwise a value like 12.999
     // rounds its fractional part to 100 and prints "12,100 €" instead of 13,00.
@@ -113,7 +118,7 @@ class Money {
       if (i != 0 && (digits.length - i) % 3 == 0) buf.write(' ');
       buf.write(digits[i]);
     }
-    return '$sign$buf,$cents €';
+    return '$sign$buf,$cents $symbol';
   }
 }
 

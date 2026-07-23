@@ -19,6 +19,7 @@ import 'models/subscription.dart';
 import 'services/dashboard_store.dart';
 import 'services/banking_deep_links.dart';
 import 'services/feature_flags.dart';
+import 'services/fx_rates.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
 import 'services/recap_service.dart';
@@ -111,8 +112,13 @@ Future<void> main() async {
   await Hive.openBox(HiveBoxes.cancellations);
   await Hive.openBox(HiveBoxes.monthlyStats);
   await Hive.openBox(HiveBoxes.dashboard);
+  // Live FX rates (EUR-based, ECB daily, cached) — loaded before AppPrefs.load()
+  // so applyDisplayCurrency() can point Money at the chosen currency's rate.
+  await FxRates.instance.init();
   // Load persisted language/currency preferences into their notifiers.
   AppPrefs.load();
+  // When a fresh rate table lands, reapply it to the current display currency.
+  FxRates.instance.rates.addListener(AppPrefs.applyDisplayCurrency);
 
   // A fresh install must start genuinely fresh. Deleting an iOS app clears its
   // Hive data but NOT the Keychain, and Firebase keeps its session there — so

@@ -19,6 +19,7 @@ import '../../i18n.dart';
 import '../../services/app_lock.dart';
 import '../../services/banking_service.dart';
 import '../../services/feature_flags.dart';
+import '../../services/fx_rates.dart';
 import '../../services/dashboard_store.dart';
 import '../../services/logo_service.dart';
 import '../../services/notification_service.dart';
@@ -8081,7 +8082,7 @@ class _SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<_SettingsScreen> {
   String _name = AppPrefs.userName.isEmpty ? 'Vartotojas' : AppPrefs.userName;
-  String _currency = _currencyLabel(AppPrefs.currency.value);
+  String _currency = _currencyLabel(AppPrefs.currencyCode.value);
   String _theme = _darkMode ? 'Tamsi' : 'Šviesi';
   bool _pin = AppLock.isPinSet;
   bool _faceId = AppLock.faceIdEnabled;
@@ -8099,17 +8100,9 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     });
   }
 
-  // The label shown for a stored currency symbol.
-  static String _currencyLabel(String symbol) {
-    switch (symbol) {
-      case 'kr':
-        return 'Norvegijos krona (NOK)';
-      case '\$':
-        return 'JAV doleris (USD)';
-      default:
-        return 'Euras (EUR)';
-    }
-  }
+  // The value shown in the settings row for the chosen currency — its ISO code
+  // (language-neutral; the full name lives in the picker).
+  static String _currencyLabel(String code) => currencyByCode(code).code;
 
   String get _langLabel {
     final code = AppPrefs.locale.value?.languageCode;
@@ -8325,28 +8318,109 @@ class _SettingsScreenState extends State<_SettingsScreen> {
 
   // ── preference sheets ────────────────────────────────────────────────────────
   void _pickCurrency() {
-    // EUR only, on purpose.
-    //
-    // This offered NOK and USD, and picking one changed nothing but the symbol:
-    // the dashboard formats through Money.format, which is hard-coded to '€',
-    // and the few places that do read the setting swapped the symbol WITHOUT
-    // converting the value — so a €100 charge was relabelled "$100.00". A
-    // mislabelled amount is worse than an absent feature, so the other options
-    // are gone until amounts are actually converted (which needs a live rate
-    // source and a decision about restating past months).
-    _sheet(tr('Numatytoji valiuta'), [
-      _radioRow(tr('Euras (EUR)'), tr('Bazinė valiuta'), '€', true, () {
-        Navigator.pop(context);
-      }),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
-        child: Text(
-          tr('Kitos valiutos atsiras, kai sumos bus ir perskaičiuojamos, o ne '
-              'tik perrašomos kitu ženklu.'),
-          style: TextStyle(fontSize: 12.5, height: 1.4, color: _muted),
-        ),
-      ),
-    ]);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) {
+        final rates = FxRates.instance.rates.value;
+        final cur = AppPrefs.currencyCode.value;
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.5,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (_, controller) => Column(children: [
+            const SizedBox(height: 12),
+            Center(
+                child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: _faint,
+                        borderRadius: BorderRadius.circular(3)))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+              child: Row(children: [
+                Text(tr('Numatytoji valiuta'),
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: _ink)),
+                const Spacer(),
+                GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Icon(Icons.close_rounded, color: _faint)),
+              ]),
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: controller,
+                itemCount: kCurrencies.length,
+                itemBuilder: (_, i) {
+                  final c = kCurrencies[i];
+                  final rate = rates[c.code];
+                  final sub = c.code == 'EUR'
+                      ? tr('Bazinė valiuta')
+                      : (rate != null
+                          ? '1 EUR = ${_fmtRate(rate)} ${c.code}'
+                          : c.code);
+                  final sel = c.code == cur;
+                  return InkWell(
+                    onTap: () async {
+                      await AppPrefs.setCurrencyCode(c.code);
+                      if (!mounted) return;
+                      setState(() => _currency = _currencyLabel(c.code));
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 14),
+                      child: Row(children: [
+                        Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(_enUi ? c.nameEn : c.nameLt,
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: sel
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                        color: _ink)),
+                                Text(sub,
+                                    style: TextStyle(
+                                        fontSize: 12.5, color: _muted)),
+                              ]),
+                        ),
+                        Padding(
+                            padding: const EdgeInsets.only(right: 10),
+                            child: Text(c.symbol,
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: _muted))),
+                        if (sel)
+                          Icon(Icons.check_rounded, size: 22, color: _purple),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+
+  // Compact display of an EUR->code rate: fewer decimals as the number grows.
+  String _fmtRate(double r) {
+    if (r >= 100) return r.toStringAsFixed(0);
+    if (r >= 1) return r.toStringAsFixed(2);
+    return r.toStringAsFixed(4);
   }
 
   void _pickLanguage() {

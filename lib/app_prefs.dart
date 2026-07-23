@@ -3,6 +3,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 
 import 'main.dart';
+import 'services/fx_rates.dart';
+import 'ui/design_system.dart';
 
 /// App-wide, user-changeable preferences, persisted in the Hive settings box
 /// and exposed as [ValueNotifier]s so the whole app rebuilds when they change.
@@ -11,6 +13,7 @@ class AppPrefs {
 
   static const _kLocale = 'localeCode'; // '', 'lt' or 'en'
   static const _kCurrency = 'currency'; // symbol, e.g. '€'
+  static const _kCurrencyCode = 'currencyCode'; // ISO code, e.g. 'EUR'
   static const _kNotifications = 'notificationsEnabled';
   static const _kBudget = 'monthlyBudget'; // double, or unset for no budget
   static const _kDarkMode = 'darkContentTheme'; // bool
@@ -20,6 +23,12 @@ class AppPrefs {
 
   /// Currency symbol used for all money formatting (defaults to euro).
   static final ValueNotifier<String> currency = ValueNotifier<String>('€');
+
+  /// The user's chosen DISPLAY currency (ISO code). Amounts are stored in EUR
+  /// and converted for display via [FxRates]. Default 'EUR'. Bumps [currency]
+  /// (the symbol) so the whole app rebuilds when it changes.
+  static final ValueNotifier<String> currencyCode =
+      ValueNotifier<String>('EUR');
 
   /// Optional monthly spending target; null = no budget set.
   static final ValueNotifier<double?> budget = ValueNotifier<double?>(null);
@@ -37,6 +46,8 @@ class AppPrefs {
     final code = _box.get(_kLocale, defaultValue: '') as String;
     locale.value = code.isEmpty ? null : Locale(code);
     currency.value = _box.get(_kCurrency, defaultValue: '€') as String;
+    currencyCode.value = _box.get(_kCurrencyCode, defaultValue: 'EUR') as String;
+    applyDisplayCurrency();
     budget.value = (_box.get(_kBudget) as num?)?.toDouble();
     // Frost (light) is the primary theme — the app opens light unless the user
     // chose dark.
@@ -65,6 +76,24 @@ class AppPrefs {
   static Future<void> setCurrency(String symbol) async {
     currency.value = symbol;
     await _box.put(_kCurrency, symbol);
+  }
+
+  /// Change the display currency (ISO code). Persists it and re-applies the
+  /// EUR→base rate + symbol to [Money] so every amount reformats.
+  static Future<void> setCurrencyCode(String code) async {
+    currencyCode.value = code.toUpperCase();
+    await _box.put(_kCurrencyCode, currencyCode.value);
+    applyDisplayCurrency();
+  }
+
+  /// Point [Money] at the current display currency's live rate + symbol, and
+  /// bump [currency] so listeners rebuild. Safe to call repeatedly (e.g. when a
+  /// fresh FX table lands). Falls back to EUR (rate 1.0) when the rate is absent.
+  static void applyDisplayCurrency() {
+    final info = currencyByCode(currencyCode.value);
+    Money.rate = FxRates.instance.rateFor(info.code);
+    Money.symbol = info.symbol;
+    currency.value = info.symbol; // legacy notifier → triggers rebuilds
   }
 
   static bool get notificationsEnabled => Hive.isBoxOpen(HiveBoxes.settings)
