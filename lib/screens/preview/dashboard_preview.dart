@@ -5670,7 +5670,7 @@ class _OverviewTabState extends State<_OverviewTab> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
         child: Row(children: [
-          Text('${_monGen[_curMon - 1]} suma', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
+          Text('${_monGen[_curMon - 1]} ${tr('suma')}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
           const Spacer(),
           Text(_hide ? '••••' : _eur(net, signed: true), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: net >= 0 ? _good : _ink)),
         ]),
@@ -5840,7 +5840,7 @@ class _OverviewTabState extends State<_OverviewTab> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 child: Row(children: [
-                  Text('${list.length} prekybininkai', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
+                  Text('${list.length} ${tr('prekybininkai')}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
                   const Spacer(),
                   Icon(_merchantsOpen ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _purple),
                 ]),
@@ -7665,7 +7665,7 @@ class _AccountTabState extends State<_AccountTab> {
                 child: const Icon(Icons.settings_rounded, size: 22, color: Colors.white),
               ),
               const SizedBox(width: 13),
-              Text('Nustatymai', style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink)),
+              Text(tr('Nustatymai'), style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: _ink)),
               const Spacer(),
               Container(
                 width: 40, height: 40,
