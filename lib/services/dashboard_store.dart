@@ -123,26 +123,34 @@ class DashboardStore {
     String? sessionId,
     required List<Map<String, dynamic>> accounts,
   }) async {
-    Set<String> ibansOf(List? accts) => ((accts ?? const [])
-            .map((a) =>
-                ((a as Map)['iban'] as String?)?.replaceAll(' ', '').toUpperCase())
-            .whereType<String>()
+    // Account identity = IBAN + CURRENCY. Revolut multi-currency wallets (EUR +
+    // NOK) SHARE one IBAN but are different accounts — keying on IBAN alone made
+    // connecting the NOK wallet REPLACE and wipe the EUR wallet (and its balance).
+    Set<String> keysOf(List? accts) => ((accts ?? const [])
+            .map((a) {
+              final m = a as Map;
+              final iban =
+                  (m['iban'] as String?)?.replaceAll(' ', '').toUpperCase() ?? '';
+              if (iban.isEmpty) return '';
+              final cur = (m['currency'] as String?)?.toUpperCase() ?? '';
+              return '$iban|$cur';
+            })
             .where((s) => s.isNotEmpty)
             .toSet());
-    final newIbans = ibansOf(accounts);
+    final newKeys = keysOf(accounts);
     // Spread into a fresh GROWABLE list — connections() can return an empty
     // const list on the first connect, and add()/removeWhere() on a const list
     // throws (silently aborting the very first bank, so the list never grows).
     final list = [...connections()]
       ..removeWhere((c) {
-        final old = ibansOf(c['accounts'] as List?);
-        // Replace only when this is the SAME account (IBANs overlap). When
-        // neither side exposes an IBAN there is nothing to tell them apart, so
-        // fall back to the old bank-name replacement to avoid duplicate records.
-        if (old.isEmpty && newIbans.isEmpty) {
+        final old = keysOf(c['accounts'] as List?);
+        // Replace only when this is the SAME account (IBAN+currency overlap).
+        // When neither side exposes an IBAN there is nothing to tell them apart,
+        // so fall back to the old bank-name replacement to avoid duplicates.
+        if (old.isEmpty && newKeys.isEmpty) {
           return (c['bank'] as String?) == bank;
         }
-        return old.intersection(newIbans).isNotEmpty;
+        return old.intersection(newKeys).isNotEmpty;
       });
     list.add({
       'bank': bank,
@@ -185,7 +193,10 @@ class DashboardStore {
         final m = (a as Map).cast<String, dynamic>();
         final iban = (m['iban'] as String?)?.replaceAll(' ', '').toUpperCase();
         if (iban != null && iban.isNotEmpty) {
-          if (!seenIban.add(iban)) continue;
+          // IBAN + CURRENCY: Revolut EUR and NOK wallets share one IBAN but are
+          // distinct accounts — dedupe on IBAN alone would drop one wallet.
+          final cur = (m['currency'] as String?)?.toUpperCase() ?? '';
+          if (!seenIban.add('$iban|$cur')) continue;
         } else {
           // No IBAN to dedupe by (some banks send none). A reconnect mints a
           // fresh session UID for the same physical account, so keying on UID

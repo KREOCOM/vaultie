@@ -319,8 +319,12 @@ def _salary_sources(txns):
         if t.get("credit_debit_indicator") != "CRDT":
             continue
         code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
-        if code in _EXCHANGE_CODES | _REFUND_CODES | _TOPUP_CODES:
-            continue  # conversions / refunds / top-ups are not employer pay
+        if code in _EXCHANGE_CODES | _REFUND_CODES:
+            continue  # conversions / refunds are not employer pay
+        # TOPUP is deliberately NOT excluded: Revolut codes an incoming salary as
+        # a top-up, so a recurring, substantial, non-person credit from the same
+        # named source IS the salary. The >=3-months + amount + non-person guards
+        # below keep genuine self-top-ups (card/own money) out.
         if _amt(t) < 300:
             continue
         name = _name(t)
@@ -373,6 +377,12 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
     # conversions no longer land in "Pervedimai" as if they were real transfers.
     if _is_exchange(t):
         return (name, "Valiutos keitimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+    # A recurring employer credit is INCOME even when the bank codes it as a
+    # TOP-UP (Revolut stamps NOK salary inflows as TOPUP → "Sąskaitos
+    # papildymas") or a plain transfer. Check it BEFORE the top-up/refund/cash/
+    # transfer branches so the code can't hide the salary.
+    if amt > 0 and _norm(name) in salary_refs:
+        return (name, "Atlyginimas", "income", "income", "Pajamos", "amber", True, False)
     if code in _REFUND_CODES:
         return (name, "Grąžinimas", "income", "swap", "Pajamos", "amber", True, False)
     if code in _TOPUP_CODES:
