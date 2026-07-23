@@ -215,6 +215,30 @@ num _aOf(Map t) {
   return v is num ? v : (num.tryParse('$v') ?? 0);
 }
 
+// Safe reads for balance-history series points ({d: 'YYYY-MM-DD', v: num}). The
+// series is a separate payload from the tx feed, so it bypasses _dOf/_aOf; a
+// missing/odd `d` or `v` from a quiet-bank or cached row must degrade, never
+// crash the balance chart. `_pDate` never throws (unlike DateTime.parse).
+DateTime _pDate(dynamic v) => DateTime.tryParse('$v') ?? DateTime(2000, 1, 1);
+double _vOf(Map p) {
+  final v = p['v'];
+  return v is num ? v.toDouble() : (double.tryParse('$v') ?? 0);
+}
+
+// Keep only well-formed points (parseable date + numeric value), so everything
+// downstream (first/last, min/max, scrub) is guaranteed valid.
+List<Map<String, dynamic>> _cleanSeries(dynamic raw) {
+  if (raw is! List) return const [];
+  final out = <Map<String, dynamic>>[];
+  for (final e in raw) {
+    if (e is! Map) continue;
+    if (DateTime.tryParse('${e['d']}') == null) continue;
+    if (e['v'] is! num) continue;
+    out.add(Map<String, dynamic>.from(e));
+  }
+  return out;
+}
+
 // ── Canonical money rule — the ONE definition every screen uses so the same
 // concept shows the same number everywhere (mirrors functions/dashboard.py
 // _flow/_totals). Direction decides income vs expense; transfers/exchange are
@@ -1928,7 +1952,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               ),
             ),
             const SizedBox(width: 10),
-            Text(_eur((t['a'] as num).toDouble(), signed: true),
+            Text(_eur(_aOf(t).toDouble(), signed: true),
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -3148,10 +3172,9 @@ class _BalanceSheetState extends State<_BalanceSheet> {
   int? _scrubI; // finger-scrub index into the filtered series
   static const _ranges = ['1M', '3M', 'YTD', '1Y', 'Max'];
 
-  late final List<Map<String, dynamic>> _all =
-      (widget.bal['series'] as List).cast<Map<String, dynamic>>();
-  late final DateTime _last = DateTime.parse(_all.last['d'] as String);
-  late final DateTime _first = DateTime.parse(_all.first['d'] as String);
+  late final List<Map<String, dynamic>> _all = _cleanSeries(widget.bal['series']);
+  late final DateTime _last = _pDate(_all.last['d']);
+  late final DateTime _first = _pDate(_all.first['d']);
 
   DateTime _cutoffFor(String r) {
     switch (r) {
@@ -3173,7 +3196,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
   List<Map<String, dynamic>> get _filtered {
     var cutoff = _cutoffFor(_range);
     if (cutoff.isBefore(_first)) cutoff = _first;
-    return _all.where((p) => !DateTime.parse(p['d'] as String).isBefore(cutoff)).toList();
+    return _all.where((p) => !_pDate(p['d']).isBefore(cutoff)).toList();
   }
 
   @override
@@ -3194,11 +3217,11 @@ class _BalanceSheetState extends State<_BalanceSheet> {
       );
     }
     final pts = _filtered;
-    final vals = pts.map((p) => (p['v'] as num).toDouble()).toList();
+    final vals = pts.map((p) => _vOf(p)).toList();
     final mn = vals.reduce((a, b) => a < b ? a : b);
     final mx = vals.reduce((a, b) => a > b ? a : b);
-    final startD = DateTime.parse(pts.first['d'] as String);
-    final endD = DateTime.parse(pts.last['d'] as String);
+    final startD = _pDate(pts.first['d']);
+    final endD = _pDate(pts.last['d']);
     final accounts = ((widget.bal['accounts'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
     return DraggableScrollableSheet(
@@ -3307,7 +3330,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
                         Positioned(
                           left: (sx - 52).clamp(0.0, (plotW - 104).clamp(0.0, double.infinity)),
                           top: (sy - 58).clamp(-34.0, plotH - 40),
-                          child: _tip(vals[si], DateTime.parse(pts[si]['d'] as String)),
+                          child: _tip(vals[si], _pDate(pts[si]['d'])),
                         ),
                     ],
                   ),
@@ -3551,7 +3574,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   late bool _starred = widget.tx['star'] == true;
 
   Map<String, dynamic> get tx => widget.tx;
-  double get amount => (tx['a'] as num).toDouble();
+  double get amount => _aOf(tx).toDouble();
   bool get isPos => tx['pos'] == true;
   String get merchant => _txDisplayName(tx);
 
@@ -3675,7 +3698,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   }
 
   String get _dateFull {
-    final d = DateTime.parse(widget.day['date'] as String);
+    final d = _pDate(widget.day['date']);
     String two(int n) => n.toString().padLeft(2, '0');
     return '${widget.day['wd']}, ${two(d.day)}.${two(d.month)}.${d.year}';
   }
@@ -3697,8 +3720,8 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     final month = ((tx['d'] ?? widget.day['date']) as String?)?.substring(0, 7);
     if (month == null) return 0;
     return widget.all
-        .where((t) => t['cat'] == _cat && t['pos'] != true && (t['d'] as String).startsWith(month))
-        .fold(0.0, (s, t) => s + (t['a'] as num).toDouble().abs());
+        .where((t) => t['cat'] == _cat && t['pos'] != true && _dOf(t).startsWith(month))
+        .fold(0.0, (s, t) => s + _aOf(t).toDouble().abs());
   }
 
   // The genitive month name of this transaction (for the budget card header).
@@ -4054,7 +4077,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(_eur((s['a'] as num).toDouble(), signed: true),
+                Text(_eur(_aOf(s).toDouble(), signed: true),
                     style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: s['pos'] == true ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
               ]),
             ),
@@ -4198,7 +4221,7 @@ class _MonthReviewScreen extends StatefulWidget {
 final Map<String, String> _monthAiCache = {};
 
 class _MonthReviewScreenState extends State<_MonthReviewScreen> {
-  List<Map<String, dynamic>> get _rows => widget.all.where((t) => (t['d'] as String).startsWith(widget.month)).toList();
+  List<Map<String, dynamic>> get _rows => widget.all.where((t) => _dOf(t).startsWith(widget.month)).toList();
 
   // Category-list sort: 0 = amount (€), 1 = share (% of total), 2 = change (vs
   // previous month). Mirrors Bilance's "⟳% / ↕% / Amount" toggles.
@@ -4212,14 +4235,14 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final mo = int.parse(widget.month.substring(5, 7));
     final p = DateTime(y, mo - 1, 1);
     final k = '${p.year}-${p.month.toString().padLeft(2, '0')}';
-    return widget.all.any((t) => (t['d'] as String).startsWith(k)) ? k : null;
+    return widget.all.any((t) => _dOf(t).startsWith(k)) ? k : null;
   }
 
   Map<String, double> _netByLabelFor(String mk) {
     final m = <String, double>{};
     for (final t in widget.all) {
       if (!_dOf(t).startsWith(mk)) continue;
-      m[t['sec'] as String] = (m[t['sec'] as String] ?? 0) + (t['a'] as num).toDouble();
+      m[t['sec'] as String] = (m[t['sec'] as String] ?? 0) + _aOf(t).toDouble();
     }
     return m;
   }
@@ -4282,7 +4305,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       }
     }
     final prevRows =
-        widget.all.where((t) => (t['d'] as String).startsWith(_prevMonth)).toList();
+        widget.all.where((t) => _dOf(t).startsWith(_prevMonth)).toList();
     if (prevRows.isNotEmpty) {
       b.writeln('Praėjęs mėnuo ($_prevMonthNom): pajamos ${_sumIncome(prevRows).round()} €, '
           'išlaidos ${_sumExpenses(prevRows).round()} €.');
@@ -4306,7 +4329,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     for (final t in _rows) {
       final label = t['sec'] as String;
       final a = m.putIfAbsent(label, () => _SecAgg(label, t['secc'] as String));
-      a.net += (t['a'] as num).toDouble();
+      a.net += _aOf(t).toDouble();
     }
     final list = m.values.toList()..sort((x, y) => y.net.abs().compareTo(x.net.abs()));
     return list;
@@ -4481,7 +4504,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   }
 
   Widget _currencyNote() {
-    final sal = _rows.where((t) => t['cat'] == 'Atlyginimas (iš NOK)').fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
+    final sal = _rows.where((t) => t['cat'] == 'Atlyginimas (iš NOK)').fold(0.0, (s, t) => s + _aOf(t).toDouble());
     if (sal < 100) return const SizedBox.shrink();
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
@@ -4545,9 +4568,9 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   }
 
   Widget _balanceChart() {
-    final series = (widget.balance['series'] as List).cast<Map<String, dynamic>>().where((p) => (p['d'] as String).startsWith(widget.month)).toList();
+    final series = _cleanSeries(widget.balance['series']).where((p) => _dOf(p).startsWith(widget.month)).toList();
     if (series.length < 2) return const SizedBox.shrink();
-    final vals = series.map((p) => (p['v'] as num).toDouble()).toList();
+    final vals = series.map((p) => _vOf(p)).toList();
     final mn = vals.reduce((a, b) => a < b ? a : b);
     final mx = vals.reduce((a, b) => a > b ? a : b);
     return Container(
@@ -4754,10 +4777,10 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   Map<String, double> _sectionSpend(String month) {
     final m = <String, double>{};
     for (final t in widget.all) {
-      if (!(t['d'] as String).startsWith(month)) continue;
+      if (!_dOf(t).startsWith(month)) continue;
       final label = t['sec'] as String;
       if (_isIncome(label) || _isTransfer(label)) continue;
-      final a = (t['a'] as num).toDouble();
+      final a = _aOf(t).toDouble();
       if (a < 0) m[label] = (m[label] ?? 0) - a;
     }
     return m;
@@ -4790,7 +4813,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final daySec = <int, Map<String, double>>{};
     for (final t in _rows) {
       final d = _dayOf(t);
-      final a = (t['a'] as num).toDouble();
+      final a = _aOf(t).toDouble();
       net[d] = (net[d] ?? 0) + a;
       final label = t['sec'] as String;
       if (!_isIncome(label) && !_isTransfer(label) && a < 0) {
@@ -4856,7 +4879,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final b = widget.budgets;
     final spentByCat = <String, double>{};
     for (final t in _rows) {
-      final a = (t['a'] as num).toDouble();
+      final a = _aOf(t).toDouble();
       if (a < 0) spentByCat[t['cat'] as String] = (spentByCat[t['cat'] as String] ?? 0) - a;
     }
     final cats = b.keys.toList();
@@ -5102,14 +5125,14 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     if (recNames.isEmpty) return const SizedBox.shrink();
     final byMerch = <String, Map<String, dynamic>>{};
     for (final t in _rows) {
-      if ((t['a'] as num) >= 0) continue;
+      if (_aOf(t) >= 0) continue;
       final rn = _fold((t['nm'] as String?) ?? '');
       if (rn.length < 4) continue;
       final isRec = recNames.any((n) => rn == n || rn.contains(n) || n.contains(rn));
       if (!isRec) continue;
       final k = t['mkey'] as String;
       final m = byMerch.putIfAbsent(k, () => {'nm': t['nm'], 'a': 0.0, 'ic': t['ic'], 'col': t['col'], 'row': t});
-      m['a'] = (m['a'] as double) + (t['a'] as num).toDouble();
+      m['a'] = (m['a'] as double) + _aOf(t).toDouble();
     }
     if (byMerch.isEmpty) return const SizedBox.shrink();
     final list = byMerch.values.toList()..sort((a, b) => (a['a'] as double).compareTo(b['a'] as double));
@@ -5163,12 +5186,12 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     // Group this month's spending by merchant (mkey), most spent first.
     final byMerch = <String, Map<String, dynamic>>{};
     for (final t in _rows) {
-      if (_isIncome(t['sec'] as String) || _isTransfer(t['sec'] as String) || (t['a'] as num) >= 0) {
+      if (_isIncome(t['sec'] as String) || _isTransfer(t['sec'] as String) || _aOf(t) >= 0) {
         continue;
       }
       final k = t['mkey'] as String;
       final m = byMerch.putIfAbsent(k, () => {'nm': t['nm'], 'a': 0.0, 'n': 0, 'ic': t['ic'], 'col': t['col'], 'row': t});
-      m['a'] = (m['a'] as double) + (t['a'] as num).toDouble();
+      m['a'] = (m['a'] as double) + _aOf(t).toDouble();
       m['n'] = (m['n'] as int) + 1;
     }
     final list = byMerch.values.toList()..sort((a, b) => (a['a'] as double).compareTo(b['a'] as double));
@@ -5221,7 +5244,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
   // ── LARGEST EXPENSES ──
   Widget _largest() {
-    final exp = _rows.where((t) => (t['a'] as num) < 0).toList()..sort((a, b) => (a['a'] as num).compareTo(b['a'] as num));
+    final exp = _rows.where((t) => _aOf(t) < 0).toList()..sort((a, b) => _aOf(a).compareTo(_aOf(b)));
     final top = exp.take(5).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5245,7 +5268,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                       ]),
                     ),
                     const SizedBox(width: 8),
-                    Text(_eur((top[i]['a'] as num).toDouble(), signed: true),
+                    Text(_eur(_aOf(top[i]).toDouble(), signed: true),
                         style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
                   ]),
                 ),
@@ -5324,11 +5347,11 @@ class _CategoryDetailScreen extends StatelessWidget {
     for (final t in rows) {
       final c = t['cat'] as String;
       final e = subs.putIfAbsent(c, () => [0.0, t['ic']]);
-      e[0] = (e[0] as double) + (t['a'] as num).toDouble();
+      e[0] = (e[0] as double) + _aOf(t).toDouble();
     }
     final subList = subs.entries.toList()..sort((a, b) => (a.value[0] as double).compareTo(b.value[0] as double));
-    final neg = rows.where((t) => (t['a'] as num) < 0).fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
-    final pos = rows.where((t) => (t['a'] as num) > 0).fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
+    final neg = rows.where((t) => _aOf(t) < 0).fold(0.0, (s, t) => s + _aOf(t).toDouble());
+    final pos = rows.where((t) => _aOf(t) > 0).fold(0.0, (s, t) => s + _aOf(t).toDouble());
 
     return Scaffold(
       backgroundColor: _bg,
@@ -5509,7 +5532,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     final m = <String, _SecAgg>{};
     for (final t in rows) {
       final a = m.putIfAbsent(t['sec'] as String, () => _SecAgg(t['sec'] as String, t['secc'] as String));
-      a.net += (t['a'] as num).toDouble();
+      a.net += _aOf(t).toDouble();
     }
     return m.values.toList()..sort((x, y) => y.net.abs().compareTo(x.net.abs()));
   }
@@ -5748,7 +5771,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     final daySec = <int, Map<String, double>>{};
     for (final t in _rows) {
       final d = _dayOf(t);
-      final a = (t['a'] as num).toDouble();
+      final a = _aOf(t).toDouble();
       net[d] = (net[d] ?? 0) + a;
       final label = t['sec'] as String;
       if (!_isIncome(label) && !_isTransfer(label) && a < 0) {
@@ -5798,10 +5821,10 @@ class _OverviewTabState extends State<_OverviewTab> {
     final m = <String, List<dynamic>>{}; // mkey -> [name, sum, count]
     for (final t in _rows) {
       // merchants = places you spent; skip income + internal transfers
-      if (_isIncome(t['sec'] as String) || _isTransfer(t['sec'] as String) || (t['a'] as num) >= 0) continue;
+      if (_isIncome(t['sec'] as String) || _isTransfer(t['sec'] as String) || _aOf(t) >= 0) continue;
       final k = t['mkey'] as String;
       final e = m.putIfAbsent(k, () => [t['nm'], 0.0, 0]);
-      e[1] = (e[1] as double) + (t['a'] as num).toDouble();
+      e[1] = (e[1] as double) + _aOf(t).toDouble();
       e[2] = (e[2] as int) + 1;
     }
     final list = m.values.toList()..sort((a, b) => (a[1] as double).abs().compareTo((b[1] as double).abs()) * -1);
@@ -6167,7 +6190,7 @@ class _PlanningTabState extends State<_PlanningTab> {
   }
   int get _curMon => int.parse(_curKey.substring(5, 7));
   int get _curYear => int.parse(_curKey.substring(0, 4));
-  List<Map<String, dynamic>> get _rows => widget.all.where((t) => (t['d'] as String).startsWith(_curKey)).toList();
+  List<Map<String, dynamic>> get _rows => widget.all.where((t) => _dOf(t).startsWith(_curKey)).toList();
 
   int get _daysInMonth => DateTime(_curYear, _curMon + 1, 0).day;
   int get _elapsedDays {
@@ -6186,8 +6209,8 @@ class _PlanningTabState extends State<_PlanningTab> {
 
   // expenses only (positive €) in a section, over an arbitrary row set
   double _spentInSec(Iterable<Map<String, dynamic>> rows, String sec) => rows
-      .where((t) => t['sec'] == sec && (t['a'] as num) < 0)
-      .fold(0.0, (s, t) => s - (t['a'] as num).toDouble());
+      .where((t) => t['sec'] == sec && _aOf(t) < 0)
+      .fold(0.0, (s, t) => s - _aOf(t).toDouble());
 
   // data-suggested monthly limit = a TYPICAL month + a little headroom.
   // Uses the median of complete months (robust to one-off spikes); if the section
@@ -6396,8 +6419,8 @@ class _PlanningTabState extends State<_PlanningTab> {
     for (var day = 1; day <= _elapsedDays; day++) {
       final ds = '$_curKey-${day.toString().padLeft(2, '0')}';
       run += _rows
-          .where((t) => t['d'] == ds && budgetedSecs.contains(t['sec']) && (t['a'] as num) < 0)
-          .fold(0.0, (s, t) => s - (t['a'] as num).toDouble());
+          .where((t) => t['d'] == ds && budgetedSecs.contains(t['sec']) && _aOf(t) < 0)
+          .fold(0.0, (s, t) => s - _aOf(t).toDouble());
       cum.add(run);
     }
     final projected = _elapsedDays > 0 && cum.isNotEmpty ? cum.last / _elapsedDays * _daysInMonth : 0.0;
@@ -6651,8 +6674,8 @@ class _PlanningTabState extends State<_PlanningTab> {
     const skip = {'Pajamos ir pervedimai', 'Kita'};
     final hist = <String, double>{};
     for (final t in widget.all) {
-      if ((t['a'] as num) < 0) {
-        hist[t['sec'] as String] = (hist[t['sec'] as String] ?? 0) - (t['a'] as num).toDouble();
+      if (_aOf(t) < 0) {
+        hist[t['sec'] as String] = (hist[t['sec'] as String] ?? 0) - _aOf(t).toDouble();
       }
     }
     final options = [for (final e in _taxonomy) e['sec'] as String]
@@ -7596,9 +7619,8 @@ class _AccountTabState extends State<_AccountTab> {
 
   @override
   Widget build(BuildContext context) {
-    final spark = (widget.balance['series'] as List)
-        .cast<Map<String, dynamic>>()
-        .map((p) => (p['v'] as num).toDouble())
+    final spark = _cleanSeries(widget.balance['series'])
+        .map((p) => _vOf(p))
         .toList();
     // sub-sample the 245-pt series for a light sparkline
     final step = (spark.length / 60).ceil().clamp(1, 999);
@@ -8842,7 +8864,7 @@ class _SearchScreenState extends State<_SearchScreen> {
       final hay = _fold('${t['nm']} ${_shortNm(_nmOf(t))} ${t['cat']} ${t['sec'] ?? ''}');
       return hay.contains(q);
     }).toList();
-    r.sort((a, b) => (b['d'] as String).compareTo(a['d'] as String));
+    r.sort((a, b) => _dOf(b).compareTo(_dOf(a)));
     return r;
   }
 
@@ -8860,7 +8882,7 @@ class _SearchScreenState extends State<_SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final res = _results;
-    final total = res.fold(0.0, (s, t) => s + (t['a'] as num).toDouble());
+    final total = res.fold(0.0, (s, t) => s + _aOf(t).toDouble());
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
@@ -8920,9 +8942,9 @@ class _SearchScreenState extends State<_SearchScreen> {
                                 Text('${tr((t['cat'] ?? '').toString())} · ${t['md']}', style: TextStyle(fontSize: 12.5, color: _muted)),
                               ]),
                             ),
-                            Text(_eur((t['a'] as num).toDouble(), signed: true),
+                            Text(_eur(_aOf(t).toDouble(), signed: true),
                                 style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700,
-                                    color: (t['a'] as num) >= 0 ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
+                                    color: _aOf(t) >= 0 ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
                           ]),
                         ),
                       ),
