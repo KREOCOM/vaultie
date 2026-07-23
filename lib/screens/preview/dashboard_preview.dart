@@ -2078,7 +2078,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     return Container(
       decoration: BoxDecoration(
         color: _card,
-        border: const Border(top: BorderSide(color: Color(0xFFECECEF))),
+        border: Border(top: BorderSide(color: _hair)),
       ),
       padding: EdgeInsets.only(top: 8, bottom: bottomPad > 0 ? bottomPad : 10),
       child: Row(
@@ -3355,7 +3355,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
                           alignment: Alignment.center,
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
-                            color: _range == r ? Colors.white : Colors.transparent,
+                            color: _range == r ? _card : Colors.transparent,
                             borderRadius: BorderRadius.circular(11),
                             boxShadow: _range == r
                                 ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))]
@@ -3394,7 +3394,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
                 ],
               ),
             ),
-          const Divider(height: 24, thickness: 1, color: Color(0xFFECECEF)),
+          Divider(height: 24, thickness: 1, color: _hair),
           for (var i = 0; i < accounts.length; i++) ...[
             _accountRow(accounts[i]),
             if (i != accounts.length - 1) const RowDivider(indent: 68),
@@ -4001,7 +4001,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                   child: LinearProgressIndicator(
                     value: ratio,
                     minHeight: 8,
-                    backgroundColor: const Color(0xFFE7F0E8),
+                    backgroundColor: _soft,
                     valueColor: AlwaysStoppedAnimation(over ? DS.danger : _good),
                   ),
                 ),
@@ -4969,7 +4969,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       const SizedBox(height: 8),
       ClipRRect(
         borderRadius: BorderRadius.circular(5),
-        child: LinearProgressIndicator(value: (spent / limit).clamp(0.0, 1.0), minHeight: 8, backgroundColor: const Color(0xFFE7F0E8), valueColor: AlwaysStoppedAnimation(over ? DS.danger : _good)),
+        child: LinearProgressIndicator(value: (spent / limit).clamp(0.0, 1.0), minHeight: 8, backgroundColor: _soft, valueColor: AlwaysStoppedAnimation(over ? DS.danger : _good)),
       ),
     ]);
   }
@@ -5290,7 +5290,7 @@ class _RingProgressPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final c = size.center(Offset.zero);
     final r = size.width / 2 - 4;
-    canvas.drawCircle(c, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 6..color = const Color(0xFFE7F0E8));
+    canvas.drawCircle(c, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 6..color = _soft);
     canvas.drawArc(Rect.fromCircle(center: c, radius: r), -math.pi / 2, 2 * math.pi * ratio.clamp(0.0, 1.0), false,
         Paint()..style = PaintingStyle.stroke..strokeWidth = 6..strokeCap = StrokeCap.round..color = arcColor);
   }

@@ -714,4 +714,15 @@ const Map<String, String> _en = {
   'Pn': 'Fri',
   'Št': 'Sat',
   'Sk': 'Sun',
+
+  // ── Recurring review / disconnect / currency notes ──
+  'Kaip naudotis': 'How to use',
+  'Sistema pati atrinko galimus pasikartojančius mokėjimus — tavo darbas patvirtinti, kurie tikri:':
+      'The system picked out the likely recurring payments — your job is to confirm which are real:',
+  'Atjungti bankus ir pradėti iš naujo': 'Disconnect banks and start over',
+  'Atjungti bankus?': 'Disconnect banks?',
+  'Pašalinsime visus prijungtus bankus ir jų duomenis iš šio telefono. Galėsi prijungti iš naujo. Tavo paskyra ir prenumerata nenukentės.':
+      "We'll remove every connected bank and its data from this phone. You can reconnect later. Your account and subscription stay intact.",
+  'Kitos valiutos atsiras, kai sumos bus ir perskaičiuojamos, o ne tik perrašomos kitu ženklu.':
+      "Other currencies will appear once amounts are actually converted, not just relabelled with a different symbol.",
 };
