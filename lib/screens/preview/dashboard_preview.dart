@@ -898,7 +898,10 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         }
         _deepening = false;
       });
-      if (fresh != null) {
+      // Guard against a disconnect-all that raced this sync: if every bank was
+      // removed while the scan was in flight, don't re-persist the stale payload
+      // (which would leave a dashboard with data but zero connections).
+      if (fresh != null && DashboardStore.bankCount > 0) {
         await DashboardStore.save(fresh);
         _rescheduleReminders(fresh);
       }
@@ -936,7 +939,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         }
         _deepening = false;
       });
-      if (fresh != null) {
+      if (fresh != null && DashboardStore.bankCount > 0) {
         await DashboardStore.save(fresh); // updates syncedAt → resets the timer
         _rescheduleReminders(fresh);
       }
