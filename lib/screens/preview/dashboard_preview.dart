@@ -208,6 +208,13 @@ int _dayOf(Map t) {
   return d.length >= 10 ? (int.tryParse(d.substring(8, 10)) ?? 1) : 1;
 }
 
+// Safe amount read: a row with a missing/odd `a` (a quiet-bank or cached row)
+// must degrade to 0, never crash a money aggregation.
+num _aOf(Map t) {
+  final v = t['a'];
+  return v is num ? v : (num.tryParse('$v') ?? 0);
+}
+
 // ── Canonical money rule — the ONE definition every screen uses so the same
 // concept shows the same number everywhere (mirrors functions/dashboard.py
 // _flow/_totals). Direction decides income vs expense; transfers/exchange are
@@ -216,20 +223,20 @@ int _dayOf(Map t) {
 String _flowOf(Map t) {
   if (t['sec'] == 'Pervedimai') return 'transfer';
   if (t['cat'] == 'Grąžinimas') return 'refund';
-  return (t['a'] as num) > 0 ? 'income' : 'expense';
+  return _aOf(t) > 0 ? 'income' : 'expense';
 }
 
 // A transaction's contribution to "spent": an outflow counts, a refund nets down.
 double _spendOf(Map t) {
   final f = _flowOf(t);
-  return (f == 'expense' || f == 'refund') ? -(t['a'] as num).toDouble() : 0.0;
+  return (f == 'expense' || f == 'refund') ? -_aOf(t).toDouble() : 0.0;
 }
 
 double _sumExpenses(Iterable rows) =>
     rows.fold(0.0, (s, t) => s + _spendOf(t as Map));
 
 double _sumIncome(Iterable rows) => rows.fold(0.0,
-    (s, t) => s + (_flowOf(t as Map) == 'income' ? (t['a'] as num).toDouble() : 0.0));
+    (s, t) => s + (_flowOf(t as Map) == 'income' ? _aOf(t).toDouble() : 0.0));
 
 // "Gauta" — money that actually LANDED in the account from outside: genuine
 // income plus incoming transfers (P2P from people, top-ups). This is a
@@ -245,7 +252,7 @@ double _receivedOf(Map t) {
   // multi-bank backend) are the user's own money moving — never "received".
   if (t['cat'] == 'Savas pervedimas') return 0.0;
   final f = _flowOf(t);
-  final a = (t['a'] as num).toDouble();
+  final a = _aOf(t).toDouble();
   return (a > 0 && (f == 'income' || f == 'transfer')) ? a : 0.0;
 }
 
@@ -1077,7 +1084,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     ),
   ];
 
-  int _monthCount(String mk) => _feedAll.where((t) => (t['d'] as String).startsWith(mk)).length;
+  int _monthCount(String mk) => _feedAll.where((t) => _dOf(t).startsWith(mk)).length;
 
   // ── Canonical month figures — the SINGLE source of truth so the same concept
   // shows the same number everywhere. Prefer the backend `totals` block; fall
@@ -1088,7 +1095,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       (_totalsBlock?['months'] as Map?)?[mk] as Map<String, dynamic>?;
 
   Iterable<Map<String, dynamic>> _rowsForMonth(String mk) =>
-      _feedAll.where((t) => (t['d'] as String).startsWith(mk));
+      _feedAll.where((t) => _dOf(t).startsWith(mk));
 
   double _monthExpenses(String mk) {
     // Backend totals cover the whole month; when a filter is active they don't
@@ -1112,18 +1119,22 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // double-counts transfers between the user's own accounts).
   double _monthNet(String mk) => _monthIncome(mk) - _monthExpenses(mk);
 
-  Widget _monthHeaderFor(String mk) => _monthHeader(
-      _monNom[int.parse(mk.substring(5, 7)) - 1],
-      _monthExpenses(mk), _monthIncome(mk));
+  Widget _monthHeaderFor(String mk) {
+    // mk can be a padded/odd key from a malformed row; parse the month safely so
+    // a bad date never crashes the header (int.parse("  ") threw).
+    final mi = (mk.length >= 7 ? int.tryParse(mk.substring(5, 7)) : null) ?? 1;
+    return _monthHeader(_monNom[(mi - 1).clamp(0, 11)],
+        _monthExpenses(mk), _monthIncome(mk));
+  }
 
 
   // Build a day-by-day feed for a month from the flat `all` list (merging same
   // merchant on the same day into an N× row, like the current-month feed).
   List<Map<String, dynamic>> _monthFeed(String mk) {
-    final rows = _feedAll.where((t) => (t['d'] as String).startsWith(mk)).toList();
+    final rows = _feedAll.where((t) => _dOf(t).startsWith(mk)).toList();
     final byDate = <String, List<Map<String, dynamic>>>{};
     for (final t in rows) {
-      byDate.putIfAbsent(t['d'] as String, () => []).add(t);
+      byDate.putIfAbsent(_dOf(t), () => []).add(t);
     }
     final days = byDate.keys.toList()..sort((a, b) => b.compareTo(a));
     final out = <Map<String, dynamic>>[];
@@ -1141,7 +1152,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               'ts': t['ts'],
             });
         if (t['star'] == true) m['star'] = true;
-        m['a'] = (m['a'] as double) + (t['a'] as num).toDouble();
+        m['a'] = (m['a'] as double) + _aOf(t).toDouble();
         m['count'] = (m['count'] as int) + 1;
         if ((m['count'] as int) > 1) m['ts'] = null; // merged → no single time
       }
@@ -1149,7 +1160,8 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       // Day "spent" uses the canonical rule (expenses only) so it stays
       // consistent with the month header and category totals.
       final total = dayTx.fold(0.0, (s, t) => s + _spendOf(t));
-      final dt = DateTime.parse(d);
+      final dt = DateTime.tryParse(d);
+      if (dt == null) continue;   // skip a day with an unparseable date, don't crash
       out.add({'date': d, 'wd': _wdFull[dt.weekday - 1], 'day': dt.day, 'total': total, 'tx': tx});
     }
     return out;
@@ -4206,7 +4218,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   Map<String, double> _netByLabelFor(String mk) {
     final m = <String, double>{};
     for (final t in widget.all) {
-      if (!(t['d'] as String).startsWith(mk)) continue;
+      if (!_dOf(t).startsWith(mk)) continue;
       m[t['sec'] as String] = (m[t['sec'] as String] ?? 0) + (t['a'] as num).toDouble();
     }
     return m;
@@ -4320,7 +4332,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       final e = _sumIncome(r);
       return e > 0 ? ((e - _sumExpenses(r)) / e * 100).round().clamp(0, 100) : 0;
     }
-    final streak = _streakOf(mkeys, (mk) => widget.all.where((t) => (t['d'] as String).startsWith(mk)).toList(), savOf);
+    final streak = _streakOf(mkeys, (mk) => widget.all.where((t) => _dOf(t).startsWith(mk)).toList(), savOf);
 
     return Scaffold(
       backgroundColor: _bg,
@@ -5487,7 +5499,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     );
   }
   int get _curMon => int.parse(_curKey.substring(5, 7));
-  List<Map<String, dynamic>> _rowsOf(String mk) => widget.all.where((t) => (t['d'] as String).startsWith(mk)).toList();
+  List<Map<String, dynamic>> _rowsOf(String mk) => widget.all.where((t) => _dOf(t).startsWith(mk)).toList();
   List<Map<String, dynamic>> get _rows => _rowsOf(_curKey);
 
   bool _isIncome(String l) => l == 'Pajamos';
@@ -6187,7 +6199,7 @@ class _PlanningTabState extends State<_PlanningTab> {
     final complete = months.length > 1 ? months.sublist(0, months.length - 1) : months;
     final vals = <double>[];
     for (final mk in complete) {
-      final v = _spentInSec(widget.all.where((t) => (t['d'] as String).startsWith(mk)), sec);
+      final v = _spentInSec(widget.all.where((t) => _dOf(t).startsWith(mk)), sec);
       if (v > 0) vals.add(v);
     }
     double typical;
