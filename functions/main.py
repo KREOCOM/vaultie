@@ -375,6 +375,12 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
             all_txns.extend(acc_txns)
             # Prefer the balance's own currency; 'XXX' ("no currency") isn't real.
             ccy = normalize.real_currency(bal_ccy, m.get("currency"))
+            # Carry the REAL balance currency back onto the account meta so the
+            # stored connection can tell a Revolut EUR wallet from its NOK wallet:
+            # the two share ONE IBAN and the account object frequently reports no
+            # currency (→ defaulted to EUR), which made connecting one wipe the
+            # other. The balance always carries the true currency.
+            m["currency"] = ccy
             summaries.append({
                 "name": m["name"], "amount": bal, "sub": None,
                 "icon": "R" if is_revolut else "bank",
