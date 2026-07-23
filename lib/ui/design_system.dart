@@ -102,9 +102,11 @@ class Money {
   Money._();
   static String format(double v, {bool signed = false}) {
     final sign = signed ? (v < 0 ? '−' : '+') : (v < 0 ? '−' : '');
-    final a = v.abs();
-    final whole = a.truncate();
-    final cents = ((a - whole) * 100).round().toString().padLeft(2, '0');
+    // Round to whole cents FIRST, then split — otherwise a value like 12.999
+    // rounds its fractional part to 100 and prints "12,100 €" instead of 13,00.
+    final totalCents = (v.abs() * 100).round();
+    final whole = totalCents ~/ 100;
+    final cents = (totalCents % 100).toString().padLeft(2, '0');
     final digits = whole.toString();
     final buf = StringBuffer();
     for (var i = 0; i < digits.length; i++) {

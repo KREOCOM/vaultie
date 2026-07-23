@@ -217,6 +217,21 @@ num _aOf(Map t) {
   return v is num ? v : (num.tryParse('$v') ?? 0);
 }
 
+// Safe section reads: a row with a missing/odd `sec`/`secc` (a quiet-bank or
+// cached row) must degrade to a neutral bucket, never crash an aggregation with
+// a `null is not a String` TypeError.
+String _secOf(Map t) => (t['sec'] as String?) ?? 'Kita';
+String _seccOf(Map t) => (t['secc'] as String?) ?? 'indigo';
+
+// Safe month number (1–12) from a 'YYYY-MM…' key. A cached row with no date can
+// yield a whitespace month key; int.parse('  ') throws a FormatException that
+// red-screens the whole screen. Degrade to 1 instead.
+int _moInt(String? key) {
+  final k = key ?? '';
+  final n = k.length >= 7 ? int.tryParse(k.substring(5, 7)) : null;
+  return (n ?? 1).clamp(1, 12);
+}
+
 // Safe reads for balance-history series points ({d: 'YYYY-MM-DD', v: num}). The
 // series is a separate payload from the tx feed, so it bypasses _dOf/_aOf; a
 // missing/odd `d` or `v` from a quiet-bank or cached row must degrade, never
@@ -645,7 +660,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   }
 
   Future<void> _openDashFilter() async {
-    final avail = (_d['all'] as List).cast<Map<String, dynamic>>().map((t) => t['sec'] as String).toSet().toList()..sort();
+    final avail = (_d['all'] as List).cast<Map<String, dynamic>>().map((t) => _secOf(t)).toSet().toList()..sort();
     final res = await _showFilterSheet(context, _txFilter, avail);
     if (res == null) return;
     setState(() {
@@ -1228,13 +1243,15 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     // detail shows — sub-sampled to a clean small line. (The backend `spark` was
     // only the last 26 points, so the home chart looked flat and peaked lower
     // than the detail; now both move up/down together and hit the same peak.)
-    final series = (((_d['balance'] as Map?)?['series'] as List?) ?? const [])
-        .whereType<Map>()
-        .map((p) => ((p['v'] ?? 0) as num).toDouble())
+    final series = _cleanSeries((_d['balance'] as Map?)?['series'])
+        .map((p) => _vOf(p))
         .toList();
     final rawSpark = series.length >= 2
         ? series
-        : (_d['spark'] as List).map((e) => (e as num).toDouble()).toList();
+        : ((_d['spark'] as List?) ?? const [])
+            .whereType<num>()
+            .map((e) => e.toDouble())
+            .toList();
     final step = (rawSpark.length / 64).ceil().clamp(1, 999);
     final spark = [for (var i = 0; i < rawSpark.length; i += step) rawSpark[i]];
     // Always keep the latest balance as the final point (the pulsing endpoint).
@@ -1978,7 +1995,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   }
 
   void _openReviewFor(String mk) {
-    final m = int.parse(mk.substring(5, 7));
+    final m = _moInt(mk);
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => _MonthReviewScreen(
         all: (_d['all'] as List).cast<Map<String, dynamic>>(),
@@ -1998,7 +2015,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   }
 
   Widget _reviewCardFor(String mk) {
-    final m = int.parse(mk.substring(5, 7));
+    final m = _moInt(mk);
     final net = _monthNet(mk);
     return GestureDetector(
       onTap: () => _openReviewFor(mk),
@@ -2187,9 +2204,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       for (final t in rows) {
         final s = _spendOf(t);
         if (s <= 0) continue;
-        final sec = t['sec'] as String;
+        final sec = _secOf(t);
         bySec[sec] = (bySec[sec] ?? 0) + s;
-        secColor[sec] = t['secc'] as String;
+        secColor[sec] = _seccOf(t);
       }
       final cats = bySec.entries
           .map((e) => {
@@ -4234,7 +4251,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   /// The previous month key ("2026-05") if it has any data, else null.
   String? get _prevMonthKey {
     final y = int.parse(widget.month.substring(0, 4));
-    final mo = int.parse(widget.month.substring(5, 7));
+    final mo = _moInt(widget.month);
     final p = DateTime(y, mo - 1, 1);
     final k = '${p.year}-${p.month.toString().padLeft(2, '0')}';
     return widget.all.any((t) => _dOf(t).startsWith(k)) ? k : null;
@@ -4244,7 +4261,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final m = <String, double>{};
     for (final t in widget.all) {
       if (!_dOf(t).startsWith(mk)) continue;
-      m[t['sec'] as String] = (m[t['sec'] as String] ?? 0) + _aOf(t).toDouble();
+      m[_secOf(t)] = (m[_secOf(t)] ?? 0) + _aOf(t).toDouble();
     }
     return m;
   }
@@ -4317,11 +4334,11 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
   String get _prevMonth {
     final y = int.parse(widget.month.substring(0, 4));
-    final m = int.parse(widget.month.substring(5, 7));
+    final m = _moInt(widget.month);
     return m == 1 ? '${y - 1}-12' : '$y-${(m - 1).toString().padLeft(2, '0')}';
   }
 
-  String get _prevMonthNom => _monNom[(int.parse(widget.month.substring(5, 7)) + 10) % 12];
+  String get _prevMonthNom => _monNom[(_moInt(widget.month) + 10) % 12];
 
   bool _isIncome(String l) => l == 'Pajamos';
   bool _isTransfer(String l) => l == 'Pervedimai'; // 'Kita' = uncategorised spending, counts as expense
@@ -4329,8 +4346,8 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   List<_SecAgg> _sections() {
     final m = <String, _SecAgg>{};
     for (final t in _rows) {
-      final label = t['sec'] as String;
-      final a = m.putIfAbsent(label, () => _SecAgg(label, t['secc'] as String));
+      final label = _secOf(t);
+      final a = m.putIfAbsent(label, () => _SecAgg(label, _seccOf(t)));
       a.net += _aOf(t).toDouble();
     }
     final list = m.values.toList()..sort((x, y) => y.net.abs().compareTo(x.net.abs()));
@@ -4780,7 +4797,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final m = <String, double>{};
     for (final t in widget.all) {
       if (!_dOf(t).startsWith(month)) continue;
-      final label = t['sec'] as String;
+      final label = _secOf(t);
       if (_isIncome(label) || _isTransfer(label)) continue;
       final a = _aOf(t).toDouble();
       if (a < 0) m[label] = (m[label] ?? 0) - a;
@@ -4797,7 +4814,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
   int get _daysInMonth {
     final y = int.parse(widget.month.substring(0, 4));
-    final mo = int.parse(widget.month.substring(5, 7));
+    final mo = _moInt(widget.month);
     return DateTime(y, mo + 1, 0).day;
   }
 
@@ -4809,7 +4826,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   // ── CALENDAR heatmap ──
   Widget _calendar() {
     final y = int.parse(widget.month.substring(0, 4));
-    final mo = int.parse(widget.month.substring(5, 7));
+    final mo = _moInt(widget.month);
     final lead = DateTime(y, mo, 1).weekday - 1; // Mon=0
     final net = <int, double>{};
     final daySec = <int, Map<String, double>>{};
@@ -4817,10 +4834,10 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       final d = _dayOf(t);
       final a = _aOf(t).toDouble();
       net[d] = (net[d] ?? 0) + a;
-      final label = t['sec'] as String;
+      final label = _secOf(t);
       if (!_isIncome(label) && !_isTransfer(label) && a < 0) {
         final sm = daySec.putIfAbsent(d, () => {});
-        sm[t['secc'] as String] = (sm[t['secc'] as String] ?? 0) - a;
+        sm[_seccOf(t)] = (sm[_seccOf(t)] ?? 0) - a;
       }
     }
     Color? dom(int d) {
@@ -5188,7 +5205,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     // Group this month's spending by merchant (mkey), most spent first.
     final byMerch = <String, Map<String, dynamic>>{};
     for (final t in _rows) {
-      if (_isIncome(t['sec'] as String) || _isTransfer(t['sec'] as String) || _aOf(t) >= 0) {
+      if (_isIncome(_secOf(t)) || _isTransfer(_secOf(t)) || _aOf(t) >= 0) {
         continue;
       }
       final k = t['mkey'] as String;
@@ -5450,7 +5467,7 @@ class _OverviewTabState extends State<_OverviewTab> {
   final _filter = _TxFilter();
 
   Future<void> _openFilter() async {
-    final avail = _rows.map((t) => t['sec'] as String).toSet().toList()..sort();
+    final avail = _rows.map((t) => _secOf(t)).toSet().toList()..sort();
     final res = await _showFilterSheet(context, _filter, avail);
     if (res == null) return;
     setState(() {
@@ -5476,7 +5493,7 @@ class _OverviewTabState extends State<_OverviewTab> {
   String get _monthLabel {
     final keys = _monthKeys;
     if (_selKey == null || keys.isEmpty || _selKey == keys.last) return tr('Šis mėnuo');
-    return _monNom[int.parse(_selKey!.substring(5, 7)) - 1];
+    return _monNom[_moInt(_selKey!) - 1];
   }
 
   void _pickMonth() {
@@ -5508,7 +5525,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                         child: Text(
                           k == _monthKeys.last
                               ? tr('Šis mėnuo')
-                              : '${_monNom[int.parse(k.substring(5, 7)) - 1]} ${k.substring(0, 4)}',
+                              : '${_monNom[_moInt(k) - 1]} ${k.substring(0, 4)}',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink),
                         ),
                       ),
@@ -5523,7 +5540,7 @@ class _OverviewTabState extends State<_OverviewTab> {
       ),
     );
   }
-  int get _curMon => int.parse(_curKey.substring(5, 7));
+  int get _curMon => _moInt(_curKey);
   List<Map<String, dynamic>> _rowsOf(String mk) => widget.all.where((t) => _dOf(t).startsWith(mk)).toList();
   List<Map<String, dynamic>> get _rows => _rowsOf(_curKey);
 
@@ -5533,7 +5550,7 @@ class _OverviewTabState extends State<_OverviewTab> {
   List<_SecAgg> _sections(List<Map<String, dynamic>> rows) {
     final m = <String, _SecAgg>{};
     for (final t in rows) {
-      final a = m.putIfAbsent(t['sec'] as String, () => _SecAgg(t['sec'] as String, t['secc'] as String));
+      final a = m.putIfAbsent(_secOf(t), () => _SecAgg(_secOf(t), _seccOf(t)));
       a.net += _aOf(t).toDouble();
     }
     return m.values.toList()..sort((x, y) => y.net.abs().compareTo(x.net.abs()));
@@ -5775,9 +5792,9 @@ class _OverviewTabState extends State<_OverviewTab> {
       final d = _dayOf(t);
       final a = _aOf(t).toDouble();
       net[d] = (net[d] ?? 0) + a;
-      final label = t['sec'] as String;
+      final label = _secOf(t);
       if (!_isIncome(label) && !_isTransfer(label) && a < 0) {
-        (daySec.putIfAbsent(d, () => {}))[t['secc'] as String] = ((daySec[d]![t['secc'] as String]) ?? 0) - a;
+        (daySec.putIfAbsent(d, () => {}))[_seccOf(t)] = ((daySec[d]![_seccOf(t)]) ?? 0) - a;
       }
     }
     Color? dom(int d) {
@@ -5823,7 +5840,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     final m = <String, List<dynamic>>{}; // mkey -> [name, sum, count]
     for (final t in _rows) {
       // merchants = places you spent; skip income + internal transfers
-      if (_isIncome(t['sec'] as String) || _isTransfer(t['sec'] as String) || _aOf(t) >= 0) continue;
+      if (_isIncome(_secOf(t)) || _isTransfer(_secOf(t)) || _aOf(t) >= 0) continue;
       final k = t['mkey'] as String;
       final e = m.putIfAbsent(k, () => [t['nm'], 0.0, 0]);
       e[1] = (e[1] as double) + _aOf(t).toDouble();
@@ -5924,7 +5941,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                     ),
                     Text(spd[i] >= 1 ? '−${_kEur(spd[i])}' : '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _muted)),
                     const SizedBox(height: 4),
-                    Text(_monNom[int.parse(keys[i].substring(5, 7)) - 1].substring(0, 3), style: TextStyle(fontSize: 11.5, color: _muted, fontWeight: FontWeight.w500)),
+                    Text(_monNom[_moInt(keys[i]) - 1].substring(0, 3), style: TextStyle(fontSize: 11.5, color: _muted, fontWeight: FontWeight.w500)),
                   ]),
                 ),
             ],
@@ -5987,13 +6004,13 @@ class _SavingsRateScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final curKey = monthKeys.last;
-    final curMon = int.parse(curKey.substring(5, 7));
+    final curMon = _moInt(curKey);
     final rows = rowsOf(curKey);
     final earned = earnedOf(rows); // canonical income (matches Overview)
     final savings = savingsOf(rows);
     final savStr = earned > 0 ? '$savings %' : '—';
     final prevKey = monthKeys.length > 1 ? monthKeys[monthKeys.length - 2] : null;
-    final prevMon = prevKey != null ? int.parse(prevKey.substring(5, 7)) : 0;
+    final prevMon = prevKey != null ? _moInt(prevKey) : 0;
     final prevRows = prevKey != null ? rowsOf(prevKey) : <Map<String, dynamic>>[];
     final prevSavings = savingsOf(prevRows);
     final prevStr = earnedOf(prevRows) > 0 ? '$prevSavings %' : '—';
@@ -6136,7 +6153,7 @@ class _SavingsRateScreen extends StatelessWidget {
                             const SizedBox(height: 6),
                             Container(width: 20, height: (savingsOf(rowsOf(k)) / 100 * 110).clamp(2.0, 110.0), decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(6))),
                             const SizedBox(height: 8),
-                            Text(_monNom[int.parse(k.substring(5, 7)) - 1].substring(0, 3), style: TextStyle(fontSize: 11.5, color: _muted)),
+                            Text(_monNom[_moInt(k) - 1].substring(0, 3), style: TextStyle(fontSize: 11.5, color: _muted)),
                           ]),
                         ),
                     ]),
@@ -6190,7 +6207,7 @@ class _PlanningTabState extends State<_PlanningTab> {
     final n = DateTime.now();
     return '${n.year}-${n.month.toString().padLeft(2, '0')}';
   }
-  int get _curMon => int.parse(_curKey.substring(5, 7));
+  int get _curMon => _moInt(_curKey);
   int get _curYear => int.parse(_curKey.substring(0, 4));
   List<Map<String, dynamic>> get _rows => widget.all.where((t) => _dOf(t).startsWith(_curKey)).toList();
 
@@ -6245,7 +6262,7 @@ class _PlanningTabState extends State<_PlanningTab> {
   void initState() {
     super.initState();
     for (final t in widget.all) {
-      _secColorKey.putIfAbsent(t['sec'] as String, () => t['secc'] as String);
+      _secColorKey.putIfAbsent(_secOf(t), () => _seccOf(t));
     }
     // fallback colours for taxonomy sections the user has no transactions in yet
     for (final e in _taxonomy) {
@@ -6369,7 +6386,7 @@ class _PlanningTabState extends State<_PlanningTab> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
                       child: Row(children: [
-                        Text('${_monNom[int.parse(k.substring(5, 7)) - 1]} ${k.substring(0, 4)}',
+                        Text('${_monNom[_moInt(k) - 1]} ${k.substring(0, 4)}',
                             style: TextStyle(fontSize: 16.5, fontWeight: k == _curKey ? FontWeight.w800 : FontWeight.w500, color: _ink)),
                         const Spacer(),
                         if (k == _monthKeys.last) Text(tr('Šis mėnuo'), style: TextStyle(fontSize: 12.5, color: _muted)),
@@ -6677,7 +6694,7 @@ class _PlanningTabState extends State<_PlanningTab> {
     final hist = <String, double>{};
     for (final t in widget.all) {
       if (_aOf(t) < 0) {
-        hist[t['sec'] as String] = (hist[t['sec'] as String] ?? 0) - _aOf(t).toDouble();
+        hist[_secOf(t)] = (hist[_secOf(t)] ?? 0) - _aOf(t).toDouble();
       }
     }
     final options = [for (final e in _taxonomy) e['sec'] as String]
@@ -8987,7 +9004,7 @@ String buildFinanceSummary(Map<String, dynamic> d) {
   double income = 0, spent = 0;
   for (final t in all) {
     if (monthOf(t) != month) continue;
-    final sec = (t['sec'] as String? ?? '');
+    final sec = _secOf(t);
     final isTransfer = sec == 'Pervedimai' || t['col'] == 'transfer';
     if (isTransfer) continue;
     final a = n(t['a']).toDouble();

@@ -461,7 +461,15 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     logging.info("scan: accounts=%d txns=%d candidates=%d frequent=%d",
                  len(summaries), len(all_txns),
                  len(detection["candidates"]), len(detection["frequent"]))
-    logging.info("scan scan_diag=%s", scan_diag)
+    # Redact the per-account label before logging: when a bank returns no name,
+    # `_account_meta` falls back to the IBAN, so logging it raw would leak a real
+    # IBAN into Cloud Logging. Mask anything IBAN-shaped.
+    def _safe_acct(v):
+        s = str(v or "")
+        return (s[:4] + "…") if re.match(
+            r"^[A-Z]{2}\d{2}[A-Z0-9]{6,}$", s.replace(" ", "")) else s
+    logging.info("scan scan_diag=%s",
+                 [{**d, "account": _safe_acct(d.get("account"))} for d in scan_diag])
     return {
         "accountCount": len(summaries),
         "transactionCount": len(all_txns),

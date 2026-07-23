@@ -49,10 +49,22 @@ _FOLD = str.maketrans("ąčęėįšųūž", "aceeisuuz")
 _MOVEMENT_CODES = {"EXCHANGE", "TOPUP", "CWDL", "ATM", "CSHW"}
 
 
+# Description-only currency exchange (Revolut stamps no EXCHANGE code, only text).
+# Kept in sync with dashboard._EXCHANGE_HINT — a monthly NOK→EUR conversion must
+# not cluster into a phantom "bill" in the subscriptions total.
+_EXCHANGE_HINT = re.compile(
+    r"exchanged?\s+to\b|currency\s+exchange|valiut\w*\s+keit|konvertav|"
+    r"[a-z]{3}\s*(?:→|->)\s*[a-z]{3}", re.I)
+
+
 def _is_money_movement(t: dict) -> bool:
     """True when this transaction is the user shifting their own money."""
     code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
-    return code in _MOVEMENT_CODES
+    if code in _MOVEMENT_CODES:
+        return True
+    text = " ".join([str(t.get("note") or "")]
+                    + [str(x) for x in (t.get("remittance_information") or [])])
+    return bool(_EXCHANGE_HINT.search(text))
 
 
 def counterparty_name(t: dict):
@@ -758,8 +770,13 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             # replaces the old rule that kept CONFIDENT person streams as bills,
             # which is exactly what surfaced a personal transfer as a
             # subscription.
-            if lt_person:
-                typ = "transfer"   # a named LT person is never a bill/subscription
+            if lt_person and category not in ("housing", "finance"):
+                # A named LT person → transfer, UNLESS the memo makes it rent or a
+                # loan (housing/finance). Renting from a private individual is the
+                # common LT case, and that rent IS a bill — dropping it here (as
+                # the branch did before) silently zeroed the biggest monthly
+                # commitment a user has.
+                typ = "transfer"
             elif is_person and category not in ("housing", "finance"):
                 typ = "transfer"
             else:

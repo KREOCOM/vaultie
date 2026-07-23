@@ -540,7 +540,7 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
     # does NOT get the badge. Matched by the canonical merge key so it can't
     # false-positive onto unrelated merchants.
     rec_keys = {str(it["name"]).lower()[:24] for it in subs.get("items", [])
-                if it.get("active")}
+                if it.get("active") and it.get("type") != "transfer"}
     if rec_keys:
         for r in all_rows:
             if r["mkey"] in rec_keys:
@@ -553,7 +553,8 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
     # at a different amount that merely shares the merchant.
     active_series = [(str(it["name"]).lower()[:24], float(it.get("cost") or 0),
                       it.get("sid")) for it in subs.get("items", [])
-                     if it.get("active") and it.get("sid")]
+                     if it.get("active") and it.get("sid")
+                     and it.get("type") != "transfer"]
     if active_series:
         for r in all_rows:
             amt = abs(r["a"])
