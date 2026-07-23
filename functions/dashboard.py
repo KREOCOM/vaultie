@@ -307,7 +307,7 @@ _FEE_HINTS = ["komisin", "aptarnavim", "paslaugų planas", "paslaugu planas",
 
 def _salary_sources(txns):
     """Normalised counterparty names that pay you like an EMPLOYER: a recurring
-    (>=3 distinct months), substantial, NON-person incoming credit — in whatever
+    (>=2 distinct months), substantial, NON-person incoming credit — in whatever
     account/currency it actually lands. This is the real salary signal.
 
     A currency EXCHANGE is NOT salary — it is you converting money you already
@@ -315,33 +315,27 @@ def _salary_sources(txns):
     income would book the salary in the wrong month and inflate any conversion.
     """
     months_by = defaultdict(set)
-    _diag = []  # TEMP SALDIAG — remove after diagnosing the NOK-salary case
     for t in txns:
-        ind = t.get("credit_debit_indicator")
-        code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
-        a = _amt(t)
-        if ind == "CRDT" and a >= 100:
-            _diag.append({"nm": _norm(_name(t)), "code": code, "amt": round(a),
-                          "mo": (t.get("booking_date") or "")[:7],
-                          "per": _is_person_name(_name(t))})
-        if ind != "CRDT":
+        if t.get("credit_debit_indicator") != "CRDT":
             continue
+        code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
         if code in _EXCHANGE_CODES | _REFUND_CODES:
             continue  # conversions / refunds are not employer pay
         # TOPUP is deliberately NOT excluded: Revolut codes an incoming salary as
         # a top-up, so a recurring, substantial, non-person credit from the same
-        # named source IS the salary. The >=3-months + amount + non-person guards
-        # below keep genuine self-top-ups (card/own money) out.
-        if a < 300:
+        # named source IS the salary. The amount + non-person guards keep genuine
+        # self-top-ups (card/own money) out.
+        if _amt(t) < 300:
             continue
         name = _name(t)
         if _is_person_name(name):
             continue  # a person sending you money is not an employer
         months_by[_norm(name)].add(t["booking_date"][:7])
-    refs = {k for k, mos in months_by.items() if len(mos) >= 3}
-    logging.info("SALDIAG credits=%s grouped=%s refs=%s", _diag[:40],
-                 {k: sorted(v) for k, v in months_by.items()}, sorted(refs))
-    return refs
+    # >=2 distinct months: a freshly-connected wallet (e.g. a Norwegian NOK
+    # salary wallet) often exposes only 2-3 months of history, so requiring 3
+    # silently zeroed a real salary. Two substantial, non-person credits from the
+    # same source across two months is already a strong employer-pay signal.
+    return {k for k, mos in months_by.items() if len(mos) >= 2}
 
 
 def _cp_iban_norm(t):
