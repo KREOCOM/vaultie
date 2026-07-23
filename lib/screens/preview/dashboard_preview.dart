@@ -5911,7 +5911,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                       height: upH,
                       child: Align(
                         alignment: Alignment.bottomCenter,
-                        child: Container(width: 16, height: (inc[i] / maxUp * upH).clamp(0.0, upH), decoration: BoxDecoration(color: _secColor['amber'], borderRadius: const BorderRadius.vertical(top: Radius.circular(8)))),
+                        child: Container(width: 16, height: (inc[i] / maxUp * upH).clamp(0.0, upH), decoration: BoxDecoration(color: _secColor['green'], borderRadius: const BorderRadius.vertical(top: Radius.circular(8)))),
                       ),
                     ),
                     Container(height: 1, color: _hair),
@@ -5919,7 +5919,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                       height: dnH,
                       child: Align(
                         alignment: Alignment.topCenter,
-                        child: Container(width: 16, height: (spd[i] / maxDn * dnH).clamp(0.0, dnH), decoration: BoxDecoration(color: _secColor['green'], borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)))),
+                        child: Container(width: 16, height: (spd[i] / maxDn * dnH).clamp(0.0, dnH), decoration: BoxDecoration(color: _secColor['red'], borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)))),
                       ),
                     ),
                     Text(spd[i] >= 1 ? '−${_kEur(spd[i])}' : '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _muted)),
