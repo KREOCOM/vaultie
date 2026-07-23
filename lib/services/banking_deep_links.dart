@@ -46,15 +46,26 @@ class BankingDeepLinks {
     );
   }
 
-  void _handle(Uri uri, GlobalKey<NavigatorState> navigatorKey) {
+  Future<void> _handle(Uri uri, GlobalKey<NavigatorState> navigatorKey) async {
     final code = BankingService.codeFromCallback(uri);
     if (code == null) return; // not our callback — leave the launch untouched
 
-    // finish_bank_auth requires a signed-in caller. On a cold launch the session
-    // is restored from the Keychain before this runs, so a returning user is
-    // signed in. If somehow not, drop it rather than crash mid-flow — the user
-    // can reconnect from inside the app.
-    if (!AuthService().isLoggedIn) return;
+    // finish_bank_auth requires a signed-in caller. On a cold launch triggered by
+    // a bank's universal link (SEB/Swedbank hand-off), the Firebase session
+    // restore from the Keychain can still be in flight when this runs — dropping
+    // the code here silently loses the connection. Wait briefly for auth to
+    // hydrate instead; only give up if it never does (the user can then reconnect
+    // from inside the app).
+    final auth = AuthService();
+    if (!auth.isLoggedIn) {
+      try {
+        await auth.authStateChanges
+            .firstWhere((u) => u != null)
+            .timeout(const Duration(seconds: 8));
+      } catch (_) {
+        return;
+      }
+    }
 
     // If the in-app flow already claimed this code (the bank delivered the
     // callback through both the session and the universal link), back off — the

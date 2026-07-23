@@ -7,10 +7,13 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import '../app_prefs.dart';
 import '../content_theme.dart';
 import '../main.dart';
+import '../services/auth_service.dart';
 import '../services/banking_service.dart';
 import '../services/dashboard_store.dart';
 import '../services/feature_flags.dart';
+import '../user_session.dart';
 import 'bank_import_screen.dart';
+import 'login_screen.dart';
 import 'preview/dashboard_preview.dart';
 
 /// Ensures one authorisation code is exchanged exactly once.
@@ -355,22 +358,58 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     }
   }
 
+  /// Escape hatch when this screen is the whole stack (onboarding, or a
+  /// wrong-account sign-in): sign out and return to the sign-in choices so the
+  /// user isn't trapped. Only offered when there's no route beneath (see build).
+  Future<void> _switchAccount() async {
+    try {
+      await AuthService().signOut();
+      await onSignedOut();
+    } catch (_) {
+      // Best-effort — leaving the trap must still work.
+    }
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (r) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // From the bank list / error, "back" returns to country selection rather
     // than leaving the flow entirely.
     final atRoot = _phase == _Phase.country;
+    // Reached in two contexts: during onboarding the stack is empty (nowhere to
+    // pop to — the old dead-end), while the in-app "+ add bank" flow pushes this
+    // on top of the dashboard (a real route beneath). Offer an exit accordingly.
+    final canPop = Navigator.of(context).canPop();
     return Theme(
       data: contentTheme(Theme.of(context)),
       child: Scaffold(
         backgroundColor: cBg,
         appBar: AppBar(
           leading: atRoot
-              ? null
+              ? (canPop
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      onPressed: () => Navigator.of(context).pop(),
+                    )
+                  : null)
               : IconButton(
                   icon: const Icon(Icons.arrow_back_rounded),
                   onPressed: () => setState(() => _phase = _Phase.country),
                 ),
+          // No route beneath = onboarding/wrong-account: give a way out instead
+          // of trapping the user until they delete the app.
+          actions: (atRoot && !canPop)
+              ? [
+                  TextButton(
+                    onPressed: _switchAccount,
+                    child: Text(_isLt ? 'Kita paskyra' : 'Switch account'),
+                  ),
+                ]
+              : null,
           title: Text(atRoot
               ? (_isLt ? 'Pasirink šalį' : 'Choose a country')
               : (_isLt ? 'Prijungti banką' : 'Connect your bank')),

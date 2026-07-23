@@ -137,9 +137,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 6),
           content: Text(isLt
-              ? 'Slaptažodžio atkūrimo nuoroda išsiųsta į $email.'
-              : 'Password reset link sent to $email.'),
+              ? 'Nuoroda išsiųsta į $email. Nematai? Patikrink šlamšto (spam) aplanką.'
+              : 'Link sent to $email. Don\'t see it? Check your spam folder.'),
         ),
       );
     } on FirebaseAuthException catch (e) {

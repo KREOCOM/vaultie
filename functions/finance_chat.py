@@ -21,7 +21,12 @@ import time
 import requests
 
 _URL = "https://api.anthropic.com/v1/messages"
-_MODEL = "claude-haiku-4-5-20251001"  # fast + cheap
+_MODEL = "claude-haiku-4-5-20251001"  # monthly-report summariser: fast + cheap
+# The chat talks TO the user in Lithuanian, a heavily-inflected language where the
+# smallest tier makes visible declension/agreement errors. Sonnet 5 writes fluent
+# LT; thinking is disabled below to keep this Q&A snappy and cheap (no reasoning
+# tokens). Prompt caching still applies to the summary.
+_CHAT_MODEL = "claude-sonnet-5"
 _TIMEOUT = 30
 
 # Hard caps so a malformed or hostile client can't run up a bill or a huge call.
@@ -36,7 +41,8 @@ _SYSTEM = (
     "atsakantis į vartotojo klausimus apie JO PATIES asmeninius finansus. "
     "ATSAKYK TA PAČIA KALBA, KURIA PARAŠYTAS VARTOTOJO KLAUSIMAS — jei jis rašo "
     "angliškai, atsakyk angliškai; jei lietuviškai — lietuviškai. Niekada "
-    "neperjunk kalbos savo nuožiūra. "
+    "neperjunk kalbos savo nuožiūra. Rašyk TAISYKLINGA, sklandžia kalba — "
+    "lietuviškai naudok teisingus linksnius, gimines ir derinimą, be vertalų. "
     "Rašyk trumpai ir aiškiai (2–5 sakiniai; sąrašai tik kai "
     "tikrai padeda). Sumas rašyk eurais.\n\n"
     "GRIEŽTOS TAISYKLĖS:\n"
@@ -180,8 +186,12 @@ def chat(summary: str, history, api_key: str) -> str:
          "cache_control": {"type": "ephemeral"}},
     ]
     payload = json.dumps({
-        "model": _MODEL,
+        "model": _CHAT_MODEL,
         "max_tokens": _MAX_REPLY_TOKENS,
+        # Simple Q&A over a short summary — no thinking needed. Sonnet 5 runs
+        # adaptive thinking by default when omitted, so disable it explicitly to
+        # keep replies fast and avoid billing reasoning tokens.
+        "thinking": {"type": "disabled"},
         "system": system,
         "messages": turns,
     })
