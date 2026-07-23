@@ -779,9 +779,18 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // A refresh must NEVER make a bank silently vanish. If the fresh result lost a
   // bank the current view shows, keep the last-known data and tell the user
   // instead of overwriting with a bank-less result.
-  bool _refreshLostABank(Map<String, dynamic>? fresh) {
+  bool _refreshLostABank(Map<String, dynamic>? fresh,
+      [Set<String> ignore = const <String>{}]) {
     if (fresh == null) return false;
-    final lost = _banksIn(_d).difference(_banksIn(fresh));
+    // A bank we intentionally dropped this sync (a revoked consent) is legitimately
+    // absent from `fresh` — it is NOT "lost". Excluding it lets us save the fresh
+    // (revoked-bank-free) payload instead of keeping the stale one forever, which
+    // is what left a revoked bank stuck on the dashboard permanently.
+    final ignoreLc = ignore.map((b) => b.toLowerCase()).toSet();
+    final lost = _banksIn(_d)
+        .difference(_banksIn(fresh))
+        .where((b) => !ignoreLc.contains(b.toLowerCase()))
+        .toSet();
     if (lost.isEmpty) return false;
     final names = lost.map((b) => b.toUpperCase()).join(', ');
     // Reconnecting a rate-limited bank spends more of the quota that ran out —
@@ -829,17 +838,17 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   /// withdrew Vaultie's access in their own bank. The server already stopped
   /// serving its cached data; the phone must drop the dead connection and say
   /// so, rather than keep showing it as if it were merely quiet.
-  Future<void> _handleRevokedBanks() async {
+  Future<Set<String>> _handleRevokedBanks() async {
     final revoked = <String>{
       for (final e in _lastDiag)
         if (e is Map && e['revoked'] == true && e['bank'] is String)
           e['bank'] as String,
     };
-    if (revoked.isEmpty) return;
+    if (revoked.isEmpty) return const <String>{};
     for (final bank in revoked) {
       await DashboardStore.removeConnection(bank);
     }
-    if (!mounted) return;
+    if (!mounted) return revoked;
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
     final names = revoked.join(', ');
     ScaffoldMessenger.of(context)
@@ -850,6 +859,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
             : 'Access to $names was revoked. Reconnect the bank to see new data.'),
         duration: const Duration(seconds: 6),
       ));
+    return revoked;
   }
 
   Future<void> _runSync() async {
@@ -863,9 +873,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       final fresh = await BankingService.instance.refreshDashboard(refs,
           aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6, onDiag: (d) => _lastDiag = d);
       if (!mounted) return;
-      await _handleRevokedBanks();
+      final revoked = await _handleRevokedBanks();
       if (!mounted) return;
-      if (_refreshLostABank(fresh)) {
+      if (_refreshLostABank(fresh, revoked)) {
         setState(() => _deepening = false);
         return; // keep the complete last-known data; don't save the partial
       }
@@ -901,9 +911,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       final fresh = await BankingService.instance.refreshDashboard(refs,
           aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6, onDiag: (d) => _lastDiag = d);
       if (!mounted) return;
-      await _handleRevokedBanks();
+      final revoked = await _handleRevokedBanks();
       if (!mounted) return;
-      if (_refreshLostABank(fresh)) {
+      if (_refreshLostABank(fresh, revoked)) {
         setState(() => _deepening = false);
         return; // keep the complete last-known data; don't save the partial
       }
