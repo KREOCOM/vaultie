@@ -82,9 +82,9 @@ void _applyTheme(bool dark) {
   _faint      = dark ? const Color(0xFF948DAC) : const Color(0xFF47536D);
   _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF14203A);
   _navOff     = dark ? const Color(0xFF8C86A0) : const Color(0xFF97A2B5);
-  _card       = dark ? const Color(0xFF262436) : const Color(0xFFFFFFFF);
-  _hair       = dark ? const Color(0xFF3D3951) : const Color(0xFFE3E9F2);
-  _soft       = dark ? const Color(0xFF1A1726) : const Color(0xFFEEF2F8);
+  _card       = dark ? const Color(0xFF16131F) : const Color(0xFFFFFFFF);
+  _hair       = dark ? const Color(0xFF2C2740) : const Color(0xFFE3E9F2);
+  _soft       = dark ? const Color(0xFF221D31) : const Color(0xFFEEF2F8);
   _purple     = dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
   _purpleDeep = dark ? const Color(0xFF6D3EE0) : const Color(0xFF1E50C8);
   _themeVN.value = dark;
