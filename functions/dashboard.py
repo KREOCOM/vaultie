@@ -450,6 +450,17 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
     pervedimas" (own-account, excluded from Gauta). Returns the dash_data dict."""
     today = today or dt.date.today()
     txns = [t for t in transactions if t.get("booking_date")]
+    _exd = []  # TEMP EXDIAG — how the two legs of a currency exchange relate
+    for _t in txns:
+        if _is_exchange(_t):
+            _ta = _t.get("transaction_amount") or {}
+            _exd.append({"d": (_t.get("booking_date") or "")[:10],
+                         "ref": str(_t.get("entry_reference") or "")[:14],
+                         "eur": round(_amt(_t)), "orig": _ta.get("amount"),
+                         "ccy": _ta.get("currency"),
+                         "cd": _t.get("credit_debit_indicator"),
+                         "bank": _t.get("_bank")})
+    logging.info("EXDIAG %s", _exd[:30])
     if not txns:
         return {"all": [], "months": [], "week": None, "subs": {"items": [], "total": 0},
                 "spark": [], "balance": _balance_block([], accounts), "budgets": {},
