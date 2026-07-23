@@ -85,8 +85,13 @@ def _dedupe_summaries(summaries: list) -> list:
     out: list = []
     seen: set = set()
     for s in summaries:
-        # No IBAN → keep it (unique per-object key), never collapse blindly.
-        key = _norm_iban(s.get("iban")) or f"obj:{id(s)}"
+        # Identity = IBAN + CURRENCY. Reconnecting an account mints a new session
+        # UID for the SAME wallet (same IBAN + currency) → collapse those. But a
+        # Revolut EUR wallet and its NOK wallet SHARE one IBAN and are DIFFERENT
+        # accounts — keying on IBAN alone dropped one of them (and its balance).
+        iban = _norm_iban(s.get("iban"))
+        key = (f"{iban}|{(s.get('currency') or '').upper()}"
+               if iban else f"obj:{id(s)}")
         if key in seen:
             continue
         seen.add(key)
