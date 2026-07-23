@@ -820,14 +820,21 @@ def _flow(r):
         return "transfer"       # own-account / P2P / exchange / cash / top-up
     if r["cat"] == "Grąžinimas":
         return "refund"         # money back — reduces spend, is NOT income
-    # Money coming back from a SPENDING category is a refund, whatever the bank
-    # called it. Only three transaction codes are recognised as refunds
-    # (_REFUND_CODES), and plenty of merchants don't use them — a returned
-    # jacket then landed here as "income", so `net = income − expenses` was
-    # wrong by twice the refund and the savings rate was inflated at both ends.
-    # Genuine income lands in Pajamos, and money movement in Pervedimai, so
-    # neither is caught by this.
-    if r["a"] > 0 and r["sec"] not in ("Pajamos", "Pervedimai"):
+    # Money coming back from a RECOGNISED spending category is a refund, whatever
+    # the bank called it. Only three transaction codes are recognised as refunds
+    # (_REFUND_CODES), and plenty of merchants don't use them — a returned jacket
+    # then landed here as "income", so `net = income − expenses` was wrong by
+    # twice the refund and the savings rate was inflated at both ends.
+    #
+    # BUT "Kita" is not a spending category — it's "we couldn't attribute this".
+    # An incoming credit we couldn't tie to any merchant is far more likely money
+    # IN — freelance, interest, a one-off payment — than a refund (refunds come
+    # from places you shopped, which we'd have recognised). Treating those as
+    # refunds subtracted them from expenses and added 0 to income, deflating both
+    # sides and distorting the savings rate. So an unattributed credit is income.
+    # (Person-to-person and own-account credits are already "Pervedimai"; genuine
+    # income lands in "Pajamos" — neither reaches here.)
+    if r["a"] > 0 and r["sec"] not in ("Pajamos", "Pervedimai", "Kita"):
         return "refund"
     return "income" if r["a"] > 0 else "expense"
 

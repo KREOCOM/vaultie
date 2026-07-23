@@ -3,7 +3,11 @@
 1. A refund only counted as a refund when the bank used one of three transaction
    codes. Plenty of merchants don't, so a returned purchase was booked as
    INCOME — and since `net = income − expenses`, the figure was wrong by twice
-   the refund, with the savings rate inflated at both ends.
+   the refund, with the savings rate inflated at both ends. The mirror error:
+   an incoming credit we couldn't attribute to any merchant ("Kita") — freelance,
+   interest, a one-off payment — was booked as a refund, deflating both income
+   and expenses. A recognised-category credit is a refund; an unattributed one
+   is income.
 
 2. An unrecognised currency was converted at a rate of 1.0, so ¥50 000 was added
    to the totals as €50 000, silently and with nothing in the logs.
@@ -30,6 +34,16 @@ def test_money_back_from_a_shop_is_a_refund_not_income():
 
 def test_an_explicitly_coded_refund_is_still_a_refund():
     assert _flow(_row("Pajamos", "Grąžinimas", 45.0)) == "refund"
+
+
+def test_unattributed_incoming_credit_is_income_not_a_refund():
+    # A credit we couldn't tie to a spending merchant ("Kita") — freelance, a
+    # one-off payment, interest. It used to be booked as a refund (subtracted
+    # from expenses, added 0 to income), deflating both sides and inflating the
+    # savings rate. It's money IN.
+    assert _flow(_row("Kita", "Kita", 300.0)) == "income"
+    # An outgoing "Kita" is still ordinary spending.
+    assert _flow(_row("Kita", "Kita", -18.0)) == "expense"
 
 
 def test_salary_is_still_income():
