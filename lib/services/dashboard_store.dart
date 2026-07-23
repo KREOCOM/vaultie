@@ -178,12 +178,23 @@ class DashboardStore {
     // are appended, so the last one is freshest). Refs without an IBAN are all
     // kept — nothing to dedupe them by.
     final seenIban = <String>{};
+    final seenNoIban = <String>{};
     for (final c in connections().reversed) {
       final bank = c['bank'];
       for (final a in ((c['accounts'] as List?) ?? const [])) {
         final m = (a as Map).cast<String, dynamic>();
         final iban = (m['iban'] as String?)?.replaceAll(' ', '').toUpperCase();
-        if (iban != null && iban.isNotEmpty && !seenIban.add(iban)) continue;
+        if (iban != null && iban.isNotEmpty) {
+          if (!seenIban.add(iban)) continue;
+        } else {
+          // No IBAN to dedupe by (some banks send none). A reconnect mints a
+          // fresh session UID for the same physical account, so keying on UID
+          // lets it accumulate and DOUBLE-COUNT its balance. Fall back to a
+          // stable identity: bank + account name + currency.
+          final key =
+              '$bank|${m['name'] ?? ''}|${m['currency'] ?? ''}'.toUpperCase();
+          if (!seenNoIban.add(key)) continue;
+        }
         out.add({...m, 'bank': bank});
       }
     }
