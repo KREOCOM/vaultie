@@ -234,6 +234,12 @@ class RevenueCatPurchaseService implements PurchaseService {
 
   final ValueNotifier<bool> _premium = ValueNotifier<bool>(false);
 
+  /// The Firebase uid this device is signed in as, remembered from [setUser] even
+  /// when the `logIn` network call failed — so [purchase]/[restore] can make sure
+  /// the transaction attaches to the account the SERVER checks, not an anonymous
+  /// RevenueCat id. Null when signed out.
+  String? _boundUid;
+
   /// Purchasable package + localized price per plan, from the current offering.
   final Map<PlanId, rc.Package> _packages = {};
   final Map<PlanId, String> _prices = {};
@@ -406,12 +412,35 @@ class RevenueCatPurchaseService implements PurchaseService {
     }
   }
 
+  /// Ensures the SDK is identified as [_boundUid] before a money operation. If
+  /// sign-in's `logIn` was swallowed (offline/slow), the SDK is still anonymous
+  /// and a purchase would attach to that anonymous id — which the server, checking
+  /// the Firebase uid, would never see, leaving a paying user denied everything.
+  /// Returns false when identity can't be established; the caller must not proceed.
+  Future<bool> _ensureBoundIdentity() async {
+    final uid = _boundUid;
+    if (uid == null) return true; // no account bound via setUser — nothing to do
+    try {
+      if (await rc.Purchases.appUserID != uid) {
+        _applyCustomerInfo((await rc.Purchases.logIn(uid)).customerInfo);
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Future<PurchaseResult> purchase(PlanId id) async {
     final pkg = _packages[id];
     if (pkg == null) {
       // Offerings never loaded (offline, or product not configured yet).
       return const PurchaseResult(PurchaseStatus.notFound);
+    }
+    if (!await _ensureBoundIdentity()) {
+      return const PurchaseResult(PurchaseStatus.error,
+          'Nepavyko susieti tavo paskyros su parduotuve. '
+          'Patikrink ryšį ir bandyk dar kartą.');
     }
     try {
       final result =
@@ -433,6 +462,10 @@ class RevenueCatPurchaseService implements PurchaseService {
 
   @override
   Future<PurchaseResult> restore() async {
+    if (!await _ensureBoundIdentity()) {
+      return const PurchaseResult(PurchaseStatus.error,
+          'Nepavyko susieti tavo paskyros. Patikrink ryšį ir bandyk dar kartą.');
+    }
     try {
       final info = await rc.Purchases.restorePurchases();
       if (info.entitlements.active.containsKey(_entitlementId)) {
@@ -448,6 +481,9 @@ class RevenueCatPurchaseService implements PurchaseService {
 
   @override
   Future<void> setUser(String? uid) async {
+    // Remember the intended account even if the logIn below fails, so a later
+    // purchase can re-bind before taking money (see [_ensureBoundIdentity]).
+    _boundUid = uid;
     // Tie RevenueCat to the app account so entitlements follow the account, not
     // the device: logIn on sign-in, logOut on sign-out. Then refresh premium.
     try {

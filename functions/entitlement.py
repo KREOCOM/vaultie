@@ -115,15 +115,25 @@ def is_premium(uid: str, api_key: str, db=None) -> bool:
         db = firestore.client()
 
     active, checked = _cached(db, uid)
-    if active is not None and checked is not None and _now() - checked < _CACHE_TTL:
-        return active
+    # Only a cached POSITIVE is trusted within the TTL. A cached negative must NEVER
+    # be sticky: a user who just paid — or whose RevenueCat identity had not yet
+    # aliased to their Firebase uid at purchase time — would otherwise be denied
+    # every paid endpoint for a full 24h even after the subscription is
+    # unambiguously active. So a False/None cache always re-asks RevenueCat.
+    if active is True and checked is not None and _now() - checked < _CACHE_TTL:
+        return True
 
     fresh = _ask_revenuecat(uid, api_key)
     if fresh is None:
-        # Unreachable. A cached answer of any age beats guessing; with none, deny.
-        if active is not None:
-            logging.warning("entitlement: serving stale cache for uid=%s", uid)
-            return active
+        # Unreachable. Trust a cached POSITIVE of any age; with none, deny.
+        if active is True:
+            logging.warning("entitlement: serving stale positive cache for uid=%s", uid)
+            return True
         return False
-    _store(db, uid, fresh)
+    # Cache positives (trusted for the TTL). Reads never trust a cached negative, so
+    # storing one only matters to clear a now-stale positive when RC turns negative.
+    if fresh:
+        _store(db, uid, True)
+    elif active is True:
+        _store(db, uid, False)
     return fresh

@@ -166,6 +166,27 @@ def test_a_broken_cache_entry_does_not_grant_access():
     assert entitlement.is_premium("u1", "key", db) is False
 
 
+def test_a_cached_negative_is_never_sticky():
+    # THE "charged but denied for 24h" critical. A 404/False answer (a not-yet-seen
+    # subscriber, RC propagation lag, or a purchase not yet aliased to the Firebase
+    # uid) must NOT freeze into a 24h denial. A cached negative always re-asks, so
+    # the moment RevenueCat says active, the paying user is recognised.
+    db = _DB()
+    _patch(lambda *a, **k: _Resp(404))            # RC: not a subscriber yet
+    assert entitlement.is_premium("u1", "key", db) is False
+    _patch(lambda *a, **k: _rc(True, _future()))  # RC: now active
+    assert entitlement.is_premium("u1", "key", db) is True  # recognised at once
+
+
+def test_a_cached_negative_denies_when_revenuecat_is_down():
+    # A cached negative is not trusted, so it re-asks; if RC is unreachable and we
+    # have no positive to fall back on, deny (fail closed) — never grant on a stale
+    # negative, and never lock via one either (the next reachable call re-checks).
+    db = _DB({"u1": {"active": False, "checkedAt": entitlement._now()}})
+    _patch(lambda *a, **k: (_ for _ in ()).throw(OSError("network down")))
+    assert entitlement.is_premium("u1", "key", db) is False
+
+
 def main_():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
