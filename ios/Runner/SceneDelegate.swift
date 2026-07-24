@@ -9,7 +9,8 @@ class SceneDelegate: FlutterSceneDelegate {
   /// snapshot) and removed when it becomes active again.
   private var privacyCover: UIView?
 
-  func sceneWillResignActive(_ scene: UIScene) {
+  override func sceneWillResignActive(_ scene: UIScene) {
+    super.sceneWillResignActive(scene)
     guard privacyCover == nil,
           let windowScene = scene as? UIWindowScene,
           let window = windowScene.windows.first else { return }
@@ -21,7 +22,8 @@ class SceneDelegate: FlutterSceneDelegate {
     privacyCover = cover
   }
 
-  func sceneDidBecomeActive(_ scene: UIScene) {
+  override func sceneDidBecomeActive(_ scene: UIScene) {
+    super.sceneDidBecomeActive(scene)
     privacyCover?.removeFromSuperview()
     privacyCover = nil
   }
