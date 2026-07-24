@@ -6,6 +6,7 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
 import '../app_prefs.dart';
 import '../content_theme.dart';
+import '../i18n.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/banking_service.dart';
