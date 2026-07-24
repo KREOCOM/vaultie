@@ -280,17 +280,20 @@ class DashboardStore {
     }
   }
 
-  /// Names the user marked "not recurring / ended" — dropped from the total.
+  /// Stream ids (sid) the user marked "not recurring / ended" — dropped from the
+  /// total. Keyed by sid, NOT name: two streams of the same merchant at different
+  /// prices (iCloud €2.99 + Apple One €19.95) share a name but have distinct sids,
+  /// so a name key toggled BOTH off at once.
   static Set<String> recurringExcluded() => _loadSet(_kRecExcluded);
 
-  /// Names the user marked "still active" — kept in the total even if the
-  /// heuristic thinks the stream ended.
+  /// Stream ids (sid) the user marked "still active" — kept in the total even if
+  /// the heuristic thinks the stream ended.
   static Set<String> recurringIncluded() => _loadSet(_kRecIncluded);
 
-  /// Set the user's verdict for a stream. [counted] true → force-include;
-  /// false → force-exclude; null → clear the override (back to the heuristic).
-  static Future<void> setRecurringOverride(String name, bool? counted) async {
-    final key = name.trim().toLowerCase();
+  /// Set the user's verdict for ONE stream, keyed by its [sid]. [counted] true →
+  /// force-include; false → force-exclude; null → clear (back to the heuristic).
+  static Future<void> setRecurringOverride(String sid, bool? counted) async {
+    final key = sid.trim();
     final excl = recurringExcluded()..remove(key);
     final incl = recurringIncluded()..remove(key);
     if (counted == false) excl.add(key);

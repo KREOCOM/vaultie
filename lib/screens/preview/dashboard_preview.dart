@@ -269,7 +269,20 @@ List<Map<String, dynamic>> _cleanSeries(dynamic raw) {
 String _flowOf(Map t) {
   if (t['sec'] == 'Pervedimai') return 'transfer';
   if (t['cat'] == 'Grąžinimas') return 'refund';
-  return _aOf(t) > 0 ? 'income' : 'expense';
+  final a = _aOf(t);
+  // Money back from a RECOGNISED spending category is a refund whatever the bank
+  // called it (mirrors functions/dashboard.py _flow). Without this, a returned
+  // purchase the bank didn't stamp with a refund code flipped to INCOME the moment
+  // totals recomputed client-side (any manual add/edit), so net was wrong by twice
+  // the refund. "Kita" is unattributed → a credit there is income (freelance /
+  // interest), not a refund; Pajamos/Pervedimai never reach here as spending.
+  if (a > 0 &&
+      t['sec'] != 'Pajamos' &&
+      t['sec'] != 'Pervedimai' &&
+      t['sec'] != 'Kita') {
+    return 'refund';
+  }
+  return a > 0 ? 'income' : 'expense';
 }
 
 // A transaction's contribution to "spent": an outflow counts, a refund nets down.
@@ -444,9 +457,11 @@ bool _recCounted(Map it, Set<String> excl, Set<String> incl) {
   // monthly total. (The backend already drops transfers from the list; this is
   // the belt-and-braces for any older cached dashboard that still carries one.)
   if (it['type'] == 'transfer') return false;
-  final name = (it['name'] as String? ?? '').toLowerCase();
-  if (excl.contains(name)) return false;
-  if (incl.contains(name)) return true;
+  // Keyed by sid, not name: same-merchant streams at different prices must be
+  // toggled independently (a name key turned both off).
+  final sid = (it['sid'] as String? ?? '').trim();
+  if (sid.isNotEmpty && excl.contains(sid)) return false;
+  if (sid.isNotEmpty && incl.contains(sid)) return true;
   return it['active'] == true;
 }
 
@@ -2680,7 +2695,8 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
     if (init == null) return;
     final a = (init['a'] as num?)?.toDouble() ?? 0;
     if (a != 0) {
-      final abs = a.abs();
+      // Stored EUR → show in the display currency the user edits in.
+      final abs = a.abs() * Money.rate;
       _amountCtl.text = abs == abs.roundToDouble() ? abs.toStringAsFixed(0) : abs.toStringAsFixed(2);
     }
     final cats = _catsFor(widget.kind);
@@ -2701,7 +2717,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
   }
 
   double get _amount {
-    final raw = _amountCtl.text.trim().replaceAll(',', '.').replaceAll('€', '').replaceAll(' ', '');
+    final raw = _amountCtl.text.trim().replaceAll(',', '.').replaceAll('€', '').replaceAll(Money.symbol, '').replaceAll(' ', '');
     return double.tryParse(raw) ?? 0;
   }
 
@@ -2798,7 +2814,11 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
       'ic': _cat.ic,
       'sec': _cat.sec,
       'secc': _cat.secc,
-      'a': double.parse(signed.toStringAsFixed(2)),
+      // The user typed in the DISPLAY currency; all stored amounts are EUR (every
+      // screen multiplies by Money.rate to display), so convert back before saving
+      // — otherwise a 50 kr entry was stored as 50 EUR and shown as ~580 kr.
+      'a': double.parse(
+          (Money.rate > 0 ? signed / Money.rate : signed).toStringAsFixed(2)),
       'amb': false,
       'badges': <String>[],
       'pos': signed > 0,
@@ -2860,7 +2880,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                           ),
                         ),
                       ),
-                      Text('€', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w700, color: _muted)),
+                      Text(Money.symbol, style: TextStyle(fontSize: 30, fontWeight: FontWeight.w700, color: _muted)),
                     ]),
                   ),
                   const SizedBox(height: 12),
@@ -7037,11 +7057,11 @@ class _RecurringScreenState extends State<_RecurringScreen> {
   }
 
   Future<void> _toggle(Map it, bool counted) async {
-    final name = it['name'] as String;
+    final sid = (it['sid'] as String?) ?? '';
     final backendActive = it['active'] == true && it['type'] != 'transfer';
     // Match the heuristic → clear the override; differ → store the user's choice.
     final bool? override = (counted == backendActive) ? null : counted;
-    await DashboardStore.setRecurringOverride(name, override);
+    await DashboardStore.setRecurringOverride(sid, override);
     if (!mounted) return;
     setState(() {
       _excl = DashboardStore.recurringExcluded();
@@ -7304,12 +7324,11 @@ class _RecurringReviewSheetState extends State<_RecurringReviewSheet> {
 
   Future<void> _decide(Map<String, dynamic> it, bool keep) async {
     final sid = (it['sid'] as String?) ?? '';
-    final name = (it['name'] as String?) ?? '';
     // Green ＋ = "yes, I track it" → force-INCLUDE so it actually lands in the
     // counted subscriptions (before, keep only marked it reviewed, so a stream
     // the engine hadn't counted just vanished). Red ✗ = force-EXCLUDE. Either way
-    // it leaves the review queue.
-    await DashboardStore.setRecurringOverride(name, keep);
+    // it leaves the review queue. Keyed by sid so same-name streams don't collide.
+    await DashboardStore.setRecurringOverride(sid, keep);
     await DashboardStore.markRecurringReviewed(sid);
     if (!mounted) return;
     setState(() {
@@ -7846,8 +7865,14 @@ class _AccountTabState extends State<_AccountTab> {
   Future<void> _assetDialog({int? index}) async {
     final editing = index != null;
     final a = editing ? _assets[index] : null;
+    // Assets are stored in EUR; show/enter them in the display currency.
+    final amtDisp = ((a?['amount'] as num?) ?? 0).toDouble() * Money.rate;
     final amountCtl = TextEditingController(
-        text: a != null ? ((a['amount'] as num?) ?? 0).toString() : '');
+        text: a != null
+            ? (amtDisp == amtDisp.roundToDouble()
+                ? amtDisp.toStringAsFixed(0)
+                : amtDisp.toStringAsFixed(2))
+            : '');
     final labelCtl = TextEditingController(text: (a?['label'] as String?) ?? '');
     final saved = await showDialog<bool>(
       context: context,
@@ -7863,7 +7888,7 @@ class _AccountTabState extends State<_AccountTab> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             style: TextStyle(color: _ink, fontSize: 22, fontWeight: FontWeight.w700),
             decoration: InputDecoration(
-              prefixText: '€ ',
+              prefixText: '${Money.symbol} ',
               prefixStyle: TextStyle(color: _ink, fontSize: 22, fontWeight: FontWeight.w700),
               hintText: '0',
               hintStyle: TextStyle(color: _faint),
@@ -7902,8 +7927,11 @@ class _AccountTabState extends State<_AccountTab> {
       return;
     }
     if (saved != true) return; // cancelled
-    final amount = double.tryParse(
-            amountCtl.text.replaceAll('€', '').replaceAll(',', '.').trim()) ??
+    final amount = double.tryParse(amountCtl.text
+            .replaceAll('€', '')
+            .replaceAll(Money.symbol, '')
+            .replaceAll(',', '.')
+            .trim()) ??
         0;
     if (amount <= 0) return;
     final label = labelCtl.text.trim();
@@ -7911,7 +7939,8 @@ class _AccountTabState extends State<_AccountTab> {
       final entry = <String, dynamic>{
         'id': a?['id'] ?? DateTime.now().microsecondsSinceEpoch.toString(),
         'label': label.isEmpty ? 'Grynieji' : label,
-        'amount': amount,
+        // Typed in the display currency; store EUR so it round-trips everywhere.
+        'amount': Money.rate > 0 ? amount / Money.rate : amount,
       };
       if (editing) {
         _assets[index] = entry;
