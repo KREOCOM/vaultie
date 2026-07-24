@@ -133,8 +133,11 @@ def is_premium(uid: str, api_key: str, db=None) -> bool:
 
     fresh = _ask_revenuecat(uid, api_key)
     if fresh is None:
-        # Unreachable. Trust a cached POSITIVE of any age; with none, deny.
-        if active is True:
+        # Unreachable. Trust a cached POSITIVE — but NEVER past its own expiry: the
+        # point of caching expiresAt is that a lapse is known locally without asking
+        # RevenueCat, so an expired subscriber is denied even during an outage. With
+        # no still-valid positive, deny.
+        if active is True and (expires is None or _now() < expires):
             logging.warning("entitlement: serving stale positive cache for uid=%s", uid)
             return True
         return False

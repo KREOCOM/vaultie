@@ -21,6 +21,17 @@ def _txn(month, name, amount, iban=None):
     return t
 
 
+def _txn_remit_only(month, name, amount):
+    """A bank that fills ONLY the remittance, with no structured creditor.name —
+    so canonical's party_kind_hint (built from creditor.name) is empty."""
+    return {
+        "credit_debit_indicator": "DBIT",
+        "transaction_amount": {"amount": str(amount), "currency": "EUR"},
+        "remittance_information": [name],
+        "booking_date": f"2026-{month:02d}-05",
+    }
+
+
 def _typ(det, name):
     for c in det["candidates"]:
         if c.get("name") == name:
@@ -67,6 +78,14 @@ def _run():
                              own_ibans=set(), today=today)
         assert _typ(r, biz) in ("bill", "subscription"), \
             f"business {biz!r} wrongly stripped to: {_typ(r, biz)}"
+
+    # 6) A foreign person whose name the bank put ONLY in the remittance (no
+    #    structured creditor.name) — must STILL be a transfer, not a housing bill.
+    for name in ("John Smith", "Giovanni Rossi"):
+        r = detect_recurring([_txn_remit_only(m, name, 300) for m in (3, 4, 5)],
+                             own_ibans=set(), today=today)
+        assert _typ(r, name) not in ("bill", "subscription"), \
+            f"remittance-only person {name!r} leaked as: {_typ(r, name)}"
 
     print("test_own_name_transfer: PASS")
 

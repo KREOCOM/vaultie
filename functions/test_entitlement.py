@@ -198,6 +198,17 @@ def test_a_cached_positive_is_not_trusted_past_its_expiry():
     assert entitlement.is_premium("u1", "key", db) is False
 
 
+def test_expired_positive_is_denied_even_during_an_outage():
+    # A subscription that lapsed within the TTL must be denied even when RevenueCat
+    # is unreachable — the cached expiry is known locally, so the outage fallback
+    # must not re-grant it.
+    past = entitlement._now() - dt.timedelta(hours=1)
+    db = _DB({"u1": {"active": True, "checkedAt": entitlement._now(),
+                     "expiresAt": past}})
+    _patch(lambda *a, **k: (_ for _ in ()).throw(OSError("network down")))
+    assert entitlement.is_premium("u1", "key", db) is False
+
+
 def test_a_cached_positive_within_expiry_is_still_trusted():
     future = entitlement._now() + dt.timedelta(days=10)
     db = _DB({"u1": {"active": True, "checkedAt": entitlement._now(),

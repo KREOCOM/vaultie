@@ -507,6 +507,23 @@ def _has_business_token(name: str) -> bool:
     return bool(_name_tokens(name) & _BUSINESS_TOKENS)
 
 
+def _looks_person_shaped(name: str) -> bool:
+    """A generic personal-name SHAPE — 2–4 alphabetic tokens, no legal form, no
+    digits (foreign names included). Mirrors entity._looks_like_person, but is
+    evaluated here against the RAW remittance name too: when a bank fills only the
+    remittance (no structured creditor.name), canonical's party_kind_hint is empty,
+    so a foreign 'John Smith' otherwise slipped through as a housing bill."""
+    toks = [t for t in re.split(r"[\s.*/\\]+", (name or "").strip()) if t]
+    if not (2 <= len(toks) <= 4):
+        return False
+    folded = [t.lower().translate(_FOLD) for t in toks]
+    if any(t in _LT_PERSON_LEGAL for t in folded):
+        return False
+    if any(any(c.isdigit() for c in t) for t in toks):
+        return False
+    return all(re.match(r"^[A-Za-zĄČĘĖĮŠŲŪŽąčęėįšųūž.'\-]+$", t) for t in toks)
+
+
 # ── Recurring stream LIFECYCLE (Plaid/Tink-style) ───────────────────────────
 # A historical recurring pattern is NOT an active future commitment forever. A
 # finished tax plan / paid-off loan / cancelled subscription keeps its history
@@ -832,7 +849,12 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             # a person too, which closes the foreign-name gap (a €300/mo "John
             # Smith" no longer becomes a housing bill).
             is_business = _has_business_token(cp_name or raw_name)
-            generic_person = is_person and not is_card
+            # `is_person` relies on party_kind_hint, which canonical builds from the
+            # structured creditor.name only. Also test the RAW name shape so a
+            # foreign/generic person whose name the bank put ONLY in the remittance
+            # (no creditor.name) is still caught, not booked as a housing bill.
+            generic_person = ((is_person or _looks_person_shaped(cp_name or raw_name))
+                              and not is_card)
             if not is_business and (lt_person or bare_person or generic_person):
                 # HARD RULE: a personal name is a person-to-person transfer — NEVER
                 # a bill or subscription, whatever the amount or memo. The old code

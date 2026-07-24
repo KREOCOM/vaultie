@@ -277,6 +277,15 @@ def _bank_from_iban(iban):
     return _LT_BANK_BY_CODE.get(n[4:9])
 
 
+def _mask_iban(v):
+    """Mask an IBAN-shaped value so a real IBAN never lands in Cloud Logging.
+    Used everywhere an account label/iban is logged (a nameless account's label
+    falls back to its IBAN in _account_meta)."""
+    s = str(v or "")
+    return (s[:4] + "…") if re.match(
+        r"^[A-Z]{2}\d{2}[A-Z0-9]{6,}$", s.replace(" ", "")) else s
+
+
 def _norm_iban(iban) -> str | None:
     """Uppercase, strip spaces — so own-account IBANs compare regardless of
     formatting."""
@@ -404,7 +413,7 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
             scan_diag.append({"account": m["name"], "bank": bank, **diag})
         except EnableBankingError as e:
             logging.warning("scan: account %r (%s) failed, skipping: %s",
-                            m.get("name"), bank, e)
+                            _mask_iban(m.get("name")), bank, e)
             # A rate-limited bank is a "come back in a bit", not a broken
             # connection — the client must say so rather than send the user to
             # reconnect (which would burn even more of the bank's quota).
@@ -489,15 +498,18 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     logging.info("scan: accounts=%d txns=%d candidates=%d frequent=%d",
                  len(summaries), len(all_txns),
                  len(detection["candidates"]), len(detection["frequent"]))
-    # Redact the per-account label before logging: when a bank returns no name,
-    # `_account_meta` falls back to the IBAN, so logging it raw would leak a real
-    # IBAN into Cloud Logging. Mask anything IBAN-shaped.
-    def _safe_acct(v):
-        s = str(v or "")
-        return (s[:4] + "…") if re.match(
-            r"^[A-Z]{2}\d{2}[A-Z0-9]{6,}$", s.replace(" ", "")) else s
-    logging.info("scan scan_diag=%s",
-                 [{**d, "account": _safe_acct(d.get("account"))} for d in scan_diag])
+    # Redact before logging: a nameless account's label falls back to its IBAN in
+    # `_account_meta`, and the error-path diag entries carry a raw `iban` field —
+    # both would leak a real IBAN into Cloud Logging. Mask anything IBAN-shaped in
+    # BOTH the account label and the iban field.
+    def _redact(d):
+        r = dict(d)
+        if "account" in r:
+            r["account"] = _mask_iban(r["account"])
+        if "iban" in r:
+            r["iban"] = _mask_iban(r["iban"])
+        return r
+    logging.info("scan scan_diag=%s", [_redact(d) for d in scan_diag])
     return {
         "accountCount": len(summaries),
         "transactionCount": len(all_txns),
@@ -579,6 +591,10 @@ def delete_user_data(req: https_fn.CallableRequest) -> dict:
                     revoked += 1
         except Exception:  # noqa: BLE001
             logging.exception("delete_user_data: session revoke error uid=%s", uid)
+    # Local import mirrors the sibling functions (_remember_accounts / _owned_accounts);
+    # `firestore` is not a module-level name, so without this the whole callable
+    # raised NameError and never deleted the documents it exists to erase.
+    from firebase_admin import firestore
     db = firestore.client()
     for coll in (_BANK_LINKS, "entitlements"):
         try:
