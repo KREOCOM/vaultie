@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../i18n.dart';
+import '../main.dart' show navigatorKey;
 import '../services/app_lock.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
+import 'login_screen.dart';
 
 // These are fixed rather than themed: the lock covers the whole app before any
 // theme is applied. They now match the near-black dark palette instead of the
@@ -59,6 +61,15 @@ class _LockScreenState extends State<LockScreen> {
   }
 
   void _press(String d) {
+    // Too many wrong tries → the keypad is in cooldown; ignore input and say so.
+    if (AppLock.pinLockoutSecondsRemaining() > 0) {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _error = true;
+        _entry = '';
+      });
+      return;
+    }
     if (_entry.length >= _pinLength) return;
     HapticFeedback.selectionClick();
     setState(() {
@@ -67,10 +78,12 @@ class _LockScreenState extends State<LockScreen> {
     });
     if (_entry.length == _pinLength) {
       if (AppLock.verifyPin(_entry)) {
+        AppLock.resetPinFailures();
         HapticFeedback.mediumImpact();
         widget.onUnlocked();
       } else {
         HapticFeedback.heavyImpact();
+        AppLock.registerPinFailure();
         setState(() {
           _error = true;
           _entry = '';
@@ -117,7 +130,15 @@ class _LockScreenState extends State<LockScreen> {
       // is what unblocks the screen.
     }
     if (!mounted) return;
-    // Drops the overlay; the app underneath is already showing sign-in.
+    // Send the user to sign-in BEFORE dropping the overlay. The lock only ever
+    // shows over a signed-in dashboard, so just lifting the overlay would reveal
+    // the PREVIOUS user's data in full — and the person tapping "forgot PIN" is
+    // exactly the one who must not see it. Replace the whole stack with LoginScreen
+    // via the app's root navigator, then drop the overlay.
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
     widget.onUnlocked();
   }
 
@@ -125,9 +146,11 @@ class _LockScreenState extends State<LockScreen> {
   Widget build(BuildContext context) {
     return _PinScaffold(
       title: tr('Įvesk PIN kodą'),
-      subtitle: _error
-          ? tr('Neteisingas PIN — bandyk dar')
-          : tr('Vaultie užrakinta'),
+      subtitle: AppLock.pinLockoutSecondsRemaining() > 0
+          ? '${tr('Per daug bandymų. Palauk')} ${AppLock.pinLockoutSecondsRemaining()} s'
+          : _error
+              ? tr('Neteisingas PIN — bandyk dar')
+              : tr('Vaultie užrakinta'),
       entry: _entry,
       error: _error,
       onDigit: _press,
