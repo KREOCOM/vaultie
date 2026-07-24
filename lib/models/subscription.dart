@@ -187,7 +187,7 @@ class SubscriptionAdapter extends TypeAdapter<Subscription> {
     return Subscription(
       id: fields[0] as String,
       name: fields[1] as String,
-      cost: fields[2] as double,
+      cost: (fields[2] as num).toDouble(),
       billingCycle: BillingCycle.values[fields[3] as int],
       category: fields[4] as String,
       nextBillingDate: DateTime.fromMillisecondsSinceEpoch(fields[5] as int),

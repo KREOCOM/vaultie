@@ -44,8 +44,13 @@ def merge_known(all_txns: list, summaries: list, own_ibans: set, scan_diag: list
     from the fresh scan alone. Reused history is clipped to the window the caller
     asked for, so the cache can't quietly grow the dashboard's date range.
     """
-    k_txns = (known or {}).get("txns") or []
-    k_accts = (known or {}).get("accounts") or []
+    # The `known` block comes straight from the client; a malformed one (a string
+    # or list instead of a dict) must be ignored, not crash the whole paid scan to
+    # INTERNAL. Every other client field is already type-guarded; this closes the gap.
+    if not isinstance(known, dict):
+        known = {}
+    k_txns = known.get("txns") or []
+    k_accts = known.get("accounts") or []
     if not k_txns and not k_accts:
         return all_txns, summaries, own_ibans, []
     # A bank counts as having answered only if its scan carried no error. Banks

@@ -670,6 +670,10 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     final bal = d['balance'] as Map;
     if (bal['series'] is! List) bal['series'] = <dynamic>[];
     if (d['subs'] is! Map) d['subs'] = <String, dynamic>{};
+    // build() reads d['budgets'] unconditionally too (month-review, tx-detail,
+    // overview) — an older cached payload without it would `null as Map` crash the
+    // whole dashboard on the first frame, every launch.
+    if (d['budgets'] is! Map) d['budgets'] = <String, dynamic>{};
     return d;
   }
   bool _deepening = false; // a fuller 12-month scan is still loading in the background
@@ -4165,6 +4169,10 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   }
 
   Future<void> _fetchAiSummary() async {
+    // Sending the month's figures to the AI provider needs the SAME consent the
+    // chat asks for. A user who never accepted it must not have their finances sent
+    // off-device; the templated fallback summary still renders (_aiText stays null).
+    if (!AppPrefs.aiChatConsent) return;
     final cached = _monthAiCache[widget.month];
     if (cached != null && cached.isNotEmpty) {
       setState(() => _aiText = cached);
@@ -4716,13 +4724,16 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final mo = _moInt(widget.month);
     final lead = DateTime(y, mo, 1).weekday - 1; // Mon=0
     final net = <int, double>{};
+    final spend = <int, double>{}; // expenses only — drives the "heavy day" amber
     final daySec = <int, Map<String, double>>{};
     for (final t in _rows) {
+      final label = _secOf(t);
+      if (_isTransfer(label)) continue; // transfers are neutral — not income/spend
       final d = _dayOf(t);
       final a = _aOf(t).toDouble();
       net[d] = (net[d] ?? 0) + a;
-      final label = _secOf(t);
-      if (!_isIncome(label) && !_isTransfer(label) && a < 0) {
+      if (!_isIncome(label) && a < 0) {
+        spend[d] = (spend[d] ?? 0) + (-a);
         final sm = daySec.putIfAbsent(d, () => {});
         sm[_seccOf(t)] = (sm[_seccOf(t)] ?? 0) - a;
       }
@@ -4738,9 +4749,10 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       cells.add(const SizedBox());
     }
     for (var d = 1; d <= _daysInMonth; d++) {
-      final n = net[d];
-      final c = (n != null && n > 500) ? _secColor['amber'] : dom(d);
-      cells.add(_calCell(d, n, c));
+      // Highlight a day amber only for heavy SPENDING — never for a payday or a
+      // big own-account transfer (those used to trip the "heavy spend" alarm).
+      final c = ((spend[d] ?? 0) > 500) ? _secColor['amber'] : dom(d);
+      cells.add(_calCell(d, net[d], c));
     }
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
@@ -4830,8 +4842,8 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 SizedBox(
                   width: 56, height: 56,
                   child: Stack(alignment: Alignment.center, children: [
-                    CustomPaint(size: const Size(56, 56), painter: _RingProgressPainter((totalSpent / totalBudget).clamp(0.0, 1.0))),
-                    Text('${(totalSpent / totalBudget * 100).round()}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _ink)),
+                    CustomPaint(size: const Size(56, 56), painter: _RingProgressPainter(totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0)),
+                    Text('${totalBudget > 0 ? (totalSpent / totalBudget * 100).round() : 0}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _ink)),
                   ]),
                 ),
                 const Spacer(),
@@ -5494,7 +5506,6 @@ class _OverviewTabState extends State<_OverviewTab> {
           _totalCard(net),
           _savingsCard(savStr, prevStr, _savingStreak),
           _categoryList(secs),
-          _tags(),
           _analyticsLabel(),
           _calendar(),
           _merchants(),
@@ -5651,17 +5662,6 @@ class _OverviewTabState extends State<_OverviewTab> {
     );
   }
 
-  Widget _tags() => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(tr('Žymos'), style: TextStyle(fontSize: 13.5, color: _muted))),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
-            child: Row(children: [Icon(Icons.add_rounded, size: 22, color: _purple), const SizedBox(width: 12), Text(tr('Pridėti žymą'), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink))]),
-          ),
-        ]),
-      );
 
   Widget _analyticsLabel() => Padding(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
@@ -5674,13 +5674,16 @@ class _OverviewTabState extends State<_OverviewTab> {
     final lead = DateTime(y, _curMon, 1).weekday - 1;
     final daysIn = DateTime(y, _curMon + 1, 0).day;
     final net = <int, double>{};
+    final spend = <int, double>{}; // expenses only — drives the "heavy day" amber
     final daySec = <int, Map<String, double>>{};
     for (final t in _rows) {
+      final label = _secOf(t);
+      if (_isTransfer(label)) continue; // transfers are neutral — not income/spend
       final d = _dayOf(t);
       final a = _aOf(t).toDouble();
       net[d] = (net[d] ?? 0) + a;
-      final label = _secOf(t);
-      if (!_isIncome(label) && !_isTransfer(label) && a < 0) {
+      if (!_isIncome(label) && a < 0) {
+        spend[d] = (spend[d] ?? 0) + (-a);
         (daySec.putIfAbsent(d, () => {}))[_seccOf(t)] = ((daySec[d]![_seccOf(t)]) ?? 0) - a;
       }
     }
@@ -5696,7 +5699,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     }
     for (var d = 1; d <= daysIn; d++) {
       final n = net[d];
-      final c = (n != null && n > 500) ? _secColor['amber'] : dom(d);
+      final c = ((spend[d] ?? 0) > 500) ? _secColor['amber'] : dom(d);
       cells.add(Container(
         margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
@@ -5890,6 +5893,21 @@ class _SavingsRateScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (monthKeys.isEmpty) {
+      // A freshly-connected / empty account has no months yet — don't `.last` on
+      // an empty list (StateError → red screen); show a neutral empty state.
+      return Scaffold(
+        backgroundColor: _bg,
+        appBar: AppBar(backgroundColor: _bg, elevation: 0, foregroundColor: _ink),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(tr('Dar nėra duomenų.'),
+                textAlign: TextAlign.center, style: TextStyle(color: _muted)),
+          ),
+        ),
+      );
+    }
     final curKey = monthKeys.last;
     final curMon = _moInt(curKey);
     final rows = rowsOf(curKey);
