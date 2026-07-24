@@ -382,6 +382,9 @@ const Map<String, String> _en = {
   'Sąskaitos': 'Accounts',
   'Likutis': 'Balance',
   'Prijungti kitą banką': 'Connect another bank',
+  'neatnaujinta': 'not updated',
+  'Pažymėti bankai kol kas neatidavė naujų duomenų — rodomi paskutiniai žinomi.':
+      "The marked banks haven't returned fresh data yet — showing the last known.",
   'Turi pastabų?': 'Have feedback?',
   'Pasakyk, ką galvoji': 'Tell us what you think',
   'Palikti atsiliepimą': 'Leave feedback',

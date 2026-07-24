@@ -76,11 +76,43 @@ class DashboardStore {
         }));
   }
 
-  /// Save the dashboard payload from a successful scan (overwrites the previous).
+  /// Save the dashboard payload from a scan (overwrites the previous).
+  ///
+  /// The "last synced" clock is advanced only when at least one bank returned
+  /// FRESH data. When every bank in the payload was served from the last-known
+  /// cache (a total rate-limit or Enable Banking outage — see `staleBanks`),
+  /// nothing actually synced: bumping the clock would make frozen data read as
+  /// "just updated" and would stall the retry throttle on data that never
+  /// refreshed. The dashboard blob is still saved (it may differ after the merge)
+  /// so the cached-through banks and any per-bank "not updated" flag persist.
   static Future<void> save(Map<String, dynamic> dash, {String? bank}) async {
     await _box.put(_kDash, jsonEncode(dash));
-    await _box.put(_kSyncedAt, DateTime.now().toIso8601String());
+    if (!isFullyStale(dash)) {
+      await _box.put(_kSyncedAt, DateTime.now().toIso8601String());
+    }
     if (bank != null && bank.isNotEmpty) await _box.put(_kBank, bank);
+  }
+
+  /// True when every bank represented in [dash] was served from cache this scan
+  /// (its label is in `balance.staleBanks`) — i.e. not one bank came back fresh.
+  /// False when there are no stale banks, or at least one bank answered. Pure
+  /// (no Hive) so [save]'s "advance the sync clock?" decision is unit-testable.
+  static bool isFullyStale(Map<String, dynamic> dash) {
+    final bal = dash['balance'];
+    if (bal is! Map) return false;
+    final stale = ((bal['staleBanks'] as List?) ?? const [])
+        .map((e) => e.toString().toLowerCase().trim())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+    if (stale.isEmpty) return false;
+    final banks = ((bal['accounts'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((a) => (a['bank'] as String?)?.toLowerCase().trim())
+        .whereType<String>()
+        .where((s) => s.isNotEmpty)
+        .toSet();
+    if (banks.isEmpty) return false;
+    return banks.difference(stale).isEmpty;
   }
 
   /// The saved dashboard payload, or null if there isn't one (or it's corrupt).

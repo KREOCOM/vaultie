@@ -353,6 +353,7 @@ class BankingService {
       if (rawDash != null) {
         try {
           dash = jsonDecode(jsonEncode(rawDash)) as Map<String, dynamic>;
+          _attachStaleBanks(dash, m);
         } catch (_) {
           dash = null;
         }
@@ -383,6 +384,22 @@ class BankingService {
     }, timeout: const Duration(minutes: 5));
     await DashboardStore.mergeKnown(known);
     return res;
+  }
+
+  /// Fold the scan's `staleBanks` (bank labels whose data the backend served from
+  /// the last-known cache this scan, not from the bank itself) INTO the dashboard
+  /// payload's `balance` map, so the signal travels and persists with the data it
+  /// describes. The Account view reads it to flag those banks as "not updated",
+  /// and DashboardStore.save reads it to avoid advancing the "last synced" clock
+  /// on a scan where nothing actually came fresh. Absent/malformed → empty list.
+  static void _attachStaleBanks(Map<String, dynamic> dash, Map<Object?, Object?> m) {
+    final stale = <String>[
+      for (final b in (m['staleBanks'] as List?) ?? const [])
+        if (b != null) b.toString(),
+    ];
+    if (dash['balance'] is Map) {
+      (dash['balance'] as Map)['staleBanks'] = stale;
+    }
   }
 
   /// The `known` block (last-known raw scan) from a scan response, deep-converted
@@ -427,7 +444,9 @@ class BankingService {
       final rawDash = m['dash'];
       if (rawDash == null) return null;
       try {
-        return jsonDecode(jsonEncode(rawDash)) as Map<String, dynamic>;
+        final dash = jsonDecode(jsonEncode(rawDash)) as Map<String, dynamic>;
+        _attachStaleBanks(dash, m);
+        return dash;
       } catch (_) {
         return null;
       }

@@ -7821,6 +7821,23 @@ class _AccountTabState extends State<_AccountTab> {
         ),
       );
 
+  // Small amber "not updated" pill for a bank whose data came from cache this
+  // scan — the honest counter to a frozen balance reading as freshly synced.
+  Widget _staleChip() => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: _reviewAmber.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.cloud_off_rounded, size: 12, color: _reviewAmberInk),
+          const SizedBox(width: 4),
+          Text(tr('neatnaujinta'),
+              style: const TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: _reviewAmberInk)),
+        ]),
+      );
+
   Widget _accountsCard() {
     // Group accounts by bank so a multi-bank user sees each bank's accounts +
     // its subtotal. A single bank (or old data without a bank tag) stays a flat
@@ -7831,14 +7848,29 @@ class _AccountTabState extends State<_AccountTab> {
       groups.putIfAbsent((b == null || b.isEmpty) ? '' : b, () => []).add(a);
     }
     final multi = groups.length > 1;
+    // Banks the backend served from its last-known cache this scan (a rate-limit
+    // or outage) rather than from the bank. Their balances are frozen, so flag
+    // them "not updated" instead of letting them read as freshly synced.
+    final staleBanks = ((widget.balance['staleBanks'] as List?) ?? const [])
+        .map((e) => e.toString().toLowerCase().trim())
+        .where((s) => s.isNotEmpty)
+        .toSet();
     final rows = <Widget>[];
     groups.forEach((bank, accts) {
-      if (multi && bank.isNotEmpty) {
+      final isStale = bank.isNotEmpty && staleBanks.contains(bank.toLowerCase());
+      // Show the bank header when there are several banks, OR for a lone bank
+      // that is stale — so the "not updated" chip has a place to sit.
+      if ((multi || isStale) && bank.isNotEmpty) {
         final subtotal = accts.fold(0.0, (s, a) => s + ((a['amount'] ?? 0) as num).toDouble());
         rows.add(Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
           child: Row(children: [
-            Text(bank, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.2)),
+            Flexible(
+              child: Text(bank,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.2)),
+            ),
+            if (isStale) ...[const SizedBox(width: 8), _staleChip()],
             const Spacer(),
             Text(_eur(subtotal), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _muted)),
           ]),
@@ -7880,6 +7912,13 @@ class _AccountTabState extends State<_AccountTab> {
                 .push(MaterialPageRoute(builder: (_) => const BankConnectScreen()))),
           ]),
         ),
+        if (staleBanks.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+            child: Text(
+                tr('Pažymėti bankai kol kas neatidavė naujų duomenų — rodomi paskutiniai žinomi.'),
+                style: TextStyle(fontSize: 12, color: _muted, height: 1.3)),
+          ),
         if (DashboardStore.bankCount > 0)
           Padding(
             padding: const EdgeInsets.only(top: 6),
