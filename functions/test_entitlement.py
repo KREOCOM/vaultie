@@ -187,6 +187,26 @@ def test_a_cached_negative_denies_when_revenuecat_is_down():
     assert entitlement.is_premium("u1", "key", db) is False
 
 
+def test_a_cached_positive_is_not_trusted_past_its_expiry():
+    # A subscription that lapsed WITHIN the cache TTL must not keep paid access for
+    # the rest of the window: the cached positive is bounded by its own expiry, so
+    # once it passes we re-ask RevenueCat rather than serve a stale "active".
+    past = entitlement._now() - dt.timedelta(hours=1)
+    db = _DB({"u1": {"active": True, "checkedAt": entitlement._now(),
+                     "expiresAt": past}})
+    _patch(lambda *a, **k: _rc(False))  # RevenueCat confirms it's gone
+    assert entitlement.is_premium("u1", "key", db) is False
+
+
+def test_a_cached_positive_within_expiry_is_still_trusted():
+    future = entitlement._now() + dt.timedelta(days=10)
+    db = _DB({"u1": {"active": True, "checkedAt": entitlement._now(),
+                     "expiresAt": future}})
+    _patch(lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("cache should have answered")))
+    assert entitlement.is_premium("u1", "key", db) is True
+
+
 def main_():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

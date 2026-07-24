@@ -590,10 +590,15 @@ def delete_user_data(req: https_fn.CallableRequest) -> dict:
     return {"revoked": revoked, "sessions": len(session_ids)}
 
 
-@https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])
+@https_fn.on_call(region=_REGION,
+                  secrets=[ENABLE_BANKING_PRIVATE_KEY, REVENUECAT_API_KEY])
 def start_bank_auth(req: https_fn.CallableRequest) -> dict:
     """Begin consent for ``aspspName`` and return the bank's authorization URL."""
     _require_auth(req)
+    # Premium-gate the START too, not just finish_bank_auth: otherwise a lapsed
+    # user could create a real 90-day bank consent and only be refused AFTER
+    # approving at the bank — burning a consent slot for nothing.
+    _require_premium(req)
     rid = _begin(req, "start_bank_auth")
     data = req.data or {}
     name = data.get("aspspName")

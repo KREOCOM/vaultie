@@ -38,38 +38,43 @@ def _now():
     return dt.datetime.now(dt.timezone.utc)
 
 
+def _norm_dt(v):
+    """A tz-aware datetime, or None, from a Firestore value."""
+    if not isinstance(v, dt.datetime):
+        return None
+    return v if v.tzinfo is not None else v.replace(tzinfo=dt.timezone.utc)
+
+
 def _cached(db, uid):
-    """(is_active, checked_at) from the cache, or (None, None) if unusable."""
+    """(is_active, checked_at, expires_at) or (None, None, None) if unusable.
+    ``expires_at`` is when the entitlement itself lapses (None = non-expiring)."""
     try:
         snap = db.collection(_COLLECTION).document(uid).get()
         if not snap.exists:
-            return None, None
+            return None, None, None
         d = snap.to_dict() or {}
-        ts = d.get("checkedAt")
-        if not ts:
-            return None, None
-        # Firestore returns a tz-aware datetime; normalise defensively.
-        checked = ts if isinstance(ts, dt.datetime) else None
+        checked = _norm_dt(d.get("checkedAt"))
         if checked is None:
-            return None, None
-        if checked.tzinfo is None:
-            checked = checked.replace(tzinfo=dt.timezone.utc)
-        return bool(d.get("active")), checked
+            return None, None, None
+        return bool(d.get("active")), checked, _norm_dt(d.get("expiresAt"))
     except Exception:
         logging.exception("entitlement: cache read failed uid=%s", uid)
-        return None, None
+        return None, None, None
 
 
-def _store(db, uid, active):
+def _store(db, uid, active, expires=None):
     try:
         db.collection(_COLLECTION).document(uid).set(
-            {"active": bool(active), "checkedAt": _now()}, merge=True)
+            {"active": bool(active), "checkedAt": _now(), "expiresAt": expires},
+            merge=True)
     except Exception:
         logging.exception("entitlement: cache write failed uid=%s", uid)
 
 
 def _ask_revenuecat(uid, api_key):
-    """True/False from RevenueCat, or None if it couldn't be reached."""
+    """``(active, expires_at)`` from RevenueCat, or None if it couldn't be reached.
+    ``active`` is a bool; ``expires_at`` is a tz-aware datetime, or None for a
+    non-expiring (lifetime / promotional) grant."""
     try:
         r = requests.get(_API + uid, timeout=_TIMEOUT,
                          headers={"Authorization": f"Bearer {api_key}",
@@ -78,7 +83,7 @@ def _ask_revenuecat(uid, api_key):
         logging.warning("entitlement: RevenueCat unreachable: %s", e)
         return None
     if r.status_code == 404:
-        return False  # RevenueCat has never seen this user — definitely not paying
+        return (False, None)  # RevenueCat has never seen this user — not paying
     if not r.ok:
         logging.warning("entitlement: RevenueCat http %s", r.status_code)
         return None
@@ -89,17 +94,17 @@ def _ask_revenuecat(uid, api_key):
         return None
     ent = ents.get(_ENTITLEMENT)
     if not ent:
-        return False
+        return (False, None)
     expires = ent.get("expires_date")
     if expires is None:
-        return True  # non-expiring (lifetime / promotional grant)
+        return (True, None)  # non-expiring (lifetime / promotional grant)
     try:
         # RevenueCat sends e.g. "2026-08-20T10:15:00Z".
         exp = dt.datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
     except ValueError:
         logging.warning("entitlement: unparseable expiry %r", expires)
         return None
-    return exp > _now()
+    return (exp > _now(), exp)
 
 
 def is_premium(uid: str, api_key: str, db=None) -> bool:
@@ -114,14 +119,17 @@ def is_premium(uid: str, api_key: str, db=None) -> bool:
         from firebase_admin import firestore
         db = firestore.client()
 
-    active, checked = _cached(db, uid)
+    active, checked, expires = _cached(db, uid)
     # Only a cached POSITIVE is trusted within the TTL. A cached negative must NEVER
     # be sticky: a user who just paid — or whose RevenueCat identity had not yet
     # aliased to their Firebase uid at purchase time — would otherwise be denied
     # every paid endpoint for a full 24h even after the subscription is
     # unambiguously active. So a False/None cache always re-asks RevenueCat.
     if active is True and checked is not None and _now() - checked < _CACHE_TTL:
-        return True
+        # ...but never keep trusting a cached positive PAST its own expiry, or a
+        # lapsed/cancelled subscriber kept paid access for up to the full TTL.
+        if expires is None or _now() < expires:
+            return True
 
     fresh = _ask_revenuecat(uid, api_key)
     if fresh is None:
@@ -130,10 +138,12 @@ def is_premium(uid: str, api_key: str, db=None) -> bool:
             logging.warning("entitlement: serving stale positive cache for uid=%s", uid)
             return True
         return False
-    # Cache positives (trusted for the TTL). Reads never trust a cached negative, so
-    # storing one only matters to clear a now-stale positive when RC turns negative.
-    if fresh:
-        _store(db, uid, True)
+    fresh_active, fresh_expires = fresh
+    # Cache positives (trusted for the TTL, bounded by their expiry). Reads never
+    # trust a cached negative, so storing one only matters to clear a now-stale
+    # positive when RevenueCat turns negative.
+    if fresh_active:
+        _store(db, uid, True, fresh_expires)
     elif active is True:
-        _store(db, uid, False)
-    return fresh
+        _store(db, uid, False, None)
+    return fresh_active

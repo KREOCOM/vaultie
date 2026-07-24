@@ -210,7 +210,10 @@ def _amt(t):
         # must not take the whole dashboard down with it (see _ymd).
         logging.warning("dashboard: unparseable amount %r", ta.get("amount"))
         v = 0.0
-    v = v if t.get("credit_debit_indicator") == "CRDT" else -v
+    # Direction comes SOLELY from the credit/debit indicator; magnitude is abs().
+    # A bank/cached row that signs the amount itself (DBIT with amount "-5.00")
+    # otherwise flipped: -v made it +5, so a debit read as income/refund.
+    v = abs(v) if t.get("credit_debit_indicator") == "CRDT" else -abs(v)
     return _to_eur(v, ta.get("currency"))
 
 
