@@ -820,6 +820,11 @@ def finance_chat(req: https_fn.CallableRequest) -> dict:
         summary=str(data.get("summary") or ""),
         history=data.get("messages") or [],
         api_key=ANTHROPIC_API_KEY.value,
+        # The phone's UI language. The chat used to infer the reply language from
+        # the question, but with Lithuanian finance data it drifted to LT even for
+        # an English question — so the app language is passed in explicitly (as
+        # month_summary already does). Defaults to LT for older clients.
+        lang=str(data.get("lang") or "lt"),
     )
     return {"reply": reply}
 

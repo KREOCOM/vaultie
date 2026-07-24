@@ -9140,6 +9140,7 @@ class _AiChatTabState extends State<_AiChatTab> {
       final reply = await BankingService.instance.financeChat(
         summary: buildFinanceSummary(widget.data),
         messages: history,
+        lang: effectiveLocale().languageCode,
       );
       if (!mounted) return;
       setState(() => _msgs.add(_ChatMsg('assistant',

@@ -35,13 +35,15 @@ _MAX_TURNS = 24
 _MAX_TURN_CHARS = 2_000
 _MAX_REPLY_TOKENS = 700
 
-# Static persona — cached across every user and conversation (identical bytes).
+# Persona template — the one language line is swapped in per request. The app's
+# UI language drives the reply language: the model must NOT guess it from the
+# question or from the (Lithuanian) merchant names in the summary. Relying on the
+# model to detect the language made an English user's chat drift to Lithuanian
+# because the finance data is Lithuanian. Mirror what _report_system already does.
 _SYSTEM = (
     "Tu esi „Vaultie“ asistentas — draugiškas, konkretus pagalbininkas, "
     "atsakantis į vartotojo klausimus apie JO PATIES asmeninius finansus. "
-    "ATSAKYK TA PAČIA KALBA, KURIA PARAŠYTAS VARTOTOJO KLAUSIMAS — jei jis rašo "
-    "angliškai, atsakyk angliškai; jei lietuviškai — lietuviškai. Niekada "
-    "neperjunk kalbos savo nuožiūra. Rašyk TAISYKLINGA, sklandžia kalba — "
+    "{lang_rule} Rašyk TAISYKLINGA, sklandžia kalba — "
     "lietuviškai naudok teisingus linksnius, gimines ir derinimą, be vertalų. "
     "Rašyk trumpai ir aiškiai (2–5 sakiniai; sąrašai tik kai "
     "tikrai padeda). Sumas rašyk eurais.\n\n"
@@ -58,6 +60,32 @@ _SYSTEM = (
     "5. Rašyk paprastu tekstu. NENAUDOK Markdown formatavimo — jokių „**“, "
     "„#“ ar kitų simbolių paryškinimui."
 )
+
+# The one line that differs per language — same pattern as _REPORT_LANG_RULE.
+# Stated strongly because the finance summary the model reads is in Lithuanian
+# (merchant names, categories), which otherwise pulls the reply toward LT.
+_CHAT_LANG_RULE = {
+    "lt": "VISADA atsakyk lietuvių kalba, nepriklausomai nuo to, kokia kalba "
+          "parašytas klausimas ar duomenys santraukoje. Niekada neperjunk kalbos.",
+    "en": "ALWAYS respond in English, regardless of the language of the "
+          "question or of the data in the summary. Never switch language.",
+}
+
+# Localised fallbacks so a failure/empty-question message matches the app locale.
+_FALLBACK_ASK = {
+    "lt": "Užduok klausimą apie savo finansus — pavyzdžiui „Kiek išleidau maistui?“",
+    "en": "Ask a question about your finances — for example “How much did I "
+          "spend on food?”",
+}
+_FALLBACK_ERR = {
+    "lt": "Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą po akimirkos.",
+    "en": "Sorry, I couldn't answer. Please try again in a moment.",
+}
+
+
+def _chat_system(lang: str) -> str:
+    rule = _CHAT_LANG_RULE.get((lang or "lt").lower(), _CHAT_LANG_RULE["lt"])
+    return _SYSTEM.replace("{lang_rule}", rule)
 
 
 # Summary-writing persona for the monthly review card. Same privacy contract as
@@ -167,18 +195,24 @@ def _sanitize_history(raw):
     return out
 
 
-def chat(summary: str, history, api_key: str) -> str:
+def chat(summary: str, history, api_key: str, lang: str = "lt") -> str:
     """Answer the latest user question given a finance summary + conversation.
 
-    Returns the assistant's reply text, or a short Lithuanian fallback string on
+    ``lang`` is the app's UI language (``lt``/``en``); the reply is written in it
+    rather than being inferred from the question, because the finance summary is
+    Lithuanian and would otherwise drag an English user's reply into Lithuanian.
+    Older clients that don't send it default to Lithuanian.
+
+    Returns the assistant's reply text, or a short localised fallback string on
     any failure (never raises — a chat hiccup must not crash the client)."""
+    lc = (lang or "lt").lower()
     summary = (summary or "").strip()[:_MAX_SUMMARY_CHARS]
     turns = _sanitize_history(history)
     if not turns:
-        return "Užduok klausimą apie savo finansus — pavyzdžiui „Kiek išleidau maistui?“"
+        return _FALLBACK_ASK.get(lc, _FALLBACK_ASK["lt"])
 
     system = [
-        {"type": "text", "text": _SYSTEM},
+        {"type": "text", "text": _chat_system(lc)},
         # The summary is stable for the whole conversation, so cache it: the
         # first question pays for it once, every follow-up reads it ~10× cheaper.
         {"type": "text",
@@ -224,4 +258,4 @@ def chat(summary: str, history, api_key: str) -> str:
             logging.warning("finance_chat parse failed: %s", e)
         break
 
-    return "Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą po akimirkos."
+    return _FALLBACK_ERR.get(lc, _FALLBACK_ERR["lt"])

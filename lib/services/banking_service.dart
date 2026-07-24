@@ -197,8 +197,10 @@ class BankingService {
   Future<String> financeChat({
     required String summary,
     required List<Map<String, String>> messages,
+    required String lang,
   }) {
-    return _call('finance_chat', {'summary': summary, 'messages': messages},
+    return _call(
+        'finance_chat', {'summary': summary, 'messages': messages, 'lang': lang},
         (m) => (m['reply'] as String?)?.trim() ?? '',
         timeout: const Duration(seconds: 60));
   }
