@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — QA & patikimumo auditas (2026-07-24)</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --card:#ffffff; --ink:#161b26; --muted:#5a6478; --faint:#8a93a6;
+    --hair:#e5e8f0; --accent:#6c4df6; --accentsoft:#efeaff;
+    --crit:#c62828; --critbg:#fdecec; --high:#e06c00; --highbg:#fdf1e3;
+    --med:#b58900; --medbg:#fbf6e4; --low:#3a7d44; --lowbg:#ecf6ee; --ok:#2e7d5b;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#12141c; --card:#1a1d28; --ink:#e9ecf5; --muted:#9aa3b8; --faint:#6b7488;
+      --hair:#282c3a; --accent:#9a86ff; --accentsoft:#241f3d;
+      --crit:#ff6b6b; --critbg:#2a1618; --high:#ffa24d; --highbg:#2a1e12; --med:#e6c34d;
+      --medbg:#26220f; --low:#7fd08a; --lowbg:#12220f; --ok:#5fd0a0;}
+  }
+  :root[data-theme="dark"]{ --bg:#12141c; --card:#1a1d28; --ink:#e9ecf5; --muted:#9aa3b8;
+    --faint:#6b7488; --hair:#282c3a; --accent:#9a86ff; --accentsoft:#241f3d;
+    --crit:#ff6b6b; --critbg:#2a1618; --high:#ffa24d; --highbg:#2a1e12; --med:#e6c34d;
+    --medbg:#26220f; --low:#7fd08a; --lowbg:#12220f; --ok:#5fd0a0;}
+  :root[data-theme="light"]{ --bg:#f6f7fb; --card:#ffffff; --ink:#161b26; --muted:#5a6478;
+    --faint:#8a93a6; --hair:#e5e8f0; --accent:#6c4df6; --accentsoft:#efeaff;
+    --crit:#c62828; --critbg:#fdecec; --high:#e06c00; --highbg:#fdf1e3; --med:#b58900;
+    --medbg:#fbf6e4; --low:#3a7d44; --lowbg:#ecf6ee; --ok:#2e7d5b;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 20px 80px;}
+  h1{font-size:27px;margin:0 0 4px;letter-spacing:-.4px}
+  h2{font-size:20px;margin:38px 0 12px;letter-spacing:-.3px;border-bottom:2px solid var(--hair);padding-bottom:7px}
+  h3{font-size:16px;margin:22px 0 8px}
+  .sub{color:var(--muted);margin:0 0 20px}
+  .score{display:flex;align-items:center;gap:22px;background:var(--card);border:1px solid var(--hair);
+    border-radius:18px;padding:22px 26px;margin:18px 0 6px}
+  .score .num{font-size:58px;font-weight:800;letter-spacing:-2px;color:var(--high);line-height:1}
+  .score .lab{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .score .verdict{font-size:15px;color:var(--ink)}
+  .bar{height:12px;border-radius:8px;background:var(--hair);overflow:hidden;margin-top:8px}
+  .bar>i{display:block;height:100%;width:52%;background:linear-gradient(90deg,#e06c00,#c62828)}
+  .card{background:var(--card);border:1px solid var(--hair);border-radius:14px;padding:16px 18px;margin:12px 0}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0}
+  .tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;letter-spacing:.2px}
+  .t-crit{background:var(--critbg);color:var(--crit)} .t-high{background:var(--highbg);color:var(--high)}
+  .t-med{background:var(--medbg);color:var(--med)} .t-low{background:var(--lowbg);color:var(--low)}
+  .flag{background:#000;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+  @media(prefers-color-scheme:dark){.flag{background:#fff;color:#000}}
+  .fbadge{display:inline-block;background:var(--accentsoft);color:var(--accent);font-weight:700;
+    font-size:11px;padding:2px 8px;border-radius:999px;margin-left:6px}
+  .fid{font-weight:800;font-size:15px}
+  .meta{font-size:13px;color:var(--muted);margin:4px 0}
+  code,.mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;
+    background:var(--accentsoft);color:var(--accent);padding:1px 5px;border-radius:5px;word-break:break-word}
+  .grid{display:grid;grid-template-columns:110px 1fr;gap:4px 14px;margin-top:8px;font-size:13.5px}
+  .grid .k{color:var(--faint);font-weight:600}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;display:block;overflow-x:auto}
+  th,td{border:1px solid var(--hair);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--accentsoft);color:var(--ink);font-weight:700;white-space:nowrap}
+  .sev{font-weight:800;white-space:nowrap}
+  .sev.c{color:var(--crit)} .sev.h{color:var(--high)} .sev.m{color:var(--med)} .sev.l{color:var(--low)}
+  ul{margin:6px 0 6px 2px;padding-left:18px} li{margin:3px 0}
+  .pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;margin:2px 4px 2px 0}
+  .ok{background:var(--lowbg);color:var(--ok)}
+  .callout{border-left:4px solid var(--accent);background:var(--accentsoft);padding:12px 16px;border-radius:0 12px 12px 0;margin:14px 0}
+  .foot{color:var(--faint);font-size:12px;margin-top:40px;text-align:center}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Vaultie — kokybės ir patikimumo auditas</h1>
+<p class="sub">2026-07-24 · read-only auditas · 6 lygiagretūs QA agentai · Flutter + Firebase + RevenueCat + Enable Banking · ~55 radinių</p>
+
+<div class="score">
+  <div>
+    <div class="num">52</div><div class="lab">Launch readiness / 100</div>
+  </div>
+  <div style="flex:1">
+    <div class="verdict"><b>DAR NE paruošta paleidimui.</b> Pamatas tvirtas (IDOR uždarytas, logai švarūs, serverinis premium tikrinimas veikia), bet yra <b>5 kritinės</b> ir <b>15 aukšto</b> lygio problemų, kurios liečia pinigus, Premium suteikimą, saugumą ir crash-loop. Reikia ~1–2 savaičių fokuso ties kritinėmis + top aukšto lygio prieš launch.</div>
+    <div class="bar"><i></i></div>
+  </div>
+</div>
+<p class="meta">Balo logika: −8 už kiekvieną kritinę (charged-but-denied 24h, crash-loop po atnaujinimo, asmuo-vis-dar-sąskaitose), −2 už kiekvieną aukšto lygio, +bonusai už tvirtą serverio saugumą. Pataisius 5 kritines + 6 svarbiausias aukšto lygio → ~80+.</p>
+
+<h2>1. Santrauka vadovui</h2>
+<div class="card">
+<p>Vaultie architektūra <b>iš esmės sveiki</b>: cross-user duomenų nutekėjimas (IDOR) realiai uždarytas, jautrūs duomenys nerašomi į logus, prenumeratos tikrinamos ir serveryje (ne tik telefone), o daug ankstesnių bug'ų (reinstall sesijos, paywall free-pass, deep-link race, banko dvigubas sutikimas) jau ištaisyta.</p>
+<p><b>Bet paleisti dar negalima.</b> Auditas rado penkias kritines problemas, kurių bet kuri viena gadintų realaus vartotojo patirtį iškart po paleidimo:</p>
+<ul>
+<li><b>Mokantis vartotojas užrakinamas 24 val.</b> — RevenueCat tapatybės ir kešo seka: žmogus sumoka, klientas rodo „Premium", bet serveris 24 val. atmeta visus mokamus veiksmus su žinute „reikia prenumeratos". Blogiausia įmanoma būsena mokamam produktui.</li>
+<li><b>Crash-loop po atnaujinimo</b> — Firebase/Hive inicializacija be apsaugos: sugadintas įrašas ar pakeistas duomenų formatas užmuša aplikaciją dar prieš pirmą ekraną, kiekvieną paleidimą; vienintelė išeitis — ištrinti ir įdiegti iš naujo (prarandami visi lokalūs duomenys).</li>
+<li><b>Vardas-pavardė vis dar patenka į Sąskaitas</b> — tavo savaitę kartota problema NĖRA pilnai uždaryta: fiksas padengė tik LT būdingas pavardes; užsienietiški vardai (John Smith) virš €200 vis dar tampa „sąskaita", o net teisingai atpažinti LT asmenys vis tiek rodomi vardu pasikartojančių tvarkyklėje ir vienu paspaudimu įtraukiami į sumą.</li>
+<li><b>Neteisinga pinigų suma</b> — rankinio vedimo suma ne-EUR valiuta įrašoma ~11× klaidingai; grąžinimai po bet kokio redagavimo virsta pajamomis; sąskaitos be IBAN dubliuoja balansą; prenumeratos kainos pokytis skaičiuoja dvigubai.</li>
+<li><b>Įrenginio saugumas</b> — finansiniai duomenys nuteka į app-switcher peržiūrą; „ištrinti paskyrą" NEatšaukia banko sutikimo (nors žada); PIN neturi bandymų limito (brute-force).</li>
+</ul>
+<p><b>Rekomendacija:</b> nepaleisti, kol nesutvarkytos 5 kritinės + 6 svarbiausios aukšto lygio (žr. §5). Tai ~1–2 savaitės. Po to pakartotinis auditas ir balas ≥80.</p>
+</div>
+
+<h2>2. Kritinės problemos (5)</h2>
+<p class="meta">Vėliavos: <span class="flag">LŪŽIS</span> <span class="flag">NETEISINGI €</span> <span class="flag">DUBLIKATAI</span> <span class="flag">DUOMENŲ PRARADIMAS</span> <span class="flag">NETEISINGAS PREMIUM</span> <span class="flag">ĮSTRIGIMAS</span> <span class="flag">BEGALINIS LOADING</span> <span class="flag">SINCHRO GEDIMAS</span></p>
+
+<div class="card">
+<div><span class="tag t-crit">CRITICAL</span> <span class="fid">C1 · Mokantis vartotojas užrakinamas iki 24 val.</span> <span class="fbadge">RevenueCat</span></div>
+<div class="tags"><span class="flag">NETEISINGAS PREMIUM</span><span class="flag">ĮSTRIGIMAS</span></div>
+<div class="grid">
+<div class="k">Failas</div><div><code>functions/entitlement.py:128</code> (kešuoja ir <code>False</code>) + <code>:117-119</code> (per 24h grąžina kešuotą <code>False</code> neklausdamas RevenueCat)</div>
+<div class="k">Atkūrimas</div><div>RevenueCat REST bet kada grąžina <code>False</code> (404 dar nematytam subscriberiui, propagacijos vėlavimas, C2 anoniminė atribucija). <code>is_premium</code> įrašo <code>False</code> 24h. Toliau visi <code>finish_bank_auth</code>/<code>refresh_dashboard</code>/<code>finance_chat</code> meta <code>PERMISSION_DENIED</code>.</div>
+<div class="k">Priežastis</div><div>Kešo TTL simetriškas — docstring numatė kešuoti tik teigiamą atsakymą, bet <code>_store</code> vienodai kešuoja ir <code>False</code>.</div>
+<div class="k">Poveikis</div><div>Žmogus sumoka €4.99/€39.99, praeina paywall, ir 24h kiekvienas bankinis skenavimas + AI atmetamas su „reikia prenumeratos". Refund + 1★ + support.</div>
+<div class="k">Fiksas</div><div>Nekešuoti neigiamų atsakymų (arba TTL 60s); kešuotą <code>True</code> pasitikėti 24h, o <code>False</code> visada perklausti. Invaliduoti kešą po pirkimo.</div>
+<div class="k">Testas</div><div><code>is_premium</code>→False (RC 404) įrašoma; RC pradeda grąžinti True; assert sekantis kvietimas grąžina True (kešuotas False neišgyvena teigiamo).</div>
+</div>
+</div>
+
+<div class="card">
+<div><span class="tag t-crit">CRITICAL</span> <span class="fid">C2 · Pirkimas priskiriamas anoniminiam RevenueCat ID, serveris jo nemato</span> <span class="fbadge">RevenueCat</span></div>
+<div class="tags"><span class="flag">NETEISINGAS PREMIUM</span><span class="flag">ĮSTRIGIMAS</span></div>
+<div class="grid">
+<div class="k">Failas</div><div><code>lib/services/purchase_service.dart:450-466</code> (<code>logIn</code> fire-and-forget, klaida nuryjama) + <code>lib/user_session.dart:51-57</code> (6s timeout, tuščias catch)</div>
+<div class="k">Atkūrimas</div><div>Vartotojas prisijungia lėtu/offline ryšiu → <code>logIn(uid)</code> nepavyksta/timeout'ina. RC ID lieka <code>$RCAnonymousID</code>. Perka → pirkimas prilipa prie anoniminio. Klientas mato Premium; serveris klausia pagal Firebase uid → 404 → False (ir kešuoja 24h, C1).</div>
+<div class="k">Priežastis</div><div>Pirkimas gali įvykti prieš nustatant RC tapatybę; tapatybė — best-effort su nuryta klaida.</div>
+<div class="k">Poveikis</div><div>Klientas: Premium; serveris: ne. Visi mokami endpoint'ai atmeta mokantį. Sunku diagnozuoti — UI atkakliai rodo Premium.</div>
+<div class="k">Fiksas</div><div>Blokuoti pirkimo mygtuką, kol <code>logIn(uid)</code> pavyko (RC app user id == Firebase uid); arba pakartoti <code>logIn</code>+entitlement prieš <code>purchase()</code>.</div>
+<div class="k">Testas</div><div>Simuliuoti <code>logIn</code> throw prie sign-in, tada sėkmingą pirkimą; assert paywall neprasuka, kol RC id != Firebase uid.</div>
+</div>
+</div>
+
+<div class="card">
+<div><span class="tag t-crit">CRITICAL</span> <span class="fid">C3 · Firebase/Hive init be apsaugos → crash-loop po atnaujinimo</span> <span class="fbadge">Onboarding/Lifecycle</span></div>
+<div class="tags"><span class="flag">LŪŽIS</span><span class="flag">DUOMENŲ PRARADIMAS</span><span class="flag">ĮSTRIGIMAS</span></div>
+<div class="grid">
+<div class="k">Failas</div><div><code>lib/main.dart:106-114</code> (Hive open), <code>:79-81</code> (Firebase init), <code>:117-119</code>; <code>AppPrefs.load()</code> nechecked cast'ai</div>
+<div class="k">Atkūrimas</div><div>Atnaujinimas pakeičia <code>SubscriptionAdapter</code> laukus, arba lieka sugadintas Hive įrašas po crash/low-storage, arba <code>as String</code>/<code>as num?</code> cast'as nebeteisingas. Šaltas paleidimas.</div>
+<div class="k">Priežastis</div><div>Nėra <code>try/catch</code> aplink <code>Firebase.initializeApp</code>/<code>Hive.openBox</code>/<code>AppPrefs.load()</code>; exception meta prieš <code>runApp()</code> — nėra UI, procesas miršta ant splash. Kartojasi kiekvieną paleidimą.</div>
+<div class="k">Poveikis</div><div>Po įprasto atnaujinimo — pilnas praradimas prieigos; vienintelė išeitis reinstall, kuris ištrina visus lokalius finansinius duomenis. Mokantys užrakinami.</div>
+<div class="k">Fiksas</div><div>Kiekvieną box open apgaubti <code>try/catch</code>; nepavykus <code>deleteBoxFromDisk</code> + atidaryti tuščią. Guard'inti <code>AppPrefs.load()</code> cast'us su <code>is</code>. Boot-error ekranas.</div>
+<div class="k">Testas</div><div>Užsėti settings box blogo tipo reikšme + sutrumpintą subs box; assert <code>main()</code> pasiekia veikiantį ekraną.</div>
+</div>
+</div>
+
+<div class="card">
+<div><span class="tag t-crit">CRITICAL</span> <span class="fid">C4 · Užsienietiškas vardas+pavardė virš €200 → skaičiuojama Sąskaita</span> <span class="fbadge">Prenumeratos</span></div>
+<div class="tags"><span class="flag">NETEISINGI €</span></div>
+<div class="callout"><b>Tavo savaitę kartota problema.</b> Fiksas (LT galūnės) uždarė TIK LT vardus. Taisyklė gyvena tik <code>hit is None</code> šakoje ir remiasi LT pavardžių morfologija — kitos asmenų klasės vis dar prasprūsta.</div>
+<div class="grid">
+<div class="k">Failas</div><div><code>functions/recurring.py:778-821</code>; kategorijos vartai <code>:407-413</code> (<code>RENT_MIN=200</code>); <code>_lt_person</code> <code>:457-471</code></div>
+<div class="k">Atkūrimas</div><div>Mėnesinis €300 SEPA pervedimas „John Smith" / „GIOVANNI ROSSI" (be kortelės acceptor, be domeno, nežinomas KB).</div>
+<div class="k">Priežastis</div><div><code>_lt_person</code>→False (nėra LT galūnės); <code>_bare_person_like</code>→False (2 žodžiai). <code>is_person</code>→True, BET <code>_category_for_unknown</code> grąžino „housing" (avg&gt;200) → <code>elif is_person and category not in (housing,finance)</code> apeinama → <code>else: typ="bill"</code>. Confident → į <code>_subs</code> total.</div>
+<div class="k">Poveikis</div><div>Žmogus, kuriam siunti nuomą/šeimos pinigus, atsiranda Sąskaitose kaip pasikartojanti sąskaita ir pučia mėnesio įsipareigojimą. Būtent „appsas sugedęs" momentas — tik susiaurintas iki LT vardų.</div>
+<div class="k">Fiksas</div><div>Padaryti asmens patikrą <b>besąlyginę visoms asmens formoms</b>: <code>if not is_card and (is_person or lt_person or bare_person): typ="transfer"</code>, nepriklausomai nuo kategorijos. Suderinti su M4 (verslų klaidingi teigiami) — spręsti kartu.</div>
+<div class="k">Testas</div><div>€300/mėn „John Smith"/„GIOVANNI ROSSI" be acceptor/domeno → kandidatas <code>type=="transfer"</code>, nėra <code>_subs total</code>.</div>
+</div>
+</div>
+
+<div class="card">
+<div><span class="tag t-crit">CRITICAL</span> <span class="fid">C5 · Rankinio vedimo suma ne-EUR valiuta įrašoma ~11× klaidingai</span> <span class="fbadge">Pinigų matematika</span></div>
+<div class="tags"><span class="flag">NETEISINGI €</span></div>
+<div class="grid">
+<div class="k">Failas</div><div><code>lib/screens/preview/dashboard_preview.dart:2857</code> (hard-coded <code>'€'</code>), <code>:2780/:2795</code> (saugo kaip EUR), <code>:2697-2700</code></div>
+<div class="k">Atkūrimas</div><div>Nustatymuose pasirink ne-EUR (NOK, <code>rate≈11.6</code>). Pridėk rankinę išlaidą „50". Laukas rodo <code>€</code>, ne <code>Money.symbol</code>.</div>
+<div class="k">Priežastis</div><div>Sumos saugomos EUR ir dauginamos iš <code>Money.rate</code> rodant; rankinė forma nei dalina įvestą reikšmę iš <code>Money.rate</code> prieš saugant, nei rodo <code>Money.symbol</code>. „Assumes EUR".</div>
+<div class="k">Poveikis</div><div>Kiekviena rankiniu būdu pridėta operacija ne-EUR vartotojui klysta FX faktoriumi (10×+ NOK/SEK/CZK/HUF/JPY). 50 kr kava įrašoma kaip ~580 kr. Gadina išlaidas, pajamas, biudžetus, taupymo normą.</div>
+<div class="k">Fiksas</div><div><code>_save</code>: saugoti <code>signed / Money.rate</code> (guard rate&gt;0); <code>:2857</code> literalą <code>'€'</code> → <code>Money.symbol</code>; edit-prefill rodyti <code>abs(a)*Money.rate</code>.</div>
+<div class="k">Testas</div><div><code>rate=11.6, symbol='kr'</code>; įvesti „50"; assert saugoma <code>a≈-4.31</code> (EUR) ir <code>Money.format(a)=="−50,00 kr"</code>.</div>
+</div>
+</div>
+
+<h2>3. Aukšto lygio problemos (15)</h2>
+
+<h3>Pinigų matematika</h3>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>M-H1 · Grąžinimas iš išlaidų kategorijos → pajamos (po bet kokio redagavimo)</b> <span class="flag">NETEISINGI €</span></div>
+<div class="meta"><code>dashboard_preview.dart:269-272</code> (klientinis <code>_flowOf</code>) vs <code>functions/dashboard.py:852-853</code>. Klientas neturi backend'o trečios taisyklės („pinigai atgal iš atpažintos išlaidų kategorijos = refund"). Pridėjus/redagavus bet kurią operaciją, <code>totals</code> perskaičiuojama klientiškai → grąžinimas tampa pajamomis. <b>net</b> klaidingas ~2× grąžinimo dydžiu; laužo „ta pati suma visur" pažadą.</div>
+<div class="meta"><b>Fiksas:</b> perkelti backend taisyklę į <code>_flowOf</code>. <b>Testas:</b> <code>{sec:'Apsipirkimas', a:40}</code> → <code>_flowOf=='refund'</code>.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>M-H2 · FX cold-cache/gedimas → rate 1.0 su svetima valiuta</b> <span class="flag">NETEISINGI €</span></div>
+<div class="meta"><code>lib/services/fx_rates.dart:72</code> (<code>?? 1.0</code>), <code>app_prefs.dart:92-96</code>. Offline pirmas paleidimas su baze NOK: <code>rate=1.0</code> bet <code>symbol='kr'</code>. €100 rodoma „100 kr" (~€8.6). Rate ir simbolis desinchronizuojasi. <b>Fiksas:</b> jei nėra rate — priverstinai <code>symbol='€', rate=1.0</code>, kol atkeliauja tikras.</div>
+</div>
+
+<h3>RevenueCat / paywall</h3>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>RC-H1 · Klientas/serveris nesutampa → mokantis mato banko klaidą be išeities</b> <span class="flag">ĮSTRIGIMAS</span></div>
+<div class="meta"><code>main.py:158-161</code> → <code>banking_service.dart:234-235</code> → <code>bank_connect_screen.dart:347-357</code>. Bet koks C1/C2 nesutapimas: mokantis vartotojas jungia banką, gauna „reikia prenumeratos" kaip banko klaidą, be Buy/Restore matomų. <b>Fiksas:</b> gaudyti <code>permission-denied</code> → priverstinis <code>restorePurchases()</code>/<code>logIn</code> + entitlement refresh.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>RC-H2 · Senas lokalus <code>premium=true</code> Hive flag'as suteikia Premium offline</b> <span class="flag">NETEISINGAS PREMIUM</span></div>
+<div class="meta"><code>purchase_service.dart:257,267-271</code> → <code>landing.dart:24</code>. Įrenginys su <code>premium=true</code> iš seno mock/debug build'o; release + offline → seed'ina Premium, praleidžia paywall. <b>Fiksas:</b> nepasitikėti kešuotu <code>true</code>, kol RevenueCat nepatvirtino.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>RC-H3 · Ne-release build'ai įrašo <code>premium=true</code> į Hive (užteršia release startą)</b> <span class="flag">NETEISINGAS PREMIUM</span></div>
+<div class="meta"><code>main.dart:154-161</code> (<code>if (!kReleaseMode)</code> — įskaitant profile). Įrašo persistent <code>premium=true</code>; release IPA virš to paties container'io skaito jį. <b>Fiksas:</b> niekada nepersist'inti <code>premium</code> iš harness; naudoti atskirą raktą / in-memory.</div>
+</div>
+
+<h3>Saugumas / privatumas</h3>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>S-H1 · Finansiniai duomenys nuteka į app-switcher peržiūrą</b> <span class="flag">DUOMENŲ NUTEKĖJIMAS</span></div>
+<div class="meta"><code>ios/Runner/SceneDelegate.swift</code> (tuščias), <code>AppDelegate.swift</code> (nėra overlay), <code>MainActivity.kt</code> (nėra <code>FLAG_SECURE</code>). Paskutinis kadras su balansais/IBAN/operacijomis įrašomas į OS snapshot — matoma be PIN. <b>Fiksas:</b> iOS blur/logo cover ant <code>sceneWillResignActive</code>; Android <code>FLAG_SECURE</code>.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>S-H2 · „Ištrinti paskyrą" NEatšaukia banko sutikimo (nors žada)</b> <span class="flag">DUOMENŲ NUTEKĖJIMAS</span></div>
+<div class="meta"><code>auth_service.dart:144-167</code> (trina tik Firebase user), <code>user_session.dart:63-67</code> (tik lokalus Hive), <code>functions/main.py:169-190</code> (<code>bank_links/{uid}</code> niekada netrinamas); dialogo tekstas <code>dashboard_preview.dart:8862</code> „Banko ryšys bus atjungtas". Enable Banking sutikimas lieka gyvas ~90 d.; server įrašas lieka. GDPR erasure spraga + melagingas UI teiginys. <b>Fiksas:</b> autentifikuotas <code>delete_user_data</code> callable, kuris revoke'ina EB sesijas + trina <code>bank_links/{uid}</code> prieš <code>auth.deleteAccount()</code>.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>S-H3 · In-app PIN be bandymų limito (neribotas brute-force)</b> <span class="flag">DUOMENŲ NUTEKĖJIMAS</span></div>
+<div class="meta"><code>lock_screen.dart:61-80</code>, <code>app_lock.dart:53-57</code>. 4 skaitmenys (10 000 kombinacijų), jokio throttle/lockout. <b>Fiksas:</b> persist'inti failure count + laiką; eskaluojanti pauzė + lockout (5→cooldown), force sign-out.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>O-H1 · „Pamiršai PIN" atskleidžia BUVUSIO vartotojo dashboard</b> <span class="flag">DUOMENŲ NUTEKĖJIMAS</span><span class="flag">ĮSTRIGIMAS</span></div>
+<div class="meta"><code>lock_screen.dart:93-122</code>. <code>_forgotPin</code> išvalo PIN, iškviečia <code>signOut()</code>, bet tik <code>onUnlocked()</code> — paslepia overlay, o po juo lieka sumontuotas <code>DashboardPreview</code> (buvusi sesija). <b>Fiksas:</b> po sign-out <code>navigatorKey…pushAndRemoveUntil(LoginScreen)</code> prieš paslepiant overlay.</div>
+</div>
+
+<h3>Banko prijungimas</h3>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>B-H1 · Sąskaitos be IBAN nededuplikuojamos → dvigubas net worth</b> <span class="flag">NETEISINGI €</span><span class="flag">DUBLIKATAI</span></div>
+<div class="meta"><code>functions/main.py:92-93</code> (<code>_dedupe_summaries</code>), <code>:389-393</code>, <code>dashboard.py:925</code>. Be IBAN dedup raktas krenta į <code>obj:{id(s)}</code> (unikalus per objektą) → nededuplikuoja; summary dict neturi <code>uid</code> lauko, tad UID fallback neįmanomas. Reconnect → du balansai sumuojami. <b>Fiksas:</b> nešti <code>uid</code> (ar <code>bank|name|currency</code>) į summary ir raktinti dedup pagal jį.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>B-H2 · Bankas su nepavykusiu ownership įrašu tyliai „užšąla" amžinai</b> <span class="flag">SINCHRO GEDIMAS</span></div>
+<div class="meta"><code>functions/main.py:181-190</code> (<code>_remember_accounts</code> nuryja klaidą), <code>known_cache.py:70-84</code>; <code>staleBanks</code> emit'inamas <code>main.py:513</code>, bet <b>klientas jo neskaito</b>. Balansas užšąla connect-metu, transakcijos nebeatsinaujina, jokio UI ženklo. <b>Fiksas:</b> parodyti <code>staleBanks</code> (reconnect chip); re-assert ownership iš <code>refresh_dashboard</code>.</div>
+</div>
+
+<h3>Prenumeratos</h3>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>P-H1 · Asmenų pervedimai rodomi VARDU pasikartojančių tvarkyklėje ir peržiūroje</b> <span class="flag">ĮSTRIGIMAS</span></div>
+<div class="meta"><code>dashboard.py:815-822</code> (transfers lieka <code>items</code>), <code>dashboard_preview.dart:6776-6780,1569-1573,7193-7202</code>. <code>_subs</code> išmeta transfers tik iš <code>total</code>, bet grąžina juos <code>items</code>; klientas <code>pending</code> filtruoja tik pagal <code>needsReview</code>. Net teisingai atpažintas LT asmuo (Danguolė Sulajevienė) rodomas „Patikrink pasikartojančius" sąraše ir po „Sąskaitos" grupe. <b>Fiksas:</b> išfiltruoti <code>type=='transfer'</code> iš <code>subs['items']</code> backend'e.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>P-H2 · Vienu ✓ paspaudimu asmens pervedimas įtraukiamas į mėnesio sumą</b> <span class="flag">NETEISINGI €</span></div>
+<div class="meta"><code>dashboard_preview.dart:440-445</code> (<code>_recCounted</code> tikrina <code>incl</code> PIRMA, prieš <code>type!='transfer'</code>), <code>:7299-7313</code>. Peržiūroje paspaudus žalią ＋ ant asmens → įtraukiamas į įsipareigojimą. <b>Fiksas:</b> <code>if (it['type']=='transfer') return false;</code> prieš <code>incl</code>.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>P-H3 · Prenumeratos kainos pokytis skaičiuoja DVIGUBAI</b> <span class="flag">NETEISINGI €</span><span class="flag">DUBLIKATAI</span></div>
+<div class="meta"><code>recurring.py:297-338</code> (segmentuoja pagal tikslią sumą), <code>dashboard.py:745</code> (collapse ±8%). Netflix €9.99×3 tada €10.99×2 → du srautai; 10.99/9.99=1.10 &gt; 8% → nesuliejami → total = 20.98 vienai prenumeratai. <b>Fiksas:</b> kai vėlesnė kaina keičia senesnę (persidengiantys laike) — palikti naujausią.</div>
+</div>
+<div class="card">
+<div><span class="tag t-high">HIGH</span> <b>P-H4 · <code>recurringExcluded/Included</code> raktinami VARDU → tos pačios pavadinimo srautai susiduria</b> <span class="flag">NETEISINGI €</span><span class="flag">DUOMENŲ PRARADIMAS</span></div>
+<div class="meta"><code>dashboard_preview.dart:440-445</code>, <code>dashboard_store.dart:292-297</code>. Du „APPLE.COM/BILL" (iCloud €2.99 + Apple One €19.95), skirtingi sid. Išjungus vieną → abu dingsta iš sumos. <b>Fiksas:</b> raktinti pagal <code>sid</code>, ne pavadinimą.</div>
+</div>
+
+<h2>4. Vidutinės ir žemos problemos (santrauka)</h2>
+<table>
+<tr><th>ID</th><th>Sev</th><th>Sritis</th><th>Problema</th><th>Failas</th><th>Vėliava</th></tr>
+<tr><td>M-M1</td><td class="sev m">MED</td><td>Pinigai</td><td>Backend statiniai FX vs klientas gyvi ECB → ~0.2–3% drift (blogėja su laiku)</td><td>fx.py:19; fx_rates.dart:63</td><td>€</td></tr>
+<tr><td>M-M2</td><td class="sev m">MED</td><td>Pinigai</td><td><code>_amt</code> pasitiki sumos ženklu vietoj <code>abs()</code>+indicator → DBIT su „-5" tampa pajamomis</td><td>dashboard.py:204-214</td><td>€</td></tr>
+<tr><td>M-M3</td><td class="sev m">MED</td><td>Pinigai</td><td>Nežinoma valiuta → 0 (tyliai dingsta); CNY siūloma UI, backend neturi</td><td>fx.py:50-57; fx_rates.dart:38</td><td>€ / praradimas</td></tr>
+<tr><td>M-M4</td><td class="sev m">MED</td><td>Pinigai</td><td>Composite dedup sujungia dvi tikras identiškas operacijas (be entry_reference)</td><td>normalize.py:246-257</td><td>€ / praradimas</td></tr>
+<tr><td>M-M5</td><td class="sev m">MED</td><td>Pinigai</td><td>Pending→booked dedup nepavyksta, kai data pasislenka → dvigubas skaičiavimas</td><td>normalize.py:259-264</td><td>€ / dublikatai</td></tr>
+<tr><td>M-M6</td><td class="sev l">LOW</td><td>Pinigai</td><td>AI ataskaita + NOK pastaba rodo EUR su literalu €</td><td>dashboard_preview.dart:4578,4590</td><td>€ (display)</td></tr>
+<tr><td>RC-M1</td><td class="sev m">MED</td><td>Premium</td><td>Serveris grąžina stale <code>True</code> iki 24h po prenumeratos pabaigos → nemokamas naudojimas</td><td>entitlement.py:117-127</td><td>Premium</td></tr>
+<tr><td>RC-M2</td><td class="sev m">MED</td><td>Premium</td><td>Pending (Ask-to-Buy/SCA) pirkimas rodomas kaip „nepavyko, bandyk vėl" → dublikatas</td><td>purchase_service.dart:425-431</td><td>—</td></tr>
+<tr><td>RC-M3</td><td class="sev m">MED</td><td>Premium</td><td>Pirkimas pavyksta, bet entitlement dar ne <code>CustomerInfo</code> → rodoma klaida</td><td>purchase_service.dart:419-424</td><td>—</td></tr>
+<tr><td>S-M1</td><td class="sev m">MED</td><td>Saugumas</td><td>Finansiniai duomenys nešifruoti Hive; logout palieka juos įrenginy</td><td>main.dart:110-114</td><td>nutekėjimas</td></tr>
+<tr><td>S-M2</td><td class="sev m">MED</td><td>UI</td><td>Nėra text-scale clamp → didelis sistemos šriftas laužo fiksuoto aukščio eilutes (overflow)</td><td>main.dart:254; dashboard_preview.dart</td><td>LŪŽIS / įstrigimas</td></tr>
+<tr><td>S-M3</td><td class="sev m">MED</td><td>Sesija</td><td>Token expiry → bendra klaida be re-login kelio; lieka ant stale dashboard</td><td>banking_service.dart:234-237</td><td>įstrigimas</td></tr>
+<tr><td>S-M4</td><td class="sev m">MED</td><td>UI</td><td>Klaidų SnackBar'ai dingsta per 1.5s — neperskaitomi</td><td>dashboard_preview.dart:3797,7680</td><td>įstrigimas</td></tr>
+<tr><td>S-M5</td><td class="sev m">MED</td><td>Privatumas</td><td>AI „PII-free" prielaida neįvykdyta šiame sluoksny — verta patikrint summary builder</td><td>functions/main.py:740-788</td><td>nutekėjimas?</td></tr>
+<tr><td>O-M1</td><td class="sev m">MED</td><td>Onboarding</td><td>Verify-email polling be <code>catch</code> → fatal Crashlytics kas 4s + tylus stuck</td><td>verify_email_screen.dart:55-81</td><td>LŪŽIS(spam)/įstrigimas</td></tr>
+<tr><td>O-M2</td><td class="sev m">MED</td><td>Onboarding</td><td>Paywall prasuka DUKART (dvigubas pushReplacement) → 2× banko fetch</td><td>onb_paywall.dart:132-150</td><td>sinchro / LŪŽIS</td></tr>
+<tr><td>O-M3</td><td class="sev m">MED</td><td>Lifecycle</td><td>Startas blokuoja ant un-timed <code>init()</code> tinklo → galimas hang lėtu ryšiu</td><td>main.dart:163,166</td><td>BEGALINIS LOADING</td></tr>
+<tr><td>O-M4</td><td class="sev m">MED</td><td>Onboarding</td><td>Onboarding mygtukai be re-entrancy → dvigubas tap = 2 pushReplacement</td><td>onb_*.dart (7 vietos)</td><td>įstrigimas(minor)</td></tr>
+<tr><td>BK-M1</td><td class="sev m">MED</td><td>Bankas</td><td><code>start_bank_auth</code> ne premium-gated → lapsed vartotojas sudegina 90d sutikimą</td><td>functions/main.py:520,551</td><td>įstrigimas</td></tr>
+<tr><td>BK-M2</td><td class="sev m">MED</td><td>Bankas</td><td>Deep-link claim'ina kodą prieš navigator push → gali tyliai dingti</td><td>banking_deep_links.dart:73-80</td><td>praradimas/sinchro</td></tr>
+<tr><td>BK-M3</td><td class="sev m">MED</td><td>Bankas</td><td>Stale <code>pendingConnect</code> → vėluojantis bankas gauna neteisingą etiketę (LT IBAN mitiguoja)</td><td>bank_connect_screen.dart:371</td><td>data quality</td></tr>
+<tr><td>BK-M4</td><td class="sev m">MED</td><td>Bankas</td><td>Tuščias bankas → zombie connection + tuščias dashboard be žinutės</td><td>main.py:640-668</td><td>įstrigimas</td></tr>
+<tr><td>SB-M1</td><td class="sev m">MED</td><td>Prenumeratos</td><td>~9–11 ir ~17–24 d. cikai normalizuojami kaip „monthly" → klaidinga projekcija</td><td>recurring.py:142-153,490</td><td>€</td></tr>
+<tr><td>SB-M2</td><td class="sev m">MED</td><td>Prenumeratos</td><td>Tas pats merchant per domain/name/IBAN → dvi prenumeratos</td><td>recurring.py:686-706</td><td>dublikatai/€</td></tr>
+<tr><td>SB-M3</td><td class="sev m">MED</td><td>Biudžetai</td><td>Planning biudžetai NEmatomi month-review/tx-detail (dead subsystem); backend <code>budgets:{}</code></td><td>dashboard.py:594-597</td><td>funkcija neveikia</td></tr>
+<tr><td>SB-M4</td><td class="sev m">MED</td><td>Prenumeratos</td><td><code>_lt_person</code> false-positive strip'ina tikrą verslo sąskaitą (pvz. „Teva Baltics")</td><td>recurring.py:457-471</td><td>€ (undercount)</td></tr>
+<tr><td>SB-M5</td><td class="sev m">MED</td><td>Prenumeratos</td><td>FX-be-kurso prenumerata (THB/MXN) → <code>cost=0</code> → tyliai dingsta</td><td>fx.py:49; dashboard.py:812</td><td>neaptikta</td></tr>
+</table>
+<p class="meta"><b>Žemo lygio (Low, ~13):</b> <code>_eurRound</code> dvigubas apvalinimas; bare amount default EUR; RC „notFound" copy siūlo „praleisk" kurio nėra; unparseable <code>expires_date</code> atmeta mokantį; modalų debounce; delete reauth cancel be feedback; debug bypass housekeeping; registracijos strand po sėkmingo create; registracija neclaim'ina data-owner; nėra reakcijos į session revocation; verify signout be busy guard; biudžeto re-round išsaugant; latent div-by-zero month-review biudžete; all-caps viena pavardė nepagauta.</p>
+
+<h2>5. Prioritetinis taisymo planas</h2>
+<h3>🔴 Būtina prieš launch</h3>
+<ul>
+<li><b>C1 + C2 (RevenueCat)</b> — kartu: RC tapatybė + neigiamo kešo problema. Mokantis negali būti užrakintas.</li>
+<li><b>C3</b> — Firebase/Hive init <code>try/catch</code> + recovery (crash-loop po atnaujinimo).</li>
+<li><b>C4 + P-H1 + P-H2 + SB-M4</b> — asmens taisyklė: besąlyginė visoms formoms; transfers išfiltruoti iš tvarkyklės/peržiūros; ✓ negali įtraukti transfer; suderinti su verslų apsauga.</li>
+<li><b>C5</b> — rankinio vedimo valiutos konversija (saugoti EUR).</li>
+<li><b>M-H1</b> — grąžinimo taisyklė kliente (ta pati suma visur).</li>
+<li><b>B-H1</b> — no-IBAN balanso dedup (dvigubas net worth).</li>
+<li><b>P-H3 + P-H4</b> — kainos pokytis (dvigubas) + sid-raktinimas.</li>
+<li><b>S-H1 (app-switcher) + S-H2 (delete neatšaukia sutikimo) + O-H1 (forgot-PIN atskleidžia dashboard)</b> — saugumo/privatumo blokeriai (S-H2 dar ir GDPR).</li>
+<li><b>S-H3</b> — PIN brute-force limitas.</li>
+</ul>
+<h3>🟠 Galima po launch</h3>
+<ul>
+<li>RC-H1/H2/H3 (mismatch UI, stale flag), RC-M1/M2/M3 (stale True, pending copy).</li>
+<li>B-H2 + BK-M1/M2/M3/M4 (staleBanks UI, premium-gate start_bank_auth, deep-link claim, mislabel, zombie).</li>
+<li>M-M2..M5 (sign, unknown ccy, dedup edge), SB-M1/M2/M5 (cadence, dup identity, FX-less).</li>
+<li>S-M1 (encryption at rest), S-M3 (token expiry re-login), O-M1/M2/M3 (verify catch, double advance, init timeout).</li>
+</ul>
+<h3>🟢 Tik UX</h3>
+<ul>
+<li>S-M2 (text-scale clamp), S-M4 (snackbar trukmė), O-M4 (double-tap guard), M-M6/M-M1 (display €), SB-M3 (budgets subsystem), visi Low.</li>
+</ul>
+
+<h2>6. Testavimo matrica pagal funkcijas</h2>
+<table>
+<tr><th>Funkcija</th><th>Happy</th><th>Klaidų scenarijai patikrinti</th><th>Radinių</th><th>Būsena</th></tr>
+<tr><td>Onboarding/registracija</td><td>OK</td><td>double-tap, back, close mid-flow, dup email, offline, timeout, verify polling</td><td>1C 1H 4M 4L</td><td class="sev h">Rizika</td></tr>
+<tr><td>Auth / sesija</td><td>OK</td><td>token expiry, kito įrenginio sign-in, revocation, forgot-PIN</td><td>1H 1M 2L</td><td class="sev h">Rizika</td></tr>
+<tr><td>Banko prijungimas</td><td>OK</td><td>cancel, back, error, timeout, dup, kelios sąskaitos, tuščia, revoked, one-removed</td><td>2H 4M 3L</td><td class="sev m">Vidutinė</td></tr>
+<tr><td>Operacijos / pinigai</td><td>OK</td><td>0, neigiama, refund, didelė, ne-EUR, be merchant/datos, dedup, pending→booked, own transfer</td><td>1C 2H 5M 2L</td><td class="sev h">Rizika</td></tr>
+<tr><td>Prenumeratos</td><td>dalinai</td><td>kaina keičiasi, data slenka, praleista, refund, metinė, trial, variantai, asmuo, verslas</td><td>1C 4H 5M 2L</td><td class="sev c">Aukšta rizika</td></tr>
+<tr><td>Biudžetai</td><td>dalinai</td><td>0, didelis, neigiamas, greiti keitimai, viršija, tuščia kat., mėnuo/TZ, valiuta</td><td>3M 2L</td><td class="sev m">Vidutinė (+dead subsystem)</td></tr>
+<tr><td>RevenueCat / paywall</td><td>OK</td><td>close, dvigubas Buy, cancel, pending, StoreKit down, no-response, restore, kitas įrenginys, lapsed, grace, bypass</td><td>2C 3H 3M 2L</td><td class="sev c">Aukšta rizika</td></tr>
+<tr><td>Navigacija / UI</td><td>OK</td><td>double-tap, modalai, back, deep-link be duomenų, rotacija, dydžiai, šriftas, dark, LT/EN, ilgi vardai, tušti</td><td>2M 1L</td><td class="sev m">Vidutinė</td></tr>
+<tr><td>App lifecycle</td><td>OK</td><td>background, OS-kill, po valandų, rebuild mid-sync, update, cache clear, TZ/kalba, low storage, API down</td><td>1C 1M</td><td class="sev h">Rizika (C3)</td></tr>
+<tr><td>Saugumas / privatumas</td><td>—</td><td>logai, IDOR, Firestore rules, token expiry, delete, app-switcher, logout residue</td><td>3H 2M</td><td class="sev h">Serveris OK, įrenginys rizika</td></tr>
+</table>
+
+<h2>7. Automatizuotinų testų sąrašas</h2>
+<h3>Unit (Python — <code>functions/</code>)</h3>
+<ul>
+<li><code>entitlement</code>: neigiamas kešas neišgyvena teigiamo; stale True neišgyvena <code>expires_date</code>; unparseable expiry → cache-preferuoja, ne deny.</li>
+<li><code>recurring</code>: „John Smith"/„GIOVANNI ROSSI" €300 → transfer (ne bill); verslas su galūne (Teva Baltics) → bill; kainos pokytis 9.99→10.99 → 1 item; sid-override neliečia to-paties-vardo kito srauto; cadence 20d → per_month≈1.5; all-caps viena pavardė → person.</li>
+<li><code>normalize</code>: du id-less identiški → 2 eilutės; pending D + booked D+2 → 1; DBIT „-5" → −5.0 expense; bare amount su account NOK → NOK.</li>
+<li><code>dashboard._flow</code> vs klientinis <code>_flowOf</code> parity; <code>_dedupe_summaries</code> no-IBAN → 1 survivor; <code>_amt</code> abs+indicator.</li>
+<li><code>fx</code>: kiekvienas <code>kCurrencies</code> yra <code>_FX_TO_EUR</code>; static×live rate tolerancija.</li>
+</ul>
+<h3>Widget (Flutter)</h3>
+<ul>
+<li>Paywall: mock flip premium + success → tik 1 navigacija; permission-denied → restore path; offline seed → paywall/verifying, ne dashboard.</li>
+<li>Lock: forgot-PIN → <code>LoginScreen</code>, jokių dashboard widget'ų; N klaidingų PIN → lockout.</li>
+<li>Onboarding: double-tap CTA → 1 push; verify reload throw → nerethrow + feedback.</li>
+<li>Text-scale golden: 1.0/1.3/2.0 — nėra overflow dashboard/settings/feed.</li>
+<li>Rankinis vedimas: <code>rate=11.6</code>, įvesti 50 → saugoma EUR, rodoma „50 kr".</li>
+</ul>
+<h3>Integration</h3>
+<ul>
+<li>Cold-start su sugadintu Hive box → boot į veikiantį ekraną (C3).</li>
+<li>Deep-link cold-launch su null navigator → kodas NEclaim'inamas (BK-M2).</li>
+<li>Connect bank 2 kai bank 1 429 → bank 1 nedingsta (jau fix — regresija).</li>
+</ul>
+<h3>Firebase emulator</h3>
+<ul>
+<li>Firestore rules: klientas negali skaityti/rašyti <code>bank_links</code>/<code>entitlements</code>; <code>merchants</code> read-only.</li>
+<li>IDOR: user B negali fetch'inti user A account UID (<code>_owned_accounts</code>).</li>
+<li>Account delete → <code>bank_links/{uid}</code> ištrintas + EB revoke iškviestas (S-H2).</li>
+</ul>
+<h3>RevenueCat sandbox</h3>
+<ul>
+<li>Pirkimas offline logIn → tapatybė sutampa prieš purchase (C2); anoniminis→Firebase alias.</li>
+<li>Sandbox purchase → serveris mato entitlement per &lt;30s (C1 nekešuoja False).</li>
+<li>Pending (Ask-to-Buy) → „laukiama", ne „nepavyko"; restore; grace period; lapsed → prieiga baigiasi.</li>
+</ul>
+
+<h2>8. Kas patikrinta ir TVIRTA (nesugadinti)</h2>
+<p>
+<span class="pill ok">IDOR uždarytas (fail-closed <code>_owned_accounts</code>)</span>
+<span class="pill ok">Logai švarūs (IBAN redakcija, tik counts)</span>
+<span class="pill ok">Firestore rules default-deny</span>
+<span class="pill ok">Serverinis premium gate</span>
+<span class="pill ok">PIN salted SHA-256</span>
+<span class="pill ok">Reinstall sesijos leak fix</span>
+<span class="pill ok">Paywall close = sign-out (ne free-pass)</span>
+<span class="pill ok">setUser timeout-bounded</span>
+<span class="pill ok">429 mid-scan: balance-first + retry + cache</span>
+<span class="pill ok">Revoked vs quiet split</span>
+<span class="pill ok">Lost-bank guard (connect 2/3)</span>
+<span class="pill ok">Deep-link auth-race wait (8s/20s)</span>
+<span class="pill ok">AASA gyvas + teisingas</span>
+<span class="pill ok">Bypass flags = false</span>
+<span class="pill ok">IBAN|currency dedup (Revolut EUR+NOK)</span>
+<span class="pill ok">Own-transfer (IBAN + holder-name)</span>
+<span class="pill ok">Money.format apvalina teisingai</span>
+<span class="pill ok">LT asmuo su galūne → transfer</span>
+</p>
+
+<p class="foot">Vaultie QA auditas · 2026-07-24 · read-only · kodas nekeistas · 6-agentų sintezė · šaka onboarding-and-brand</p>
+
+</div>
+</body>
+</html>
