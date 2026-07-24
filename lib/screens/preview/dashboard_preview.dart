@@ -1363,15 +1363,6 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                   ))),
               child: Icon(Icons.search_rounded, size: 24, color: _heroInk),
             ),
-            const SizedBox(width: 14),
-            GestureDetector(
-              onTap: _openAddMenu,
-              child: Container(
-                width: 33, height: 33, alignment: Alignment.center,
-                decoration: BoxDecoration(color: _purple, shape: BoxShape.circle),
-                child: const Icon(Icons.add_rounded, size: 21, color: Colors.white),
-              ),
-            ),
           ]),
           const SizedBox(height: 18),
           GestureDetector(
@@ -2200,39 +2191,6 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     );
   }
 
-  // ── MANUAL TRANSACTION ENTRY (Bilance-style + FAB) ──────────────────────────
-  // The central + opens a small radial menu (Išlaida / Pajamos / Vidinis
-  // pervedimas); each pushes a form. A saved entry is appended to `_d['all']`,
-  // the canonical figures recompute from `all` (transfers stay out of both
-  // spent & earned via `_flowOf`), and the payload is persisted on-device.
-  Future<void> _openAddMenu() async {
-    // A short explainer screen first (Bilance can feel opaque to newcomers): it
-    // says what a manual entry is and what each of the three types does, then
-    // routes into the form. Returns the built transaction to append.
-    final tx = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(builder: (_) => const _AddEntryScreen()),
-    );
-    if (tx == null || !mounted) return;
-    _addManualTx(tx);
-  }
-
-  void _addManualTx(Map<String, dynamic> tx) {
-    setState(() {
-      (_d['all'] as List).add(tx);
-      // Drop the backend `totals` block so month/day headers recompute from
-      // `all` with the same canonical rule (fallback == backend by invariant).
-      _d.remove('totals');
-      _d['week'] = _computeWeek((_d['all'] as List).cast<Map<String, dynamic>>());
-      _otherTabs = null; // Overview/Planning rebuild with the new row
-    });
-    _persist();
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(SnackBar(content: Text(tr('Įrašas pridėtas')), duration: const Duration(seconds: 2)));
-    }
-  }
-
   Future<void> _persist() async {
     // Real app: the payload came from a bank scan and is stored on-device, so
     // manual edits survive restart. Preview harness has no open Hive box —
@@ -2532,152 +2490,6 @@ Color _kindColor(String kind) => kind == 'income'
     : kind == 'transfer'
         ? const Color(0xFF6E6E86)
         : const Color(0xFFE0574F);
-
-// The + chooser: an explainer screen (what a manual entry is + what each of the
-// three types does) that routes into the form. Returns the built transaction so
-// the dashboard can append it — pops itself as soon as the form saves.
-class _AddEntryScreen extends StatelessWidget {
-  const _AddEntryScreen();
-
-  Future<void> _pick(BuildContext context, String kind) async {
-    final tx = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(builder: (_) => _ManualTxScreen(kind: kind)),
-    );
-    if (tx != null && context.mounted) Navigator.of(context).pop(tx);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bg,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(Icons.arrow_back_rounded, color: _ink, size: 26),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(tr('Pridėti ranka'),
-                style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.6)),
-            const SizedBox(height: 8),
-            Text.rich(
-              TextSpan(
-                style: TextStyle(fontSize: 15.5, color: _muted, height: 1.5),
-                children: [
-                  TextSpan(text: tr('Įrašyk tai, ko ')),
-                  TextSpan(text: tr('bankas nemato'), style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
-                  TextSpan(text: tr(' — grynuosius, skolą draugui, pervedimą tarp savo sąskaitų.')),
-                ],
-              ),
-            ),
-            const SizedBox(height: 22),
-            _choice(
-              context,
-              kind: 'expense',
-              color: const Color(0xFFE0574F),
-              icon: Icons.south_west_rounded,
-              title: tr('Išlaida'),
-              desc: tr('Pinigai, kuriuos išleidai — pvz. sumokėjai grynais.'),
-              effect: tr('Didina mėnesio išlaidas'),
-            ),
-            const SizedBox(height: 14),
-            _choice(
-              context,
-              kind: 'income',
-              color: _good,
-              icon: Icons.north_east_rounded,
-              title: tr('Pajamos'),
-              desc: tr('Gauti pinigai — atlyginimas grynais, dovana, grąžinta skola.'),
-              effect: tr('Didina mėnesio pajamas'),
-            ),
-            const SizedBox(height: 14),
-            _choice(
-              context,
-              kind: 'transfer',
-              color: _purple,
-              icon: Icons.swap_horiz_rounded,
-              title: tr('Vidinis pervedimas'),
-              desc: tr('Perkėlei pinigus tarp savo sąskaitų arba išsiėmei grynųjų.'),
-              effect: tr('Neįskaičiuojama į išlaidas ar pajamas'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _choice(BuildContext context,
-      {required String kind,
-      required Color color,
-      required IconData icon,
-      required String title,
-      required String desc,
-      required String effect}) {
-    return Material(
-      color: _card,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: () => _pick(context, kind),
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _card,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withValues(alpha: 0.28), width: 1.5),
-            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.10), blurRadius: 16, offset: const Offset(0, 6))],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(17),
-                  boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 5))],
-                ),
-                child: Icon(icon, color: Colors.white, size: 27),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(
-                      child: Text(title,
-                          style: TextStyle(fontSize: 18.5, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.3)),
-                    ),
-                    Icon(Icons.chevron_right_rounded, color: _faint, size: 24),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text(desc, style: TextStyle(fontSize: 13.5, color: _muted, height: 1.4)),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(9)),
-                    child: Text(effect,
-                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.1)),
-                  ),
-                ]),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // The manual-entry form (amount + category + date + note). Also used to EDIT an
 // existing transaction when [initial] is passed (prefills the fields).
