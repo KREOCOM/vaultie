@@ -1,9 +1,13 @@
 import 'dart:convert';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
+import '../main.dart' show navigatorKey;
 import '../models/subscription.dart';
+import '../screens/login_screen.dart';
 import 'dashboard_store.dart';
 
 /// Custom-scheme deep link the app itself listens for. The bank redirects to
@@ -232,6 +236,16 @@ class BankingService {
       final res = await callable.call(data);
       return parse((res.data as Map).cast<Object?, Object?>());
     } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'unauthenticated') {
+        // Token revoked / account disabled / signed out elsewhere — the session
+        // is dead. Don't leave the user staring at a stale dashboard with no way
+        // forward: sign out and route to login (re-auth restores a valid token).
+        try {
+          await FirebaseAuth.instance.signOut();
+        } catch (_) {}
+        navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+      }
       throw BankingException(e.message ?? 'Something went wrong. Please try again.');
     } catch (_) {
       throw BankingException('Could not reach the server. Check your connection.');

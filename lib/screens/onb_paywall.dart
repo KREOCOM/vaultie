@@ -64,6 +64,11 @@ String _eur(double v) => '${v.toStringAsFixed(2).replaceAll('.', ',')} €';
 class _OnbPaywallState extends State<OnbPaywall> {
   bool _annual = true;
   bool _busy = false;
+  // Guards against advancing twice: purchase()/restore() flip premium synchronously,
+  // which fires the entitlement listener → _advance BEFORE the await returns, then
+  // the explicit success handler calls _advance again → two pushReplacements (double
+  // BankConnectScreen + a double bank-list fetch, and a possible route assertion).
+  bool _advanced = false;
 
   @override
   void initState() {
@@ -111,13 +116,17 @@ class _OnbPaywallState extends State<OnbPaywall> {
   /// "7 dienos nemokamai" / "7 days free".
   String _trialLabel(int days) => '$days ${tr('d. nemokamai')}';
 
-  void _advance() => Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 420),
-          pageBuilder: (_, __, ___) => widget.next,
-          transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
-        ),
-      );
+  void _advance() {
+    if (_advanced || !mounted) return;
+    _advanced = true;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 420),
+        pageBuilder: (_, __, ___) => widget.next,
+        transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
+      ),
+    );
+  }
 
   void _toast(String message) => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
@@ -138,12 +147,17 @@ class _OnbPaywallState extends State<OnbPaywall> {
     switch (result.status) {
       case PurchaseStatus.success:
         _advance();
+      case PurchaseStatus.pending:
+        // Deferred/Ask-to-Buy/SCA, or the entitlement hasn't landed yet. The
+        // listener auto-advances when it does — say "processing", not "failed",
+        // so the user doesn't try to buy again.
+        _toast(tr('Pirkimas apdorojamas — palauk akimirką.'));
       case PurchaseStatus.cancelled:
         break;
       case PurchaseStatus.notFound:
         // Offerings never loaded: offline, or the products aren't live in App
-        // Store Connect yet. Say so rather than pretending it worked.
-        _toast(tr('Planai kol kas nepasiekiami. Bandyk vėliau arba praleisk.'));
+        // Store Connect yet. There is no "skip" here — say to retry when online.
+        _toast(tr('Planai kol kas nepasiekiami. Bandyk vėliau.'));
       case PurchaseStatus.error:
         _toast(result.message ?? tr('Pirkimas nepavyko. Bandyk dar kartą.'));
     }

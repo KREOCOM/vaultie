@@ -75,6 +75,27 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           ),
         );
       }
+    } on FirebaseAuthException catch (e) {
+      // reloadUser() can throw (network-request-failed, user-token-expired,
+      // user-disabled). Uncaught it escaped into the 4s poll timer and the
+      // button's onPressed → an unhandled async error logged as FATAL every 4s.
+      // Stop polling on a terminal auth state; otherwise just swallow (or, on a
+      // manual tap, say it couldn't check).
+      const terminal = {'user-disabled', 'user-token-expired', 'user-not-found'};
+      if (terminal.contains(e.code)) _poll?.cancel();
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(_isLt
+                ? 'Nepavyko patikrinti. Bandykite dar kartą.'
+                : "Couldn't check. Please try again.")));
+      }
+    } catch (_) {
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(_isLt
+                ? 'Nepavyko patikrinti. Bandykite dar kartą.'
+                : "Couldn't check. Please try again.")));
+      }
     } finally {
       _checking = false;
     }

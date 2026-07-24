@@ -285,7 +285,18 @@ class VaultieApp extends StatelessWidget {
           navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
           // Gate every route behind the PIN/Face ID lock when the user set one.
-          builder: (context, child) => _LockGate(child: child ?? const SizedBox.shrink()),
+          // Also clamp the system text scale: the dashboard uses many fixed-height
+          // rows, and an unbounded accessibility font (2x+) overflowed them with
+          // "BOTTOM OVERFLOWED" stripes and clipped controls. 1.3x keeps larger
+          // text legible without breaking the layout.
+          builder: (context, child) {
+            final mq = MediaQuery.of(context);
+            return MediaQuery(
+              data: mq.copyWith(
+                  textScaler: mq.textScaler.clamp(maxScaleFactor: 1.3)),
+              child: _LockGate(child: child ?? const SizedBox.shrink()),
+            );
+          },
           // Localization: ships English (default) and Lithuanian. The language is
           // the manual Settings choice if set, otherwise the device Region (LT →
           // Lithuanian, anywhere else → English).

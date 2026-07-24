@@ -62,7 +62,7 @@ class SubscriptionInfo {
 }
 
 /// Outcome of a purchase or restore attempt.
-enum PurchaseStatus { success, cancelled, notFound, error }
+enum PurchaseStatus { success, cancelled, notFound, error, pending }
 
 class PurchaseResult {
   const PurchaseResult(this.status, [this.message]);
@@ -450,11 +450,19 @@ class RevenueCatPurchaseService implements PurchaseService {
         await _box.put(_premiumKey, true);
         return const PurchaseResult(PurchaseStatus.success);
       }
-      return const PurchaseResult(PurchaseStatus.error);
+      // Purchase resolved but the entitlement isn't in this snapshot yet (a RC
+      // race). It is NOT a failure — money moved; the addCustomerInfoUpdateListener
+      // delivers the entitlement momentarily and the paywall auto-advances. Show a
+      // "processing", never an error that invites a second charge.
+      return const PurchaseResult(PurchaseStatus.pending);
     } on PlatformException catch (e) {
       final code = rc.PurchasesErrorHelper.getErrorCode(e);
       if (code == rc.PurchasesErrorCode.purchaseCancelledError) {
         return const PurchaseResult(PurchaseStatus.cancelled);
+      }
+      // Ask-to-Buy / SCA / deferred payments resolve later — "waiting", not failed.
+      if (code == rc.PurchasesErrorCode.paymentPendingError) {
+        return const PurchaseResult(PurchaseStatus.pending);
       }
       return PurchaseResult(PurchaseStatus.error, e.message);
     }

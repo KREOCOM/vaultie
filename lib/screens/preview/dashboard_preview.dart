@@ -3820,7 +3820,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
 
   void _toast(String m) => ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(m), duration: const Duration(milliseconds: 1500)));
+    ..showSnackBar(SnackBar(content: Text(m), duration: const Duration(milliseconds: 3300)));
 
   void _pickCategory() {
     showModalBottomSheet<Map<String, dynamic>>(
@@ -4601,7 +4601,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            '${tr('Atlyginimas')} (${sal.round()} €) ${tr('gaunamas NOK (Nergard) ir automatiškai konvertuojamas į EUR. Rodoma bazine valiuta — EUR.')}',
+            '${tr('Atlyginimas')} (${_eur0(sal)}) ${tr('gaunamas NOK (Nergard) ir automatiškai konvertuojamas į EUR. Rodoma bazine valiuta — EUR.')}',
             style: TextStyle(fontSize: 12.5, color: _ink, height: 1.35),
           ),
         ),
@@ -7702,7 +7702,7 @@ class _AccountTabState extends State<_AccountTab> {
 
   void _snack(String m) => ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(m), duration: const Duration(milliseconds: 1600)));
+    ..showSnackBar(SnackBar(content: Text(m), duration: const Duration(milliseconds: 3300)));
 
   @override
   Widget build(BuildContext context) {
@@ -8853,7 +8853,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   // honest note instead of crashing.
   void _snack(String m) => ScaffoldMessenger.of(context)
     ..clearSnackBars()
-    ..showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 2)));
+    ..showSnackBar(SnackBar(content: Text(m), duration: const Duration(milliseconds: 3300)));
 
   void _soon() => _snack(tr('Netrukus'));
 
