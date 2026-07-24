@@ -795,14 +795,25 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             # replaces the old rule that kept CONFIDENT person streams as bills,
             # which is exactly what surfaced a personal transfer as a
             # subscription.
-            if lt_person and category not in ("housing", "finance"):
-                # A named LT person → transfer, UNLESS the memo makes it rent or a
-                # loan (housing/finance). Renting from a private individual is the
-                # common LT case, and that rent IS a bill — dropping it here (as
-                # the branch did before) silently zeroed the biggest monthly
-                # commitment a user has.
+            bare_person = _bare_person_like(canon_g, cp_name or raw_name)
+            if lt_person or bare_person:
+                # HARD RULE: a CONFIDENTLY-identified personal name — a distinctive
+                # Lithuanian first-name+surname (‑ienė/‑aitė/‑evas…), or a bare
+                # surname on a nameless transfer — is a person-to-person transfer.
+                # NEVER a bill or subscription, whatever the amount or memo. The old
+                # code kept such a person as a BILL when the amount/memo read as
+                # "housing/finance" (rent to a landlord); that single exception is
+                # exactly what surfaced real people (a €350 self-transfer, monthly
+                # family money, splitting rent) under Sąskaitos / Prenumeratos. You
+                # do not subscribe to a person. The money still shows in the feed
+                # as a transfer — it is simply never a recurring commitment.
                 typ = "transfer"
             elif is_person and category not in ("housing", "finance"):
+                # A WEAKER hint (a generic two-word name with no distinctive
+                # surname ending) → transfer, unless the memo makes it rent/loan.
+                # Deliberately conservative: a two-word BUSINESS name that looks
+                # person-like ("Artus Grupė", "Verslo Vartai") must not be mistaken
+                # for a person and stripped out of the user's real bills.
                 typ = "transfer"
             else:
                 typ = "bill" if category in ("housing", "finance") else "subscription"
