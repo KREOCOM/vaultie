@@ -183,15 +183,18 @@ IconData _iconOf(String? k) => _catIcons[k] ?? Icons.swap_horiz_rounded;
 String _logoOf(Map row) => (row['mkey'] ?? row['nm'] ?? '').toString();
 String _eur(num v, {bool signed = false}) => Money.format(v.toDouble(), signed: signed);
 
-// Whole-euro format (no cents) for headline balances, e.g. "7 049 €".
+// Whole-number format (no cents) for headline balances, e.g. "7 049 €".
+// Currency-aware like [Money.format]: amounts are stored in EUR, so convert to
+// the chosen display currency ([Money.rate]) and show its symbol ([Money.symbol]).
 String _eur0(num v) {
-  final digits = v.abs().round().toString();
+  final c = v.toDouble() * Money.rate;
+  final digits = c.abs().round().toString();
   final b = StringBuffer();
   for (var i = 0; i < digits.length; i++) {
     if (i != 0 && (digits.length - i) % 3 == 0) b.write(' ');
     b.write(digits[i]);
   }
-  return '${v < 0 ? '−' : ''}$b €';
+  return '${c < 0 ? '−' : ''}$b ${Money.symbol}';
 }
 
 // ── Safe reads of the raw per-transaction fields the backend sends.
@@ -320,7 +323,7 @@ void _showReceivedBreakdown(BuildContext context, double income, double other) {
             Row(children: [
               Text(tr('Gauta'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
               const Spacer(),
-              Text('${(income + other).round()} €', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+              Text(_eur0(income + other), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
             ]),
             const SizedBox(height: 4),
             Text(tr('Visi pinigai, kurie įkrito į tavo sąskaitą.'), style: TextStyle(fontSize: 13.5, color: _muted)),
@@ -348,7 +351,7 @@ Widget _breakdownRow(Color color, String title, String sub, double amount) {
         Text(sub, style: TextStyle(fontSize: 12.5, color: _muted)),
       ]),
     ),
-    Text('${amount.round()} €', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+    Text(_eur0(amount), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
   ]);
 }
 
@@ -1724,7 +1727,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               if (avg > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: Text('${tr('vidurkis')} ${avg.round()} €/d.',
+                  child: Text('${tr('vidurkis')} ${_eur0(avg)}/d.',
                       style: TextStyle(fontSize: 12, color: _faint, fontWeight: FontWeight.w600)),
                 ),
             ]),
@@ -1754,7 +1757,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                       child: CustomPaint(
                         painter: _WeekAvgPainter(
                           avg: avg, maxV: maxV, barMax: 118,
-                          label: 'vidurkis ${avg.round()} €/d.',
+                          label: 'vidurkis ${_eur0(avg)}/d.',
                           dark: _darkMode,
                         ),
                       ),
@@ -1796,7 +1799,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text(tot > 0 ? '${tot.round()}€' : '',
+            Text(tot > 0 ? _eur0(tot) : '',
                 style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: selected ? _purple : _muted)),
             const SizedBox(height: 8),
             Opacity(
@@ -3117,7 +3120,7 @@ class _WeekAvgPainter extends CustomPainter {
       final y = yFor(v);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
       final tp = TextPainter(
-        text: TextSpan(text: '${v.round()}€', style: labelStyle),
+        text: TextSpan(text: _eur0(v), style: labelStyle),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, Offset(size.width - tp.width - 1, y - tp.height - 1));
@@ -3198,11 +3201,16 @@ List<String> get _monGen => _enUi ? _monNomEn : _monGenLt;
 List<String> get _wdFull => _enUi ? _wdFullEn : _wdFullLt;
 List<String> get _wdShort => _enUi ? _wdShortEn : _wdShortLt;
 String _dateLabel(DateTime t) => '${_monAbbr[t.month - 1]} ${t.day}';
-String _kEur(double v) => v.abs() >= 1000 ? '${(v / 1000).toStringAsFixed(1)}K€' : '${v.toStringAsFixed(0)}€';
+// Compact chart-axis amount, currency-aware (stored EUR → display currency).
+String _kEur(double v) {
+  final c = v * Money.rate;
+  final s = Money.symbol;
+  return c.abs() >= 1000 ? '${(c / 1000).toStringAsFixed(1)}K$s' : '${c.toStringAsFixed(0)}$s';
+}
 String _eurRound(double v) {
   final s = Money.format(v.roundToDouble());
   final c = s.indexOf(',');
-  return c > 0 ? '${s.substring(0, c)} €' : s;
+  return c > 0 ? '${s.substring(0, c)} ${Money.symbol}' : s;
 }
 
 /// Total-balance detail sheet: reconstructed balance-over-time area chart with a
@@ -4508,7 +4516,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             children: [
               Text(sign, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400, color: _muted, height: 1)),
               const SizedBox(height: 2),
-              Text('${value.round()} €', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+              Text(_eur0(value), style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
               Text(tr(label), style: TextStyle(fontSize: 13, color: _muted)),
             ],
           ),
@@ -4544,11 +4552,11 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
       child: Row(children: [
-        stat('${spent.round()} €', tr('išleista')),
+        stat(_eur0(spent), tr('išleista')),
         div(),
-        stat('${earned.round()} €', tr('uždirbta')),
+        stat(_eur0(earned), tr('uždirbta')),
         div(),
-        stat('${net >= 0 ? '+' : '−'}${net.abs().round()} €', tr('grynasis')),
+        stat('${net >= 0 ? '+' : '−'}${_eur0(net.abs())}', tr('grynasis')),
         div(),
         stat(earned > 0 ? '$savings %' : '—', tr('santaupų')),
       ]),
@@ -4580,7 +4588,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final top = expenseSecs.isNotEmpty ? expenseSecs.first : null;
     // Templated fallback used while the AI writes, or if it's unavailable.
     final fallback = '${widget.monthGen} ${tr('mėnesį uždirbai')} ${earned.round()} €, ${tr('o išleidai')} ${spent.round()} €. ${tr('Grynasis rezultatas')} ${_eur(net, signed: true)}. '
-        '${top != null ? '${tr('Daugiausia išleidai kategorijoje')} „${tr(top.label).split(',').first}" (${(-top.net).round()} €). ' : ''}'
+        '${top != null ? '${tr('Daugiausia išleidai kategorijoje')} „${tr(top.label).split(',').first}" (${_eur0(-top.net)}). ' : ''}'
         '${earned > 0 ? '${tr('Santaupų norma šį mėnesį —')} $savings %.' : tr('Šį mėnesį pajamų nebuvo, tad santaupų norma neskaičiuojama.')}';
     final isAi = _aiText != null && _aiText!.isNotEmpty;
     final body = isAi ? _aiText! : fallback;
@@ -4920,7 +4928,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text('$d', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-          if (n != null) Text('${n.round()}€', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: n >= 0 ? _good : _muted)),
+          if (n != null) Text(_eur0(n), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: n >= 0 ? _good : _muted)),
         ],
       ),
     );
@@ -4957,8 +4965,8 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             // categories, so never claim overall savings — state what was spent
             // in the tracked categories out of their (placeholder) limit.
             under >= 0
-                ? '${tr('Sekamose kategorijose išleidai')} ${totalSpent.round()} € ${tr('iš')} ${totalBudget.round()} €.'
-                : '${tr('Viršijai sekamų kategorijų limitą')} ${(-under).round()} €.',
+                ? '${tr('Sekamose kategorijose išleidai')} ${_eur0(totalSpent)} ${tr('iš')} ${_eur0(totalBudget)}.'
+                : '${tr('Viršijai sekamų kategorijų limitą')} ${_eur0(-under)}.',
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white, height: 1.3),
           ),
         ),
@@ -4969,7 +4977,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             child: Column(children: [
               Row(children: [
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${totalSpent.round()} €', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink)),
+                  Text(_eur0(totalSpent), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink)),
                   Text(tr('išleista'), style: TextStyle(fontSize: 12.5, color: _muted)),
                 ]),
                 const Spacer(),
@@ -4982,7 +4990,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                 ),
                 const Spacer(),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text('${totalBudget.round()} €', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink)),
+                  Text(_eur0(totalBudget), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink)),
                   Text(tr('biudžetas*'), style: TextStyle(fontSize: 12.5, color: _muted)),
                 ]),
               ]),
@@ -5010,7 +5018,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     return Column(children: [
       Row(children: [
         Expanded(child: Text(tr(cat), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink))),
-        Text('${limit.round()} €', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+        Text(_eur0(limit), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
       ]),
       const SizedBox(height: 8),
       Row(children: [
@@ -5072,7 +5080,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                     style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink, height: 1.35),
                     children: [
                       TextSpan(text: '${tr('Kategorijai')} „${tr(label).split(',').first}" ${tr('išleidai')} '),
-                      TextSpan(text: '${diff.abs().round()} €', style: TextStyle(fontWeight: FontWeight.w800, color: diffColor)),
+                      TextSpan(text: _eur0(diff.abs()), style: TextStyle(fontWeight: FontWeight.w800, color: diffColor)),
                       TextSpan(text: ' ${more ? tr('daugiau') : tr('mažiau')} ${tr('nei praėjusį mėnesį.')}'),
                     ],
                   ),
@@ -5142,7 +5150,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             Row(children: [
               Text(widget.monthNom, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
               const Spacer(),
-              Text('−${totalAvg.toStringAsFixed(2).replaceAll('.', ',')} €', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+              Text('−${_eur(totalAvg)}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
             ]),
             const SizedBox(height: 12),
             for (final s in expenseSecs)
@@ -5152,7 +5160,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                   CategoryIcon(icon: s.icon, color: s.color, size: 26),
                   const SizedBox(width: 10),
                   Expanded(child: Text(tr(s.label), style: TextStyle(fontSize: 14.5, color: _ink))),
-                  Text('−${((-s.net) / days).toStringAsFixed(2).replaceAll('.', ',')} €',
+                  Text('−${_eur((-s.net) / days)}',
                       style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
                 ]),
               ),
@@ -5711,7 +5719,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           Column(mainAxisSize: MainAxisSize.min, children: [
             Text(sign, style: TextStyle(fontSize: 20, color: _muted, height: 1)),
             const SizedBox(height: 2),
-            Text(_hide ? '••• €' : '${v.round()} €', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+            Text(_hide ? '••• ${Money.symbol}' : _eur0(v), style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
             Text(tr(label), style: TextStyle(fontSize: 13, color: _muted)),
           ]),
         ]),
@@ -5852,7 +5860,7 @@ class _OverviewTabState extends State<_OverviewTab> {
         ),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text('$d', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-          if (n != null) Text('${n.round()}€', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: n >= 0 ? _good : _muted)),
+          if (n != null) Text(_eur0(n), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: n >= 0 ? _good : _muted)),
         ]),
       ));
     }
@@ -6004,7 +6012,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             Row(children: [
               Text(tr('Šį mėnesį'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
               const Spacer(),
-              Text('−${totalAvg.toStringAsFixed(2).replaceAll('.', ',')} €', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+              Text('−${_eur(totalAvg)}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
             ]),
             const SizedBox(height: 12),
             for (final s in exp)
@@ -6014,7 +6022,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                   CategoryIcon(icon: s.icon, color: s.color, size: 26),
                   const SizedBox(width: 10),
                   Expanded(child: Text(tr(s.label), style: TextStyle(fontSize: 14.5, color: _ink))),
-                  Text('−${((-s.net) / days).toStringAsFixed(2).replaceAll('.', ',')} €', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
+                  Text('−${_eur((-s.net) / days)}', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
                 ]),
               ),
           ]),
@@ -6113,7 +6121,7 @@ class _SavingsRateScreen extends StatelessWidget {
                         Row(children: [
                           Container(width: 26, height: 26, alignment: Alignment.center, decoration: BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.add_rounded, size: 16, color: Colors.white)),
                           const SizedBox(width: 8),
-                          Text('${earned.round()} €', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                          Text(_eur0(earned), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                         ]),
                         const SizedBox(height: 16),
                         Text('${_monNom[curMon - 1]} ${tr('santaupos')}', style: TextStyle(fontSize: 13, color: _muted)),
@@ -6121,7 +6129,7 @@ class _SavingsRateScreen extends StatelessWidget {
                         Row(children: [
                           Container(width: 26, height: 26, alignment: Alignment.center, decoration: BoxDecoration(color: _purple, shape: BoxShape.circle), child: const Icon(Icons.savings_outlined, size: 15, color: Colors.white)),
                           const SizedBox(width: 8),
-                          Text(earned > 0 ? '${(earned * savings / 100).round()} €' : '—', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                          Text(earned > 0 ? _eur0(earned * savings / 100) : '—', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                         ]),
                       ]),
                     ),
@@ -6521,8 +6529,8 @@ class _PlanningTabState extends State<_PlanningTab> {
         const SizedBox(height: 8),
         Text(
           onTrack
-              ? '${tr('Tokiu tempu mėnesį baigsi ~')}${projected.round()} € ${tr('— telpi į biudžetą.')}'
-              : '${tr('Tokiu tempu peršoksi biudžetą ~')}${(projected - limit).round()} € ${tr('— sulėtink.')}',
+              ? '${tr('Tokiu tempu mėnesį baigsi ~')}${_eur0(projected)} ${tr('— telpi į biudžetą.')}'
+              : '${tr('Tokiu tempu peršoksi biudžetą ~')}${_eur0(projected - limit)} ${tr('— sulėtink.')}',
           style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: onTrack ? _good : const Color(0xFFEE7A3A)),
         ),
       ]),
@@ -6580,7 +6588,7 @@ class _PlanningTabState extends State<_PlanningTab> {
 
   // Edit a budget's limit (turns an auto-suggested budget into a user-set one).
   void _editBudget(_Budget b) {
-    final ctl = TextEditingController(text: b.limit.round().toString());
+    final ctl = TextEditingController(text: (b.limit * Money.rate).round().toString());
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -6610,7 +6618,7 @@ class _PlanningTabState extends State<_PlanningTab> {
               Expanded(child: TextField(controller: ctl, keyboardType: TextInputType.number, autofocus: true,
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink),
                   decoration: const InputDecoration(border: InputBorder.none))),
-              Text('€', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: _muted)),
+              Text(Money.symbol, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: _muted)),
             ]),
           ),
           const SizedBox(height: 18),
@@ -6631,7 +6639,8 @@ class _PlanningTabState extends State<_PlanningTab> {
               child: GestureDetector(
                 onTap: () {
                   final v = double.tryParse(ctl.text.replaceAll(',', '.')) ?? 0;
-                  if (v > 0) { setState(() { b.limit = v; b.auto = false; }); _saveBudgets(); }
+                  // Input is in the display currency; budgets are stored in EUR.
+                  if (v > 0) { setState(() { b.limit = v / Money.rate; b.auto = false; }); _saveBudgets(); }
                   Navigator.pop(ctx);
                 },
                 child: Container(
@@ -7000,7 +7009,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
       decoration: BoxDecoration(color: _card.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
       child: Row(children: [
         Expanded(
-          child: Text('${_recName(it)} · $monthly € ${tr('/ mėn')}',
+          child: Text('${_recName(it)} · ${_eur0(monthly)} ${tr('/ mėn')}',
               maxLines: 1, overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: _faint)),
         ),
@@ -7072,7 +7081,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
           title: Text(tr('Redaguoti'),
               style: TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 18)),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$merchant · $monthly € ${tr('/ mėn')}',
+            Text('$merchant · ${_eur0(monthly)} ${tr('/ mėn')}',
                 style: TextStyle(color: _muted, fontSize: 13)),
             const SizedBox(height: 4),
             Text(tr('Bankas nepasako, kas tai. Pavadink, kad atpažintum.'),
@@ -7242,7 +7251,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text('$monthly € ${tr('/ mėn')}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: counted ? _ink : _muted)),
+              Text('${_eur0(monthly)} ${tr('/ mėn')}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: counted ? _ink : _muted)),
             ]),
             const SizedBox(height: 4),
             Row(children: [
@@ -7380,7 +7389,7 @@ class _RecurringReviewSheetState extends State<_RecurringReviewSheet> {
           ]),
         ),
         const SizedBox(width: 6),
-        Text('-$amount€',
+        Text('-${_eur0(amount)}',
             style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: _ink)),
         const SizedBox(width: 10),
         _actionCircle(
@@ -7489,7 +7498,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                   GestureDetector(
                     onTap: () => setState(() {
                       _sec = s;
-                      _limitCtl.text = widget.suggestOf(s).round().toString();
+                      _limitCtl.text = (widget.suggestOf(s) * Money.rate).round().toString();
                     }),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -7514,7 +7523,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(8)),
-                    child: Text('${tr('siūlome')} ${widget.suggestOf(_sec!).round()} €',
+                    child: Text('${tr('siūlome')} ${_eur0(widget.suggestOf(_sec!))}',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _purple)),
                   ),
                 ]),
@@ -7531,7 +7540,7 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                         decoration: const InputDecoration(border: InputBorder.none, hintText: '0'),
                       ),
                     ),
-                    Text('€', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _muted)),
+                    Text(Money.symbol, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _muted)),
                   ]),
                 ),
               ],
@@ -7540,7 +7549,8 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                 onTap: () {
                   final v = double.tryParse(_limitCtl.text.replaceAll(',', '.')) ?? 0;
                   if (_sec == null || v <= 0) return;
-                  widget.onSave(_sec!, v);
+                  // Input is in the display currency; budgets are stored in EUR.
+                  widget.onSave(_sec!, v / Money.rate);
                   Navigator.pop(context);
                 },
                 child: Container(
