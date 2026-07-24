@@ -120,7 +120,17 @@ NAME_OVERRIDES = [
     (("apple.com", "itunes", "anthropic", "openai", "chatgpt", "dribbble", "figma",
       "github", "adobe", "notion", "midjourney", "canva", "dropbox", "slack",
       "zoom.us", "patreon", "google *", "google play", "youtubepremium",
-      "google storage", "delfiplius", "delfi plius"), _SUBS),
+      "google storage", "delfiplius", "delfi plius",
+      # AI / dev / creator SaaS tools — a card payment to one of these can only be
+      # a software service (monthly plan or credit top-up), never a shop or a
+      # person, so pin them to software rather than let a varying-amount stream
+      # fall through to "Kita". Names are visible on card payments (unlike Apple
+      # Pay's bundled apple.com).
+      "base44", "replit", "lovable", "loveable", "capcut", "cursor", "vercel",
+      "supabase", "netlify", "render.com", "railway", "elevenlabs", "perplexity",
+      "runway", "descript", "framer", "webflow", "wix", "squarespace", "jetbrains",
+      "grammarly", "elementor", "wondershare", "heygen", "leonardo.ai", "gamma.app",
+      "mailchimp", "substack", "calendly", "linear.app", "1password", "grok"), _SUBS),
     (("netflix", "spotify", "hbo", "max help", "disney", "viaplay", "go3", "twitch",
       "steam", "playstation", "xbox", "nintendo", "cinema", "forum cinemas", "apollo kin"), _ENTM),
     (("oanda", "trading212", "trading 212", "fxflat", "swissquote", "interactive brokers",
