@@ -237,6 +237,16 @@ int _moInt(String? key) {
   return (n ?? 1).clamp(1, 12);
 }
 
+// Safe YEAR from a "YYYY-MM"/"YYYY-MM-DD" key. A blank or short month key made a
+// bare `int.parse(month.substring(0,4))` throw (FormatException/RangeError) and
+// red-screen the month review + Overview calendar; the month half was already
+// guarded via _moInt, this closes the year half.
+int _yInt(String? key) {
+  final k = key ?? '';
+  final n = k.length >= 4 ? int.tryParse(k.substring(0, 4)) : null;
+  return n ?? DateTime.now().year;
+}
+
 // Safe reads for balance-history series points ({d: 'YYYY-MM-DD', v: num}). The
 // series is a separate payload from the tx feed, so it bypasses _dOf/_aOf; a
 // missing/odd `d` or `v` from a quiet-bank or cached row must degrade, never
@@ -4203,7 +4213,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
   /// The previous month key ("2026-05") if it has any data, else null.
   String? get _prevMonthKey {
-    final y = int.parse(widget.month.substring(0, 4));
+    final y = _yInt(widget.month);
     final mo = _moInt(widget.month);
     final p = DateTime(y, mo - 1, 1);
     final k = '${p.year}-${p.month.toString().padLeft(2, '0')}';
@@ -4290,7 +4300,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   }
 
   String get _prevMonth {
-    final y = int.parse(widget.month.substring(0, 4));
+    final y = _yInt(widget.month);
     final m = _moInt(widget.month);
     return m == 1 ? '${y - 1}-12' : '$y-${(m - 1).toString().padLeft(2, '0')}';
   }
@@ -4770,7 +4780,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   IconData _labelIcon(String label) => _secIcon[_secToIcon[label]] ?? Icons.circle;
 
   int get _daysInMonth {
-    final y = int.parse(widget.month.substring(0, 4));
+    final y = _yInt(widget.month);
     final mo = _moInt(widget.month);
     return DateTime(y, mo + 1, 0).day;
   }
@@ -4782,7 +4792,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
   // ── CALENDAR heatmap ──
   Widget _calendar() {
-    final y = int.parse(widget.month.substring(0, 4));
+    final y = _yInt(widget.month);
     final mo = _moInt(widget.month);
     final lead = DateTime(y, mo, 1).weekday - 1; // Mon=0
     final net = <int, double>{};
@@ -5543,6 +5553,18 @@ class _OverviewTabState extends State<_OverviewTab> {
 
   @override
   Widget build(BuildContext context) {
+    // No transactions at all (a freshly-connected bank with no activity yet):
+    // the donuts, calendar and category list would render as empty/zero shells.
+    // Show a single friendly empty state instead of a screen of blank cards (E1).
+    if (widget.all.isEmpty) {
+      return SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 28),
+          children: [_header(), _overviewEmpty()],
+        ),
+      );
+    }
     final rows = _filter.apply(_rows);
     final secs = _sections(rows);
     final expenseSecs = secs.where((s) => !_isIncome(s.label) && !_isTransfer(s.label) && s.net < 0).toList();
@@ -5595,6 +5617,22 @@ class _OverviewTabState extends State<_OverviewTab> {
                 builder: (_) => _SearchScreen(all: widget.all, budgets: widget.budgets))),
             child: Icon(Icons.search_rounded, size: 25, color: _ink),
           ),
+        ]),
+      );
+
+  Widget _overviewEmpty() => Padding(
+        padding: const EdgeInsets.fromLTRB(28, 90, 28, 24),
+        child: Column(children: [
+          Icon(Icons.donut_large_rounded, size: 48, color: _faint),
+          const SizedBox(height: 16),
+          Text(tr('Kol kas nėra sandorių'),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)),
+          const SizedBox(height: 8),
+          Text(
+              tr('Kai bankas atsiųs operacijas, čia matysi išlaidų apžvalgą, kategorijas ir tendencijas.'),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
         ]),
       );
 

@@ -384,6 +384,9 @@ const Map<String, String> _en = {
   'Prijungti kitą banką': 'Connect another bank',
   'Pažymėti': 'Starred',
   'Nėra pažymėtų sandorių': 'No starred transactions',
+  'Kol kas nėra sandorių': 'No transactions yet',
+  'Kai bankas atsiųs operacijas, čia matysi išlaidų apžvalgą, kategorijas ir tendencijas.':
+      "Once your bank sends transactions, you'll see your spending overview, categories and trends here.",
   'neatnaujinta': 'not updated',
   'Pažymėti bankai kol kas neatidavė naujų duomenų — rodomi paskutiniai žinomi.':
       "The marked banks haven't returned fresh data yet — showing the last known.",

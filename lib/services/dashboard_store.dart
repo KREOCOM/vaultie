@@ -248,6 +248,41 @@ class DashboardStore {
     final list = [...connections()]
       ..removeWhere((c) => (c['bank'] as String?) == bank);
     await _box.put(_kBanks, jsonEncode(list));
+    await reconcileKnown();
+  }
+
+  /// Drop cached (`known`) data for banks that no longer have a connection.
+  /// The known cache is handed back to the backend on every scan and re-served
+  /// for any bank that didn't answer — including one the user just removed, which
+  /// isn't scanned at all, so it counts as "quiet" and its rent/loan would
+  /// resurrect on the dashboard. Pruning it to the still-connected banks closes
+  /// that (M2). Called after every connection removal.
+  static Future<void> reconcileKnown() async {
+    final known = knownScan();
+    if (known.isEmpty) return;
+    final connected = connections()
+        .map((c) => c['bank'] as String?)
+        .whereType<String>()
+        .toSet();
+    try {
+      await _box.put(_kKnown, jsonEncode(prunedKnown(known, connected)));
+    } catch (_) {/* no box (preview) */}
+  }
+
+  /// Pure: keep only the cached txns/accounts whose bank is still [connected].
+  /// Separated from Hive so the resurrection guard is unit-testable.
+  static Map<String, dynamic> prunedKnown(
+      Map<String, dynamic> known, Set<String> connected) {
+    String? bankOf(dynamic e) =>
+        e is Map ? (e['_bank'] ?? e['bank']) as String? : null;
+    return {
+      'txns': ((known['txns'] as List?) ?? const [])
+          .where((t) => connected.contains(bankOf(t)))
+          .toList(),
+      'accounts': ((known['accounts'] as List?) ?? const [])
+          .where((a) => connected.contains(bankOf(a)))
+          .toList(),
+    };
   }
 
   /// Remove ONLY the specified revoked accounts (keys of `IBAN|CURRENCY`), not
@@ -274,6 +309,7 @@ class DashboardStore {
       out.add({...c, 'accounts': kept});
     }
     await _box.put(_kBanks, jsonEncode(out));
+    await reconcileKnown();
   }
 
   /// Number of connected banks (0 before any connection).
