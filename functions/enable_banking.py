@@ -204,6 +204,18 @@ class EnableBankingClient:
         """Exchange the redirect ``code`` for a session (+ its accounts)."""
         return self._request("POST", "/sessions", body={"code": code})
 
+    def delete_session(self, session_id: str) -> bool:
+        """Revoke a bank session — ends the PSD2 consent so it can't outlive the
+        account. Best-effort: returns True on success, False on any failure, and
+        never raises, so account deletion is never blocked by a bank that is
+        momentarily unreachable."""
+        try:
+            self._request("DELETE", f"/sessions/{session_id}")
+            return True
+        except Exception:  # noqa: BLE001
+            logging.warning("EB: could not delete session")
+            return False
+
     def balances(self, account_uid: str, *, psu: dict | None = None) -> list:
         """Current balances for an account (list of balance objects).
 

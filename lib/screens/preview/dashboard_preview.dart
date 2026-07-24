@@ -8912,6 +8912,18 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     setState(() => _busy = true);
     try {
       final auth = AuthService();
+      // Revoke bank consents + delete server data (bank_links, entitlement cache)
+      // FIRST, while the auth token is still valid — the delete dialog promises the
+      // bank connection is severed, and this is what makes that true. Best-effort:
+      // never let it block the account deletion itself.
+      try {
+        final sessionIds = DashboardStore.connections()
+            .map((c) => c['sessionId'] as String?)
+            .whereType<String>()
+            .where((s) => s.isNotEmpty)
+            .toList();
+        await BankingService.instance.deleteUserData(sessionIds);
+      } catch (_) {/* server unreachable / already gone — proceed */}
       try {
         await auth.deleteAccount();
       } on FirebaseAuthException catch (e) {

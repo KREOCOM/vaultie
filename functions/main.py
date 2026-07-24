@@ -556,6 +556,41 @@ def list_banks(req: https_fn.CallableRequest) -> dict:
 
 
 @https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])
+def delete_user_data(req: https_fn.CallableRequest) -> dict:
+    """Erase a user's server-side footprint and REVOKE their bank consents.
+
+    The client calls this from the "delete account" flow BEFORE Firebase auth
+    deletion (which needs the still-valid token). It is deliberately NOT premium-
+    gated — a lapsed user must still be able to delete themselves. The bank side is
+    best-effort: a session we cannot reach is logged, never blocks the erasure. The
+    "delete account" dialog promises the bank connection is severed; this is what
+    makes that true (and closes the GDPR right-to-erasure gap where the Enable
+    Banking consent lived on for ~90 days and the bank_links record forever).
+    """
+    _require_auth(req)
+    uid = _uid(req)
+    session_ids = [str(s) for s in ((req.data or {}).get("sessionIds") or []) if s]
+    revoked = 0
+    if session_ids:
+        try:
+            client = _client()
+            for sid in session_ids:
+                if client.delete_session(sid):
+                    revoked += 1
+        except Exception:  # noqa: BLE001
+            logging.exception("delete_user_data: session revoke error uid=%s", uid)
+    db = firestore.client()
+    for coll in (_BANK_LINKS, "entitlements"):
+        try:
+            db.collection(coll).document(uid).delete()
+        except Exception:  # noqa: BLE001
+            logging.exception("delete_user_data: %s cleanup failed uid=%s", coll, uid)
+    logging.info("delete_user_data uid=%s revoked=%d/%d sessions", uid, revoked,
+                 len(session_ids))
+    return {"revoked": revoked, "sessions": len(session_ids)}
+
+
+@https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])
 def start_bank_auth(req: https_fn.CallableRequest) -> dict:
     """Begin consent for ``aspspName`` and return the bank's authorization URL."""
     _require_auth(req)

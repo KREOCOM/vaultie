@@ -238,6 +238,20 @@ class BankingService {
     }
   }
 
+  /// Revokes the user's bank consents and deletes their server-side data
+  /// (bank_links ownership + entitlement cache). Best-effort — must NEVER block
+  /// account deletion, so any failure is swallowed. Call BEFORE Firebase auth
+  /// deletion, while the token is still valid. Returns how many sessions revoked.
+  Future<int> deleteUserData(List<String> sessionIds) async {
+    try {
+      return await _call<int>('delete_user_data', {'sessionIds': sessionIds},
+          (m) => (m['revoked'] as num?)?.toInt() ?? 0,
+          timeout: const Duration(seconds: 12));
+    } catch (_) {
+      return 0; // server unreachable / already gone — deletion proceeds anyway
+    }
+  }
+
   /// Banks the user can connect for [country] (default LT).
   Future<List<Bank>> listBanks({String country = 'LT'}) {
     return _call('list_banks', {'country': country}, (m) {
