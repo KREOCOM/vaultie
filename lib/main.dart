@@ -74,6 +74,27 @@ const String _kInstalled = 'installed';
 /// screen without a BuildContext of its own.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// Opens a Hive box, recreating it if it is corrupt. A box left half-written by a
+/// crash or low-storage event, or one whose adapter shape changed across an app
+/// update, would otherwise throw here — before [runApp] — and brick the app in a
+/// launch crash-loop whose only exit is delete-and-reinstall (wiping ALL local
+/// data). Dropping one bad box loses only that box's cache, which the app re-fetches
+/// from the bank; the app still boots.
+Future<Box<T>> _openBoxSafe<T>(String name) async {
+  try {
+    return await Hive.openBox<T>(name);
+  } catch (e, s) {
+    try {
+      await FirebaseCrashlytics.instance
+          .recordError(e, s, reason: 'Hive box "$name" corrupt — recreating');
+    } catch (_) {}
+    try {
+      await Hive.deleteBoxFromDisk(name);
+    } catch (_) {}
+    return await Hive.openBox<T>(name);
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -107,16 +128,24 @@ Future<void> main() async {
   if (!Hive.isAdapterRegistered(SubscriptionAdapter().typeId)) {
     Hive.registerAdapter(SubscriptionAdapter());
   }
-  final subsBox = await Hive.openBox<Subscription>(HiveBoxes.subscriptions);
-  final settings = await Hive.openBox(HiveBoxes.settings);
-  await Hive.openBox(HiveBoxes.cancellations);
-  await Hive.openBox(HiveBoxes.monthlyStats);
-  await Hive.openBox(HiveBoxes.dashboard);
+  final subsBox = await _openBoxSafe<Subscription>(HiveBoxes.subscriptions);
+  final settings = await _openBoxSafe<dynamic>(HiveBoxes.settings);
+  await _openBoxSafe<dynamic>(HiveBoxes.cancellations);
+  await _openBoxSafe<dynamic>(HiveBoxes.monthlyStats);
+  await _openBoxSafe<dynamic>(HiveBoxes.dashboard);
   // Live FX rates (EUR-based, ECB daily, cached) — loaded before AppPrefs.load()
   // so applyDisplayCurrency() can point Money at the chosen currency's rate.
   await FxRates.instance.init();
-  // Load persisted language/currency preferences into their notifiers.
-  AppPrefs.load();
+  // Load persisted language/currency preferences into their notifiers. Guarded so
+  // a single corrupt/wrong-typed setting can never crash the launch.
+  try {
+    AppPrefs.load();
+  } catch (e, s) {
+    try {
+      await FirebaseCrashlytics.instance
+          .recordError(e, s, reason: 'AppPrefs.load failed at boot');
+    } catch (_) {}
+  }
   // When a fresh rate table lands, reapply it to the current display currency.
   FxRates.instance.rates.addListener(AppPrefs.applyDisplayCurrency);
 

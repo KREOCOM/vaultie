@@ -43,15 +43,23 @@ class AppPrefs {
   /// Loads persisted values into the notifiers. Call once at startup, after the
   /// settings box is open.
   static void load() {
-    final code = _box.get(_kLocale, defaultValue: '') as String;
-    locale.value = code.isEmpty ? null : Locale(code);
-    currency.value = _box.get(_kCurrency, defaultValue: '€') as String;
-    currencyCode.value = _box.get(_kCurrencyCode, defaultValue: 'EUR') as String;
+    // Defensive reads: a stored value whose type no longer matches (a corrupt
+    // record, or a key whose type changed across an app update) must default,
+    // never throw — a cast crash here happens before runApp() and would brick the
+    // app on launch with no recovery. `is`-checks keep boot resilient.
+    final code = _box.get(_kLocale);
+    locale.value = (code is String && code.isNotEmpty) ? Locale(code) : null;
+    final cur = _box.get(_kCurrency);
+    currency.value = cur is String ? cur : '€';
+    final cc = _box.get(_kCurrencyCode);
+    currencyCode.value = cc is String ? cc : 'EUR';
     applyDisplayCurrency();
-    budget.value = (_box.get(_kBudget) as num?)?.toDouble();
+    final b = _box.get(_kBudget);
+    budget.value = b is num ? b.toDouble() : null;
     // Frost (light) is the primary theme — the app opens light unless the user
     // chose dark.
-    darkMode.value = _box.get(_kDarkMode, defaultValue: false) as bool;
+    final dm = _box.get(_kDarkMode);
+    darkMode.value = dm is bool ? dm : false;
   }
 
   static Future<void> setDarkMode(bool value) async {
