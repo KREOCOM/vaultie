@@ -49,6 +49,32 @@ def test_ownership_is_not_substring_matched():
     assert kept == [], kept
 
 
+# ── session revocation scoping (delete_user_data IDOR guard) ────────────────
+
+def test_only_owned_sessions_are_revoked():
+    # The client asks to revoke three ids; only the two this user owns survive.
+    kept = main._authorised_sessions(["s1", "victim-session", "s2"], {"s1", "s2"})
+    assert kept == ["s1", "s2"], kept
+
+
+def test_someone_elses_session_is_not_revoked():
+    # The whole point: a caller cannot revoke a session they do not own.
+    kept = main._authorised_sessions(["victim-session"], {"my-session"})
+    assert kept == [], kept
+
+
+def test_no_recorded_sessions_revokes_nothing():
+    # A connection made before sessions were recorded → owned is empty → we must
+    # revoke nothing rather than fall open to the client's list.
+    kept = main._authorised_sessions(["s1", "s2"], set())
+    assert kept == [], kept
+
+
+def test_session_ownership_is_not_substring_matched():
+    kept = main._authorised_sessions(["s12"], {"s1"})
+    assert kept == [], kept
+
+
 # ── bank name from IBAN (authoritative label + logo) ────────────────────────
 
 def test_bank_derived_from_lithuanian_iban():

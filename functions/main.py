@@ -176,22 +176,33 @@ def _require_premium(req: https_fn.CallableRequest) -> None:
 _BANK_LINKS = "bank_links"
 
 
-def _remember_accounts(uid: str, account_uids: list) -> None:
-    """Record which Enable Banking accounts this user consented to.
+def _remember_accounts(uid: str, account_uids: list,
+                       session_id: str | None = None) -> None:
+    """Record which Enable Banking accounts (and session) this user consented to.
 
     Stored deliberately, and it is the minimum that closes a real hole: without
     it the backend cannot tell WHOSE accounts it is being asked to fetch, so any
     signed-in user could read anyone else's transactions just by supplying their
     account uid. Only opaque account identifiers are written — no transactions,
     no balances, no IBANs.
+
+    The ``session_id`` is recorded for the same reason: on account deletion the
+    server revokes bank consents, and it must only ever revoke sessions THIS user
+    created — never a session id the caller merely supplied (see delete_user_data).
     """
     ids = sorted({str(a) for a in account_uids if a})
-    if not ids:
+    session_id = str(session_id) if session_id else None
+    if not ids and not session_id:
         return
     try:
         from firebase_admin import firestore
+        payload = {}
+        if ids:
+            payload["accounts"] = firestore.ArrayUnion(ids)
+        if session_id:
+            payload["sessions"] = firestore.ArrayUnion([session_id])
         firestore.client().collection(_BANK_LINKS).document(uid).set(
-            {"accounts": firestore.ArrayUnion(ids)}, merge=True)
+            payload, merge=True)
     except Exception:
         # Don't fail a connection the user just completed — their data is in
         # this response and they should see it. The next refresh will deny and
@@ -229,6 +240,38 @@ def _authorised_metas(requested: list, owned: set) -> list:
     attribute to anyone.
     """
     return [m for m in requested if m.get("uid") and m["uid"] in owned]
+
+
+def _owned_sessions(uid: str) -> set:
+    """The Enable Banking session ids this user created (recorded at connect).
+
+    Unlike _owned_accounts this returns an empty set on lookup failure rather
+    than raising: session revocation on account deletion is best-effort and must
+    never block the erasure. An empty set simply means nothing is revoked — the
+    safe direction (we only ever revoke sessions we can prove belong to the user).
+    """
+    try:
+        from firebase_admin import firestore
+        snap = firestore.client().collection(_BANK_LINKS).document(uid).get()
+    except Exception:  # noqa: BLE001
+        logging.exception("bank_links: session lookup failed for uid=%s", uid)
+        return set()
+    if not snap.exists:
+        return set()
+    return {str(s) for s in (snap.to_dict() or {}).get("sessions") or [] if s}
+
+
+def _authorised_sessions(requested: list, owned: set) -> list:
+    """Keep only the session ids this user is recorded as owning.
+
+    delete_user_data revokes bank consents from a list the CLIENT supplies. Left
+    untrusted, a signed-in user could pass someone else's opaque session id and
+    revoke that person's bank access (an IDOR). Intersecting with the sessions we
+    recorded for THIS user at connect closes that: a caller can only ever revoke
+    their own. (A connection made before sessions were recorded isn't in `owned`,
+    so its consent is left for the ~90-day cliff — the safe direction to miss in.)
+    """
+    return [str(s) for s in requested if str(s) in owned]
 
 
 def _client() -> EnableBankingClient:
@@ -582,11 +625,15 @@ def delete_user_data(req: https_fn.CallableRequest) -> dict:
     _require_auth(req)
     uid = _uid(req)
     session_ids = [str(s) for s in ((req.data or {}).get("sessionIds") or []) if s]
+    # IDOR guard: revoke ONLY sessions this user is recorded as owning, never a
+    # session id the caller merely supplied — otherwise a signed-in user could
+    # pass someone else's session id and revoke their bank access.
+    to_revoke = _authorised_sessions(session_ids, _owned_sessions(uid))
     revoked = 0
-    if session_ids:
+    if to_revoke:
         try:
             client = _client()
-            for sid in session_ids:
+            for sid in to_revoke:
                 if client.delete_session(sid):
                     revoked += 1
         except Exception:  # noqa: BLE001
@@ -601,9 +648,9 @@ def delete_user_data(req: https_fn.CallableRequest) -> dict:
             db.collection(coll).document(uid).delete()
         except Exception:  # noqa: BLE001
             logging.exception("delete_user_data: %s cleanup failed uid=%s", coll, uid)
-    logging.info("delete_user_data uid=%s revoked=%d/%d sessions", uid, revoked,
-                 len(session_ids))
-    return {"revoked": revoked, "sessions": len(session_ids)}
+    logging.info("delete_user_data uid=%s revoked=%d/%d owned sessions (%d requested)",
+                 uid, revoked, len(to_revoke), len(session_ids))
+    return {"revoked": revoked, "sessions": len(to_revoke)}
 
 
 @https_fn.on_call(region=_REGION,
@@ -707,7 +754,8 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     # Bind these accounts to the caller before fetching anything. This is the
     # only moment we can prove ownership — the consent that produced `code` was
     # granted by the person holding this Firebase session.
-    _remember_accounts(_uid(req), [m.get("uid") for m in metas])
+    _remember_accounts(_uid(req), [m.get("uid") for m in metas],
+                       session_id=session.get("session_id"))
     all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
         client, metas, months_back=months_back, psu_available=_psu_available(req))
     ai_enabled = bool(data.get("aiEnrichment"))
