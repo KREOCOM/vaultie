@@ -2028,10 +2028,18 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_txDisplayName(t),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink, letterSpacing: -0.2)),
+                  Row(children: [
+                    Flexible(
+                      child: Text(_txDisplayName(t),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink, letterSpacing: -0.2)),
+                    ),
+                    if (t['star'] == true) ...[
+                      const SizedBox(width: 5),
+                      const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF5B301)),
+                    ],
+                  ]),
                   const SizedBox(height: 1),
                   Row(children: [
                     Container(
@@ -8958,11 +8966,17 @@ class _SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<_SearchScreen> {
   String _q = '';
+  // "Starred only" filter — makes this screen double as the view of flagged
+  // transactions the user stars from the detail screen.
+  bool _starredOnly = false;
 
   List<Map<String, dynamic>> get _results {
     final q = _fold(_q.trim());
-    if (q.isEmpty) return const [];
+    // Nothing to show only when there's neither a query NOR the starred filter.
+    if (q.isEmpty && !_starredOnly) return const [];
     final r = widget.all.where((t) {
+      if (_starredOnly && t['star'] != true) return false;
+      if (q.isEmpty) return true; // starred filter with no query → all starred
       // Match merchant (raw + shortened), category AND section, all diacritic-folded.
       final hay = _fold('${t['nm']} ${_shortNm(_nmOf(t))} ${t['cat']} ${t['sec'] ?? ''}');
       return hay.contains(q);
@@ -9004,8 +9018,16 @@ class _SearchScreenState extends State<_SearchScreen> {
             border: InputBorder.none,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: tr('Pažymėti'),
+            icon: Icon(_starredOnly ? Icons.star_rounded : Icons.star_border_rounded,
+                size: 24, color: _starredOnly ? const Color(0xFFF5B301) : _muted),
+            onPressed: () => setState(() => _starredOnly = !_starredOnly),
+          ),
+        ],
       ),
-      body: _q.trim().isEmpty
+      body: _q.trim().isEmpty && !_starredOnly
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -9014,7 +9036,7 @@ class _SearchScreenState extends State<_SearchScreen> {
               ),
             )
           : res.isEmpty
-              ? Center(child: Text(tr('Nieko nerasta'), style: TextStyle(fontSize: 16, color: _muted)))
+              ? Center(child: Text(tr(_starredOnly ? 'Nėra pažymėtų sandorių' : 'Nieko nerasta'), style: TextStyle(fontSize: 16, color: _muted)))
               : ListView(
                   padding: const EdgeInsets.only(bottom: 24),
                   children: [
@@ -9040,8 +9062,16 @@ class _SearchScreenState extends State<_SearchScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(_shortNm(_nmOf(t)), maxLines: 1, overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink)),
+                                Row(children: [
+                                  Flexible(
+                                    child: Text(_shortNm(_nmOf(t)), maxLines: 1, overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _ink)),
+                                  ),
+                                  if (t['star'] == true) ...[
+                                    const SizedBox(width: 5),
+                                    const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF5B301)),
+                                  ],
+                                ]),
                                 Text('${tr((t['cat'] ?? '').toString())} · ${t['md']}', style: TextStyle(fontSize: 12.5, color: _muted)),
                               ]),
                             ),

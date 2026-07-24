@@ -382,6 +382,8 @@ const Map<String, String> _en = {
   'Sąskaitos': 'Accounts',
   'Likutis': 'Balance',
   'Prijungti kitą banką': 'Connect another bank',
+  'Pažymėti': 'Starred',
+  'Nėra pažymėtų sandorių': 'No starred transactions',
   'neatnaujinta': 'not updated',
   'Pažymėti bankai kol kas neatidavė naujų duomenų — rodomi paskutiniai žinomi.':
       "The marked banks haven't returned fresh data yet — showing the last known.",
