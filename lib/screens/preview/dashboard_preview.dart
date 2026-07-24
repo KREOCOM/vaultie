@@ -753,6 +753,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         }
         setState(() {
           if (full != null) {
+            _applyLocalTxEdits(full);
             _d = _normalizeDash(full);
             _otherTabs = null; // Overview/Planning rebuild from the fuller data
           }
@@ -919,6 +920,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         setState(() => _deepening = false);
         return; // keep the complete last-known data; don't save the partial
       }
+      _applyLocalTxEdits(fresh); // re-layer local edits/deletions on the sync (H1)
       setState(() {
         if (fresh != null) {
           _d = _normalizeDash(fresh);
@@ -960,6 +962,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         setState(() => _deepening = false);
         return; // keep the complete last-known data; don't save the partial
       }
+      _applyLocalTxEdits(fresh); // re-layer local edits/deletions on the sync (H1)
       setState(() {
         if (fresh != null) {
           _d = _normalizeDash(fresh);
@@ -1000,6 +1003,29 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     _homeScroll.dispose();
     if (_dashRefresh == _refreshFromAll) _dashRefresh = null;
     super.dispose();
+  }
+
+  // Re-apply the user's local per-transaction edits (recategorise / rename /
+  // transfer / star) and deletions onto a freshly-synced payload BEFORE it's
+  // shown or saved, so a background sync no longer wipes them (H1). Mutates
+  // [fresh] in place; when anything was overridden it also recomputes the views
+  // derived from `all` (month/day headers, week bars — the caller nulls
+  // `_otherTabs` so Overview/Planning rebuild too), mirroring _refreshFromAll.
+  void _applyLocalTxEdits(Map<String, dynamic>? fresh) {
+    if (fresh == null) return;
+    final edits = DashboardStore.txEdits();
+    final deleted = DashboardStore.txDeleted();
+    if (edits.isEmpty && deleted.isEmpty) return;
+    final rawAll = fresh['all'];
+    if (rawAll is! List) return;
+    final all = rawAll
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    DashboardStore.applyTxOverrides(all, edits, deleted);
+    fresh['all'] = all;
+    fresh.remove('totals'); // month/day headers recompute canonically from `all`
+    fresh['week'] = _computeWeek(all);
   }
 
   // Re-derive everything from `_d['all']` after an external mutation and persist.
@@ -3525,6 +3551,10 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     );
     if (ok != true) return;
     final targets = _underlying;
+    // Tombstone each deleted transaction so a background sync re-removes it.
+    for (final r in targets) {
+      DashboardStore.addTxDeleted(DashboardStore.txIdentity(r));
+    }
     widget.all.removeWhere(targets.contains);
     _dashRefresh?.call();
     if (mounted) Navigator.pop(context);
@@ -3542,18 +3572,27 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     // A merged N× row can't take a single amount; keep per-row amounts and only
     // apply the shared fields (name/category/date). A single row takes all.
     final single = rows.length == 1;
-    for (final r in rows) {
-      r['nm'] = edited['nm'];
-      r['cat'] = edited['cat'];
-      r['col'] = edited['col'];
-      r['ic'] = edited['ic'];
-      r['sec'] = edited['sec'];
-      r['secc'] = edited['secc'];
-      r['pos'] = edited['pos'];
+    // Capture each row's identity BEFORE mutating — a single-row edit can change
+    // the amount/date (part of the identity); the override is stored under the
+    // ORIGINAL identity (what the next sync will present) with the NEW values.
+    final ids = [for (final r in rows) DashboardStore.txIdentity(r)];
+    final shared = <String, dynamic>{
+      'nm': edited['nm'], 'cat': edited['cat'], 'col': edited['col'],
+      'ic': edited['ic'], 'sec': edited['sec'], 'secc': edited['secc'],
+      'pos': edited['pos'],
+    };
+    for (var i = 0; i < rows.length; i++) {
+      final r = rows[i];
+      shared.forEach((k, v) => r[k] = v);
+      final ov = {...shared};
       if (single) {
         r['a'] = edited['a'];
         r['d'] = edited['d'];
+        ov['a'] = edited['a'];
+        ov['d'] = edited['d'];
       }
+      // Persist the edit so a background sync re-applies it instead of wiping it.
+      DashboardStore.setTxEdit(ids[i], ov);
     }
     // Reflect on the display object too.
     tx['nm'] = edited['nm'];
@@ -3581,6 +3620,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     setState(() => _starred = !_starred);
     for (final r in _underlying) {
       r['star'] = _starred;
+      DashboardStore.setTxEdit(DashboardStore.txIdentity(r), {'star': _starred});
     }
     tx['star'] = _starred;
     _dashRefresh?.call();
@@ -3596,6 +3636,10 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
         : {'sec': 'Kita', 'secc': 'indigo', 'col': 'other', 'cat': 'Kita', 'ic': 'swap'};
     for (final r in [..._underlying, tx]) {
       fields.forEach((k, v) => r[k] = v);
+    }
+    // Transfer-convert doesn't touch amount/date, so the identity is stable.
+    for (final r in _underlying) {
+      DashboardStore.setTxEdit(DashboardStore.txIdentity(r), fields);
     }
     setState(() {
       _isTransfer = toTransfer;

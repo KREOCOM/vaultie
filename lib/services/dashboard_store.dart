@@ -564,5 +564,91 @@ class DashboardStore {
     }
   }
 
+  // ── Per-transaction local edits & deletions (survive a background sync) ─────
+  // Editing a bank transaction (recategorise, rename, mark a transfer, star) or
+  // deleting it mutates the on-device dashboard blob — but the next background
+  // sync rebuilds that blob from the bank's data and would wipe the change. So
+  // the change is ALSO recorded here, keyed by a stable transaction identity, and
+  // re-applied to every freshly synced feed (see applyTxOverrides). Same pattern
+  // as the recurring overrides: local intent is the source of truth, re-layered
+  // on top of the server truth after each sync.
+  //
+  // Identity = merge-key | date | amount. None of these is changed by a
+  // recategorise/rename/star, and all three are reproduced identically by the
+  // backend for the same physical transaction on the next scan, so the override
+  // re-attaches to the same row. (A single-row amount/date edit stores its NEW
+  // values under the ORIGINAL identity, which is what the next scan presents.)
+  static const _kTxEdits = 'txEdits';
+  static const _kTxDeleted = 'txDeleted';
+
+  /// Stable identity of a feed row for override matching: `mkey|date|amount`.
+  static String txIdentity(Map row) {
+    final mkey = (row['mkey'] ?? '').toString();
+    final d = (row['d'] ?? '').toString();
+    final a = ((row['a'] ?? 0) as num).toStringAsFixed(2);
+    return '$mkey|$d|$a';
+  }
+
+  /// identity → overridden fields (e.g. {cat, col, ic, sec, secc, pos, nm, star}).
+  static Map<String, Map<String, dynamic>> txEdits() {
+    try {
+      final raw = _box.get(_kTxEdits) as String?;
+      if (raw == null) return {};
+      return (jsonDecode(raw) as Map).map((k, v) =>
+          MapEntry(k as String, Map<String, dynamic>.from(v as Map)));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Record (merge) an override for [id]. Later keys win over earlier ones.
+  static Future<void> setTxEdit(String id, Map<String, dynamic> fields) async {
+    if (id.isEmpty) return;
+    final m = txEdits();
+    m[id] = {...?m[id], ...fields};
+    try {
+      await _box.put(_kTxEdits, jsonEncode(m));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  /// Identities the user deleted — dropped from every future synced feed.
+  static Set<String> txDeleted() => _loadSet(_kTxDeleted);
+
+  /// Mark [id] deleted (and drop any field override for it — a gone row needs none).
+  static Future<void> addTxDeleted(String id) async {
+    if (id.isEmpty) return;
+    final del = txDeleted()..add(id);
+    final edits = txEdits()..remove(id);
+    try {
+      await _box.put(_kTxDeleted, jsonEncode(del.toList()));
+      await _box.put(_kTxEdits, jsonEncode(edits));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  /// Re-apply the user's local edits and deletions onto a freshly-synced `all`
+  /// feed [rows]: drop deleted transactions, merge field overrides onto matching
+  /// rows. Mutates and returns [rows]. Pure (no Hive) so it is unit-testable —
+  /// pass [edits]/[deleted] from [txEdits]/[txDeleted].
+  static List<Map<String, dynamic>> applyTxOverrides(
+      List<Map<String, dynamic>> rows,
+      Map<String, Map<String, dynamic>> edits,
+      Set<String> deleted) {
+    if (edits.isEmpty && deleted.isEmpty) return rows;
+    if (deleted.isNotEmpty) {
+      rows.removeWhere((r) => deleted.contains(txIdentity(r)));
+    }
+    if (edits.isNotEmpty) {
+      for (final r in rows) {
+        final ov = edits[txIdentity(r)];
+        if (ov != null) r.addAll(ov);
+      }
+    }
+    return rows;
+  }
+
   static Future<void> clear() => _box.clear();
 }
