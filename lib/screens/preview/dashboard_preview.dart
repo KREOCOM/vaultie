@@ -1114,8 +1114,12 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       children: [
         _topBanner(),
         const SizedBox(height: 12),
-        _filters(),
         _subsCard(),
+        // The filter sits directly above the content it actually scopes — the week
+        // bars and the transaction feed below. It does NOT touch the subscriptions
+        // card above, so placing it there read as "out of place" (it appeared to
+        // belong to Prenumeratos/Sąskaitos while really filtering the feed).
+        _filters(),
         _weekSection(),
         // Bilance-style interleaved feed: transactions top→bottom; at each past-month
         // boundary a purple review card, then that month's transactions continue.
