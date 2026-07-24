@@ -68,7 +68,7 @@ _REGION = "europe-west1"
 # ⚠️ TEMP — bypasses the server-side subscription gate so a tester (wife's
 # Swedbank run) can use the paid endpoints without an App Store purchase. Pairs
 # with the client kBypassPaywall flag. SET BACK TO False before any real release.
-_TEST_BYPASS_PREMIUM = True
+_TEST_BYPASS_PREMIUM = False
 
 
 def _dedupe_summaries(summaries: list) -> list:

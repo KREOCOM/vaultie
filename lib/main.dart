@@ -140,8 +140,8 @@ Future<void> main() async {
   // entitlement so the paywall auto-advances, but does NOT touch `onboarded`, so
   // she still walks onboarding and connects her bank. Pairs with the server-side
   // _require_premium bypass. REVERT BOTH before any real release.
+  const kBypassPaywall = false;
   // ignore: dead_code
-  const kBypassPaywall = true;
   if (kBypassPaywall) {
     PurchaseService.instance = MockPurchaseService();
     await settings.put('premium', true);
