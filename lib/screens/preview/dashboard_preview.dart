@@ -267,7 +267,10 @@ List<Map<String, dynamic>> _cleanSeries(dynamic raw) {
 // excluded from both; a refund nets spending down. NEVER raw-sum amounts for a
 // displayed "net" — that double-counts transfers between the user's own accounts.
 String _flowOf(Map t) {
-  if (t['sec'] == 'Pervedimai') return 'transfer';
+  // Use the safe section read (a missing `sec` on an older cached row defaults to
+  // 'Kita'), so a malformed credit row is treated as income, not a refund.
+  final sec = _secOf(t);
+  if (sec == 'Pervedimai') return 'transfer';
   if (t['cat'] == 'Grąžinimas') return 'refund';
   final a = _aOf(t);
   // Money back from a RECOGNISED spending category is a refund whatever the bank
@@ -276,10 +279,7 @@ String _flowOf(Map t) {
   // totals recomputed client-side (any manual add/edit), so net was wrong by twice
   // the refund. "Kita" is unattributed → a credit there is income (freelance /
   // interest), not a refund; Pajamos/Pervedimai never reach here as spending.
-  if (a > 0 &&
-      t['sec'] != 'Pajamos' &&
-      t['sec'] != 'Pervedimai' &&
-      t['sec'] != 'Kita') {
+  if (a > 0 && sec != 'Pajamos' && sec != 'Pervedimai' && sec != 'Kita') {
     return 'refund';
   }
   return a > 0 ? 'income' : 'expense';
@@ -4621,7 +4621,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final savings = earned > 0 ? ((earned - spent) / earned * 100).round().clamp(0, 100) : 0;
     final top = expenseSecs.isNotEmpty ? expenseSecs.first : null;
     // Templated fallback used while the AI writes, or if it's unavailable.
-    final fallback = '${widget.monthGen} ${tr('mėnesį uždirbai')} ${earned.round()} €, ${tr('o išleidai')} ${spent.round()} €. ${tr('Grynasis rezultatas')} ${_eur(net, signed: true)}. '
+    final fallback = '${widget.monthGen} ${tr('mėnesį uždirbai')} ${_eur0(earned)}, ${tr('o išleidai')} ${_eur0(spent)}. ${tr('Grynasis rezultatas')} ${_eur(net, signed: true)}. '
         '${top != null ? '${tr('Daugiausia išleidai kategorijoje')} „${tr(top.label).split(',').first}" (${_eur0(-top.net)}). ' : ''}'
         '${earned > 0 ? '${tr('Santaupų norma šį mėnesį —')} $savings %.' : tr('Šį mėnesį pajamų nebuvo, tad santaupų norma neskaičiuojama.')}';
     final isAi = _aiText != null && _aiText!.isNotEmpty;

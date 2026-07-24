@@ -193,9 +193,14 @@ class AppPrefs {
   /// written by hand in two screens that are no longer on any path, so the live
   /// chain never set it and release builds replayed onboarding on every launch.
   /// Debug hid it by force-setting the key at startup.
-  static bool get onboarded => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _box.get(_kOnboarded, defaultValue: false) as bool
-      : false;
+  static bool get onboarded {
+    // Read on the pre-runApp path (main.dart), so a wrong-typed stored value must
+    // default, never throw — a cast crash here bricks the launch (finishes the C3
+    // crash-loop hardening that AppPrefs.load already got).
+    if (!Hive.isBoxOpen(HiveBoxes.settings)) return false;
+    final v = _box.get(_kOnboarded, defaultValue: false);
+    return v is bool ? v : false;
+  }
 
   static Future<void> setOnboarded(bool value) async {
     await _box.put(_kOnboarded, value);
