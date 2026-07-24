@@ -1528,6 +1528,14 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     if (prev == null) return (null, null);
     final delta = cur - prev;
     final pct = prev.abs() > 1e-6 ? delta / prev.abs() * 100 : null;
+    // The balance history is RECONSTRUCTED by walking backwards over transactions,
+    // so far-back points drift toward ~0 — and a change measured against a near-zero
+    // baseline is meaningless (a €495 balance was showing "+6016 %" because the
+    // reconstructed month-ago value was ~€8). When the baseline is unreliable — no
+    // usable %, or an implausible month-over-month swing (>300 %) — suppress the
+    // WHOLE "vs last month" comparison rather than show a nonsense figure (both the
+    // % and the € delta derive from that same bad baseline).
+    if (pct == null || pct.abs() > 300) return (null, null);
     return (delta, pct);
   }
 
