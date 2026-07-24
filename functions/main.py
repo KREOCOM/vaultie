@@ -90,8 +90,18 @@ def _dedupe_summaries(summaries: list) -> list:
         # Revolut EUR wallet and its NOK wallet SHARE one IBAN and are DIFFERENT
         # accounts — keying on IBAN alone dropped one of them (and its balance).
         iban = _norm_iban(s.get("iban"))
-        key = (f"{iban}|{(s.get('currency') or '').upper()}"
-               if iban else f"obj:{id(s)}")
+        if iban:
+            key = f"{iban}|{(s.get('currency') or '').upper()}"
+        else:
+            # No IBAN (some non-LT ASPSPs): the old `id(s)` key was unique per
+            # object, so it deduped NOTHING — reconnect churn (a fresh session UID
+            # for the same physical account) left two balance cards that got summed
+            # into net worth, double-counting the money. Key on the account's
+            # stable identity instead — bank + name + currency survives a new UID.
+            key = ("noiban|"
+                   f"{(s.get('bank') or '').lower().strip()}|"
+                   f"{(s.get('name') or '').lower().strip()}|"
+                   f"{(s.get('currency') or '').upper()}")
         if key in seen:
             continue
         seen.add(key)

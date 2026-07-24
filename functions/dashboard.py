@@ -744,9 +744,22 @@ def _collapse_recurring(cands):
                 mult = round(ratio)
                 near_equal = abs(ratio - 1) <= 0.08
                 catch_up = 2 <= mult <= 6 and abs(ratio - mult) <= 0.08
-                if near_equal or catch_up:
-                    # a 2× charge covers ~2 periods
-                    k[0]["occ"] += int(c.get("occurrences", 0)) * max(1, mult)
+                # A price CHANGE (Netflix 9.99 → 10.99): same payee & cadence, a
+                # plausible non-multiple ratio, and exactly ONE leg still active —
+                # the other is the superseded old price that ended. Without this the
+                # two prices counted as TWO concurrent subscriptions (~double). Two
+                # genuinely concurrent subs (Apple 9.99 + 2.99, both active) are NOT
+                # merged because neither is inactive.
+                same_cadence = (c.get("billingCycle", "monthly")
+                                == (k[0].get("cycle") or "monthly"))
+                one_active = (bool(k[0]["active"])
+                              != (c.get("status") == "active"))
+                price_change = (not near_equal and not catch_up and same_cadence
+                                and one_active and 0.34 <= ratio <= 3.0)
+                if near_equal or catch_up or price_change:
+                    # a 2× charge covers ~2 periods; a price change is one period
+                    k[0]["occ"] += int(c.get("occurrences", 0)) * (
+                        mult if catch_up else 1)
                     if c.get("status") == "active":
                         k[0]["status"], k[0]["active"] = "active", True
                     if (c.get("lastChargeDate") or "") > (k[0]["lastCharge"] or ""):
@@ -754,6 +767,12 @@ def _collapse_recurring(cands):
                     # Any uncertain leg makes the merged obligation uncertain.
                     if c.get("needsReview"):
                         k[0]["needsReview"] = True
+                    # On a price change, the obligation is the CURRENTLY ACTIVE
+                    # price — adopt the incoming leg's amount when it is the active one.
+                    if price_change and c.get("status") == "active":
+                        k[0]["monthly"] = round(m, 2)
+                        k[0]["cost"] = round(float(c.get("cost", 0)), 2)
+                        k[1] = m
                     folded = True
                     break
             if folded:
