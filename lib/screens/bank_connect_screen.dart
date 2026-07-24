@@ -52,6 +52,9 @@ typedef BankConnectionResult = ({
 /// background. Throws [BankingException] on failure; the caller shows it.
 Future<BankConnectionResult> completeBankConnection(String code,
     {String? bank}) async {
+  // The dashboard as it stood before this connect — used to make sure the
+  // combined re-fetch below never overwrites it by dropping a bank we already had.
+  final prevDash = DashboardStore.load();
   final scan = await BankingService.instance.finishBankAuth(
       code, aiEnrichment: AppPrefs.aiEnrichment, bank: bank, monthsBack: 3);
   final conn = scan.connection;
@@ -65,17 +68,26 @@ Future<BankConnectionResult> completeBankConnection(String code,
     );
   }
   Map<String, dynamic>? dash = scan.dash;
+  // Set when the combined re-fetch came back missing a bank we already had (e.g.
+  // a bank rate-limited us in the connect burst). We still SHOW that dash, but we
+  // must not PERSIST it over the good one — the `deeper` refresh restores the full
+  // set, and until then the last good save (with every bank) stays on disk.
+  var combinedDroppedABank = false;
   if (DashboardStore.bankCount > 1) {
     try {
       final combined = await BankingService.instance.refreshDashboard(
           DashboardStore.accountRefs(),
           aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 3);
-      if (combined != null) dash = combined;
+      if (combined != null) {
+        dash = combined;
+        combinedDroppedABank =
+            _banksOf(prevDash).difference(_banksOf(combined)).isNotEmpty;
+      }
     } on BankingException {
       // keep the single-bank dash as a fallback
     }
   }
-  if (dash != null) {
+  if (dash != null && !combinedDroppedABank) {
     await DashboardStore.save(dash, bank: bank);
   }
   final deeper = (dash != null)
@@ -85,6 +97,18 @@ Future<BankConnectionResult> completeBankConnection(String code,
   // The flow is finished — clear the pending marker either path set.
   await DashboardStore.setPendingConnect(null);
   return (dash: dash, deeper: deeper, scan: scan);
+}
+
+/// The set of bank names present in a saved dashboard payload (lowercased), read
+/// from its balance accounts. Used to detect a combined re-fetch that dropped a
+/// previously-connected bank.
+Set<String> _banksOf(Map<String, dynamic>? d) {
+  final accts = ((d?['balance'] as Map?)?['accounts'] as List?) ?? const [];
+  return accts
+      .map((a) => ((a as Map)['bank'] as String?)?.toLowerCase().trim())
+      .whereType<String>()
+      .where((b) => b.isNotEmpty)
+      .toSet();
 }
 
 /// A country Vaultie can list banks for (Enable Banking coverage).

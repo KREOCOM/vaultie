@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../content_theme.dart';
@@ -38,6 +39,16 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
 
   Future<void> _finish() async {
     try {
+      // Cold-launching via the bank's universal link can beat Firebase Auth's
+      // session restore. finishBankAuth is an authenticated call, so firing it
+      // before the user hydrates fails — and that burns the one-time code, forcing
+      // a whole new consent. Wait (bounded) for the restored session first.
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance
+            .authStateChanges()
+            .firstWhere((u) => u != null)
+            .timeout(const Duration(seconds: 20));
+      }
       final r = await completeBankConnection(
         widget.code,
         bank: DashboardStore.pendingConnect(),
