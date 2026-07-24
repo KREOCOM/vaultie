@@ -460,9 +460,12 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     if _dbit:
         logging.info("scan: mcc coverage %d/%d card txns (%.0f%%)",
                      _with_mcc, len(_dbit), 100 * _with_mcc / len(_dbit))
+    # The user's own account-holder names (for self-transfers a bank sends with a
+    # name but no counterparty IBAN — see detect_recurring's own_name match).
+    own_names = [s.get("name") for s in summaries if s.get("name")]
     try:
         detection = detect_recurring(all_txns, own_ibans=own_ibans,
-                                     today=today)
+                                     own_names=own_names, today=today)
     except Exception:  # noqa: BLE001
         logging.exception("detect_recurring failed")
         detection = {"candidates": [], "frequent": []}

@@ -471,6 +471,13 @@ def _lt_person(name: str) -> bool:
     return any(t.endswith(_LT_SURNAME_END) for t in folded)
 
 
+def _name_tokens(name: str) -> frozenset:
+    """Folded (lowercased, diacritics stripped) token set of a name — used to
+    match a transfer counterparty against the user's own account-holder names."""
+    toks = [t for t in re.split(r"[\s.*/\\]+", (name or "").strip()) if t]
+    return frozenset(t.lower().translate(_FOLD) for t in toks)
+
+
 # ── Recurring stream LIFECYCLE (Plaid/Tink-style) ───────────────────────────
 # A historical recurring pattern is NOT an active future commitment forever. A
 # finished tax plan / paid-off loan / cancelled subscription keeps its history
@@ -551,7 +558,7 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
 
 def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNOWN,
                      classify_unknown=None, corpus=None, today=None,
-                     own_ibans=None):
+                     own_ibans=None, own_names=None):
     """Return ``{"candidates": [...], "frequent": [...], "debug": {...}}``.
 
     Every outgoing merchant becomes a candidate (even seen once), tagged
@@ -571,6 +578,16 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
     # user's own accounts (e.g. a monthly SEB→Revolut top-up) is NOT a bill and
     # must never become a recurring commitment.
     own = {str(i).replace(" ", "").upper() for i in (own_ibans or []) if i}
+    # The user's OWN account-holder names. Many banks — SEB especially — put only
+    # a NAME on a transfer between the user's own accounts, with NO counterparty
+    # IBAN, so the IBAN check below can't catch "me moving money to myself". That
+    # left a €350 SEB→SEB self-transfer to "Osvaldas Sulajevas" surfacing as a
+    # monthly bill. Matching the holder name closes it: a DBIT whose counterparty
+    # IS one of the user's own account names is an own transfer, never a bill or
+    # subscription — you do not subscribe to yourself. Only names with 2+ tokens
+    # are used, so a generic product label ("Sąskaita") can never match anything.
+    own_name_toks = [ts for ts in (_name_tokens(n) for n in (own_names or []))
+                     if len(ts) >= 2]
     groups = defaultdict(list)
     group_hit = {}
     group_canon = {}
@@ -619,6 +636,14 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
         if own:
             cpi = (canon.get("counterparty") or {}).get("iban")
             if cpi and str(cpi).replace(" ", "").upper() in own:
+                n_skipped += 1
+                continue
+        # Same, by holder NAME — for banks that send a self-transfer with a name
+        # but no counterparty IBAN (the IBAN check above can't see it).
+        if own_name_toks:
+            cp_toks = _name_tokens(raw)
+            if len(cp_toks) >= 2 and any(
+                    cp_toks <= o or o <= cp_toks for o in own_name_toks):
                 n_skipped += 1
                 continue
         id_src[canon["identity_source"]] += 1
