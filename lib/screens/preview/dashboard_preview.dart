@@ -5853,7 +5853,7 @@ class _OverviewTabState extends State<_OverviewTab> {
 
   Widget _analyticsLabel() => Padding(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
-        child: Text('Analitika', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
+        child: Text(tr('Analitika'), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
       );
 
   // ── calendar ──
@@ -5925,7 +5925,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('Prekybininkai', style: TextStyle(fontSize: 13.5, color: _muted))),
+        Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(tr('Prekybininkai'), style: TextStyle(fontSize: 13.5, color: _muted))),
         Container(
           decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _hair)),
           child: Column(children: [
@@ -8261,7 +8261,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           GestureDetector(
             onTap: _editName,
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Flexible(child: Text(_name, overflow: TextOverflow.ellipsis,
+              Flexible(child: Text(_name == 'Vartotojas' ? tr('Vartotojas') : _name, overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink))),
               const SizedBox(width: 8),
               Icon(Icons.edit_rounded, size: 19, color: _ink),
