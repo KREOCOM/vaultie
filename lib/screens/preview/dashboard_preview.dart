@@ -708,7 +708,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         _OverviewTab(
           all: (_d['all'] as List).cast<Map<String, dynamic>>(),
           balance: _d['balance'] as Map<String, dynamic>,
-          budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
+          budgets: DashboardStore.budgetMap(),
         ),
         _AiChatTab(data: _d),
         _PlanningTab(
@@ -1393,7 +1393,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
             GestureDetector(
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _SearchScreen(
                     all: (_d['all'] as List).cast<Map<String, dynamic>>(),
-                    budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
+                    budgets: DashboardStore.budgetMap(),
                   ))),
               child: Icon(Icons.search_rounded, size: 24, color: _heroInk),
             ),
@@ -2098,7 +2098,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       builder: (_) => _MonthReviewScreen(
         all: (_d['all'] as List).cast<Map<String, dynamic>>(),
         balance: _d['balance'] as Map<String, dynamic>,
-        budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
+        budgets: DashboardStore.budgetMap(),
         subs: (_d['subs'] as Map).cast<String, dynamic>(),
         month: mk,
         monthNom: _monNom[m - 1],
@@ -2174,7 +2174,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         tx: t,
         day: dd,
         all: (_d['all'] as List).cast<Map<String, dynamic>>(),
-        budgets: (_d['budgets'] as Map).cast<String, dynamic>(),
+        budgets: DashboardStore.budgetMap(),
         accounts: (((_d['balance'] as Map?)?['accounts'] as List?) ?? const [])
             .cast<Map<String, dynamic>>(),
       ),
@@ -3681,12 +3681,14 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     return widget.all.where((t) => t['mkey'] == key).toList();
   }
 
-  double _catSpentThisMonth() {
-    // Spend in THIS transaction's month (was wrongly derived from the newest row).
+  double _secSpentThisMonth() {
+    // Spend in THIS transaction's SECTION this month — matches the per-section
+    // budget shown in the card (budgets are keyed by section, not category).
     final month = ((tx['d'] ?? widget.day['date']) as String?)?.substring(0, 7);
     if (month == null) return 0;
+    final sec = _secOf(tx);
     return widget.all
-        .where((t) => t['cat'] == _cat && t['pos'] != true && _dOf(t).startsWith(month))
+        .where((t) => _secOf(t) == sec && t['pos'] != true && _dOf(t).startsWith(month))
         .fold(0.0, (s, t) => s + _aOf(t).toDouble().abs());
   }
 
@@ -3740,7 +3742,9 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final similar = _similar;
-    final budgetLimit = (widget.budgets[_cat] as num?)?.toDouble();
+    // Budgets are per SECTION, so look up by this transaction's section (not its
+    // category — a category name is never a budget key, so this always missed).
+    final budgetLimit = (widget.budgets[_secOf(tx)] as num?)?.toDouble();
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
@@ -3933,7 +3937,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   }
 
   Widget _budgetCard(double limit) {
-    final spent = _catSpentThisMonth();
+    final spent = _secSpentThisMonth();
     final left = limit - spent;
     final ratio = (spent / limit).clamp(0.0, 1.0);
     final over = left < 0;
@@ -3951,7 +3955,9 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                 Row(children: [
                   CategoryIcon(icon: _catIcon, color: _catColor, size: 36),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(tr(_cat), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink))),
+                  // The section this transaction belongs to — the budget is
+                  // per-section, so name the section, not the category.
+                  Expanded(child: Text(tr(_secOf(tx)), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink))),
                   Text(_eur(limit).replaceAll(',00', ''), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
                 ]),
                 const SizedBox(height: 12),
@@ -4851,17 +4857,19 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   // ── BUDGETS ──
   Widget _budgets() {
     final b = widget.budgets;
-    final spentByCat = <String, double>{};
+    // Budgets are keyed by SECTION (`sec`), so match spending by section too —
+    // keying by category here left every budget showing €0 spent (SB-M3).
+    final spentBySec = <String, double>{};
     for (final t in _rows) {
       final a = _aOf(t).toDouble();
-      if (a < 0) spentByCat[t['cat'] as String] = (spentByCat[t['cat'] as String] ?? 0) - a;
+      if (a < 0) spentBySec[_secOf(t)] = (spentBySec[_secOf(t)] ?? 0) - a;
     }
     final cats = b.keys.toList();
     // No user budgets → don't show a budget section at all (it was showing fake
     // hardcoded example limits that confused people — "where did 880 € come from?").
     if (cats.isEmpty) return const SizedBox.shrink();
     final totalBudget = cats.fold(0.0, (s, c) => s + (b[c] as num).toDouble());
-    final totalSpent = cats.fold(0.0, (s, c) => s + (spentByCat[c] ?? 0));
+    final totalSpent = cats.fold(0.0, (s, c) => s + (spentBySec[c] ?? 0));
     final under = totalBudget - totalSpent;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4918,7 +4926,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: AppCard(color: _card, border: _hair, 
               padding: const EdgeInsets.all(14),
-              child: _budgetBar(c, spentByCat[c] ?? 0, (b[c] as num).toDouble()),
+              child: _budgetBar(c, spentBySec[c] ?? 0, (b[c] as num).toDouble()),
             ),
           ),
         const SizedBox(height: 4),

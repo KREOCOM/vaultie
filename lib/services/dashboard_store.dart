@@ -533,6 +533,25 @@ class DashboardStore {
     }
   }
 
+  /// Budgets as a `section → limit` map, the shape the dashboard/month-review/
+  /// tx-detail consume. Budgets are keyed by SECTION (`sec`), so consumers must
+  /// look them up by a transaction's section, not its category. Previously the
+  /// dashboard payload carried an always-empty `budgets: {}`, so Planning budgets
+  /// never reached those screens at all — this is the bridge (SB-M3).
+  static Map<String, dynamic> budgetMap() => budgetMapFrom(budgets());
+
+  /// Pure transform of budget records → `section → limit` (malformed rows
+  /// skipped). Separated from Hive so it is unit-testable.
+  static Map<String, dynamic> budgetMapFrom(List<Map<String, dynamic>> records) {
+    final out = <String, dynamic>{};
+    for (final b in records) {
+      if (b['sec'] is String && b['limit'] is num) {
+        out[b['sec'] as String] = (b['limit'] as num).toDouble();
+      }
+    }
+    return out;
+  }
+
   // ── Subscription aliases (user-given names for anonymous recurring series) ──
   // Maps a recurring series id (sid, from the dashboard payload) → a display
   // name, e.g. an unnameable "APPLE.COM/BILL" stream → "ChatGPT". Attached to the
