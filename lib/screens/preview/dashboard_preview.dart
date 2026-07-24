@@ -438,10 +438,16 @@ List<Map<String, dynamic>> _recItemsFull(Map subs) =>
 /// Whether a stream counts toward the monthly commitment: the backend says it's
 /// an ACTIVE bill (not a transfer), unless the user overrode that verdict.
 bool _recCounted(Map it, Set<String> excl, Set<String> incl) {
+  // A transfer (person-to-person, own-account, exchange) is NEVER a commitment —
+  // not even if the user tapped "keep" on it. This check must come FIRST: letting
+  // `incl` override it let one tap on a person's row add their transfer to the
+  // monthly total. (The backend already drops transfers from the list; this is
+  // the belt-and-braces for any older cached dashboard that still carries one.)
+  if (it['type'] == 'transfer') return false;
   final name = (it['name'] as String? ?? '').toLowerCase();
   if (excl.contains(name)) return false;
   if (incl.contains(name)) return true;
-  return it['active'] == true && it['type'] != 'transfer';
+  return it['active'] == true;
 }
 
 double _recMonthlyTotal(List<Map<String, dynamic>> items, Set<String> excl, Set<String> incl) =>

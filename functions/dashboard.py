@@ -813,9 +813,15 @@ def _subs(txns, corpus=None, own_ibans=None, today=None):
            if c.get("confident") and c.get("occurrences", 0) >= 2
            and c.get("cost", 0) > 0]
     items = _collapse_recurring(raw)
+    # Transfers (person-to-person, own-account moves, currency exchange) are NEVER
+    # bills or subscriptions and must never appear in the recurring manager or the
+    # "review your recurring payments" inbox — showing a person's name there is the
+    # exact broken-feeling bug. They are already out of `total`; drop them from
+    # `items` too so a person is never surfaced in a recurring context at all.
+    items = [it for it in items if it.get("type") != "transfer"]
     for it in items:
         it["sid"] = _series_id(it.get("name"), it.get("cadence"), it.get("cost"))
-    active = [it for it in items if it["active"] and it["type"] != "transfer"]
+    active = [it for it in items if it["active"]]
     total = round(sum(it["monthly"] for it in active), 2)
     # active first, then by monthly cost
     items.sort(key=lambda x: (not x["active"], -x["monthly"]))

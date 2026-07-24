@@ -478,6 +478,35 @@ def _name_tokens(name: str) -> frozenset:
     return frozenset(t.lower().translate(_FOLD) for t in toks)
 
 
+# Business words that a bare (no legal form) company name carries but a person's
+# name never does. A two-word counterparty that looks person-shaped BUT contains
+# one of these is a business, not a person, so it stays a bill/subscription — this
+# is what keeps "Artus Grupė", "Teva Baltics", "Verslo Vartai", "Vilniaus Vandenys"
+# out of the person→transfer rule while foreign personal names (John Smith) go
+# through it. ASCII-folded (matched after _FOLD), so diacritics/caps don't matter.
+_BUSINESS_TOKENS = frozenset({
+    "grupe", "group", "baltic", "baltics", "baltija", "baltijos", "vartai",
+    "sprendimai", "sistema", "sistemos", "system", "systems", "servisas",
+    "serviso", "service", "services", "prekyba", "prekybos", "trade", "trading",
+    "statyba", "statybos", "build", "construction", "transportas", "transport",
+    "logistika", "logistics", "studija", "studio", "studios", "klinika", "clinic",
+    "clinics", "medicina", "vandenys", "vanduo", "energija", "energy",
+    "energetika", "bankas", "bank", "draudimas", "insurance", "investicijos",
+    "invest", "capital", "holding", "holdings", "solutions", "solution", "media",
+    "telecom", "telekomas", "consulting", "consult", "partners", "partneriai",
+    "technologijos", "technologies", "tech", "software", "digital", "parduotuve",
+    "shop", "store", "market", "marketas", "express", "cargo", "auto", "motors",
+    "gamyba", "factory", "fabrikas", "pramone", "turtas", "realty", "estate",
+    "properties", "finance", "finansai", "credit", "kreditas", "leasing",
+    "lizingas", "grozis", "sportas", "fitness", "klubas", "centras", "center",
+})
+
+
+def _has_business_token(name: str) -> bool:
+    """True when a name carries a company word (see [_BUSINESS_TOKENS])."""
+    return bool(_name_tokens(name) & _BUSINESS_TOKENS)
+
+
 # ── Recurring stream LIFECYCLE (Plaid/Tink-style) ───────────────────────────
 # A historical recurring pattern is NOT an active future commitment forever. A
 # finished tax plan / paid-off loan / cancelled subscription keeps its history
@@ -796,24 +825,23 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             # which is exactly what surfaced a personal transfer as a
             # subscription.
             bare_person = _bare_person_like(canon_g, cp_name or raw_name)
-            if lt_person or bare_person:
-                # HARD RULE: a CONFIDENTLY-identified personal name — a distinctive
-                # Lithuanian first-name+surname (‑ienė/‑aitė/‑evas…), or a bare
-                # surname on a nameless transfer — is a person-to-person transfer.
-                # NEVER a bill or subscription, whatever the amount or memo. The old
-                # code kept such a person as a BILL when the amount/memo read as
-                # "housing/finance" (rent to a landlord); that single exception is
-                # exactly what surfaced real people (a €350 self-transfer, monthly
-                # family money, splitting rent) under Sąskaitos / Prenumeratos. You
-                # do not subscribe to a person. The money still shows in the feed
-                # as a transfer — it is simply never a recurring commitment.
-                typ = "transfer"
-            elif is_person and category not in ("housing", "finance"):
-                # A WEAKER hint (a generic two-word name with no distinctive
-                # surname ending) → transfer, unless the memo makes it rent/loan.
-                # Deliberately conservative: a two-word BUSINESS name that looks
-                # person-like ("Artus Grupė", "Verslo Vartai") must not be mistaken
-                # for a person and stripped out of the user's real bills.
+            # A company word (Grupė, Baltics, Sistemos, Vandenys…) marks a business
+            # that merely looks person-shaped — it OVERRIDES every person signal,
+            # including a distinctive-surname false hit ("Teva Baltics" → "teva"
+            # ends "eva"). A generic two-word name on a non-card transfer counts as
+            # a person too, which closes the foreign-name gap (a €300/mo "John
+            # Smith" no longer becomes a housing bill).
+            is_business = _has_business_token(cp_name or raw_name)
+            generic_person = is_person and not is_card
+            if not is_business and (lt_person or bare_person or generic_person):
+                # HARD RULE: a personal name is a person-to-person transfer — NEVER
+                # a bill or subscription, whatever the amount or memo. The old code
+                # kept a person as a BILL when the amount/memo read "housing/finance"
+                # (rent to a landlord); that one exception is exactly what surfaced
+                # real people (a €350 self-transfer, monthly family money, splitting
+                # rent, foreign names >€200) under Sąskaitos / Prenumeratos. You do
+                # not subscribe to a person. The money still shows in the feed as a
+                # transfer — it is simply never a recurring commitment.
                 typ = "transfer"
             else:
                 typ = "bill" if category in ("housing", "finance") else "subscription"

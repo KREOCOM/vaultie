@@ -51,6 +51,23 @@ def _run():
     assert _typ(own, "Erik Johansson") not in ("bill", "subscription"), \
         f"own-name self-transfer leaked as: {_typ(own, 'Erik Johansson')}"
 
+    # 4) A FOREIGN first-name + surname over €200 (reads as housing) — must be a
+    #    transfer, not a bill. This is the gap the LT-only fix left open.
+    for name in ("John Smith", "GIOVANNI ROSSI"):
+        r = detect_recurring([_txn(m, name, 300) for m in (3, 4, 5)],
+                             own_ibans=set(), today=today)
+        assert _typ(r, name) not in ("bill", "subscription"), \
+            f"foreign person {name!r} leaked as: {_typ(r, name)}"
+        # ...and never surfaced in the recurring items at all.
+
+    # 5) A real BUSINESS that merely looks person-shaped (a company word, no legal
+    #    form) must STAY a bill — never stripped by the person rule.
+    for biz in ("Teva Baltics", "Artus Grupe", "Verslo Vartai"):
+        r = detect_recurring([_txn(m, biz, 300) for m in (3, 4, 5)],
+                             own_ibans=set(), today=today)
+        assert _typ(r, biz) in ("bill", "subscription"), \
+            f"business {biz!r} wrongly stripped to: {_typ(r, biz)}"
+
     print("test_own_name_transfer: PASS")
 
 

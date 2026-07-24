@@ -121,9 +121,10 @@ def main() -> int:
     # Own-account transfer never a recurring item
     check("My Savings" not in items, "own-account transfer wrongly recurring")
 
-    # People are NOT auto-dropped (that dropped rent too) — they appear as
-    # candidates the user curates.
-    check("Zivile Pavarde" in items, "person candidate wrongly dropped")
+    # A personal name (first name + surname) is a person-to-person transfer, NEVER
+    # a bill/subscription — so it is neither counted NOR surfaced in the recurring
+    # manager. It must not appear in `items` at all (the hard person rule).
+    check("Zivile Pavarde" not in items, "person wrongly surfaced as a recurring item")
 
     # RENT that fuzzy-matches a frequent brand must SURVIVE (the regression fix).
     rent = [it for it in subs["items"] if it["name"] == "Artus Grupe"]
@@ -138,9 +139,9 @@ def main() -> int:
           f"GymPlius monthly should be ~35.90 (unit, not 71.80): {gym and gym[0]['monthly']}")
     check(gym and gym[0]["active"] is True, "GymPlius should be active (recent catch-up)")
 
-    # TOTAL = Netflix 12.99 + QuartCo 100 + MOGO ~399 + GymPlius ~35.90
-    #         + Zivile 400 + rent 1197 (both counted by default; user curates)
-    expected = 12.99 + 100.0 + 399.0 + 35.90 + 400.0 + 1197.0
+    # TOTAL = Netflix 12.99 + QuartCo 100 + MOGO ~399 + GymPlius ~35.90 + rent 1197.
+    # The person "Zivile Pavarde" (400) is a transfer → NEVER counted (hard rule).
+    expected = 12.99 + 100.0 + 399.0 + 35.90 + 1197.0
     check(abs(subs["total"] - expected) < 4.0,
           f"total off: got {subs['total']}, expected ~{expected}")
 
