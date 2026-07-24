@@ -58,13 +58,19 @@ Future<BankConnectionResult> completeBankConnection(String code,
   final scan = await BankingService.instance.finishBankAuth(
       code, aiEnrichment: AppPrefs.aiEnrichment, bank: bank, monthsBack: 3);
   final conn = scan.connection;
-  if (conn != null) {
+  final connAccounts = (((conn?['accounts'] as List?) ?? const [])
+      .map((e) => (e as Map).cast<String, dynamic>())
+      .toList());
+  // A consent that returned ZERO accounts must not create a connection: it would
+  // increment bankCount with an empty account set, so every later refresh no-ops
+  // (refs empty) and the user is stuck with a permanent empty "connected" bank
+  // they can only clear via disconnect-all. Skip it; the caller shows the empty
+  // result screen instead.
+  if (conn != null && connAccounts.isNotEmpty) {
     await DashboardStore.addConnection(
       bank: bank ?? conn['bank'] as String? ?? 'Bankas',
       sessionId: conn['sessionId'] as String?,
-      accounts: (((conn['accounts'] as List?) ?? const [])
-          .map((e) => (e as Map).cast<String, dynamic>())
-          .toList()),
+      accounts: connAccounts,
     );
   }
   Map<String, dynamic>? dash = scan.dash;

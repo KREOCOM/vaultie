@@ -189,10 +189,18 @@ Future<void> main() async {
     await AppPrefs.setOnboarded(true);
   }
 
-  await NotificationService.instance.init();
-  // Configures RevenueCat and resolves the "Vaultie Pro" entitlement so premium
-  // gating is correct from the first frame.
-  await PurchaseService.instance.init();
+  // Both make network calls; a hung server must not freeze the branded splash
+  // with no spinner on a slow/flaky connection. Bound the wait — the futures keep
+  // running in the background, and PurchaseService.init seeds premium from the
+  // cached flag synchronously before its network round-trips, so gating is still
+  // correct from the first frame.
+  try {
+    await NotificationService.instance.init().timeout(const Duration(seconds: 5));
+  } catch (_) {}
+  // Configures RevenueCat and resolves the "Vaultie Pro" entitlement.
+  try {
+    await PurchaseService.instance.init().timeout(const Duration(seconds: 5));
+  } catch (_) {}
 
   // Catch a bank's callback when it returns as an app link (a bank that hands
   // off to its own app). No-op for every other launch. Not awaited.
