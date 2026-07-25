@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../i18n.dart';
+import 'preview/dashboard_preview.dart';
 
 /// Onboarding page 2 — full-bleed looping video (bank tiles across Europe) with
 /// an OPAQUE bottom card holding the security message. The card lets the video
@@ -30,7 +31,19 @@ class _OnbWelcomeState extends State<OnbWelcome> {
       if (!mounted) return;
       _c.play();
       setState(() => _ready = true);
+      _warmNextPage();
     });
+  }
+
+  /// Page 3 is by far the heaviest in the chain — a 2.4 MB scene image plus a
+  /// full dashboard built from ~900 transactions. Doing that work inside its
+  /// entry transition is what made "Toliau" stutter here and nowhere else, so
+  /// it happens now instead, while this page just sits and loops.
+  void _warmNextPage() {
+    if (!mounted) return;
+    DashboardPreview.warmDemo();
+    precacheImage(
+        const AssetImage('assets/onboarding/page3_scene.png'), context);
   }
 
   @override

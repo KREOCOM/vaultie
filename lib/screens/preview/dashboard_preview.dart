@@ -658,16 +658,90 @@ class DashboardPreview extends StatefulWidget {
   /// [deeper] is an optional in-flight fuller (12-month) scan: the screen opens
   /// instantly on the fast (3-month) [data] and quietly swaps in the deeper
   /// result when it arrives (recent-first loading).
-  const DashboardPreview({super.key, this.data, this.deeper});
+  /// [demo] is the onboarding preview: it pins the screen to the baked sample
+  /// data and turns off every side effect — no bank sync, no persistence, no
+  /// reminder rescheduling. Without it the preview auto-synced the signed-in
+  /// user's real banks (and showed their real balance) just to decorate a
+  /// marketing page.
+  const DashboardPreview({super.key, this.data, this.deeper, this.demo = false});
   final Map<String, dynamic>? data;
   final Future<Map<String, dynamic>?>? deeper;
+  final bool demo;
+
+  /// Parse the demo payload now rather than inside the entry transition of the
+  /// page that shows it. Call it from the page before. Safe to call twice.
+  static void warmDemo() => _DashboardPreviewState.warmDemo();
+
   @override
   State<DashboardPreview> createState() => _DashboardPreviewState();
 }
 
-class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBindingObserver {
-  late Map<String, dynamic> _d = _normalizeDash(
-      widget.data ?? jsonDecode(utf8.decode(base64Decode(_dashB64))) as Map<String, dynamic>);
+class _DashboardPreviewState extends State<DashboardPreview>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
+  late Map<String, dynamic> _d = _normalizeDash(widget.demo
+      ? _demoDash()
+      : widget.data ??
+          jsonDecode(utf8.decode(base64Decode(_dashB64)))
+              as Map<String, dynamic>);
+
+  /// The baked sample data with every date rolled forward by whole weeks, so
+  /// the demo reads as current: "this week" is anchored to today's Monday, and
+  /// unshifted sample dates left that chart with a single bar (or none). Whole
+  /// weeks keep every weekday landing on the same weekday it was authored for.
+  /// The views derived from `all` are dropped so they recompute canonically.
+  /// Parsed ahead of time by the page before this one. The payload is mutable
+  /// and gets one owner: whoever takes it clears the slot, so a second mount
+  /// parses its own copy instead of sharing state with the first.
+  static Map<String, dynamic>? _warmedDemo;
+
+  /// Build the demo payload now, so the page that shows it doesn't have to do
+  /// it inside its entry transition. Safe to call more than once.
+  static void warmDemo() => _warmedDemo ??= _buildDemoDash();
+
+  static Map<String, dynamic> _demoDash() {
+    final warm = _warmedDemo;
+    if (warm != null) {
+      _warmedDemo = null;
+      return warm;
+    }
+    return _buildDemoDash();
+  }
+
+  static Map<String, dynamic> _buildDemoDash() {
+    final d = jsonDecode(utf8.decode(base64Decode(_dashB64)))
+        as Map<String, dynamic>;
+    final all = (d['all'] as List?)?.whereType<Map>().toList() ?? const [];
+    DateTime? last;
+    for (final t in all) {
+      final p = DateTime.tryParse((t['d'] ?? '').toString());
+      if (p != null && (last == null || p.isAfter(last))) last = p;
+    }
+    if (last == null) return d;
+    final now = DateTime.now();
+    final shift =
+        (DateTime(now.year, now.month, now.day).difference(last).inDays ~/ 7) *
+            7;
+    if (shift <= 0) return d;
+    for (final t in all) {
+      final p = DateTime.tryParse((t['d'] ?? '').toString());
+      if (p == null) continue;
+      final n = p.add(Duration(days: shift));
+      t['d'] = _ymd(n);
+      t['wd'] = _wdShort[n.weekday - 1];
+      t['md'] = '${_monGen[n.month - 1]} ${n.day}';
+    }
+    for (final s
+        in (((d['balance'] as Map?)?['series'] as List?) ?? const [])
+            .whereType<Map>()) {
+      final p = DateTime.tryParse((s['d'] ?? '').toString());
+      if (p != null) s['d'] = _ymd(p.add(Duration(days: shift)));
+    }
+    d
+      ..remove('totals') // month/day headers recompute canonically from `all`
+      ..remove('months')
+      ..remove('week');
+    return d;
+  }
 
   /// Guarantees the keys the build reads unconditionally (`all`, `balance` +
   /// its `series`, `subs`) exist and are the right type. A payload missing or
@@ -734,6 +808,132 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   // Controls the home ListView (used for pull-to-refresh).
   final ScrollController _homeScroll = ScrollController();
 
+  // ── Onboarding demo (widget.demo only) ────────────────────────────────────
+  // A looping, hands-free walkthrough: hide the balance, draw the chart, scroll
+  // the payments, open the recurring manager. It drives the real widgets — the
+  // same state fields and the same tap handlers a finger would reach — so the
+  // demo can't show behaviour the app doesn't have.
+  final GlobalKey _kRoot = GlobalKey(); // coordinate space for the pointer
+  final GlobalKey _kEye = GlobalKey();
+  final GlobalKey _kRec = GlobalKey();
+  AnimationController? _chartDraw;
+  VoidCallback? _demoOpenManager; // set by the recurring card during build
+  bool _demoOn = false;
+  Offset? _demoPointer; // null = pointer off screen
+  Duration _demoGlide = const Duration(milliseconds: 620);
+  bool _demoPress = false;
+
+  /// Centre of a keyed widget in [_kRoot]'s coordinates, or null if it isn't
+  /// laid out right now (scrolled out of the list, or on another tab).
+  Offset? _spotOf(GlobalKey k) {
+    final box = k.currentContext?.findRenderObject();
+    final root = _kRoot.currentContext?.findRenderObject();
+    if (box is! RenderBox || root is! RenderBox || !box.hasSize) return null;
+    return root.globalToLocal(box.localToGlobal(box.size.center(Offset.zero)));
+  }
+
+  Future<bool> _beat(int ms) async {
+    await Future<void>.delayed(Duration(milliseconds: ms));
+    return mounted && _demoOn;
+  }
+
+  /// Glide the pointer onto [k] and press it. Returns false if the demo was
+  /// stopped, or if the target isn't on screen (so the step is skipped rather
+  /// than tapping empty space).
+  Future<bool> _demoTap(GlobalKey k, VoidCallback act, {int settle = 900}) async {
+    final spot = _spotOf(k);
+    if (spot == null) return mounted && _demoOn;
+    setState(() {
+      _demoGlide = const Duration(milliseconds: 620);
+      _demoPointer = spot;
+    });
+    if (!await _beat(700)) return false;
+    setState(() => _demoPress = true);
+    if (!await _beat(180)) return false;
+    act();
+    setState(() => _demoPress = false);
+    return _beat(settle);
+  }
+
+  Future<void> _runDemo() async {
+    if (!await _beat(700)) return;
+    while (mounted && _demoOn) {
+      // 1 — hide the balance, then bring it back.
+      if (!await _demoTap(_kEye, () => setState(() => _hideBal = true))) return;
+      if (!await _beat(500)) return;
+      if (!await _demoTap(_kEye, () => setState(() => _hideBal = false))) return;
+
+      // 2 — draw the balance line across the chart.
+      setState(() => _demoPointer = null);
+      if (!await _beat(300)) return;
+      _chartDraw?.forward(from: 0);
+      if (!await _beat(1900)) return;
+
+      // 3 — scroll down through the payments, then back to the top.
+      if (_homeScroll.hasClients) {
+        await _homeScroll.animateTo(
+            (_homeScroll.position.maxScrollExtent).clamp(0.0, 760.0),
+            duration: const Duration(milliseconds: 1700),
+            curve: Curves.easeInOutCubic);
+        if (!await _beat(1500)) return;
+        if (!mounted || !_demoOn) return;
+        await _homeScroll.animateTo(0,
+            duration: const Duration(milliseconds: 1000),
+            curve: Curves.easeInOutCubic);
+      }
+      if (!await _beat(500)) return;
+
+      // 4 — open the subscriptions + bills manager, sit on it, come back.
+      final open = _demoOpenManager;
+      if (open != null) {
+        if (!await _demoTap(_kRec, open, settle: 2400)) return;
+        setState(() => _demoPointer = null);
+        final nav = _kRoot.currentContext != null
+            ? Navigator.maybeOf(_kRoot.currentContext!)
+            : null;
+        if (nav != null && nav.canPop()) nav.pop();
+        if (!await _beat(1200)) return;
+      }
+      setState(() => _demoPointer = null);
+      if (!await _beat(900)) return;
+    }
+  }
+
+  /// The demo's finger: a soft ring that glides between targets and dips on tap.
+  Widget _demoPointerLayer() {
+    final p = _demoPointer;
+    return AnimatedPositioned(
+      duration: _demoGlide,
+      curve: Curves.easeInOutCubic,
+      left: (p?.dx ?? 0) - 21,
+      top: (p?.dy ?? 0) - 21,
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 160),
+        scale: p == null ? 0.4 : (_demoPress ? 0.78 : 1),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 260),
+          opacity: p == null ? 0 : 1,
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: _demoPress ? 0.42 : 0.26),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.9), width: 2),
+              boxShadow: [
+                BoxShadow(
+                    color: const Color(0xFF0B1B4A).withValues(alpha: 0.35),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -744,6 +944,16 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     // Let any detail/edit screen that mutates `_d['all']` (delete, edit,
     // convert, recategorise) ask the dashboard to recompute + persist.
+    // The onboarding demo is decoration: it must not own the global refresh
+    // hook, call a bank, or write anything to disk.
+    if (widget.demo) {
+      _chartDraw = AnimationController(
+          vsync: this, duration: const Duration(milliseconds: 1500));
+      _chartDraw!.value = 1;
+      _demoOn = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _runDemo());
+      return;
+    }
     _dashRefresh = _refreshFromAll;
     // Recent-first: the fast 3-month scan is already showing; when the deeper
     // scan lands, swap it in (fuller history + complete recurring), persist it,
@@ -1008,6 +1218,8 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
 
   @override
   void dispose() {
+    _demoOn = false; // stops the demo loop at its next beat
+    _chartDraw?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _themeVN.removeListener(_onTheme);
     _homeScroll.dispose();
@@ -1066,6 +1278,8 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       // (dark) banner covers the top in light theme.
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: AppPrefs.darkMode.value ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        child: Stack(key: _kRoot, children: [
+        Positioned.fill(
         child: IndexedStack(
           index: _tab,
           children: [
@@ -1089,6 +1303,9 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
               ),
           ],
         ),
+        ),
+        if (widget.demo) _demoPointerLayer(),
+        ]),
       ),
       bottomNavigationBar: _navBar(),
       ),
@@ -1395,6 +1612,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _heroInk, letterSpacing: -0.4)),
             const Spacer(),
             GestureDetector(
+              key: _kEye,
               onTap: () => setState(() => _hideBal = !_hideBal),
               child: Icon(_hideBal ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                   size: 24, color: _heroInk),
@@ -1472,8 +1690,16 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
                 height: 78,
                 child: Stack(clipBehavior: Clip.none, children: [
                   Positioned.fill(
-                    child: CustomPaint(
-                      painter: _NeonSparkPainter(spark, dark: _darkMode, endLabel: _hideBal ? null : balStr),
+                    // Only the chart listens to the demo's draw animation, so a
+                    // 60fps sweep doesn't rebuild the whole dashboard tree.
+                    child: AnimatedBuilder(
+                      animation: _chartDraw ?? kAlwaysCompleteAnimation,
+                      builder: (_, __) => CustomPaint(
+                        painter: _NeonSparkPainter(spark,
+                            dark: _darkMode,
+                            endLabel: _hideBal ? null : balStr,
+                            progress: _chartDraw?.value ?? 1),
+                      ),
                     ),
                   ),
                   if (hi != null)
@@ -1643,6 +1869,10 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
       if (mounted) setState(() {});
     }
 
+    // The demo taps this card by calling the very handler the card's own
+    // GestureDetector uses, so it can never drift from what a real tap does.
+    if (widget.demo) _demoOpenManager = openManager;
+
     Future<void> openReview() async {
       await showModalBottomSheet<void>(
         context: context,
@@ -1666,6 +1896,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
         ),
         child: Column(children: [
           GestureDetector(
+            key: _kRec,
             onTap: openManager,
             behavior: HitTestBehavior.opaque,
             child: Padding(
@@ -2244,6 +2475,7 @@ class _DashboardPreviewState extends State<DashboardPreview> with WidgetsBinding
   }
 
   Future<void> _persist() async {
+    if (widget.demo) return; // onboarding demo never writes
     // Real app: the payload came from a bank scan and is stored on-device, so
     // manual edits survive restart. Preview harness has no open Hive box —
     // swallow that so the in-memory add still works for design testing.
@@ -2895,9 +3127,13 @@ class _SparkPainter extends CustomPainter {
 /// against. Leaves right padding so the overlaid value labels don't collide with
 /// the line's endpoint. [pulse] is a 0→1 animation value from the host widget.
 class _NeonSparkPainter extends CustomPainter {
-  _NeonSparkPainter(this.pts, {this.dark = true, this.endLabel});
+  _NeonSparkPainter(this.pts,
+      {this.dark = true, this.endLabel, this.progress = 1});
   final List<double> pts;
   final bool dark;
+  /// How much of the line is drawn, 0→1. Always 1 in the app; the onboarding
+  /// demo runs it up from 0 so the balance draws itself across the chart.
+  final double progress;
   // Current balance, shown in a coloured pill at the line's endpoint (null hides it).
   final String? endLabel;
   // Room on the right so the endpoint pill + € labels don't touch the line.
@@ -2932,6 +3168,14 @@ class _NeonSparkPainter extends CustomPainter {
       line.lineTo(at(i).dx, at(i).dy);
     }
 
+    // While the demo draws the line, clip everything to how far it has got, so
+    // the stroke and its fill sweep in together from the left.
+    final t = progress.clamp(0.0, 1.0);
+    if (t < 1) {
+      canvas.save();
+      canvas.clipRect(Rect.fromLTWH(0, 0, w * t + 0.5, size.height));
+    }
+
     // Soft area fill under the line — a clean colour tint (no blur haze).
     final area = Path.from(line)
       ..lineTo(at(pts.length - 1).dx, size.height)
@@ -2958,12 +3202,23 @@ class _NeonSparkPainter extends CustomPainter {
         ..color = _line,
     );
 
-    // Endpoint dot (white halo for contrast against the fill), then the balance pill.
-    final end = at(pts.length - 1);
+    if (t < 1) canvas.restore();
+
+    // Endpoint dot (white halo for contrast against the fill), then the balance
+    // pill. Mid-draw the dot rides the tip of the line instead.
+    final Offset end;
+    if (t >= 1) {
+      end = at(pts.length - 1);
+    } else {
+      final seg = t * (pts.length - 1);
+      final i = seg.floor().clamp(0, pts.length - 2);
+      final a = at(i), b = at(i + 1);
+      end = Offset(w * t, a.dy + (b.dy - a.dy) * (seg - i));
+    }
     canvas.drawCircle(end, 5, Paint()..color = (dark ? const Color(0xFF201545) : const Color(0xFFEEF1F7)));
     canvas.drawCircle(end, 3.4, Paint()..color = _line);
 
-    if (endLabel != null && endLabel!.isNotEmpty) {
+    if (endLabel != null && endLabel!.isNotEmpty && t >= 0.995) {
       final tp = TextPainter(
         text: TextSpan(text: endLabel, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Colors.white)),
         textDirection: TextDirection.ltr,
@@ -2981,7 +3236,10 @@ class _NeonSparkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_NeonSparkPainter old) =>
-      old.pts != pts || old.dark != dark || old.endLabel != endLabel;
+      old.pts != pts ||
+      old.dark != dark ||
+      old.endLabel != endLabel ||
+      old.progress != progress;
 }
 
 /// The weekly chart's background: faint € gridlines (so a bar's height reads as
