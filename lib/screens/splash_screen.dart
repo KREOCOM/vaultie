@@ -5,12 +5,11 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'login_screen.dart';
-import 'onb_chat.dart';
+import 'onb_ai_chat.dart';
 import 'onb_connect.dart';
 import 'onb_intro.dart';
 import 'onb_month.dart';
-import 'onb_planning.dart';
-import 'onb_security.dart';
+import 'onb_overview.dart';
 import 'onb_welcome.dart';
 import 'landing.dart';
 import 'verify_email_screen.dart';
@@ -87,16 +86,14 @@ class _SplashScreenState extends State<SplashScreen>
     }
     final Widget next;
     if (kPreviewOnboarding || !widget.hasOnboarded) {
-      // The five-screen onboarding built on top of the real dashboards. The
-      // old OnboardingFlow is still in the tree, unused from here.
+      // Scene pages, each running the real app inside the artwork's phone,
+      // then the bank connect. The pre-scene onboarding screens are gone.
       next = const OnbIntro(
         next: OnbWelcome(
           next: OnbMonth(
-            next: OnbPlanning(
-              next: OnbSecurity(
-                next: OnbChat(
-                  next: OnbConnect(next: LoginScreen()),
-                ),
+            next: OnbOverview(
+              next: OnbAiChat(
+                next: OnbConnect(next: LoginScreen()),
               ),
             ),
           ),

@@ -652,6 +652,32 @@ Widget _acctGlyph(Map a, {double diameter = 40, double fontSize = 18}) {
   );
 }
 
+/// The hands-free tours the onboarding demo can run.
+enum DemoScript {
+  /// Home feed: hide the balance, draw the chart, scroll, open recurring.
+  home,
+
+  /// Overview tab: switch to it, then open the savings-rate breakdown.
+  overview,
+
+  /// AI chat: opens straight onto the tab with a conversation already in it,
+  /// then types another question and answers it.
+  chat,
+}
+
+/// Set by the Overview tab while the demo is running, so the director can open
+/// the savings-rate screen through the card's own handler rather than a copy of
+/// it. The tab lives in its own State class, so this is the seam between them.
+VoidCallback? _demoOpenSavings;
+final GlobalKey _kSavings = GlobalKey();
+
+/// Set by the AI chat tab while the demo runs: types [q] into the field a
+/// character at a time, sends it, and answers with [a] after a pause. The demo
+/// must never reach the real assistant — that would ship the viewer's finance
+/// summary to Anthropic (and raise a consent dialog) to decorate a marketing
+/// page, which is the same mistake the bank sync was.
+Future<void> Function(String q, String a)? _demoChatSay;
+
 class DashboardPreview extends StatefulWidget {
   /// [data] is the live dashboard payload from a bank connection. When null the
   /// screen falls back to the baked sample data (standalone design preview).
@@ -663,10 +689,20 @@ class DashboardPreview extends StatefulWidget {
   /// reminder rescheduling. Without it the preview auto-synced the signed-in
   /// user's real banks (and showed their real balance) just to decorate a
   /// marketing page.
-  const DashboardPreview({super.key, this.data, this.deeper, this.demo = false});
+  const DashboardPreview({
+    super.key,
+    this.data,
+    this.deeper,
+    this.demo = false,
+    this.script = DemoScript.home,
+  });
   final Map<String, dynamic>? data;
   final Future<Map<String, dynamic>?>? deeper;
   final bool demo;
+
+  /// Which walkthrough the demo runs. One onboarding page shows the home feed,
+  /// another the Overview tab — same widget, different tour.
+  final DemoScript script;
 
   /// Parse the demo payload now rather than inside the entry transition of the
   /// page that shows it. Call it from the page before. Safe to call twice.
@@ -702,9 +738,111 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final warm = _warmedDemo;
     if (warm != null) {
       _warmedDemo = null;
+      // Three onboarding pages each mount their own preview, and each needs its
+      // own mutable copy — so consuming the warm one left the NEXT page to parse
+      // ~900 transactions inside its entry transition, which is exactly the cost
+      // the warming exists to avoid. Refill the slot once this frame is done.
+      scheduleMicrotask(() => _warmedDemo ??= _buildDemoDash());
       return warm;
     }
     return _buildDemoDash();
+  }
+
+  /// The sample data spends more than it earns in most months, so the Overview
+  /// opened on a savings rate of 0% — the rate is clamped at zero, and zero is
+  /// a poor thing to put in front of someone deciding whether to subscribe.
+  ///
+  /// The fix is in the transactions, not on the screen: each month's expenses
+  /// are scaled to land its rate on a healthy target. Every view derives from
+  /// `all`, so the home feed, the week bars, the category breakdown and the
+  /// savings history all move together and keep telling one story. The newest
+  /// month lands on 32%; the ones behind it vary a little, so the history reads
+  /// as a real person rather than a manufactured line.
+  static void _tuneDemoSavings(Map<String, dynamic> dash) {
+    final all = (dash['all'] as List).whereType<Map>().toList();
+    // Same classification the screens use: transfers are neither, a credit in a
+    // spending section is a refund (it nets down what was spent), and only
+    // Pajamos / Kita credits count as earned.
+    bool isTransfer(Map t) => (t['sec'] ?? '').toString() == 'Pervedimai';
+    bool isEarned(Map t) {
+      final sec = (t['sec'] ?? '').toString();
+      return sec == 'Pajamos' || sec == 'Kita';
+    }
+
+    double amt(Map t) => ((t['a'] ?? 0) as num).toDouble();
+
+    final byMonth = <String, List<Map>>{};
+    for (final t in all) {
+      final d = (t['d'] ?? '').toString();
+      if (d.length < 7) continue;
+      byMonth.putIfAbsent(d.substring(0, 7), () => <Map>[]).add(t);
+    }
+    final months = byMonth.keys.toList()..sort();
+
+    // Rolling the dates forward moves a payday across a month boundary, which
+    // left five of the twelve months with no income at all — and a month with
+    // no income has no savings rate, so the history the demo opens was full of
+    // zeros. Give every month one payday, sized to a steady salary, so the
+    // history reads like someone who gets paid monthly.
+    for (var i = 0; i < months.length; i++) {
+      final rows = byMonth[months[i]]!;
+      var earned = 0.0;
+      for (final t in rows) {
+        if (!isTransfer(t) && amt(t) > 0 && isEarned(t)) earned += amt(t);
+      }
+      final salary = 2400 + ((i % 4) - 1) * 150; // 2250 … 2700
+      if (earned >= salary * 0.75) continue;
+      final parts = months[i].split('-');
+      final y = int.parse(parts[0]), m = int.parse(parts[1]);
+      final lastDay = DateTime(y, m + 1, 0).day;
+      final payday = DateTime(y, m, lastDay < 25 ? lastDay : 25);
+      final row = <String, dynamic>{
+        'nm': 'Payroll Inc',
+        'mkey': 'payroll',
+        'd': _ymd(payday),
+        'wd': _wdShort[payday.weekday - 1],
+        'md': '${_monGen[payday.month - 1]} ${payday.day}',
+        'cat': 'Atlyginimas',
+        'col': 'income',
+        'ic': 'income',
+        'sec': 'Pajamos',
+        'secc': 'amber',
+        'a': double.parse((salary - earned).toStringAsFixed(2)),
+        'amb': false,
+        'badges': <String>[],
+        'pos': true,
+      };
+      rows.add(row);
+      (dash['all'] as List).add(row);
+    }
+
+    for (var i = 0; i < months.length; i++) {
+      final rows = byMonth[months[i]]!;
+      var earned = 0.0, spent = 0.0;
+      for (final t in rows) {
+        if (isTransfer(t)) continue;
+        final a = amt(t);
+        if (a > 0) {
+          if (isEarned(t)) {
+            earned += a;
+          } else {
+            spent -= a; // refund
+          }
+        } else {
+          spent += -a;
+        }
+      }
+      if (earned <= 0 || spent <= 0) continue;
+      final fromNewest = months.length - 1 - i;
+      final target =
+          fromNewest == 0 ? 0.32 : (0.32 + ((i % 5) - 2) * 0.025).clamp(0.1, 0.5);
+      final factor = earned * (1 - target) / spent;
+      if (factor <= 0 || factor > 8) continue; // implausible → leave it alone
+      for (final t in rows) {
+        if (isTransfer(t) || amt(t) >= 0) continue;
+        t['a'] = double.parse((amt(t) * factor).toStringAsFixed(2));
+      }
+    }
   }
 
   static Map<String, dynamic> _buildDemoDash() {
@@ -736,6 +874,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       final p = DateTime.tryParse((s['d'] ?? '').toString());
       if (p != null) s['d'] = _ymd(p.add(Duration(days: shift)));
     }
+    _tuneDemoSavings(d);
     d
       ..remove('totals') // month/day headers recompute canonically from `all`
       ..remove('months')
@@ -761,7 +900,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return d;
   }
   bool _deepening = false; // a fuller 12-month scan is still loading in the background
-  int _tab = 0;
+  // The chat walkthrough opens ON the chat tab: its page should show the
+  // assistant from the first frame, not the home feed switching over to it.
+  late int _tab = widget.demo && widget.script == DemoScript.chat ? 2 : 0;
   bool _hideBal = false;
   int? _weekSel; // tapped weekday bar
   int _shownPast = 2; // how many past months are shown below the current one
@@ -793,8 +934,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
           all: (_d['all'] as List).cast<Map<String, dynamic>>(),
           balance: _d['balance'] as Map<String, dynamic>,
           budgets: DashboardStore.budgetMap(),
+          demo: widget.demo,
         ),
-        _AiChatTab(data: _d),
+        _AiChatTab(data: _d, demo: widget.demo),
         _PlanningTab(
           all: (_d['all'] as List).cast<Map<String, dynamic>>(),
           subs: _d['subs'] as Map<String, dynamic>,
@@ -816,6 +958,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
   final GlobalKey _kRoot = GlobalKey(); // coordinate space for the pointer
   final GlobalKey _kEye = GlobalKey();
   final GlobalKey _kRec = GlobalKey();
+  final GlobalKey _kNav1 = GlobalKey(); // the Apžvalga tab button
   AnimationController? _chartDraw;
   VoidCallback? _demoOpenManager; // set by the recurring card during build
   bool _demoOn = false;
@@ -855,7 +998,70 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return _beat(settle);
   }
 
+  /// Overview tour: move to the Apžvalga tab, let its donuts land, then open
+  /// the savings-rate breakdown — the one number the page is selling.
+  Future<void> _runOverviewDemo() async {
+    if (!await _beat(900)) return;
+    while (mounted && _demoOn) {
+      if (_tab != 1) {
+        if (!await _demoTap(_kNav1, () => setState(() => _tab = 1),
+            settle: 1900)) {
+          return;
+        }
+      }
+      setState(() => _demoPointer = null);
+      if (!await _beat(1400)) return;
+
+      final open = _demoOpenSavings;
+      if (open != null) {
+        if (!await _demoTap(_kSavings, open, settle: 2600)) return;
+        setState(() => _demoPointer = null);
+        final ctx = _kRoot.currentContext;
+        final nav = ctx != null && ctx.mounted ? Navigator.maybeOf(ctx) : null;
+        if (nav != null && nav.canPop()) nav.pop();
+        if (!await _beat(1500)) return;
+      } else {
+        // The tab has not built yet on the first pass; come back around.
+        if (!await _beat(700)) return;
+      }
+      if (!await _beat(900)) return;
+    }
+  }
+
+  /// Chat tour: the tab is already open (see [_tab]), so this just keeps the
+  /// conversation going — ask, answer, pause, ask something else.
+  Future<void> _runChatDemo() async {
+    const exchanges = [
+      [
+        'Kur galėčiau sutaupyti?',
+        'Prenumeratos kainuoja 106 € per mėnesį, o dvi iš jų nenaudotos '
+            'nuo balandžio. Jas atsisakius liktų 68 € kas mėnesį.',
+      ],
+      [
+        'Ar šį mėnesį viršijau maisto biudžetą?',
+        'Ne — maistui išleidai 450 € iš 520 € biudžeto. Liko 70 €, '
+            'o mėnesio gale dar 5 dienos.',
+      ],
+    ];
+    if (!await _beat(1200)) return;
+    // Asked once, not looped: a repeating conversation reads as a stuck
+    // recording, and the same question arriving twice is the first thing you
+    // notice. After the last answer the thread just sits there, which is what a
+    // real chat you have finished with looks like.
+    for (final e in exchanges) {
+      var say = _demoChatSay;
+      while (say == null) {
+        if (!await _beat(500)) return; // tab not built yet — wait for it
+        say = _demoChatSay;
+      }
+      await say(e[0], e[1]);
+      if (!await _beat(2600)) return;
+    }
+  }
+
   Future<void> _runDemo() async {
+    if (widget.script == DemoScript.chat) return _runChatDemo();
+    if (widget.script == DemoScript.overview) return _runOverviewDemo();
     if (!await _beat(700)) return;
     while (mounted && _demoOn) {
       // 1 — hide the balance, then bring it back.
@@ -2444,6 +2650,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
           for (var i = 0; i < items.length; i++)
             Expanded(
               child: GestureDetector(
+                key: widget.demo && i == 1 ? _kNav1 : null,
                 behavior: HitTestBehavior.opaque,
                 // Re-tapping the ALREADY-active tab scrolls it back to the top
                 // (the iOS convention), so you don't have to scroll up by hand.
@@ -5683,10 +5890,13 @@ class _CategoryDetailScreen extends StatelessWidget {
 // OVERVIEW TAB — analytics for the selected period (defaults to current month)
 // ══════════════════════════════════════════════════════════════════════════════
 class _OverviewTab extends StatefulWidget {
-  const _OverviewTab({required this.all, required this.balance, required this.budgets});
+  const _OverviewTab({required this.all, required this.balance, required this.budgets, this.demo = false});
   final List<Map<String, dynamic>> all;
   final Map<String, dynamic> balance;
   final Map<String, dynamic> budgets;
+  /// Running inside the onboarding walkthrough: publish the savings card so the
+  /// director can open it, and let it be found by key.
+  final bool demo;
   @override
   State<_OverviewTab> createState() => _OverviewTabState();
 }
@@ -5797,6 +6007,16 @@ class _OverviewTabState extends State<_OverviewTab> {
   // (salary incl. currency-converted salary + refunds), NOT all inflows —
   // account top-ups / transfers between your own accounts are not income and
   // would otherwise distort the rate.
+  /// The savings card's own tap handler, shared with the demo director so the
+  /// walkthrough opens exactly what a finger would.
+  void _openSavings() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => _SavingsRateScreen(
+            monthKeys: _monthKeys,
+            savingsOf: _savingsOf,
+            earnedOf: _earnedOf,
+            rowsOf: _rowsOf),
+      ));
+
   int _savingsOf(List<Map<String, dynamic>> rows) {
     final earned = _earnedOf(rows);
     final spent = _spentOf(rows);
@@ -5811,6 +6031,9 @@ class _OverviewTabState extends State<_OverviewTab> {
 
   @override
   Widget build(BuildContext context) {
+    // Hand the demo director the card's own handler; it is rebuilt with this
+    // State's context, so it can never go stale on it.
+    if (widget.demo) _demoOpenSavings = _openSavings;
     // No transactions at all (a freshly-connected bank with no activity yet):
     // the donuts, calendar and category list would render as empty/zero shells.
     // Show a single friendly empty state instead of a screen of blank cards (E1).
@@ -5954,9 +6177,8 @@ class _OverviewTabState extends State<_OverviewTab> {
       );
 
   Widget _savingsCard(String savStr, String prevStr, int streak) => GestureDetector(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => _SavingsRateScreen(monthKeys: _monthKeys, savingsOf: _savingsOf, earnedOf: _earnedOf, rowsOf: _rowsOf),
-        )),
+        key: widget.demo ? _kSavings : null,
+        onTap: _openSavings,
         child: Container(
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -9475,8 +9697,10 @@ String buildFinanceSummary(Map<String, dynamic> d) {
 }
 
 class _AiChatTab extends StatefulWidget {
-  const _AiChatTab({required this.data});
+  const _AiChatTab({required this.data, this.demo = false});
   final Map<String, dynamic> data;
+  /// Onboarding walkthrough: seed a conversation and script the rest locally.
+  final bool demo;
   @override
   State<_AiChatTab> createState() => _AiChatTabState();
 }
@@ -9502,7 +9726,50 @@ class _AiChatTabState extends State<_AiChatTab> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    if (!widget.demo) return;
+    // Open with a conversation already in it, so the tab reads as something in
+    // use rather than an empty box with a prompt.
+    _msgs
+      ..add(_ChatMsg('user', tr('Kiek išleidau šį mėnesį?')))
+      ..add(_ChatMsg(
+          'assistant',
+          tr('Šį mėnesį išleidai 1 836 € — 32 % mažiau nei uždirbai. '
+              'Daugiausia nuėjo būstui (620 €) ir maistui (450 €).')));
+    _demoChatSay = _demoSay;
+  }
+
+  /// Types [q] out a character at a time, sends it, and answers with [a] — all
+  /// locally. The real [_send] asks for consent and posts the finance summary
+  /// to the assistant; a marketing page must do neither.
+  Future<void> _demoSay(String q, String a) async {
+    if (!mounted) return;
+    for (var i = 1; i <= q.length; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 38));
+      if (!mounted) return;
+      _input.text = q.substring(0, i);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 380));
+    if (!mounted) return;
+    setState(() {
+      _msgs.add(_ChatMsg('user', q));
+      _input.clear();
+      _sending = true; // shows the same typing indicator a real reply does
+    });
+    _scrollToEnd();
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+    setState(() {
+      _msgs.add(_ChatMsg('assistant', a));
+      _sending = false;
+    });
+    _scrollToEnd();
+  }
+
+  @override
   void dispose() {
+    if (widget.demo && _demoChatSay == _demoSay) _demoChatSay = null;
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -9717,10 +9984,15 @@ class _AiChatTabState extends State<_AiChatTab> {
           ),
           border: isUser ? null : Border.all(color: _hair),
         ),
+        // In the onboarding scene the whole phone is scaled to about a third of
+        // its size, so app-sized chat text is unreadable there. The demo's
+        // bubbles are set larger to survive that reduction; the real app is
+        // untouched.
         child: Text(m.text,
             style: TextStyle(
-                fontSize: 15,
+                fontSize: widget.demo ? 21 : 15,
                 height: 1.42,
+                fontWeight: widget.demo ? FontWeight.w500 : FontWeight.w400,
                 color: isUser ? Colors.white : _ink)),
       ),
     );
@@ -9768,10 +10040,13 @@ class _AiChatTabState extends State<_AiChatTab> {
               maxLines: 4,
               textInputAction: TextInputAction.send,
               onSubmitted: _send,
-              style: TextStyle(fontSize: 15, color: _ink),
+              // Matched to the bubbles: at the scene's scale the demo's typing
+              // has to be legible or the effect is invisible.
+              style: TextStyle(fontSize: widget.demo ? 21 : 15, color: _ink),
               decoration: InputDecoration(
                 hintText: hasBank ? tr('Klausk apie savo finansus…') : tr('Pirma prijunk banką'),
-                hintStyle: TextStyle(color: _muted),
+                hintStyle: TextStyle(
+                    color: _muted, fontSize: widget.demo ? 19 : null),
                 filled: true,
                 fillColor: _bg,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

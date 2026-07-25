@@ -71,6 +71,13 @@ class _OnbWelcomeState extends State<OnbWelcome> {
         fit: StackFit.expand,
         children: [
           // ── Full-bleed looping background video ──
+          // The video's first frame, shown until the file is decoded. A 2–7 MB
+          // asset does not open instantly, and without this the page arrived
+          // empty and filled in a beat later — which reads as the tap not
+          // having worked.
+          Positioned.fill(
+            child: Image.asset('assets/onboarding/page2_poster.jpg', fit: BoxFit.cover),
+          ),
           if (_ready)
             FittedBox(
               fit: BoxFit.cover,
@@ -201,7 +208,7 @@ class _OnbWelcomeState extends State<OnbWelcome> {
   Widget _dots() => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          for (var i = 0; i < 4; i++)
+          for (var i = 0; i < 5; i++)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 3),
               width: i == 1 ? 18 : 6,
