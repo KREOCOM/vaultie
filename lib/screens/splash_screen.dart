@@ -15,6 +15,12 @@ import 'onb_welcome.dart';
 import 'landing.dart';
 import 'verify_email_screen.dart';
 
+/// TEMP (dev preview): force the onboarding chain to show from the splash even
+/// for a user who already onboarded, so it can be reviewed on the device.
+/// Set back to false (or delete) before shipping — normal launch routes a
+/// returning user straight to their dashboard.
+bool kPreviewOnboarding = true;
+
 /// Branded splash shown for ~2 seconds on launch, then fades into the app.
 ///
 /// New users land on onboarding; returning users (who have already completed
@@ -80,7 +86,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
     }
     final Widget next;
-    if (!widget.hasOnboarded) {
+    if (kPreviewOnboarding || !widget.hasOnboarded) {
       // The five-screen onboarding built on top of the real dashboards. The
       // old OnboardingFlow is still in the tree, unused from here.
       next = const OnbIntro(
