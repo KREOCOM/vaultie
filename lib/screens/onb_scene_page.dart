@@ -20,6 +20,7 @@ class SceneGeometry {
     required this.stampH,
     required this.statusH,
     required this.ringB,
+    this.topCrop = 0,
   });
 
   final double imgW, imgH;
@@ -41,6 +42,12 @@ class SceneGeometry {
 
   /// Bottom of the phone's glow: where the scene starts fading into the page.
   final double ringB;
+
+  /// Fraction of the render's height to pull off the top. Some scenes put the
+  /// phone low with a wide empty sky above it: drawn from y=0 that empties the
+  /// top of the page and pushes the phone down into the copy. Cropping the sky
+  /// lifts the phone and frees the space the copy needs.
+  final double topCrop;
 
   double get glassW => glassR - glassL + 1;
   double get glassH => glassB - glassT + 1;
@@ -171,21 +178,23 @@ class _OnbScenePageState extends State<OnbScenePage> {
     final g = widget.geometry;
     final size = MediaQuery.of(context).size;
     final w = size.width;
-    final imgH = w * g.imgH / g.imgW; // scene at full width, top-aligned
+    final imgH = w * g.imgH / g.imgW; // scene at full width
+    final shift = imgH * g.topCrop; // sky pulled off the top
 
     // The scene is wider than the screen is tall, so it cannot fill the page
-    // without cutting the icon columns off at the edges. Rather than crop it,
-    // the artwork fades into the page colour before its bottom edge — the edge
-    // itself is never visible, and the copy sits on the fade.
-    final s0 = (imgH * g.ringB / g.imgH / size.height).clamp(0.0, 0.94);
-    final s1 = ((imgH - 8) / size.height).clamp(s0 + 0.03, 1.0);
+    // without cutting the icon columns off at the edges. Rather than crop the
+    // sides, the artwork fades into the page colour before its bottom edge —
+    // the edge itself is never visible, and the copy sits on the fade.
+    final s0 =
+        ((imgH * g.ringB / g.imgH - shift) / size.height).clamp(0.0, 0.94);
+    final s1 = ((imgH - shift - 8) / size.height).clamp(s0 + 0.03, 1.0);
 
     return Scaffold(
       backgroundColor: _deep,
       body: Stack(
         children: [
           Positioned(
-            top: 0,
+            top: -shift,
             left: 0,
             width: w,
             height: imgH,
@@ -193,7 +202,7 @@ class _OnbScenePageState extends State<OnbScenePage> {
           ),
           Positioned(
             left: g.glassL / g.imgW * w,
-            top: g.glassT / g.imgH * imgH,
+            top: g.glassT / g.imgH * imgH - shift,
             width: g.glassW / g.imgW * w,
             height: g.glassH / g.imgH * imgH,
             child: ClipRRect(

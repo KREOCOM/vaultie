@@ -78,14 +78,18 @@ void _applyTheme(bool dark) {
   // background, so blocks had no edge and the dividers between rows were
   // invisible. Every pair below was solved for a target ratio rather than
   // eyeballed — text ≥ 4.5:1, block edges ≥ 1.25:1, dividers ≥ 1.3:1.
-  _bg         = dark ? const Color(0xFF0A0910) : const Color(0xFFEEF1F7);
+  // Light ("Frost") backdrop, pulled a step deeper and bluer than the near-white
+  // it was — the screens read as one surface instead of a white sheet, and the
+  // cards now have something to sit on. Cards keep a hint of the same blue
+  // rather than pure white, so nothing on them looks like a cut-out.
+  _bg         = dark ? const Color(0xFF0A0910) : const Color(0xFFD6E1F5);
   _purpleSoft = dark ? const Color(0xFF2A2150) : const Color(0xFFE4EDFD);
   _muted      = dark ? const Color(0xFFBDB7CE) : const Color(0xFF2E3A54);
   _faint      = dark ? const Color(0xFF948DAC) : const Color(0xFF47536D);
   _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF14203A);
   _navOff     = dark ? const Color(0xFF8C86A0) : const Color(0xFF97A2B5);
-  _card       = dark ? const Color(0xFF16131F) : const Color(0xFFFFFFFF);
-  _hair       = dark ? const Color(0xFF2C2740) : const Color(0xFFE3E9F2);
+  _card       = dark ? const Color(0xFF16131F) : const Color(0xFFEFF4FF);
+  _hair       = dark ? const Color(0xFF2C2740) : const Color(0xFFC3D3EB);
   _soft       = dark ? const Color(0xFF221D31) : const Color(0xFFEEF2F8);
   _purple     = dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
   _purpleDeep = dark ? const Color(0xFF6D3EE0) : const Color(0xFF1E50C8);
@@ -660,6 +664,10 @@ enum DemoScript {
   /// Overview tab: switch to it, then open the savings-rate breakdown.
   overview,
 
+  /// Planning: open the add-budget sheet, then walk into the account settings
+  /// and turn the app dark.
+  budget,
+
   /// AI chat: opens straight onto the tab with a conversation already in it,
   /// then types another question and answers it.
   chat,
@@ -940,6 +948,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
         _PlanningTab(
           all: (_d['all'] as List).cast<Map<String, dynamic>>(),
           subs: _d['subs'] as Map<String, dynamic>,
+          demo: widget.demo,
         ),
         _AccountTab(balance: _d['balance'] as Map<String, dynamic>),
       ];
@@ -959,6 +968,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
   final GlobalKey _kEye = GlobalKey();
   final GlobalKey _kRec = GlobalKey();
   final GlobalKey _kNav1 = GlobalKey(); // the Apžvalga tab button
+  final GlobalKey _kNav3 = GlobalKey(); // Planavimas
+  final GlobalKey _kNav4 = GlobalKey(); // Paskyra
   AnimationController? _chartDraw;
   VoidCallback? _demoOpenManager; // set by the recurring card during build
   bool _demoOn = false;
@@ -1059,7 +1070,72 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
   }
 
+  /// Budget tour: open the add-budget sheet, close it, then show the app going
+  /// dark from the settings screen.
+  ///
+  /// The theme is flipped through [AppPrefs.darkMode]'s notifier and
+  /// [_applyTheme] — NOT through `AppPrefs.setDarkMode`, which writes to disk.
+  /// A marketing page must not leave the viewer's app dark (nor, further down
+  /// this screen, set them a PIN or change their currency); whatever the demo
+  /// touches is put back when the page is disposed.
+  Future<void> _runBudgetDemo() async {
+    if (!await _beat(1000)) return;
+    while (mounted && _demoOn) {
+      if (_tab != 3) {
+        if (!await _demoTap(_kNav3, () => setState(() => _tab = 3),
+            settle: 1500)) {
+          return;
+        }
+      }
+      setState(() => _demoPointer = null);
+      if (!await _beat(900)) return;
+
+      // 1 — add a budget: the sheet is the app's own, opened by its own handler.
+      final add = _demoAddBudget;
+      if (add != null) {
+        if (!await _demoTap(_kAddBudget, add, settle: 2600)) return;
+        setState(() => _demoPointer = null);
+        _demoPopSheet();
+        if (!await _beat(1100)) return;
+      }
+
+      // 2 — the app goes dark, then comes back.
+      if (!await _demoTap(_kNav4, () => setState(() => _tab = 4), settle: 1200)) {
+        return;
+      }
+      setState(() => _demoPointer = null);
+      if (!await _beat(900)) return;
+      _demoSetDark(true);
+      if (!await _beat(2600)) return;
+      _demoSetDark(false);
+      if (!await _beat(1400)) return;
+
+      if (!await _demoTap(_kNav3, () => setState(() => _tab = 3), settle: 900)) {
+        return;
+      }
+      setState(() => _demoPointer = null);
+      if (!await _beat(900)) return;
+    }
+  }
+
+  /// Closes whatever the demo opened inside the phone's own navigator.
+  void _demoPopSheet() {
+    final ctx = _kRoot.currentContext;
+    final nav = ctx != null && ctx.mounted ? Navigator.maybeOf(ctx) : null;
+    if (nav != null && nav.canPop()) nav.pop();
+  }
+
+  /// Flip the palette for show only — no write, so the viewer's own setting is
+  /// untouched. [dispose] puts it back to whatever they actually chose.
+  void _demoSetDark(bool dark) {
+    if (!mounted) return;
+    AppPrefs.darkMode.value = dark;
+    _applyTheme(dark);
+    setState(() => _otherTabs = null); // cached tabs must rebuild in the new palette
+  }
+
   Future<void> _runDemo() async {
+    if (widget.script == DemoScript.budget) return _runBudgetDemo();
     if (widget.script == DemoScript.chat) return _runChatDemo();
     if (widget.script == DemoScript.overview) return _runOverviewDemo();
     if (!await _beat(700)) return;
@@ -1425,6 +1501,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
   @override
   void dispose() {
     _demoOn = false; // stops the demo loop at its next beat
+    if (widget.demo) {
+      // The budget tour flips the palette for show; never leave the viewer's
+      // app in a theme they did not choose.
+      final real = AppPrefs.darkModeSaved;
+      if (AppPrefs.darkMode.value != real) {
+        AppPrefs.darkMode.value = real;
+        _applyTheme(real);
+      }
+    }
     _chartDraw?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _themeVN.removeListener(_onTheme);
@@ -2650,7 +2735,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
           for (var i = 0; i < items.length; i++)
             Expanded(
               child: GestureDetector(
-                key: widget.demo && i == 1 ? _kNav1 : null,
+                key: !widget.demo
+                    ? null
+                    : i == 1
+                        ? _kNav1
+                        : i == 3
+                            ? _kNav3
+                            : i == 4
+                                ? _kNav4
+                                : null,
                 behavior: HitTestBehavior.opaque,
                 // Re-tapping the ALREADY-active tab scrolls it back to the top
                 // (the iOS convention), so you don't have to scroll up by hand.
@@ -6666,15 +6759,29 @@ class _Budget {
   bool get isAuto => auto ?? true; // null (hot-reload) → treat as suggested
 }
 
+/// Set by the planning tab while the demo runs, so the walkthrough opens the
+/// add-budget sheet through the button's own handler rather than a copy.
+VoidCallback? _demoAddBudget;
+final GlobalKey _kAddBudget = GlobalKey();
+
 class _PlanningTab extends StatefulWidget {
-  const _PlanningTab({required this.all, required this.subs});
+  const _PlanningTab({required this.all, required this.subs, this.demo = false});
   final List<Map<String, dynamic>> all;
   final Map<String, dynamic> subs;
+
+  /// Onboarding walkthrough: publish the add-budget handler and key.
+  final bool demo;
   @override
   State<_PlanningTab> createState() => _PlanningTabState();
 }
 
 class _PlanningTabState extends State<_PlanningTab> {
+  @override
+  void dispose() {
+    if (widget.demo && _demoAddBudget == _openAddSheet) _demoAddBudget = null;
+    super.dispose();
+  }
+
   late List<_Budget> _budgets;
   bool _showBanner = true;
   String? _selKey; // selected month (null = latest / "Šis mėnuo")
@@ -6748,6 +6855,8 @@ class _PlanningTabState extends State<_PlanningTab> {
   @override
   void initState() {
     super.initState();
+    // Hand the demo director this tab's own add-budget handler.
+    if (widget.demo) _demoAddBudget = _openAddSheet;
     for (final t in widget.all) {
       _secColorKey.putIfAbsent(_secOf(t), () => _seccOf(t));
     }
@@ -7105,6 +7214,7 @@ class _PlanningTabState extends State<_PlanningTab> {
   Widget _addButton() => Padding(
         padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
         child: GestureDetector(
+          key: widget.demo ? _kAddBudget : null,
           onTap: _openAddSheet,
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16),

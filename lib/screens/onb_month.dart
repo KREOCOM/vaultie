@@ -40,7 +40,7 @@ class OnbMonth extends StatelessWidget {
         headline: 'Visas tavo mėnuo\nviename ekrane',
         sub: 'Pajamos, išlaidos, prenumeratos ir sąskaitos — viskas susirūšiuoja savaime.',
         dotIndex: 2,
-        dotCount: 5,
+        dotCount: 6,
         warmNext: 'assets/onboarding/page4_scene.png',
       );
 }

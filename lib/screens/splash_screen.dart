@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'login_screen.dart';
 import 'onb_ai_chat.dart';
+import 'onb_budget.dart';
 import 'onb_connect.dart';
 import 'onb_intro.dart';
 import 'onb_month.dart';
@@ -93,7 +94,9 @@ class _SplashScreenState extends State<SplashScreen>
           next: OnbMonth(
             next: OnbOverview(
               next: OnbAiChat(
-                next: OnbConnect(next: LoginScreen()),
+                next: OnbBudget(
+                  next: OnbConnect(next: LoginScreen()),
+                ),
               ),
             ),
           ),

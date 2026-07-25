@@ -40,7 +40,7 @@ class OnbOverview extends StatelessWidget {
         headline: 'Matai, kiek atsidėjai\nir kur išleidai',
         sub: 'Kiekviena kategorija, santaupų norma ir mėnesio rezultatas — vienoje vietoje.',
         dotIndex: 3,
-        dotCount: 5,
+        dotCount: 6,
         warmNext: 'assets/onboarding/page5_scene.png',
       );
 }

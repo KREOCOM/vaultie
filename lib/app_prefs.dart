@@ -67,6 +67,14 @@ class AppPrefs {
     await _box.put(_kDarkMode, value);
   }
 
+  /// What the user actually chose, straight from storage. The onboarding demo
+  /// flips [darkMode] for show without writing, so it needs this to know what
+  /// to put back — reading the notifier would just return its own change.
+  static bool get darkModeSaved {
+    final v = _box.get(_kDarkMode);
+    return v is bool ? v : false;
+  }
+
   static Future<void> setBudget(double? value) async {
     budget.value = value;
     if (value == null) {

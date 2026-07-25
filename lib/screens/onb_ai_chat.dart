@@ -48,6 +48,7 @@ class OnbAiChat extends StatelessWidget {
         headline: 'Paklausk savo\nfinansų bet ko',
         sub: 'Kur išleidau daugiausia? Ar viršijau biudžetą? Atsakymas — iš tavo tikrų duomenų.',
         dotIndex: 4,
-        dotCount: 5,
+        dotCount: 6,
+        warmNext: 'assets/onboarding/page6_scene.png',
       );
 }
