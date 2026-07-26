@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'onb_scene_page.dart';
-import 'preview/dashboard_preview.dart';
+import 'preview/showcase.dart';
 
 /// Onboarding page 6 — budgets and settings, the last page before the bank
 /// connect. The demo opens the add-budget sheet, then walks into the account
@@ -37,10 +37,6 @@ class OnbBudget extends StatelessWidget {
     stampH: 58,
     statusH: 60,
     ringB: 1360,
-    // The render leaves a quarter of its height as empty sky above the phone.
-    // Drawn from the top that emptied the page and pushed the phone down into
-    // the copy; cropping it lifts the phone and frees the room the copy needs.
-    topCrop: 0.13,
   );
 
   @override
@@ -49,12 +45,18 @@ class OnbBudget extends StatelessWidget {
         sceneAsset: 'assets/onboarding/page6_scene.png',
         stampAsset: 'assets/onboarding/page6_statusbar.png',
         geometry: _geometry,
-        script: DemoScript.budget,
+        kind: ShowcaseKind.budget,
         badgeIcon: Icons.tune_rounded,
-        badge: 'Tu nustatai ribas',
-        headline: 'Susidėk biudžetą\nir laikykis jo',
-        sub: 'Limitą pasiūlome pagal tavo tikrą vidurkį. PIN, valiuta ir tamsi tema — tavo nuožiūra.',
+        badge: 'Randa prenumeratas',
+        headline: 'Nepraleisk nė vienos\nprenumeratos',
+        sub: 'Vaultie automatiškai aptinka pasikartojančius mokėjimus ir padeda kontroliuoti jų kainą.',
+        bullets: [
+          'Matyk kitą mokėjimo datą',
+          'Pastebėk kainų pokyčius',
+          'Žinok metinę išlaidų sumą',
+        ],
         dotIndex: 5,
         dotCount: 6,
+        warmNext: 'assets/onboarding/page7_scene.png',
       );
 }

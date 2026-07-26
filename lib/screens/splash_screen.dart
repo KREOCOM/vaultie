@@ -21,6 +21,11 @@ import 'verify_email_screen.dart';
 /// returning user straight to their dashboard.
 bool kPreviewOnboarding = true;
 
+/// TEMP (dev): every onboarding page taps its own "Toliau" after this delay, so
+/// the whole chain can be walked and screenshotted on a rack of simulators
+/// without a finger. Set to null to disable. Remove with [kPreviewOnboarding].
+Duration? kOnbAutoAdvance;
+
 /// Branded splash shown for ~2 seconds on launch, then fades into the app.
 ///
 /// New users land on onboarding; returning users (who have already completed

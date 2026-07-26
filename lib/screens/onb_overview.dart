@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'onb_scene_page.dart';
-import 'preview/dashboard_preview.dart';
+import 'preview/showcase.dart';
 
 /// Onboarding page 4 — the Overview tab. The demo walks to Apžvalga and opens
 /// the savings-rate breakdown, which is the number the page is selling.
@@ -34,11 +34,16 @@ class OnbOverview extends StatelessWidget {
         sceneAsset: 'assets/onboarding/page4_scene.png',
         stampAsset: 'assets/onboarding/page4_statusbar.png',
         geometry: _geometry,
-        script: DemoScript.overview,
+        kind: ShowcaseKind.overview,
         badgeIcon: Icons.donut_large_rounded,
-        badge: 'Kur nuėjo pinigai',
-        headline: 'Matai, kiek atsidėjai\nir kur išleidai',
-        sub: 'Kiekviena kategorija, santaupų norma ir mėnesio rezultatas — vienoje vietoje.',
+        badge: 'Visos sąskaitos kartu',
+        headline: 'Matyk visą\nfinansų vaizdą',
+        sub: 'Balansai, išlaidos, pajamos ir biudžetas vienoje aiškioje vietoje.',
+        bullets: [
+          'Visos sąskaitos viename vaizde',
+          'Kasdien atnaujinami duomenys',
+          'Aiškios įžvalgos be skaičių chaoso',
+        ],
         dotIndex: 3,
         dotCount: 6,
         warmNext: 'assets/onboarding/page5_scene.png',

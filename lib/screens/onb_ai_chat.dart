@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'onb_scene_page.dart';
-import 'preview/dashboard_preview.dart';
+import 'preview/showcase.dart';
 
 /// Onboarding page 5 — the AI assistant. The phone opens already ON the chat
 /// tab with a conversation in it, then asks another question and answers it.
@@ -41,12 +41,17 @@ class OnbAiChat extends StatelessWidget {
         sceneAsset: 'assets/onboarding/page5_scene.png',
         stampAsset: 'assets/onboarding/page5_statusbar.png',
         geometry: _geometry,
-        script: DemoScript.chat,
+        kind: ShowcaseKind.chat,
         blankUntilLive: const Color(0xFFEEF1F7),
         badgeIcon: Icons.auto_awesome_rounded,
-        badge: 'Atsako apie tavo pinigus',
-        headline: 'Paklausk savo\nfinansų bet ko',
-        sub: 'Kur išleidau daugiausia? Ar viršijau biudžetą? Atsakymas — iš tavo tikrų duomenų.',
+        badge: 'Klausk apie savo pinigus',
+        headline: 'Paklausk.\nGauk atsakymą.',
+        sub: 'Paklausk apie savo finansus paprastais žodžiais, o Vaultie atsakys pagal tavo tikrus duomenis.',
+        bullets: [
+          'Atsako pagal tavo operacijas',
+          'Jokie duomenys nenaudojami AI mokymui',
+          'Privatumas išlieka tavo rankose',
+        ],
         dotIndex: 4,
         dotCount: 6,
         warmNext: 'assets/onboarding/page6_scene.png',

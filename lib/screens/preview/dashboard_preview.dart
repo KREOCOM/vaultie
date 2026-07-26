@@ -937,20 +937,41 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // rebuilding them on every tab switch (setState) is wasted work that made tab
   // taps lag — build once and reuse; only a theme flip invalidates them.
   List<Widget>? _otherTabs;
+  /// Which of the other tabs a demo script actually shows. IndexedStack lays
+  /// out every child it is given, so a page that only ever displays the chat
+  /// was still building the Overview (donuts and a category list over ~900
+  /// transactions), Planning and Account trees — inside its entry transition.
+  /// The ones a script never reaches are replaced with nothing.
+  static const _demoTabs = <DemoScript, Set<int>>{
+    DemoScript.home: <int>{},
+    DemoScript.overview: {0},
+    DemoScript.chat: {1},
+    DemoScript.budget: {2, 3},
+  };
+
+  bool _tabNeeded(int i) =>
+      !widget.demo || (_demoTabs[widget.script] ?? const {0, 1, 2, 3}).contains(i);
+
   List<Widget> _buildOtherTabs() => [
-        _OverviewTab(
+        if (!_tabNeeded(0)) const SizedBox.shrink() else _OverviewTab(
           all: (_d['all'] as List).cast<Map<String, dynamic>>(),
           balance: _d['balance'] as Map<String, dynamic>,
           budgets: DashboardStore.budgetMap(),
           demo: widget.demo,
         ),
-        _AiChatTab(data: _d, demo: widget.demo),
-        _PlanningTab(
+        if (!_tabNeeded(1))
+          const SizedBox.shrink()
+        else
+          _AiChatTab(data: _d, demo: widget.demo),
+        if (!_tabNeeded(2)) const SizedBox.shrink() else _PlanningTab(
           all: (_d['all'] as List).cast<Map<String, dynamic>>(),
           subs: _d['subs'] as Map<String, dynamic>,
           demo: widget.demo,
         ),
-        _AccountTab(balance: _d['balance'] as Map<String, dynamic>),
+        if (!_tabNeeded(3))
+          const SizedBox.shrink()
+        else
+          _AccountTab(balance: _d['balance'] as Map<String, dynamic>),
       ];
 
   // Theme flip must rebuild the cached tabs so their colours update.
@@ -2763,8 +2784,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   children: [
                     Icon(items[i][1] as IconData, size: 24, color: _tab == i ? _purple : _navOff),
                     const SizedBox(height: 4),
-                    Text(tr(items[i][0] as String),
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _tab == i ? _purple : _navOff)),
+                    // Five labels share the width, and the longest of them
+                    // ("AI pokalbis", "Planavimas") runs out of room as soon as
+                    // text is scaled up — by the onboarding demo, or by anyone
+                    // who raised the system text size. Shrink to fit rather
+                    // than overflow, which skewed the whole row.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(tr(items[i][0] as String),
+                          maxLines: 1,
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _tab == i ? _purple : _navOff)),
+                    ),
                   ],
                 ),
               ),
@@ -5471,13 +5501,18 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                   Text(tr('išleista'), style: TextStyle(fontSize: 12.5, color: _muted)),
                 ]),
                 const Spacer(),
-                SizedBox(
-                  width: 56, height: 56,
-                  child: Stack(alignment: Alignment.center, children: [
-                    CustomPaint(size: const Size(56, 56), painter: _RingProgressPainter(totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0)),
-                    Text('${totalBudget > 0 ? (totalSpent / totalBudget * 100).round() : 0}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _ink)),
-                  ]),
-                ),
+                Builder(builder: (ctx) {
+                  // Same reason as the planning card's ring: scale with the
+                  // amounts it sits between, or they swallow it.
+                  final d = MediaQuery.textScalerOf(ctx).scale(56).clamp(56.0, 94.0);
+                  return SizedBox(
+                    width: d, height: d,
+                    child: Stack(alignment: Alignment.center, children: [
+                      CustomPaint(size: Size(d, d), painter: _RingProgressPainter(totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0)),
+                      Text('${totalBudget > 0 ? (totalSpent / totalBudget * 100).round() : 0}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _ink)),
+                    ]),
+                  );
+                }),
                 const Spacer(),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Text(_eur0(totalBudget), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink)),
@@ -7052,14 +7087,20 @@ class _PlanningTabState extends State<_PlanningTab> {
             Text(tr('išleista'), style: TextStyle(fontSize: 13, color: _muted)),
           ]),
           const Spacer(),
-          SizedBox(
-            width: 62,
-            height: 62,
-            child: Stack(alignment: Alignment.center, children: [
-              CustomPaint(size: const Size(62, 62), painter: _RingProgressPainter(pct / 100, onTrack ? _good : const Color(0xFFEE7A3A))),
-              Text('$pct%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _ink)),
-            ]),
-          ),
+          // The ring sits between two big amounts; drawn at a fixed size it got
+          // swallowed by them the moment the text around it scaled up. Tie it to
+          // the same scale so the trio keeps its proportions.
+          Builder(builder: (ctx) {
+            final d = MediaQuery.textScalerOf(ctx).scale(62).clamp(62.0, 104.0);
+            return SizedBox(
+              width: d,
+              height: d,
+              child: Stack(alignment: Alignment.center, children: [
+                CustomPaint(size: Size(d, d), painter: _RingProgressPainter(pct / 100, onTrack ? _good : const Color(0xFFEE7A3A))),
+                Text('$pct%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _ink)),
+              ]),
+            );
+          }),
           const Spacer(),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(_eur(limit), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.4)),
@@ -10100,7 +10141,7 @@ class _AiChatTabState extends State<_AiChatTab> {
         // untouched.
         child: Text(m.text,
             style: TextStyle(
-                fontSize: widget.demo ? 21 : 15,
+                fontSize: widget.demo ? 18 : 15,
                 height: 1.42,
                 fontWeight: widget.demo ? FontWeight.w500 : FontWeight.w400,
                 color: isUser ? Colors.white : _ink)),
@@ -10152,11 +10193,11 @@ class _AiChatTabState extends State<_AiChatTab> {
               onSubmitted: _send,
               // Matched to the bubbles: at the scene's scale the demo's typing
               // has to be legible or the effect is invisible.
-              style: TextStyle(fontSize: widget.demo ? 21 : 15, color: _ink),
+              style: TextStyle(fontSize: widget.demo ? 18 : 15, color: _ink),
               decoration: InputDecoration(
                 hintText: hasBank ? tr('Klausk apie savo finansus…') : tr('Pirma prijunk banką'),
                 hintStyle: TextStyle(
-                    color: _muted, fontSize: widget.demo ? 19 : null),
+                    color: _muted, fontSize: widget.demo ? 17 : null),
                 filled: true,
                 fillColor: _bg,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

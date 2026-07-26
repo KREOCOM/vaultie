@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../i18n.dart';
+import 'splash_screen.dart';
 
 /// Onboarding page 1 — a full-bleed looping intro video (the animated Vaultie
 /// tile mosaic) with a frosted-glass text block and a "Pradėti" action.
@@ -24,6 +25,12 @@ class _OnbIntroState extends State<OnbIntro> {
   @override
   void initState() {
     super.initState();
+    final auto = kOnbAutoAdvance;
+    if (auto != null) {
+      Future<void>.delayed(auto, () {
+        if (mounted) _start();
+      });
+    }
     _c = VideoPlayerController.asset('assets/onboarding/intro_loop.mp4')
       ..setLooping(true)
       ..setVolume(0);
@@ -82,15 +89,15 @@ class _OnbIntroState extends State<OnbIntro> {
           const Align(
             alignment: Alignment.bottomCenter,
             child: FractionallySizedBox(
-              heightFactor: 0.55,
+              heightFactor: 0.62,
               widthFactor: 1,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0x00041446), Color(0x8C04113A), Color(0xF2030E32)],
-                    stops: [0.0, 0.5, 1.0],
+                    colors: [Color(0x00041446), Color(0xB304113A), Color(0xFF030E32)],
+                    stops: [0.0, 0.55, 0.86],
                   ),
                 ),
               ),
@@ -106,54 +113,30 @@ class _OnbIntroState extends State<OnbIntro> {
                 padding: const EdgeInsets.fromLTRB(28, 0, 28, 26),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Highlighted Vaultie mark — real app icon with a blue glow
-                    // and a soft white rim so it pops off the video.
                     Container(
-                      width: 74,
-                      height: 74,
+                      width: 34,
+                      height: 3,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.35),
-                            width: 1.4),
-                        boxShadow: [
-                          BoxShadow(
-                              color: const Color(0xFF3A78FF)
-                                  .withValues(alpha: 0.6),
-                              blurRadius: 34,
-                              spreadRadius: 2),
-                          BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              blurRadius: 18,
-                              offset: const Offset(0, 10)),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(19),
-                        child: Image.asset('assets/icon/app_icon.png',
-                            fit: BoxFit.cover),
+                        color: const Color(0xFF5B8CFF),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 13),
                     Text(
-                      tr('Visi tavo pinigai\nvienoje vietoje'),
-                      textAlign: TextAlign.center,
+                      tr('Suprask savo\nfinansus geriau'),
                       style: const TextStyle(
-                        fontSize: 29,
+                        fontSize: 30,
                         fontWeight: FontWeight.w800,
                         height: 1.12,
-                        letterSpacing: -1.0,
+                        letterSpacing: -0.9,
                         color: Colors.white,
-                        shadows: [
-                          Shadow(color: Color(0xB3001038), blurRadius: 18),
-                        ],
                       ),
                     ),
                     const SizedBox(height: 11),
                     Text(
-                      tr('Vaultie automatiškai surenka tavo finansus ir padeda lengviau juos suprasti.'),
-                      textAlign: TextAlign.center,
+                      tr('Vaultie padeda aiškiau matyti, kur keliauja tavo pinigai, priimti geresnius sprendimus ir viską stebėti vienoje vietoje.'),
                       style: TextStyle(
                         fontSize: 14,
                         height: 1.45,
@@ -163,7 +146,37 @@ class _OnbIntroState extends State<OnbIntro> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 14),
+                    for (final b in const [
+                      'Veikia su 2 500+ bankų ES, JK ir EEE',
+                      'Reguliuojama PSD2 atviroji bankininkystė',
+                      'Duomenys lieka tavo telefone',
+                    ])
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Icon(Icons.check_rounded,
+                                  size: 14, color: Color(0xFF8FB4FF)),
+                            ),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                tr(b),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.3,
+                                  color: Colors.white.withValues(alpha: 0.80),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 20),
                     GestureDetector(
                       onTap: _start,
                       child: Container(
@@ -189,7 +202,7 @@ class _OnbIntroState extends State<OnbIntro> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    _dots(),
+                    SizedBox(width: double.infinity, child: _dots()),
                   ],
                 ),
               ),

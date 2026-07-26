@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../i18n.dart';
+import 'splash_screen.dart';
 import 'preview/dashboard_preview.dart';
 
 /// Onboarding page 2 — full-bleed looping video (bank tiles across Europe) with
@@ -24,6 +25,12 @@ class _OnbWelcomeState extends State<OnbWelcome> {
   @override
   void initState() {
     super.initState();
+    final auto = kOnbAutoAdvance;
+    if (auto != null) {
+      Future<void>.delayed(auto, () {
+        if (mounted) _next();
+      });
+    }
     _c = VideoPlayerController.asset('assets/onboarding/page2_loop.mp4')
       ..setLooping(true)
       ..setVolume(0);
@@ -107,7 +114,7 @@ class _OnbWelcomeState extends State<OnbWelcome> {
             ),
           ),
 
-          // ── Variant 2: centred text with a trust badge, text on the video ──
+          // ── Centred copy over the video ──
           SafeArea(
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -115,51 +122,30 @@ class _OnbWelcomeState extends State<OnbWelcome> {
                 padding: const EdgeInsets.fromLTRB(28, 0, 28, 26),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // trust badge (pill)
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      width: 34,
+                      height: 3,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2F6BFF).withValues(alpha: 0.20),
-                        borderRadius: BorderRadius.circular(100),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.28)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.verified_user_rounded,
-                              size: 13, color: Color(0xFFDBE6FF)),
-                          const SizedBox(width: 7),
-                          Text(
-                            tr('Saugumas · Privatumas · Patikimumas'),
-                            style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.3,
-                                color: Color(0xFFDBE6FF)),
-                          ),
-                        ],
+                        color: const Color(0xFF5B8CFF),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 13),
                     Text(
-                      tr('2500+ bankų\nvisoje Europoje'),
-                      textAlign: TextAlign.center,
+                      tr('Prijunk savo\nbanką saugiai'),
                       style: const TextStyle(
-                        fontSize: 32,
+                        fontSize: 30,
                         fontWeight: FontWeight.w800,
-                        height: 1.1,
-                        letterSpacing: -1.0,
+                        height: 1.12,
+                        letterSpacing: -0.9,
                         color: Colors.white,
-                        shadows: [Shadow(color: Color(0xB300081F), blurRadius: 18)],
                       ),
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      tr('Saugiai jungiamės per Enable Banking — banko lygio šifravimas ir PSD2 licencija. Tavo saugumas mums svarbiausias.'),
-                      textAlign: TextAlign.center,
+                      tr('Prisijungimą patvirtini savo banke. Vaultie gauna tik skaitymo prieigą — negali pervesti pinigų ar atlikti mokėjimų. Prieigą bet kada gali atšaukti.'),
                       style: TextStyle(
                         fontSize: 15,
                         height: 1.5,
@@ -193,7 +179,7 @@ class _OnbWelcomeState extends State<OnbWelcome> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    _dots(),
+                    SizedBox(width: double.infinity, child: _dots()),
                   ],
                 ),
               ),

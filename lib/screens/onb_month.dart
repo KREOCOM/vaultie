@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'onb_scene_page.dart';
+import 'preview/showcase.dart';
 
 /// Onboarding page 3 — the home feed. The demo hides the balance, draws the
 /// balance line, scrolls the payments and opens the subscriptions manager.
@@ -35,10 +36,16 @@ class OnbMonth extends StatelessWidget {
         sceneAsset: 'assets/onboarding/page3_scene.png',
         stampAsset: 'assets/onboarding/page3_statusbar.png',
         geometry: _geometry,
+        kind: ShowcaseKind.home,
         badgeIcon: Icons.auto_graph_rounded,
-        badge: 'Atsinaujina automatiškai',
-        headline: 'Visas tavo mėnuo\nviename ekrane',
-        sub: 'Pajamos, išlaidos, prenumeratos ir sąskaitos — viskas susirūšiuoja savaime.',
+        badge: 'Rūšiuoja už tave',
+        headline: 'Kiekviena išlaida\nsavo vietoje',
+        sub: 'Vaultie automatiškai atpažįsta pirkinius, suskirsto juos į kategorijas ir padeda aiškiai matyti, kur išleidi pinigus.',
+        bullets: [
+          'Atpažįsta tūkstančius prekybininkų',
+          'Mokosi iš tavo pataisymų',
+          'Jokio rankinio vedimo',
+        ],
         dotIndex: 2,
         dotCount: 6,
         warmNext: 'assets/onboarding/page4_scene.png',
