@@ -42,14 +42,13 @@ class OnbPaywall extends StatefulWidget {
   State<OnbPaywall> createState() => _OnbPaywallState();
 }
 
-const _ink = Color(0xFF0B1533);
-const _sub = Color(0xFF4C5B7D);
-const _paper = Color(0xFFFCFCFD);
+const _ink = Color(0xFFFFFFFF);
+const _sub = Color(0xFF93A3C4);
+const _paper = Color(0xFF00082D);
 const _blue = Color(0xFF003DE1);
 const _blueBright = Color(0xFF0A4DFD);
-const _green = Color(0xFF12A366);
-const _greenSoft = Color(0xFFEEF7F3);
-const _hair = Color(0xFFE6EAF2);
+const _green = Color(0xFF25C26B);
+const _greenSoft = Color(0xFF071B12);
 
 // One source for the money: every other figure on the screen is derived.
 const _monthly = 4.99;
@@ -214,7 +213,34 @@ class _OnbPaywallState extends State<OnbPaywall> {
       backgroundColor: _paper,
       body: Stack(
         children: [
-          const Positioned.fill(child: CustomPaint(painter: _Wave())),
+          // The render's mark, card and chart sit in its top quarter; the rest
+          // is empty, which is where the plans go.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Image.asset('assets/onboarding/paywall_hero.png',
+                fit: BoxFit.fitWidth),
+          ),
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x0000082D),
+                      Color(0x0000082D),
+                      Color(0xCC00082D),
+                      _paper,
+                    ],
+                    stops: [0, 0.13, 0.19, 0.25],
+                  ),
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: Column(
               children: [
@@ -234,36 +260,37 @@ class _OnbPaywallState extends State<OnbPaywall> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                     child: Column(
                       children: [
-                        Container(
-                          width: 54,
-                          height: 54,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(15)),
-                          child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
+                        // Clears the render's artwork above.
+                        SizedBox(
+                            height: MediaQuery.of(context).size.width *
+                                1844 /
+                                853 *
+                                0.135),
+                        // "Premium" carries the brand blue — it is the word the
+                        // screen is selling.
+                        const Text.rich(
+                          TextSpan(children: [
+                            TextSpan(text: 'Vaultie '),
+                            TextSpan(
+                                text: 'Premium',
+                                style: TextStyle(color: _blueBright)),
+                          ]),
+                          style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: _ink,
+                              letterSpacing: -0.8),
                         ),
-                        const SizedBox(height: 12),
-                        const Text('Vaultie Premium',
-                            style: TextStyle(
-                                fontSize: 28, fontWeight: FontWeight.w800,
-                                color: _ink, letterSpacing: -0.8)),
                         const SizedBox(height: 8),
                         Text(
-                          tr('Visos funkcijos vienoje vietoje.\nDaugiau įžvalgų, kontrolės ir sutaupytų pinigų.'),
+                          tr('Visos funkcijos vienoje vietoje.'),
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontSize: 13.5, height: 1.45, color: _sub),
                         ),
-                        const SizedBox(height: 18),
-                        _features(),
-                        const SizedBox(height: 18),
-                        _planCard(
-                          annual: false,
-                          title: tr('Mėnesinis planas'),
-                          price: _priceFor(PlanId.monthly),
-                          period: tr('/ mėn.'),
-                          chip: '${_eur(_yearOfMonthly)} ${tr('per metus')}',
-                          trialDays: _trialFor(PlanId.monthly),
-                        ),
-                        const SizedBox(height: 10),
+                        // Plans first: the price is the decision, and on a short
+                        // phone it used to sit below three feature cards where
+                        // it had to be scrolled to.
+                        const SizedBox(height: 16),
                         _planCard(
                           annual: true,
                           title: tr('Metinis planas'),
@@ -272,8 +299,18 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           trialDays: _trialFor(PlanId.yearly),
                           chip: '${_eur(_yearlyPerMonth)} ${tr('/ mėn.')}',
                         ),
-                        const SizedBox(height: 12),
-                        _savingsBox(),
+                        const SizedBox(height: 10),
+                        _planCard(
+                          annual: false,
+                          title: tr('Mėnesinis planas'),
+                          price: _priceFor(PlanId.monthly),
+                          period: tr('/ mėn.'),
+                          chip: '${_eur(_yearOfMonthly)} ${tr('per metus')}',
+                          trialDays: _trialFor(PlanId.monthly),
+                        ),
+                        _trialLine(),
+                        const SizedBox(height: 14),
+                        _features(),
                       ],
                     ),
                   ),
@@ -305,14 +342,12 @@ class _OnbPaywallState extends State<OnbPaywall> {
                     height: 44,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: const Color(0xFF07231A),
                       borderRadius: BorderRadius.circular(13),
-                      boxShadow: [
-                        BoxShadow(color: const Color(0xFF0A2260).withValues(alpha: 0.07),
-                            blurRadius: 12, offset: const Offset(0, 4)),
-                      ],
+                      border:
+                          Border.all(color: _green.withValues(alpha: 0.40)),
                     ),
-                    child: Icon(f.$1, size: 22, color: _blueBright),
+                    child: Icon(f.$1, size: 22, color: _green),
                   ),
                   const SizedBox(height: 7),
                   Text(f.$2,
@@ -339,9 +374,10 @@ class _OnbPaywallState extends State<OnbPaywall> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: on ? const Color(0xFF07184A) : const Color(0xFF041038),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: on ? _blue : _hair, width: on ? 1.8 : 1),
+          border: Border.all(
+              color: on ? _blue : const Color(0xFF17275C), width: on ? 1.8 : 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,13 +385,38 @@ class _OnbPaywallState extends State<OnbPaywall> {
             if (annual)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(7)),
-                  child: Text(tr('POPULIARUS PASIRINKIMAS'),
-                      style: const TextStyle(
-                          fontSize: 9, fontWeight: FontWeight.w800,
-                          color: Colors.white, letterSpacing: 0.4)),
+                child: Row(
+                  children: [
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: _blue, borderRadius: BorderRadius.circular(7)),
+                      child: Text(tr('POPULIARUS PASIRINKIMAS'),
+                          style: const TextStyle(
+                              fontSize: 9, fontWeight: FontWeight.w800,
+                              color: Colors.white, letterSpacing: 0.4)),
+                    ),
+                    const Spacer(),
+                    // The saving was a green slab of its own under both plans,
+                    // which read as a third option. It belongs to this plan, so
+                    // it sits in it.
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: _greenSoft,
+                          borderRadius: BorderRadius.circular(7),
+                          border: Border.all(
+                              color: _green.withValues(alpha: 0.45))),
+                      child: Text(
+                          '${tr('Sutaupai')} ${_eur(_saving)}',
+                          style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: _green)),
+                    ),
+                  ],
                 ),
               ),
             Row(
@@ -366,7 +427,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: on ? _blue : const Color(0xFFC9D2E2), width: 2),
+                    border: Border.all(color: on ? _blue : const Color(0xFF3A4A6B), width: 2),
                   ),
                   child: on
                       ? Container(
@@ -382,7 +443,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                       Text(title,
                           style: TextStyle(
                               fontSize: 17, fontWeight: FontWeight.w800,
-                              color: on ? _blue : _ink)),
+                              color: on ? const Color(0xFF9FC0FF) : _ink)),
                       const SizedBox(height: 2),
                       Text(
                           trialDays != null
@@ -451,29 +512,52 @@ class _OnbPaywallState extends State<OnbPaywall> {
     );
   }
 
-  Widget _savingsBox() => Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(color: _greenSoft, borderRadius: BorderRadius.circular(14)),
+  /// The trial promise, directly under the plans it applies to rather than at
+  /// the foot of the screen — it is part of choosing a plan, not part of the
+  /// button. The green half appears ONLY when the store confirmed this Apple ID
+  /// is still eligible; everyone else gets the cancellation line, which is true
+  /// either way. See PurchaseService._loadTrials for why eligibility is asked
+  /// rather than assumed.
+  Widget _trialLine() {
+    final trial = _trialFor(_plan);
+    if (trial == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Center(
+          child: Text(tr('Atšaukti gali bet kada.'),
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w600, color: _sub)),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _greenSoft,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _green.withValues(alpha: 0.45)),
+        ),
         child: Row(
           children: [
-            const Icon(Icons.sell_rounded, size: 22, color: _green),
-            const SizedBox(width: 11),
+            const Icon(Icons.lock_open_rounded, size: 17, color: _green),
+            const SizedBox(width: 9),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('${tr('Sutaupai')} ${_eur(_saving)}',
-                      style: const TextStyle(
-                          fontSize: 14.5, fontWeight: FontWeight.w800, color: _green)),
-                  const SizedBox(height: 1),
-                  Text(tr('Pasirinkus metinį planą, lyginant su mėnesiniu.'),
-                      style: const TextStyle(fontSize: 11.5, height: 1.3, color: _sub)),
-                ],
+              child: Text(
+                '${tr('Išbandyk')} $trial ${tr('d. nemokamai')} · ${tr('atšaukti gali bet kada')}',
+                style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1.3,
+                    color: _green),
               ),
             ),
           ],
         ),
-      );
+      ),
+    );
+  }
 
   /// Button plus the disclosures Apple requires on a subscription screen.
   Widget _bottom() {
@@ -573,21 +657,3 @@ class _OnbPaywallState extends State<OnbPaywall> {
 }
 
 /// The blue swell along the bottom edge.
-class _Wave extends CustomPainter {
-  const _Wave();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final h = size.height;
-    final path = Path()
-      ..moveTo(0, h - 54)
-      ..cubicTo(size.width * 0.28, h - 84, size.width * 0.62, h - 22, size.width, h - 62)
-      ..lineTo(size.width, h)
-      ..lineTo(0, h)
-      ..close();
-    canvas.drawPath(path, Paint()..color = const Color(0xFF003FE7).withValues(alpha: 0.10));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
-}

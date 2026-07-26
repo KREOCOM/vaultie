@@ -29,11 +29,10 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-const _ink = Color(0xFF061439);
-const _sub = Color(0xFF5C6A85);
+const _ink = Color(0xFFFFFFFF);
+const _sub = Color(0xFF9DB0D6);
 const _brand = Color(0xFF2F6BFF);
-const _paper = Color(0xFFFDFDFE);
-const _hair = Color(0xFFE3E9F2);
+const _paper = Color(0xFF00041D);
 
 class _LoginScreenState extends State<LoginScreen> {
   late final _auth = AuthService();
@@ -85,6 +84,34 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: _paper,
       body: Stack(
         children: [
+          // The render's icon field and the glowing mark occupy the top half;
+          // below that it is empty floor, which is where the form goes.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Image.asset('assets/onboarding/login_bg.png',
+                fit: BoxFit.fitWidth),
+          ),
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x0000041D),
+                      Color(0x0000041D),
+                      Color(0xCC00041D),
+                      _paper,
+                    ],
+                    stops: [0, 0.22, 0.32, 0.42],
+                  ),
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
@@ -92,25 +119,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 62,
-                      height: 62,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0A2260).withValues(alpha: 0.16),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                  // Clears the render's tiles, which end 34% down; without this
+                  // the block centred over them instead of under them.
+                  SizedBox(
+                      height: MediaQuery.of(context).size.width *
+                          1844 /
+                          853 *
+                          0.30),
                   Text(tr('Sukurk paskyrą'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -125,15 +140,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 30),
                   _button(
+                    // Google's mark must sit on white — that is its brand
+                    // requirement, not a design choice.
                     label: tr('Tęsti su Google'),
                     bg: Colors.white,
-                    fg: _ink,
-                    border: _hair,
+                    fg: const Color(0xFF10182F),
+                    border: null,
                     leading: Image.asset('assets/icon/google_g.png', width: 20, height: 20),
                     onTap: () => _social(_auth.signInWithGoogle,
                         fail: _isLt ? 'Nepavyko prisijungti su Google.' : 'Google sign-in failed.'),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   _button(
                     label: tr('Tęsti su Apple'),
                     bg: Colors.black,
@@ -142,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onTap: () => _social(_auth.signInWithApple,
                         fail: _isLt ? 'Nepavyko prisijungti su Apple.' : 'Apple sign-in failed.'),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   _button(
                     label: tr('Tęsti su el. paštu'),
                     bg: _brand,
@@ -163,6 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 14),
                   _terms(),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -215,7 +233,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final link = base.copyWith(color: _brand, fontWeight: FontWeight.w700);
     return Text.rich(
       TextSpan(children: [
-        TextSpan(text: tr('Tęsdamas sutinki su ')),
+        TextSpan(text: tr('Tęsdamas (-a) sutinki su ')),
         TextSpan(
             text: tr('Sąlygomis'),
             style: link,
