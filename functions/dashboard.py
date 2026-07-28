@@ -14,6 +14,7 @@ persisted server-side — the payload goes straight back to the user's device.
 
 import datetime as dt
 import logging
+import math
 import re
 from collections import OrderedDict, defaultdict
 
@@ -826,16 +827,48 @@ def _collapse_recurring(cands):
     return out
 
 
+def _amount_band(cost) -> int:
+    """A coarse, order-of-magnitude band for an amount.
+
+    Bands are geometric (each ~3.2x the previous), so the tolerance scales with
+    the amount instead of being a fixed number of cents that means everything at
+    3 EUR and nothing at 300 EUR.
+
+    The width is set by what has to survive: a subscription's price rise. Narrower
+    bands (1.78x) looked tidier and failed the real case — 12.99 -> 14.99 straddled
+    a boundary and moved the id. A stream now has to get more than three times
+    dearer before it loses its identity, while 2.99 and 19.95 at the same merchant
+    still land apart.
+    """
+    amount = abs(float(cost or 0))
+    if amount < 0.01:
+        return 0
+    return int(round(math.log10(amount) * 2))
+
+
 def _series_id(name, cadence, cost):
-    """Stable identity for ONE recurring stream, so a user-assigned name (e.g.
-    labelling an anonymous 'APPLE.COM/BILL' stream as 'ChatGPT') sticks across
-    re-fetches. Keyed by merchant + cadence + per-charge amount (cents): two Apple
-    subscriptions at DIFFERENT prices get different ids and are named separately;
-    two at the SAME price are genuinely indistinguishable from bank data and
-    share one id by design. Deterministic → same stream → same id every scan."""
+    """Stable identity for ONE recurring stream, so a user's decisions about it —
+    a name they typed, "don't count this", "this one is still active" — survive
+    every re-scan.
+
+    Keyed by merchant + cadence + amount BAND, not exact cents. Exact cents made
+    the id move under the user twice over:
+
+      * `cost` is the AVERAGE per-charge amount, so it shifts as history arrives.
+        Connecting a bank runs a fast 3-month scan and then a deeper 12-month one;
+        the deeper scan changed the average, changed the id, and every verdict
+        recorded against the old id stopped matching. That is why the "check your
+        recurring payments" sheet asked the same questions twice.
+      * a price change is ONE subscription at a new price (see test_price_change),
+        but it moved the id — so a payment the user had excluded silently came
+        back the month their subscription got more expensive.
+
+    Two Apple subscriptions at genuinely different prices still land in different
+    bands and stay separately named. Two within ~78% of each other now share an
+    id; that is the deliberate trade — bank data cannot tell them apart anyway,
+    and losing a user's decision is the worse failure."""
     key = re.sub(r"\s+", " ", str(name or "—").strip().lower())[:24]
-    cents = int(round(float(cost or 0) * 100))
-    return f"{key}|{cadence or ''}|{cents}"
+    return f"{key}|{cadence or ''}|b{_amount_band(cost)}"
 
 
 def _subs(txns, corpus=None, own_ibans=None, today=None):

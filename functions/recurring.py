@@ -139,6 +139,25 @@ def _clean_name(raw: str) -> str:
     return s or raw.strip()
 
 
+def _amount_bucket(amount: float, existing) -> float:
+    """The key [amount] belongs under: an existing near-equal one, or itself.
+
+    "Near" is 2% of the larger amount. The tolerance must stay RELATIVE: an
+    absolute floor of 0.50 EUR looks harmless but is 17% of a 2.99 charge, and it
+    swallowed a one-off 3.49 App Store purchase into the 2.99 subscription — a
+    non-subscription amount presented as recurring. 2% covers the drift this
+    exists for (a 399 loan booked as 398) and nothing else.
+
+    Returns the FIRST matching existing key, so a run of drifting amounts
+    collapses onto whichever was seen first rather than chaining arbitrarily far.
+    """
+    for k in existing:
+        span = max(abs(k), abs(amount))
+        if span > 0 and abs(k - amount) <= max(0.02, span * 0.02):
+            return k
+    return amount
+
+
 def _classify_cadence(gap_days: float):
     """Map an average gap to (billing cycle, human label).
 
@@ -318,11 +337,20 @@ def segment_streams(items, key):
         return [(items, "single", f"{key}#0")]
     dated = [(_iso(d), a) for d, a, _ in items]
 
-    # L3a — fixed-amount recurring sub-streams.
+    # L3a — fixed-amount recurring sub-streams, bucketed by NEAR-equal amount.
+    #
+    # Bucketing on the exact cent split one obligation in two whenever the amount
+    # drifted: a MOGO loan booked as 399.00 and 398.00 in alternating months
+    # became two interleaved streams, and because each only saw every OTHER
+    # payment, each measured twice the real gap and was priced at half — 399/mo
+    # was reported as 199/mo. The same split produced a phantom second MOGO row
+    # from another bank at 163/mo. Amounts within ~2% (floor 0.50 EUR) are the
+    # same charge; anything further apart stays separate, which is what keeps
+    # iCloud at 2.99 from being merged with Apple One at 19.95.
     by_amt = defaultdict(list)
     for i, (d, a) in enumerate(dated):
         if a is not None:
-            by_amt[round(a, 2)].append(i)
+            by_amt[_amount_bucket(round(a, 2), by_amt.keys())].append(i)
     fixed = []
     used = [False] * len(items)
     for amt, idxs in sorted(by_amt.items()):
@@ -627,6 +655,27 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
     status, days_since = _lifecycle(last, cycle, occ, today, gap)
     # Monthly-equivalent of this stream's typical charge (the projection unit).
     monthly = round(avg * _per_month(cycle, gap), 2)
+    # TWO charges are ONE interval, and one interval is not a cadence. When that
+    # lone interval also matches no known cycle, "custom" prices the stream off
+    # the measured gap: two MOGO payments of 399 EUR, 74 days apart, became a
+    # confident "163 EUR/mo" — an amount the user has never paid, silently added
+    # to the monthly commitment, and sitting next to the SAME loan detected from
+    # another bank. The monthly-equivalent arithmetic is right; the confidence is
+    # not. Ask instead of assuming: flag it for review so the user is asked,
+    # rather than it appearing as a settled commitment.
+    #
+    # ONLY the review flag. It stays counted while it waits, which is this
+    # codebase's existing rule for everything uncertain ("possible" merchants are
+    # counted and flagged too). Clearing `confident` instead looks tempting and is
+    # wrong twice over: dashboard.py:860 uses `confident` to decide what enters
+    # the recurring list at all, so it would DELETE the stream rather than
+    # question it — and a two-charge Apple bill 36 days apart lands in this same
+    # branch, because the monthly window stops at 35 days.
+    #
+    # A recognised cycle seen twice (a yearly bill, ~365 days apart) is NOT
+    # affected — that gap identifies itself, it isn't inferred from one sample.
+    if occ < 3 and cycle == "custom":
+        needs_review = True
     return {
         "name": display,
         "type": mtype,                      # subscription | bill | transfer
