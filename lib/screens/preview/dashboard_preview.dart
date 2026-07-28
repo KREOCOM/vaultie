@@ -9247,6 +9247,22 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                       if (!mounted) return;
                       setState(() => _currency = _currencyLabel(c.code));
                       if (ctx.mounted) Navigator.pop(ctx);
+                      // Without a rate the app keeps showing euros — amounts are
+                      // stored in EUR and a foreign symbol on an unconverted
+                      // number is a wrong figure stated with confidence. That
+                      // fallback was SILENT, so picking a currency on a fresh
+                      // install or a bad connection looked like a dead button.
+                      // The choice is saved and applies itself once the table
+                      // lands; say so instead of appearing broken.
+                      if (!FxRates.instance.hasRateFor(c.code) && mounted) {
+                        ScaffoldMessenger.of(context)
+                          ..clearSnackBars()
+                          ..showSnackBar(SnackBar(
+                            content: Text(tr(
+                                'Valiutų kursai dar neužkrauti — sumos liks eurais, kol jie atsinaujins.')),
+                            duration: const Duration(seconds: 4),
+                          ));
+                      }
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
