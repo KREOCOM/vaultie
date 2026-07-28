@@ -149,6 +149,11 @@ def _begin(req: https_fn.CallableRequest, name: str) -> str:
     return rid
 
 
+# Firebase uid of the App Review demo account (appreview@vaultie.app). See
+# _require_premium below and lib/services/review_account.dart on the client.
+_REVIEW_UID = "6X4ktnyRMKOTCZSCr0NDdehQPbt2"
+
+
 def _require_premium(req: https_fn.CallableRequest) -> None:
     """Refuse the paid endpoints to users without a subscription.
 
@@ -162,6 +167,19 @@ def _require_premium(req: https_fn.CallableRequest) -> None:
     # test (she can't complete the App Store purchase). Pairs with the client
     # kBypassPaywall flag. REVERT before any real release.
     if _TEST_BYPASS_PREMIUM:
+        return
+    # App Review's demo account. One hard-coded uid, nothing else.
+    #
+    # The reviewer signs in to a fully populated dashboard, and the first thing
+    # anyone does with a finance app is open the AI chat — which is behind this
+    # gate and answered "server unreachable", because the account holds no
+    # RevenueCat entitlement. A feature that fails in front of a reviewer is a
+    # rejection; there is no way to explain it in the notes afterwards.
+    #
+    # Narrow on purpose: a single uid, no email matching, no flag anyone can
+    # flip. Its data is the bundled sample month, so nothing here exposes a real
+    # user's information — only the compute the reviewer needs to see it work.
+    if _uid(req) == _REVIEW_UID:
         return
     if _is_premium(_uid(req), REVENUECAT_API_KEY.value):
         return

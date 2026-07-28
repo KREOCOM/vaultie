@@ -414,12 +414,27 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
         # source = your salary (booked on the real payday, in whatever currency).
         if amt > 0 and _norm(name) in salary_refs:
             return (name, "Atlyginimas", "income", "income", "Pajamos", "amber", True, False)
+        # A PERSON IS NEVER A BILL — and this check has to come before the
+        # keyword hints, not after them.
+        #
+        # The hints are substring matches, so they fired on ordinary Lithuanian
+        # names long before the person check was reached: "rent" is inside
+        # "Renata", "artus" is inside "Bartuška". Those transfers were filed as
+        # "Būstas, nuoma" with is_transfer=False, which did two kinds of damage:
+        # a friend appeared among the household bills, and — because a positive
+        # amount in a non-income section is read as a REFUND — money received
+        # from that person was SUBTRACTED from spending. Spend 800 €, get 500 €
+        # back from Renata, and the dashboard reported 300 € spent.
+        #
+        # Ordering it first is safe for real companies: _is_person_name rejects
+        # anything carrying a company marker, and "grupė" is one — so "Artus
+        # Grupė" still reaches the housing hint below.
+        if _is_person_name(name):
+            return (name, "Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True)
         if any(k in nl for k in _FINANCE_HINTS):
             return (name, "Paskola, lizingas", "finance", "money", "Finansai", "red", amt > 0, False)
         if any(k in nl for k in _HOUSING_HINTS):
             return (name, "Būstas, nuoma", "housing", "house", "Būstas, sąskaitos", "olive", amt > 0, False)
-        if _is_person_name(name):
-            return (name, "Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True)
         return (name, "Pervedimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
 
     # known merchant by name (BEFORE the fee check, so an oddly-coded Apple/Google

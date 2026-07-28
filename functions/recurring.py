@@ -140,17 +140,33 @@ def _clean_name(raw: str) -> str:
 
 
 def _classify_cadence(gap_days: float):
+    """Map an average gap to (billing cycle, human label).
+
+    Every branch here feeds the monthly-commitment total, so a cycle that is
+    merely *close enough* is a wrong number on the user's screen. Two branches
+    used to collapse into "monthly" and both understated or overstated badly:
+
+      * a 14-day gap was labelled "biweekly" but billed as monthly — a 30 €
+        fortnightly charge counted as 30 €/month instead of 65 €;
+      * ANY unrecognised gap fell through to "monthly" — a 600 € insurance paid
+        twice a year (~182 days) counted as 600 EVERY MONTH instead of 100.
+
+    Both now carry their own cycle, and anything still unrecognised is returned
+    as "custom" so the callers derive from the real gap instead of assuming.
+    """
     if 6 <= gap_days <= 8:
         return "weekly", "weekly"
     if 12 <= gap_days <= 16:
-        return "monthly", "biweekly"
+        return "biweekly", "biweekly"
     if 25 <= gap_days <= 35:
         return "monthly", "monthly"
     if 85 <= gap_days <= 95:
         return "quarterly", "quarterly"
+    if 170 <= gap_days <= 195:
+        return "semiannual", "semiannual"
     if 350 <= gap_days <= 380:
         return "yearly", "yearly"
-    return "monthly", f"~{round(gap_days)}d"
+    return "custom", f"~{round(gap_days)}d"
 
 
 def _add_months(d: dt.date, months: int) -> dt.date:
@@ -165,12 +181,20 @@ def _add_months(d: dt.date, months: int) -> dt.date:
 def _next_billing(last: dt.date, cycle: str, gap_days: float) -> dt.date:
     if cycle == "weekly":
         return last + dt.timedelta(days=7)
+    if cycle == "biweekly":
+        return last + dt.timedelta(days=14)
     if cycle == "quarterly":
         return _add_months(last, 3)
+    if cycle == "semiannual":
+        return _add_months(last, 6)
     if cycle == "yearly":
         return _add_months(last, 12)
     if cycle == "monthly":
         return _add_months(last, 1)
+    # "custom": use the gap we actually measured. This line already existed and
+    # was already right — it was simply unreachable, because the classifier never
+    # returned anything but a known cycle. A half-yearly charge was therefore
+    # projected one month out, five months early.
     return last + dt.timedelta(days=round(gap_days))
 
 
@@ -530,14 +554,34 @@ def _looks_person_shaped(name: str) -> bool:
 # but must drop out of the monthly & annual projection once the expected charges
 # stop arriving. Tolerances scale with each stream's OWN cadence, so a yearly
 # bill isn't declared dead after two months.
-_CYCLE_DAYS = {"weekly": 7, "monthly": 30, "quarterly": 91, "yearly": 365}
+_CYCLE_DAYS = {"weekly": 7, "biweekly": 14, "monthly": 30, "quarterly": 91,
+               "semiannual": 182, "yearly": 365}
 # per-charge cost → monthly-equivalent, so the projection is a true monthly sum
 # regardless of billing frequency (a €600 yearly bill counts as €50/mo, not €600).
-_CYCLE_PER_MONTH = {"weekly": 4.345, "monthly": 1.0,
-                    "quarterly": 1 / 3.0, "yearly": 1 / 12.0}
+_CYCLE_PER_MONTH = {"weekly": 4.345, "biweekly": 2.174, "monthly": 1.0,
+                    "quarterly": 1 / 3.0, "semiannual": 1 / 6.0,
+                    "yearly": 1 / 12.0}
+
+_DAYS_PER_MONTH = 365.25 / 12  # 30.44
 
 
-def _lifecycle(last: dt.date, cycle: str, occ: int, today: dt.date):
+def _per_month(cycle: str, gap_days) -> float:
+    """How many times a month this stream charges.
+
+    Falls back to the measured gap rather than to 1.0. `.get(cycle, 1.0)` meant
+    every unrecognised cadence was quietly priced as monthly, which is where the
+    600 €-a-month "insurance" came from.
+    """
+    known = _CYCLE_PER_MONTH.get(cycle)
+    if known is not None:
+        return known
+    if gap_days and gap_days > 0:
+        return _DAYS_PER_MONTH / gap_days
+    return 1.0
+
+
+def _lifecycle(last: dt.date, cycle: str, occ: int, today: dt.date,
+               gap_days=None):
     """Return ``(status, days_since_last)`` for a recurring stream.
 
       early  — <2 sightings: detected but unproven (Plaid EARLY_DETECTION).
@@ -550,7 +594,11 @@ def _lifecycle(last: dt.date, cycle: str, occ: int, today: dt.date):
     status just steers whether it counts as a future commitment; the user can
     always override it.
     """
-    cd = _CYCLE_DAYS.get(cycle, 30)
+    # Tolerances scale with the stream's OWN cadence. A "custom" cadence has no
+    # entry here, and defaulting it to 30 days declared every long-cycle stream
+    # dead within a couple of months — so a half-yearly bill dropped out of the
+    # projection and simply stopped being counted.
+    cd = _CYCLE_DAYS.get(cycle) or (round(gap_days) if gap_days else 30)
     days = (today - last).days
     if occ < 2:
         return "early", days
@@ -576,9 +624,9 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
         # confirm; billing math still needs a cycle, so keep monthly internally.
         gap, cycle, label = 30.0, "monthly", "once"
     last = dates[-1] if dates else today
-    status, days_since = _lifecycle(last, cycle, occ, today)
+    status, days_since = _lifecycle(last, cycle, occ, today, gap)
     # Monthly-equivalent of this stream's typical charge (the projection unit).
-    monthly = round(avg * _CYCLE_PER_MONTH.get(cycle, 1.0), 2)
+    monthly = round(avg * _per_month(cycle, gap), 2)
     return {
         "name": display,
         "type": mtype,                      # subscription | bill | transfer
