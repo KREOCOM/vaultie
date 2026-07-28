@@ -375,14 +375,23 @@ class DashboardStore {
   /// the heuristic thinks the stream ended.
   static Set<String> recurringIncluded() => _loadSet(_kRecIncluded);
 
-  /// Set the user's verdict for ONE stream, keyed by its [sid]. [counted] true →
-  /// force-include; false → force-exclude; null → clear (back to the heuristic).
-  static Future<void> setRecurringOverride(String sid, bool? counted) async {
-    final key = sid.trim();
-    final excl = recurringExcluded()..remove(key);
-    final incl = recurringIncluded()..remove(key);
-    if (counted == false) excl.add(key);
-    if (counted == true) incl.add(key);
+  /// Set the user's verdict for ONE stream. [counted] true → force-include;
+  /// false → force-exclude; null → clear (back to the heuristic).
+  ///
+  /// [alsoClear] must list every OTHER key the same stream may already be stored
+  /// under — its old positional sid, its bare lowercase name. Readers accept all
+  /// of those forms, so clearing only [key] left a stale "excluded" entry that
+  /// won every lookup: the SEB row could not be switched back on, because each
+  /// tap wrote include under the new key while the old sid kept excluding it, and
+  /// the toggle simply appeared dead.
+  static Future<void> setRecurringOverride(String key, bool? counted,
+      {Iterable<String> alsoClear = const []}) async {
+    final k = key.trim();
+    final stale = [k, ...alsoClear.map((s) => s.trim())].where((s) => s.isNotEmpty);
+    final excl = recurringExcluded()..removeAll(stale);
+    final incl = recurringIncluded()..removeAll(stale);
+    if (counted == false) excl.add(k);
+    if (counted == true) incl.add(k);
     try {
       await _box.put(_kRecExcluded, jsonEncode(excl.toList()));
       await _box.put(_kRecIncluded, jsonEncode(incl.toList()));

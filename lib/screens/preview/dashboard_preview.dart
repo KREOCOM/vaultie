@@ -502,11 +502,17 @@ String _recKey(Map it) {
 /// True when [set] holds a verdict for this stream under EITHER key: the stable
 /// one, or the sid a previous build stored it under. Keeps decisions already on
 /// the device working instead of silently resetting them all once.
-bool _recHasVerdict(Set<String> set, Map it) {
-  if (set.contains(_recKey(it))) return true;
-  final sid = ((it['sid'] as String?) ?? '').trim();
-  return sid.isNotEmpty && set.contains(sid);
-}
+bool _recHasVerdict(Set<String> set, Map it) =>
+    _recAliases(it).any(set.contains);
+
+/// Every key this stream may already be stored under: the old positional sid and
+/// the bare lowercase name that even earlier builds used. A write must clear ALL
+/// of them, or a stale entry keeps winning the lookup — see setRecurringOverride.
+List<String> _recAliases(Map it) => [
+      _recKey(it),
+      ((it['sid'] as String?) ?? '').trim(),
+      ((it['name'] as String?) ?? '').trim().toLowerCase(),
+    ].where((s) => s.isNotEmpty).toList();
 
 bool _recCounted(Map it, Set<String> excl, Set<String> incl) {
   // A transfer (person-to-person, own-account, exchange) is NEVER a commitment —
@@ -1897,9 +1903,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // Day "spent" uses the canonical rule (expenses only) so it stays
       // consistent with the month header and category totals.
       final total = dayTx.fold(0.0, (s, t) => s + _spendOf(t));
+      // What the header actually shows: the sum of the rows printed underneath
+      // it, signed the way those rows are signed. `total` above is NET SPENDING
+      // — positive means money left — which is the opposite convention to every
+      // row in the list, so a day on which more money arrived than left was
+      // headed "−76,74 €" and read as a day of spending. The one property that
+      // makes this number checkable is that adding up the visible rows gives it.
+      final netFlow = dayTx.fold(0.0, (s, t) => s + _aOf(t).toDouble());
       final dt = DateTime.tryParse(d);
       if (dt == null) continue;   // skip a day with an unparseable date, don't crash
-      out.add({'date': d, 'wd': _wdFull[dt.weekday - 1], 'day': dt.day, 'total': total, 'tx': tx});
+      out.add({'date': d, 'wd': _wdFull[dt.weekday - 1], 'day': dt.day, 'total': total, 'net': netFlow, 'tx': tx});
     }
     return out;
   }
@@ -2589,9 +2602,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
             Text('${dd['wd']}, ${dd['day']} d.',
                 style: TextStyle(fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
             const Spacer(),
-            // Day "spent" (expenses only) — matches the month header rule.
-            Text(_eur((dd['total'] as num).toDouble()),
-                style: TextStyle(fontSize: 13.5, color: _muted)),
+            // The day's net, signed like the rows below it: negative = money
+            // left. Older cached days carry no 'net', so fall back to negating
+            // the spend-positive 'total' rather than showing a wrong sign.
+            Builder(builder: (_) {
+              final n = (dd['net'] as num?)?.toDouble() ??
+                  -((dd['total'] as num?)?.toDouble() ?? 0);
+              return Text(_eur(n, signed: true),
+                  style: TextStyle(
+                      fontSize: 13.5, color: n > 0 ? _good : _muted));
+            }),
           ]),
         ),
         Padding(
@@ -7803,7 +7823,8 @@ class _RecurringScreenState extends State<_RecurringScreen> {
     final backendActive = it['active'] == true && it['type'] != 'transfer';
     // Match the heuristic → clear the override; differ → store the user's choice.
     final bool? override = (counted == backendActive) ? null : counted;
-    await DashboardStore.setRecurringOverride(_recKey(it), override);
+    await DashboardStore.setRecurringOverride(_recKey(it), override,
+        alsoClear: _recAliases(it));
     if (!mounted) return;
     setState(() {
       _excl = DashboardStore.recurringExcluded();
@@ -8070,7 +8091,8 @@ class _RecurringReviewSheetState extends State<_RecurringReviewSheet> {
     // the engine hadn't counted just vanished). Red ✗ = force-EXCLUDE. Either way
     // it leaves the review queue. Keyed by name+amount so the verdict survives the
     // deeper scan re-splitting the streams — see _recKey.
-    await DashboardStore.setRecurringOverride(_recKey(it), keep);
+    await DashboardStore.setRecurringOverride(_recKey(it), keep,
+        alsoClear: _recAliases(it));
     await DashboardStore.markRecurringReviewed(_recKey(it));
     if (!mounted) return;
     setState(() {
