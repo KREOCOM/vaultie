@@ -44,7 +44,7 @@ class OnbOverview extends StatelessWidget {
           'Kasdien atnaujinami duomenys',
           'Aiškios įžvalgos be skaičių chaoso',
         ],
-        dotIndex: 3,
+        dotIndex: 2,
         dotCount: 6,
         warmNext: 'assets/onboarding/page5_scene.png',
       );

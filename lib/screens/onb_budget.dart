@@ -55,7 +55,7 @@ class OnbBudget extends StatelessWidget {
           'Pastebėk kainų pokyčius',
           'Žinok metinę išlaidų sumą',
         ],
-        dotIndex: 5,
+        dotIndex: 4,
         dotCount: 6,
         warmNext: 'assets/onboarding/page7_scene.png',
       );

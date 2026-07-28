@@ -52,7 +52,13 @@ Future<void> ensureLocalDataForCurrentUser() async {
   // an actual stack trace. The uid is Vaultie's own identifier — no email, no
   // name, nothing from the bank.
   try {
-    await FirebaseCrashlytics.instance.setUserIdentifier(uid);
+    // Bounded. This sits between the splash and the first real screen, and it
+    // had no timeout of its own — so on a flaky connection (or offline, waiting
+    // out DNS) it held the branded splash for as long as it liked. Tagging a
+    // crash report is best-effort; nothing waits on the answer.
+    await FirebaseCrashlytics.instance
+        .setUserIdentifier(uid)
+        .timeout(const Duration(seconds: 3));
   } catch (_) {
     // Reporting is best-effort and must never block sign-in.
   }

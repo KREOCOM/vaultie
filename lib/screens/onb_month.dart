@@ -46,7 +46,7 @@ class OnbMonth extends StatelessWidget {
           'Mokosi iš tavo pataisymų',
           'Jokio rankinio vedimo',
         ],
-        dotIndex: 2,
+        dotIndex: 1,
         dotCount: 6,
         warmNext: 'assets/onboarding/page4_scene.png',
       );

@@ -138,6 +138,12 @@ class _OnbPaywallState extends State<OnbPaywall> {
   /// paywall that advances on failure is indistinguishable from one that works,
   /// which is exactly the trap the old unwired paywall fell into.
   Future<void> _buy() async {
+    // Hard guard, not just the greyed-out button.
+    //
+    // `onTap: _busy ? null : _buy` only stops the SECOND frame: two taps inside
+    // one frame — or a tap landing while `setState` is still in flight — both
+    // reached here and opened two StoreKit purchase sheets for the same plan.
+    if (_busy) return;
     setState(() => _busy = true);
     final result = await PurchaseService.instance.purchase(_plan);
     if (!mounted) return;

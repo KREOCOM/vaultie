@@ -320,6 +320,13 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       // twice. Its BankCallbackScreen is on top and will land on the dashboard.
       if (!BankConnectClaim.claim(code)) {
         _stopStages();
+        // Drop back to the list instead of returning mid-phase.
+        //
+        // The deep-link path got to the code first and its screen is now on top,
+        // finishing the connection. This screen stayed frozen on "Opening
+        // <bank>…" underneath it, so if the user ever came back here — or if the
+        // callback screen closed — they found a spinner that would never resolve.
+        if (mounted) setState(() => _phase = _Phase.list);
         return;
       }
       if (!mounted) return;

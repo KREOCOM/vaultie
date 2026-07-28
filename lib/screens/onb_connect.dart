@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_prefs.dart';
 import '../i18n.dart';
@@ -52,11 +53,15 @@ class _OnbConnectState extends State<OnbConnect> {
   /// the whole intro again on the next launch. Quitting mid-chain deliberately
   /// leaves the flag unset: an unfinished intro should resume from the start.
   Future<void> _finish() async {
+    // A firmer tick than the "Toliau" pages get: this is the tap that ends the
+    // intro and hands over to the sign-in, so it should not feel identical to
+    // turning a page.
+    HapticFeedback.mediumImpact();
     await AppPrefs.setOnboarded(true);
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 420),
+        transitionDuration: const Duration(milliseconds: 200),
         pageBuilder: (_, __, ___) => widget.next,
         transitionsBuilder: (_, a, __, child) =>
             FadeTransition(opacity: a, child: child),

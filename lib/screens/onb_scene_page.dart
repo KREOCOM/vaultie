@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_prefs.dart';
 import '../i18n.dart';
@@ -213,9 +214,13 @@ class _OnbScenePageState extends State<OnbScenePage> {
   }
 
   void _next() {
+    // A light tick under the thumb on every step of the intro. One tap, one
+    // tick — the pages are pushed, never swiped, so there is nothing else that
+    // could fire a second one.
+    HapticFeedback.lightImpact();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 420),
+        transitionDuration: const Duration(milliseconds: 200),
         pageBuilder: (_, __, ___) => widget.next,
         transitionsBuilder: (_, a, __, child) =>
             FadeTransition(opacity: a, child: child),

@@ -37,9 +37,26 @@ class DashboardStore {
   // turn transactions into a dashboard — and keeping the merge logic in exactly
   // one place is what stops the two from ever disagreeing.
 
+  /// Same tolerance for values read out of a decoded payload rather than the box.
+  /// The bank decides these shapes, not us, so a field arriving as a number
+  /// instead of a string must not take a screen down.
+  static String? _asStr(Object? v) => v is String ? v : null;
+
+  /// Reads [key] as a String, tolerating a value of any other type.
+  ///
+  /// These reads were plain `as String?` casts sitting OUTSIDE the try blocks
+  /// that follow them, so the guard never saw them: a value written by an older
+  /// build, or half-written by a crash, threw on the cast itself. `load()` runs
+  /// on the launch path, which turned a stale record into a crash with nothing
+  /// on screen behind it.
+  static String? _str(dynamic key) {
+    final v = _box.get(key);
+    return v is String ? v : null;
+  }
+
   /// The last-known raw scan to hand back to the backend ({txns, accounts}).
   static Map<String, dynamic> knownScan() {
-    final raw = _box.get(_kKnown) as String?;
+    final raw = _str(_kKnown);
     if (raw == null) return const {};
     try {
       return (jsonDecode(raw) as Map).cast<String, dynamic>();
@@ -61,7 +78,7 @@ class DashboardStore {
     final accounts = (known['accounts'] as List?) ?? const [];
     if (txns.isEmpty && accounts.isEmpty) return;
     String? bankOf(dynamic e) =>
-        e is Map ? (e['_bank'] ?? e['bank']) as String? : null;
+        e is Map ? _asStr(e['_bank'] ?? e['bank']) : null;
     final fresh = {...txns.map(bankOf), ...accounts.map(bankOf)}..remove(null);
     final old = knownScan();
     final keptTxns = ((old['txns'] as List?) ?? const [])
@@ -107,7 +124,7 @@ class DashboardStore {
     if (stale.isEmpty) return false;
     final banks = ((bal['accounts'] as List?) ?? const [])
         .whereType<Map>()
-        .map((a) => (a['bank'] as String?)?.toLowerCase().trim())
+        .map((a) => _asStr(a['bank'])?.toLowerCase().trim())
         .whereType<String>()
         .where((s) => s.isNotEmpty)
         .toSet();
@@ -117,7 +134,7 @@ class DashboardStore {
 
   /// The saved dashboard payload, or null if there isn't one (or it's corrupt).
   static Map<String, dynamic>? load() {
-    final raw = _box.get(_kDash) as String?;
+    final raw = _str(_kDash);
     if (raw == null) return null;
     try {
       return jsonDecode(raw) as Map<String, dynamic>;
@@ -136,11 +153,11 @@ class DashboardStore {
 
   /// When the saved dashboard was last synced (for a "last updated" label).
   static DateTime? get syncedAt {
-    final s = _box.get(_kSyncedAt) as String?;
+    final s = _str(_kSyncedAt);
     return s == null ? null : DateTime.tryParse(s);
   }
 
-  static String? get bank => _box.get(_kBank) as String?;
+  static String? get bank => _str(_kBank);
 
   // ── Multi-bank connections ──────────────────────────────────────────────
 
@@ -162,7 +179,7 @@ class DashboardStore {
             .map((a) {
               final m = a as Map;
               final iban =
-                  (m['iban'] as String?)?.replaceAll(' ', '').toUpperCase() ?? '';
+                  _asStr(m['iban'])?.replaceAll(' ', '').toUpperCase() ?? '';
               if (iban.isEmpty) return '';
               final cur = (m['currency'] as String?)?.toUpperCase() ?? '';
               return '$iban|$cur';
@@ -180,7 +197,7 @@ class DashboardStore {
         // When neither side exposes an IBAN there is nothing to tell them apart,
         // so fall back to the old bank-name replacement to avoid duplicates.
         if (old.isEmpty && newKeys.isEmpty) {
-          return (c['bank'] as String?) == bank;
+          return _asStr(c['bank']) == bank;
         }
         return old.intersection(newKeys).isNotEmpty;
       });
@@ -274,7 +291,7 @@ class DashboardStore {
   static Map<String, dynamic> prunedKnown(
       Map<String, dynamic> known, Set<String> connected) {
     String? bankOf(dynamic e) =>
-        e is Map ? (e['_bank'] ?? e['bank']) as String? : null;
+        e is Map ? _asStr(e['_bank'] ?? e['bank']) : null;
     return {
       'txns': ((known['txns'] as List?) ?? const [])
           .where((t) => connected.contains(bankOf(t)))

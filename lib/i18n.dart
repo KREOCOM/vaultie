@@ -103,6 +103,8 @@ const Map<String, String> _en = {
   'Kita': 'Other',
 
   // ── Sub-categories & transaction labels ──
+  'Neigiama': 'Negative',
+  'Teigiama': 'Positive',
   'Maisto prekės': 'Groceries',
   'Kavinės, restoranai': 'Cafes & restaurants',
   'Alkoholis, tabakas': 'Alcohol & tobacco',
@@ -640,7 +642,10 @@ const Map<String, String> _en = {
   'Licencijuoti\nES': 'Licensed\nin the EU',
   'Atitinka PSD2\nreglamentą': 'PSD2\ncompliant',
   // ── bank connect CTA ──
-  'Suprask savo\npinigus geriau': 'Understand your\nmoney better',
+  // Key follows onb_intro.dart's headline exactly. It read "pinigus" here long
+  // after the screen had been changed to "finansus", so the lookup missed and
+  // English devices were shown the Lithuanian headline.
+  'Suprask savo\nfinansus geriau': 'Understand your\nmoney better',
   'Prijunk banką ir Vaultie automatiškai\natras tai, ko nepastebi banko programėlė.':
       'Connect your bank and Vaultie will find\nwhat your banking app does not show.',
   'Banko lygio saugumas': 'Bank-level security',
@@ -741,4 +746,41 @@ const Map<String, String> _en = {
       "We'll remove every connected bank and its data from this phone. You can reconnect later. Your account and subscription stay intact.",
   'Kitos valiutos atsiras, kai sumos bus ir perskaičiuojamos, o ne tik perrašomos kitu ženklu.':
       "Other currencies will appear once amounts are actually converted, not just relabelled with a different symbol.",
+
+  // ── Onboarding pages (intro / features / connect) ──
+  'Vaultie padeda aiškiau matyti, kur keliauja tavo pinigai, priimti geresnius sprendimus ir viską stebėti vienoje vietoje.':
+      'Vaultie helps you see where your money goes, make better decisions and keep everything in one place.',
+  'Pritaikyk\nVaultie sau': 'Make Vaultie\nyours',
+  'Kelios funkcijos, kurias nusistatai pagal save.':
+      'A few features you set up your own way.',
+  'Prieigą\nkontroliuoji tu': 'You control\nthe access',
+  '2500+ bankų visoje Europoje': '2500+ banks across Europe',
+
+  // ── Paywall ──
+  'Visos funkcijos vienoje vietoje.': 'Every feature in one place.',
+  'Atšaukti gali bet kada.': 'Cancel any time.',
+  'Išbandyk': 'Try',
+  'atšaukti gali bet kada': 'cancel any time',
+
+  // ── Sign-in terms line ──
+  'Tęsdamas (-a) sutinki su ': 'By continuing you agree to the ',
+
+  // ── Transfer caveat in the "Gauta" breakdown ──
+  'Prijungus kelis bankus, pervedimai tarp tavo paties sąskaitų čia gali būti suskaičiuoti kaip įplauka, jei bankas neatskleidžia gavėjo sąskaitos.':
+      'With several banks connected, transfers between your own accounts can be counted as income here when the bank does not reveal the receiving account.',
+
+  // ── Onboarding showcase / demo chat (marketing copy over sample data) ──
+  'Mėnesio rezultatas': 'This month',
+  'Paskutiniai 5 mėn.': 'Last 5 months',
+  'Per mėnesį': 'Per month',
+  'Per metus': 'Per year',
+  'sąskaitos': 'bills',
+  'aktyvios': 'active',
+  'kitas': 'next',
+  'Šį mėnesį išleidai 1 836 € — 32 % mažiau nei uždirbai. Daugiausia nuėjo būstui (620 €) ir maistui (450 €).':
+      'You spent €1,836 this month — 32% less than you earned. Mostly on housing (€620) and food (€450).',
+  '1 836 € — 32 % mažiau nei uždirbai. Daugiausia būstui (620 €) ir maistui (450 €).':
+      '€1,836 — 32% less than you earned. Mostly housing (€620) and food (€450).',
+  'Prenumeratos — 57,94 € per mėnesį, 695 € per metus. Dvi nenaudotos nuo balandžio.':
+      'Subscriptions — €57.94 a month, €695 a year. Two unused since April.',
 };

@@ -71,6 +71,15 @@ class FxRates {
 
   double rateFor(String code) => rates.value[code.toUpperCase()] ?? 1.0;
 
+  /// Whether a REAL rate exists for [code], as opposed to [rateFor]'s 1.0
+  /// fallback. Callers that also change the currency symbol must check this:
+  /// 1.0 with a pound sign is not a soft failure, it is a wrong number stated
+  /// with confidence.
+  bool hasRateFor(String code) {
+    final c = code.toUpperCase();
+    return c == 'EUR' || rates.value.containsKey(c);
+  }
+
   /// Load the cached table; refresh in the background when stale (>12h) or
   /// missing. Never awaited on the network — a slow feed must not delay launch.
   Future<void> init() async {
@@ -83,7 +92,12 @@ class FxRates {
       }
       if (m.length > 1) rates.value = m;
     }
-    final ts = DateTime.tryParse((_box.get(_kRatesAt) as String?) ?? '');
+    // Read defensively, not with `as String?`. This runs before runApp, so a
+    // stored value of the wrong type — an older build's format, or a half-written
+    // record — threw here and took the launch down with it, every launch, with no
+    // way out but reinstalling.
+    final rawTs = _box.get(_kRatesAt);
+    final ts = DateTime.tryParse(rawTs is String ? rawTs : '');
     if (ts == null || DateTime.now().difference(ts) > const Duration(hours: 12)) {
       refresh(); // fire and forget
     }

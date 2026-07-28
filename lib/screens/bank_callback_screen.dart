@@ -54,12 +54,19 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
         bank: DashboardStore.pendingConnect(),
       );
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
+      // Clears the stack rather than replacing one route.
+      //
+      // On a cold launch this screen sits on top of the splash, which is now
+      // inert — its timer has already fired and stood down (see splash_screen).
+      // pushReplacement would leave that dead route underneath, giving the
+      // dashboard a back arrow to nowhere.
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => r.dash != null
               ? DashboardPreview(data: r.dash!, deeper: r.deeper)
               : BankImportScreen(result: r.scan),
         ),
+        (route) => false,
       );
     } catch (_) {
       await DashboardStore.setPendingConnect(null);
@@ -118,8 +125,11 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
             ),
             const SizedBox(height: 22),
             GestureDetector(
-              onTap: () => Navigator.of(context).pushReplacement(
+              // Same reasoning as the success path: don't strand the retry on
+              // top of a dead splash route.
+              onTap: () => Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const BankConnectScreen()),
+                (route) => false,
               ),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),

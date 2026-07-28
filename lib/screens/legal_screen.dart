@@ -5,8 +5,14 @@ import '../content_theme.dart';
 /// A simple scrollable legal document screen (Privacy Policy / Terms of Use).
 ///
 /// Content lives in-app so the Settings links always open something real — a
-/// requirement for App Review. Text is bilingual (LT/EN) and intentionally
-/// template-grade: review/adjust with your own details before release.
+/// requirement for App Review. Text is bilingual (LT/EN).
+///
+/// No longer template-grade: it names the actual controller (MB Živitoma, the
+/// company that holds the Enable Banking agreement), states a legal basis per
+/// purpose, retention periods, the data-subject rights and the supervisory
+/// authority. Before this it described the product accurately but did not say
+/// WHO was processing the data or under what basis — the parts the GDPR is
+/// actually built around.
 class LegalScreen extends StatelessWidget {
   const LegalScreen({
     super.key,
@@ -23,14 +29,72 @@ class LegalScreen extends StatelessWidget {
 
   static const _contactEmail = 'osva50042@gmail.com';
 
+  // The data controller under the GDPR — the party that decides why and how
+  // personal data is processed. That is the company, because the Enable Banking
+  // (PSD2) contract that permits access to bank data is held by it: naming a
+  // private individual here would not match the agreement the access runs under.
+  // The App Store seller may be an individual account; that is a distribution
+  // channel and a separate question from who operates the service.
+  static const _companyName = 'MB Živitoma';
+  static const _companyCode = '304754869';
+  static const _companyAddress = 'Vytauto g. 118-4, LT-00153 Palanga, Lietuva';
+  static const _companyAddressEn =
+      'Vytauto g. 118-4, LT-00153 Palanga, Lithuania';
+
   factory LegalScreen.privacy(bool isLt) {
     return LegalScreen(
       title: isLt ? 'Privatumo politika' : 'Privacy Policy',
-      updated: isLt ? 'Atnaujinta: 2026-07-07' : 'Last updated: 2026-07-07',
+      updated: isLt ? 'Atnaujinta: 2026-07-27' : 'Last updated: 2026-07-27',
       intro: isLt
           ? 'Vaultie gerbia tavo privatumą. Ši politika paaiškina, kokius duomenis renkame, kaip juos naudojame ir kokias teises turi.'
           : 'Vaultie respects your privacy. This policy explains what data we collect, how we use it, and the choices you have.',
       sections: [
+        // GDPR Art. 13 opens with the identity of the controller. It was missing
+        // entirely, which is the first thing a data-protection complaint looks
+        // for and the first thing a reviewer of a finance app notices.
+        LegalSection(
+          isLt ? 'Kas mes esame (duomenų valdytojas)' : 'Who we are (data controller)',
+          isLt
+              ? 'Tavo asmens duomenų valdytojas yra $_companyName, juridinio '
+                  'asmens kodas $_companyCode, registruota adresu '
+                  '$_companyAddress. Susisiekti gali el. paštu $_contactEmail.\n\n'
+                  'Vaultie nėra licencijuota mokėjimo įstaiga. Prieigą prie banko '
+                  'sąskaitų informacijos suteikia „Enable Banking“ — licencijuotas '
+                  'sąskaitos informacijos paslaugos teikėjas, veikiantis pagal '
+                  'PSD2 direktyvą, su kuriuo $_companyName yra sudariusi sutartį.'
+              : 'The controller of your personal data is $_companyName, company '
+                  'registration number $_companyCode, registered at '
+                  '$_companyAddressEn. You can reach us at $_contactEmail.\n\n'
+                  'Vaultie is not a licensed payment institution. Access to bank '
+                  'account information is provided by Enable Banking, a licensed '
+                  'account information service provider operating under PSD2, with '
+                  'which $_companyName holds an agreement.',
+        ),
+        LegalSection(
+          isLt ? 'Teisinis tvarkymo pagrindas' : 'Legal basis for processing',
+          isLt
+              ? 'Paskyros duomenis (el. paštą) ir prenumeratos būseną tvarkome '
+                  'sutarties vykdymo pagrindu (BDAR 6 str. 1 d. b p.) — be jų '
+                  'negalime suteikti paslaugos.\n\n'
+                  'Banko sąskaitos duomenis ir AI funkcijas tvarkome tik tavo '
+                  'sutikimo pagrindu (BDAR 6 str. 1 d. a p.). Sutikimą gali bet '
+                  'kada atšaukti — atjungdamas banką, išjungdamas AI funkciją '
+                  'nustatymuose arba nustodamas naudotis funkcija. Atšaukimas '
+                  'negalioja atgaline data.\n\n'
+                  'Klaidų ataskaitas ir programos saugumą tvarkome teisėto '
+                  'intereso pagrindu (BDAR 6 str. 1 d. f p.) — kad programa '
+                  'veiktų ir būtų taisoma.'
+              : 'Account data (your email) and subscription status are processed '
+                  'to perform our contract with you (GDPR Art. 6(1)(b)) — without '
+                  'them we cannot provide the service.\n\n'
+                  'Bank account data and the AI features are processed solely on '
+                  'the basis of your consent (GDPR Art. 6(1)(a)). You can withdraw '
+                  'consent at any time by disconnecting your bank, switching the AI '
+                  'feature off in Settings, or ceasing to use the feature. '
+                  'Withdrawal does not affect processing carried out beforehand.\n\n'
+                  'Crash reports and app security rely on our legitimate interest '
+                  '(GDPR Art. 6(1)(f)) in keeping the app working and fixable.',
+        ),
         LegalSection(
           isLt ? 'Kokius duomenis renkame' : 'Data we collect',
           isLt
@@ -158,6 +222,71 @@ class LegalScreen extends StatelessWidget {
               : 'You can delete your account and its email at any time via Settings → Delete account. Subscription data is removed when you uninstall the app. You can revoke bank access at any time through your bank; we do not store your bank transactions.',
         ),
         LegalSection(
+          isLt ? 'Kiek laiko saugome' : 'How long we keep it',
+          isLt
+              ? 'Banko operacijos NĖRA saugomos — jos apdorojamos laikinai ir '
+                  'iškart pamirštamos; įrenginyje lieka tik tai, ką pats '
+                  'pasirenki.\n\n'
+                  'Paskyros duomenys (el. paštas) saugomi tol, kol turi paskyrą. '
+                  'Ištrynus paskyrą programoje, jie panaikinami nedelsiant, o '
+                  'vietiniai duomenys sunaikinami kartu su jais.\n\n'
+                  'Klaidų ataskaitos saugomos iki 90 dienų. Prekybininkų '
+                  'kategorijos (be jokių tavo duomenų — tik verslo pavadinimas ir '
+                  'kategorija) saugomos neribotai, nes jos nėra asmens duomenys.'
+              : 'Bank transactions are NOT retained — they are processed '
+                  'transiently and immediately discarded; only what you choose to '
+                  'keep stays on your device.\n\n'
+                  'Account data (your email) is kept for as long as you have an '
+                  'account. Deleting your account in the app erases it '
+                  'immediately, and your local data is destroyed with it.\n\n'
+                  'Crash reports are kept for up to 90 days. Merchant categories '
+                  '(containing none of your data — just a business name and a '
+                  'category) are kept indefinitely, as they are not personal data.',
+        ),
+        LegalSection(
+          isLt ? 'Tavo teisės' : 'Your rights',
+          isLt
+              ? 'Pagal BDAR turi teisę: susipažinti su savo duomenimis; juos '
+                  'ištaisyti; ištrinti („teisė būti pamirštam“); apriboti '
+                  'tvarkymą; nesutikti su tvarkymu; perkelti duomenis; ir bet '
+                  'kada atšaukti sutikimą.\n\n'
+                  'Daugumą jų gali įgyvendinti pats programoje: duomenys guli '
+                  'tavo telefone, o paskyrą ir visus duomenis gali ištrinti '
+                  'Nustatymuose. Bet kuriuo kitu atveju rašyk $_contactEmail — '
+                  'atsakome ne vėliau kaip per 30 dienų.\n\n'
+                  'Jei manai, kad tvarkome tavo duomenis neteisėtai, turi teisę '
+                  'pateikti skundą Valstybinei duomenų apsaugos inspekcijai '
+                  '(vdai.lrv.lt), L. Sapiegos g. 17, Vilnius.'
+              : 'Under the GDPR you have the right to: access your data; have it '
+                  'corrected; have it erased (the "right to be forgotten"); '
+                  'restrict processing; object to processing; receive your data in '
+                  'a portable form; and withdraw consent at any time.\n\n'
+                  'You can exercise most of these yourself: your data sits on your '
+                  'own phone, and you can delete your account together with all of '
+                  'it in Settings. For anything else write to $_contactEmail — we '
+                  'reply within 30 days at the latest.\n\n'
+                  'If you believe we process your data unlawfully, you have the '
+                  'right to complain to the Lithuanian State Data Protection '
+                  'Inspectorate (vdai.lrv.lt), L. Sapiegos g. 17, Vilnius, or to '
+                  'the supervisory authority in your own country.',
+        ),
+        LegalSection(
+          isLt ? 'Duomenų perdavimas už ES ribų' : 'Transfers outside the EU',
+          isLt
+              ? 'Kai kurie mūsų paslaugų teikėjai („Google Firebase“, '
+                  '„RevenueCat“, „Anthropic“) yra JAV. Perdavimai vyksta pagal '
+                  'Europos Komisijos patvirtintas standartines sutarčių sąlygas '
+                  'arba ES–JAV duomenų privatumo sistemą. Banko operacijų '
+                  'duomenys apdorojami ES (Firebase regionas europe-west1) ir už '
+                  'ES ribų neperduodami.'
+              : 'Some of our providers (Google Firebase, RevenueCat, Anthropic) '
+                  'are based in the United States. Those transfers rely on the '
+                  'European Commission\'s Standard Contractual Clauses or the '
+                  'EU–US Data Privacy Framework. Bank transaction data is '
+                  'processed inside the EU (Firebase region europe-west1) and is '
+                  'not transferred outside it.',
+        ),
+        LegalSection(
           isLt ? 'Vaikai' : 'Children',
           isLt
               ? 'Vaultie neskirta jaunesniems nei 13 metų vartotojams.'
@@ -166,8 +295,10 @@ class LegalScreen extends StatelessWidget {
         LegalSection(
           isLt ? 'Susisiekimas' : 'Contact',
           isLt
-              ? 'Klausimais dėl privatumo rašyk: $_contactEmail'
-              : 'For privacy questions, contact us at $_contactEmail',
+              ? '$_companyName, kodas $_companyCode\n$_companyAddress\n'
+                  'El. paštas: $_contactEmail'
+              : '$_companyName, company number $_companyCode\n'
+                  '$_companyAddressEn\nEmail: $_contactEmail',
         ),
       ],
     );
@@ -176,7 +307,7 @@ class LegalScreen extends StatelessWidget {
   factory LegalScreen.terms(bool isLt) {
     return LegalScreen(
       title: isLt ? 'Naudojimo sąlygos' : 'Terms of Use',
-      updated: isLt ? 'Atnaujinta: 2026-07-07' : 'Last updated: 2026-07-07',
+      updated: isLt ? 'Atnaujinta: 2026-07-27' : 'Last updated: 2026-07-27',
       intro: isLt
           ? 'Naudodamasis Vaultie sutinki su šiomis sąlygomis. Jei nesutinki, programos nenaudok.'
           : 'By using Vaultie you agree to these terms. If you do not agree, please do not use the app.',
@@ -243,9 +374,14 @@ class LegalScreen extends StatelessWidget {
         ),
         LegalSection(
           isLt ? 'Susisiekimas' : 'Contact',
+          // The Terms need the operator named as plainly as the Privacy Policy
+          // does — "questions? email us" identifies nobody to contract with.
           isLt
-              ? 'Klausimais rašyk: $_contactEmail'
-              : 'Questions? Contact us at $_contactEmail',
+              ? 'Paslaugą teikia $_companyName, kodas $_companyCode, '
+                  '$_companyAddress.\nKlausimais rašyk: $_contactEmail'
+              : 'The service is provided by $_companyName, company number '
+                  '$_companyCode, $_companyAddressEn.\n'
+                  'Questions? Contact us at $_contactEmail',
         ),
       ],
     );

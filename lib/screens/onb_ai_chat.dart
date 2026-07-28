@@ -52,7 +52,7 @@ class OnbAiChat extends StatelessWidget {
           'Jokie duomenys nenaudojami AI mokymui',
           'Privatumas išlieka tavo rankose',
         ],
-        dotIndex: 4,
+        dotIndex: 3,
         dotCount: 6,
         warmNext: 'assets/onboarding/page6_scene.png',
       );

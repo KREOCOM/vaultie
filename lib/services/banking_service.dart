@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -167,8 +168,13 @@ class BankScanResult {
 
 BillingCycle _cycleFromString(String s) => switch (s) {
       'weekly' => BillingCycle.weekly,
+      'biweekly' => BillingCycle.biweekly,
       'quarterly' => BillingCycle.quarterly,
+      'semiannual' => BillingCycle.semiannual,
       'yearly' => BillingCycle.yearly,
+      // 'custom' and anything unrecognised still land on monthly. The server
+      // sends a correctly derived `monthlyAmount` alongside, so the total is
+      // right either way — this only decides the label on an imported item.
       _ => BillingCycle.monthly,
     };
 
@@ -236,7 +242,24 @@ class BankingService {
               options: HttpsCallableOptions(timeout: timeout))
           : _functions.httpsCallable(name);
       final res = await callable.call(data);
-      return parse((res.data as Map).cast<Object?, Object?>());
+      // Parsing is deliberately OUTSIDE the network catch below.
+      //
+      // The whole method used to end in `catch (_) → "Could not reach the
+      // server. Check your connection."`, which also swallowed every failure in
+      // `parse` — a field arriving as a string instead of a number, a shape the
+      // bank changed. The user was sent to check their internet after a request
+      // that had SUCCEEDED, and after their single-use consent had been spent.
+      try {
+        return parse((res.data as Map).cast<Object?, Object?>());
+      } catch (e, s) {
+        try {
+          await FirebaseCrashlytics.instance.recordError(e, s,
+              reason: 'Unparseable payload from $name');
+        } catch (_) {}
+        throw BankingException(
+            'Your bank replied, but we could not read the answer. '
+            'This is our problem, not your connection — please try again.');
+      }
     } on FirebaseFunctionsException catch (e) {
       if (e.code == 'unauthenticated') {
         // Token revoked / account disabled / signed out elsewhere — the session

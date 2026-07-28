@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
@@ -8,18 +9,25 @@ import 'login_screen.dart';
 import 'onb_ai_chat.dart';
 import 'onb_budget.dart';
 import 'onb_connect.dart';
+import 'onb_features.dart';
 import 'onb_intro.dart';
 import 'onb_month.dart';
 import 'onb_overview.dart';
-import 'onb_welcome.dart';
 import 'landing.dart';
 import 'verify_email_screen.dart';
 
-/// TEMP (dev preview): force the onboarding chain to show from the splash even
-/// for a user who already onboarded, so it can be reviewed on the device.
-/// Set back to false (or delete) before shipping — normal launch routes a
-/// returning user straight to their dashboard.
-bool kPreviewOnboarding = true;
+/// Dev preview: force the onboarding chain to show from the splash even for a
+/// user who already onboarded, so it can be reviewed on the device.
+///
+/// Tied to the build mode rather than left as a hand-flipped `true`. It was a
+/// plain boolean checked at [_goNext] with no release guard, so shipping it in
+/// the on position would have replayed the whole intro on EVERY launch for every
+/// user and never let anyone reach their dashboard — and the only thing standing
+/// between that and the App Store was remembering to flip it on the day.
+///
+/// `!kReleaseMode` keeps it on for the debug and profile builds used to review
+/// the intro on a device, and makes it unreachable in a release build.
+const bool kPreviewOnboarding = !kReleaseMode;
 
 /// TEMP (dev): every onboarding page taps its own "Toliau" after this delay, so
 /// the whole chain can be walked and screenshotted on a rack of simulators
@@ -66,6 +74,23 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _goNext() async {
     if (!mounted) return;
+    // Something already took over the navigator — stand down.
+    //
+    // A bank that hands off to its own app (SEB, Swedbank) returns through a
+    // universal link. If iOS killed Vaultie while the user was in the bank app,
+    // that link COLD-LAUNCHES us: BankingDeepLinks picks the authorisation code
+    // up and pushes BankCallbackScreen, typically within a fraction of a second
+    // because the Firebase session restores fast for a returning user.
+    //
+    // This timer then fired at T+2s and called pushReplacement, which replaces
+    // the navigator's TOPMOST route — by then the callback screen. The user was
+    // dropped into onboarding and the connection vanished, having already spent
+    // a single-use code, so retrying cost a whole new bank consent.
+    //
+    // It only bit when the app had actually been terminated in the background,
+    // which is why it never reproduced in testing: a warm hand-off never runs
+    // this method at all.
+    if (ModalRoute.of(context)?.isCurrent != true) return;
     // New users see onboarding; a signed-in & verified user goes straight to
     // the dashboard; a signed-in but unverified user resumes at the verify
     // screen; everyone else lands on the auth screen.
@@ -94,14 +119,19 @@ class _SplashScreenState extends State<SplashScreen>
     if (kPreviewOnboarding || !widget.hasOnboarded) {
       // Scene pages, each running the real app inside the artwork's phone,
       // then the bank connect. The pre-scene onboarding screens are gone.
+      // The bank-tiles page (OnbWelcome) is out of the chain: the tiles moved too
+      // fast to read and the intro was a page longer than it needed to be. The
+      // screen itself is left in the tree, unreferenced, because something else
+      // is going into that slot.
       next = const OnbIntro(
-        next: OnbWelcome(
-          next: OnbMonth(
-            next: OnbOverview(
-              next: OnbAiChat(
-                next: OnbBudget(
-                  next: OnbConnect(next: LoginScreen()),
-                ),
+        next: OnbMonth(
+          next: OnbOverview(
+            next: OnbAiChat(
+              next: OnbBudget(
+                // Everything the intro had no room to demonstrate — budget,
+                // lock, reminders, recap, currencies — immediately before the
+                // ask, while the person is still deciding.
+                next: OnbFeatures(next: OnbConnect(next: LoginScreen())),
               ),
             ),
           ),

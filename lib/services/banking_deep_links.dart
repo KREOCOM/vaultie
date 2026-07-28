@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../screens/bank_callback_screen.dart';
 import '../screens/bank_connect_screen.dart';
-import 'auth_service.dart';
 import 'banking_service.dart';
 
 /// Catches a bank's authorisation callback when it arrives as an app link.
@@ -50,31 +49,40 @@ class BankingDeepLinks {
     final code = BankingService.codeFromCallback(uri);
     if (code == null) return; // not our callback — leave the launch untouched
 
-    // finish_bank_auth requires a signed-in caller. On a cold launch triggered by
-    // a bank's universal link (SEB/Swedbank hand-off), the Firebase session
-    // restore from the Keychain can still be in flight when this runs — dropping
-    // the code here silently loses the connection. Wait briefly for auth to
-    // hydrate instead; only give up if it never does (the user can then reconnect
-    // from inside the app).
-    final auth = AuthService();
-    if (!auth.isLoggedIn) {
-      try {
-        await auth.authStateChanges
-            .firstWhere((u) => u != null)
-            .timeout(const Duration(seconds: 8));
-      } catch (_) {
-        return;
-      }
-    }
-
     // If the in-app flow already claimed this code (the bank delivered the
     // callback through both the session and the universal link), back off — the
     // code is single-use and a second exchange 422s over a working connection.
     if (!BankConnectClaim.claim(code)) return;
 
-    // Defer to after the current frame so the navigator exists and isn't locked.
+    // Show the callback screen NOW, whatever the auth state.
+    //
+    // There used to be an 8-second wait here for Firebase to restore the session
+    // before pushing, and on timeout it simply `return`ed. That was the silent
+    // failure: the user came back from their bank to an app showing nothing at
+    // all, with the single-use code already spent, so retrying cost a whole new
+    // consent. BankCallbackScreen does its own (longer) wait and, crucially, has
+    // a visible error state with a retry — it is the right owner for both.
+    _push(navigatorKey, code);
+  }
+
+  /// Pushes the callback screen once the navigator exists.
+  ///
+  /// On a cold launch the first frame can arrive before the navigator does, and
+  /// `currentState?.push` on a null navigator is a silent no-op — which would
+  /// strand a code that this method has ALREADY claimed, so nothing else could
+  /// pick it up either. Retries briefly instead of dropping it.
+  void _push(GlobalKey<NavigatorState> navigatorKey, String code,
+      [int attempt = 0]) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      navigatorKey.currentState?.push(
+      final nav = navigatorKey.currentState;
+      if (nav == null) {
+        if (attempt < 20) {
+          Future<void>.delayed(const Duration(milliseconds: 150),
+              () => _push(navigatorKey, code, attempt + 1));
+        }
+        return;
+      }
+      nav.push(
         MaterialPageRoute(builder: (_) => BankCallbackScreen(code: code)),
       );
     });

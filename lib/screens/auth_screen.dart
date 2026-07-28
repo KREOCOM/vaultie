@@ -262,14 +262,16 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         backgroundColor: _bg,
         body: Stack(
           children: [
-            // Subtle green radial glow in the centre.
+            // The centre glow. Also came from the green identity (#206B41) and
+            // tinted the whole screen green behind the logo; now the same blue
+            // the login screen and the splash use.
             const Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     center: Alignment(0, -0.35),
                     radius: 0.95,
-                    colors: [Color(0x59206B41), Color(0x00050F08)],
+                    colors: [Color(0x592F6BFF), Color(0x00061439)],
                     stops: [0.0, 0.72],
                   ),
                 ),
@@ -359,7 +361,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         child: Container(
           width: double.infinity,
           decoration: const BoxDecoration(
-            color: Color(0xFF0B160F),
+            // Was #0B160F — a dark GREEN, left over from the old "VT" identity.
+            // Everything around it had already moved to navy, so the sign-up form
+            // sat on a green panel inside a blue app. Matched to the login
+            // screen's own panel so the two screens read as one flow.
+            color: Color(0xFF0B1428),
             borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
             border: Border(
               top: BorderSide(color: Color(0x1AFFFFFF)),

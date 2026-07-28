@@ -107,13 +107,46 @@ class AppPrefs {
   /// fresh FX table lands). Falls back to EUR (rate 1.0) when the rate is absent.
   static void applyDisplayCurrency() {
     final info = currencyByCode(currencyCode.value);
-    Money.rate = FxRates.instance.rateFor(info.code);
-    Money.symbol = info.symbol;
-    currency.value = info.symbol; // legacy notifier → triggers rebuilds
+    // The rate and the symbol move together, or not at all.
+    //
+    // They used to be set independently: a missing rate fell back to 1.0 while
+    // the symbol was applied regardless, so a first launch offline with the
+    // display currency set to GBP printed the untouched EUR figures under a
+    // pound sign — 7 049 € shown as "7 049 £". Wrong by a fifth, and stated as
+    // confidently as a correct number.
+    //
+    // Amounts are stored in EUR, so falling back to EUR is always truthful. When
+    // the real table lands, main.dart's listener calls this again and the chosen
+    // currency takes effect then.
+    if (FxRates.instance.hasRateFor(info.code)) {
+      Money.rate = FxRates.instance.rateFor(info.code);
+      Money.symbol = info.symbol;
+    } else {
+      Money.rate = 1.0;
+      Money.symbol = '€';
+    }
+    currency.value = Money.symbol; // legacy notifier → triggers rebuilds
+  }
+
+  /// Typed reads that fall back instead of throwing.
+  ///
+  /// These were `as bool` / `as String` casts. `onboarded` was already hardened
+  /// for exactly this reason — a wrong-typed stored value (an older build's
+  /// format, a half-written record) threw on the cast — but the rest were left
+  /// as they were, and several are read on the pre-runApp path too. A default is
+  /// always recoverable; a crash before the first frame is not.
+  static bool _boolOr(String key, bool fallback) {
+    final v = _box.get(key, defaultValue: fallback);
+    return v is bool ? v : fallback;
+  }
+
+  static String _strOr(String key, String fallback) {
+    final v = _box.get(key, defaultValue: fallback);
+    return v is String ? v : fallback;
   }
 
   static bool get notificationsEnabled => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _box.get(_kNotifications, defaultValue: true) as bool
+      ? _boolOr(_kNotifications, true)
       : true;
 
   static Future<void> setNotificationsEnabled(bool value) async {
@@ -124,7 +157,7 @@ class AppPrefs {
   static const _kNotifBannerDismissed = 'notifBannerDismissed';
 
   static bool get notifBannerDismissed => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _box.get(_kNotifBannerDismissed, defaultValue: false) as bool
+      ? _boolOr(_kNotifBannerDismissed, false)
       : false;
 
   static Future<void> setNotifBannerDismissed(bool value) async {
@@ -145,7 +178,7 @@ class AppPrefs {
   // never any amount, IBAN, date, or identifier. Disclosed in the privacy policy
   // and switchable off in Settings, so it is on-by-default with a real opt-out.
   static bool get aiEnrichment => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _box.get(_kAiEnrichment, defaultValue: true) as bool
+      ? _boolOr(_kAiEnrichment, true)
       : true;
 
   static Future<void> setAiEnrichment(bool value) async {
@@ -158,7 +191,7 @@ class AppPrefs {
   static const _kAiChatConsent = 'aiChatConsent';
 
   static bool get aiChatConsent => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _box.get(_kAiChatConsent, defaultValue: false) as bool
+      ? _boolOr(_kAiChatConsent, false)
       : false;
 
   static Future<void> setAiChatConsent(bool value) async {
@@ -170,7 +203,7 @@ class AppPrefs {
   static const _kUserName = 'userName';
 
   static String get userName => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _box.get(_kUserName, defaultValue: '') as String
+      ? _strOr(_kUserName, '')
       : '';
 
   static Future<void> setUserName(String value) async {
@@ -183,7 +216,7 @@ class AppPrefs {
   /// Read synchronously so navigation can gate on it. Once true the choice
   /// screen is skipped and the user goes straight to the dashboard.
   static bool get onboardingComplete => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _box.get(_kOnboardingComplete, defaultValue: false) as bool
+      ? _boolOr(_kOnboardingComplete, false)
       : false;
 
   static Future<void> setOnboardingComplete(bool value) async {

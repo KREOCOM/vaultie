@@ -74,29 +74,46 @@ class _BankImportScreenState extends State<BankImportScreen> {
   List<_Item> _groupItems(ImportGroup g) =>
       _items.where((it) => it.cls.group == g).toList();
 
+  /// Set for the duration of an import so a second tap cannot start another.
+  ///
+  /// Without it a double-tap ran the loop twice: every selected recurring was
+  /// written to Hive a second time under a fresh id, so the user ended up with
+  /// each bill listed twice — and with two payment reminders scheduled for each.
+  /// Nothing here is idempotent, the ids are derived from the clock.
+  bool _importing = false;
+
   Future<void> _import() async {
-    final box = Hive.box<Subscription>(HiveBoxes.subscriptions);
-    final base = DateTime.now().microsecondsSinceEpoch;
-    var count = 0;
-    for (final it in _items) {
-      if (!_selected[it.index]) continue;
-      final id = '${base + it.index}';
-      final imported = it.candidate.toSubscription(id);
-      // Roll the next date to today-or-later so a just-paid recurring never
-      // lands in the vault already showing as "Overdue".
-      final sub = imported.copyWith(
-        nextBillingDate: imported.rolledForwardBillingDate(),
-      );
-      await box.put(id, sub);
-      await NotificationService.instance
-          .scheduleForSubscription(sub, isLithuanian: _isLt);
-      count++;
+    if (_importing) return;
+    _importing = true;
+    try {
+      final box = Hive.box<Subscription>(HiveBoxes.subscriptions);
+      final base = DateTime.now().microsecondsSinceEpoch;
+      var count = 0;
+      for (final it in _items) {
+        if (!_selected[it.index]) continue;
+        final id = '${base + it.index}';
+        final imported = it.candidate.toSubscription(id);
+        // Roll the next date to today-or-later so a just-paid recurring never
+        // lands in the vault already showing as "Overdue".
+        final sub = imported.copyWith(
+          nextBillingDate: imported.rolledForwardBillingDate(),
+        );
+        await box.put(id, sub);
+        await NotificationService.instance
+            .scheduleForSubscription(sub, isLithuanian: _isLt);
+        count++;
+      }
+      if (!mounted) return;
+      setState(() {
+        _importedCount = count;
+        _done = true;
+      });
+    } finally {
+      // Released even when a write throws, so a failed import can be retried.
+      // Once `_done` is set the button is gone anyway, so this cannot re-open
+      // the door on a successful one.
+      _importing = false;
     }
-    if (!mounted) return;
-    setState(() {
-      _importedCount = count;
-      _done = true;
-    });
   }
 
   @override

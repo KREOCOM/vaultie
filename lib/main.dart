@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -91,15 +92,37 @@ Future<Box<T>> _openBoxSafe<T>(String name) async {
     try {
       await Hive.deleteBoxFromDisk(name);
     } catch (_) {}
-    return await Hive.openBox<T>(name);
+    try {
+      return await Hive.openBox<T>(name);
+    } catch (_) {
+      // The retry failed too — disk full, or the store is unwritable. Returning
+      // an in-memory box keeps the app BOOTING: this session cannot persist, but
+      // an unguarded throw here happens before runApp, so it was a launch crash
+      // on every start with no route back except deleting the app.
+      //
+      // `bytes:` is what makes it memory-only — it never touches the disk that
+      // just refused us, so this last step cannot fail the same way.
+      return Hive.openBox<T>('${name}_fallback', bytes: Uint8List(0));
+    }
   }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+
+  // Everything from here to runApp runs BEFORE the first frame, so anything that
+  // throws is a launch crash — and a launch crash repeats on every start, with
+  // no screen, no message and no way out but deleting the app and losing the
+  // local vault with it. So each step below is allowed to fail on its own and
+  // leave the app degraded rather than dead.
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (_) {
+    // Sign-in and crash reporting will be unavailable this session; the local
+    // vault and the UI still work, and the next launch retries.
+  }
 
   // Crash reporting, wired before anything else can throw.
   //
@@ -111,23 +134,37 @@ Future<void> main() async {
   // (async gaps, platform channels), which is where the interesting ones live.
   // Debug builds report nothing: local crashes are already visible, and they
   // would drown the real reports.
-  await FirebaseCrashlytics.instance
-      .setCrashlyticsCollectionEnabled(kReleaseMode);
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+  try {
+    await FirebaseCrashlytics.instance
+        .setCrashlyticsCollectionEnabled(kReleaseMode);
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  } catch (_) {
+    // No crash reporting this session. Losing the reports is a bad trade for
+    // losing the launch.
+  }
 
-  await SystemChrome.setPreferredOrientations(
-    const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
-  );
+  try {
+    await SystemChrome.setPreferredOrientations(
+      const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
+    );
+  } catch (_) {/* the app is portrait by design anyway */}
 
   // Initialise Hive and register the (hand-written) Subscription adapter.
-  await Hive.initFlutter();
-  if (!Hive.isAdapterRegistered(SubscriptionAdapter().typeId)) {
-    Hive.registerAdapter(SubscriptionAdapter());
+  try {
+    await Hive.initFlutter();
+  } catch (_) {
+    // path_provider can fail to give a documents directory. The box opens below
+    // then fall back to memory rather than bringing the launch down.
   }
+  try {
+    if (!Hive.isAdapterRegistered(SubscriptionAdapter().typeId)) {
+      Hive.registerAdapter(SubscriptionAdapter());
+    }
+  } catch (_) {/* already registered by a hot restart */}
   final subsBox = await _openBoxSafe<Subscription>(HiveBoxes.subscriptions);
   final settings = await _openBoxSafe<dynamic>(HiveBoxes.settings);
   await _openBoxSafe<dynamic>(HiveBoxes.cancellations);
@@ -135,7 +172,12 @@ Future<void> main() async {
   await _openBoxSafe<dynamic>(HiveBoxes.dashboard);
   // Live FX rates (EUR-based, ECB daily, cached) — loaded before AppPrefs.load()
   // so applyDisplayCurrency() can point Money at the chosen currency's rate.
-  await FxRates.instance.init();
+  try {
+    await FxRates.instance.init();
+  } catch (_) {
+    // Rates fall back to the cached table (or 1:1 EUR); a bad stored value must
+    // not stop the app from opening.
+  }
   // Load persisted language/currency preferences into their notifiers. Guarded so
   // a single corrupt/wrong-typed setting can never crash the launch.
   try {
@@ -161,7 +203,13 @@ Future<void> main() async {
     } catch (_) {
       // No session, or plugins unavailable — nothing to clear either way.
     }
-    await settings.put(_kInstalled, true);
+    try {
+      await settings.put(_kInstalled, true);
+    } catch (_) {
+      // If the write fails the next launch simply signs out again — wasteful,
+      // but survivable. Throwing here would kill the very first launch after
+      // install, which is the one launch nobody would ever get past.
+    }
   }
 
   // ⚠️ TEMP TEST BYPASS — lets a tester (wife's Swedbank run) get past the paywall
@@ -194,13 +242,23 @@ Future<void> main() async {
   // running in the background, and PurchaseService.init seeds premium from the
   // cached flag synchronously before its network round-trips, so gating is still
   // correct from the first frame.
-  try {
-    await NotificationService.instance.init().timeout(const Duration(seconds: 5));
-  } catch (_) {}
-  // Configures RevenueCat and resolves the "Vaultie Pro" entitlement.
-  try {
-    await PurchaseService.instance.init().timeout(const Duration(seconds: 5));
-  } catch (_) {}
+  // Concurrently, not one after the other. They are independent, and run in
+  // sequence their two timeouts add up: on a slow or flaky connection that is
+  // ten seconds of an iOS launch budget that is only about twenty — and iOS
+  // kills an app that hasn't drawn its first frame by then. (Under `flutter
+  // run` this never showed, because an attached debugger disables that
+  // watchdog; the app only died when launched from the home screen.)
+  await Future.wait([
+    NotificationService.instance
+        .init()
+        .timeout(const Duration(seconds: 4))
+        .catchError((Object _) {}),
+    // Configures RevenueCat and resolves the "Vaultie Pro" entitlement.
+    PurchaseService.instance
+        .init()
+        .timeout(const Duration(seconds: 4))
+        .catchError((Object _) {}),
+  ]);
 
   // Catch a bank's callback when it returns as an app link (a bank that hands
   // off to its own app). No-op for every other launch. Not awaited.
@@ -220,12 +278,16 @@ Future<void> main() async {
   // and always reflect the latest scan (next due from the real last charge).
   // Same language rule as the UI: manual choice, else device Region.
   final isLithuanian = effectiveLocale().languageCode == 'lt';
-  await _rescheduleFromDashboard(isLithuanian: isLithuanian);
-
-  // Snapshot this month's spend so the Monthly Recap has data to show later.
-  RecapService.recordCurrentMonth(subsBox.values.toList());
 
   runApp(VaultieApp(hasOnboarded: AppPrefs.onboarded));
+
+  // Deliberately AFTER runApp, and not awaited. Neither of these has anything
+  // to say to the first screen: one re-schedules payment reminders (a platform
+  // call per bill, unbounded), the other writes a spend snapshot for the Monthly
+  // Recap. Held in front of runApp they spent the launch budget on work nobody
+  // is waiting to see, which is how the app ended up being killed at launch.
+  unawaited(_rescheduleFromDashboard(isLithuanian: isLithuanian));
+  RecapService.recordCurrentMonth(subsBox.values.toList());
 }
 
 /// Launch-time pass: (re)schedules payment reminders from the persisted dashboard

@@ -361,6 +361,21 @@ void _showReceivedBreakdown(BuildContext context, double income, double other) {
             const SizedBox(height: 16),
             Text(tr('Į santaupų normą įskaičiuojamos tik atpažintos pajamos — pervedimai iš kitų nelaikomi uždarbiu.'),
                 style: TextStyle(fontSize: 12.5, color: _faint, height: 1.35)),
+            // Said out loud rather than guessed at.
+            //
+            // With two banks connected, a transfer from your own SEB account to
+            // your own Revolut is recognised as your own money ONLY when the bank
+            // exposes the counterparty IBAN. Some do not, and that leg then
+            // counts here as money received. We could try to pair it by amount
+            // and date instead — but a wrong guess would hide REAL income, which
+            // is the worse of the two errors, so the number stays honest and the
+            // caveat is stated where the number is read.
+            if (DashboardStore.bankCount > 1) ...[
+              const SizedBox(height: 8),
+              Text(
+                  tr('Prijungus kelis bankus, pervedimai tarp tavo paties sąskaitų čia gali būti suskaičiuoti kaip įplauka, jei bankas neatskleidžia gavėjo sąskaitos.'),
+                  style: TextStyle(fontSize: 12.5, color: _faint, height: 1.35)),
+            ],
           ],
         ),
       ),
@@ -464,6 +479,35 @@ List<Map<String, dynamic>> _recItemsFull(Map subs) =>
 
 /// Whether a stream counts toward the monthly commitment: the backend says it's
 /// an ACTIVE bill (not a transfer), unless the user overrode that verdict.
+/// A key for the user's verdict on a recurring stream that SURVIVES re-detection.
+///
+/// `sid` is an ordinal the backend assigns while splitting a merchant's payments
+/// into streams (`recurring.py` emits `key#0`, `key#1`, …). One more transaction
+/// re-splits the group and every ordinal after it shifts — so the fast 3-month
+/// scan and the deeper 12-month scan that replaces it produce DIFFERENT sids for
+/// the same stream. Every verdict was stored under the old sid and silently
+/// stopped matching: the review sheet asked the same three questions again right
+/// after a bank connect, and worse, a payment the user had removed came back into
+/// the monthly total.
+///
+/// Name + monthly amount is stable across a re-split and still separates the case
+/// a plain name key got wrong (iCloud €2.99 vs Apple One €19.95 share a name).
+String _recKey(Map it) {
+  final name = ((it['name'] as String?) ?? '').trim().toLowerCase();
+  if (name.isEmpty) return ((it['sid'] as String?) ?? '').trim();
+  final monthly = ((it['monthly'] ?? 0) as num).toDouble();
+  return '$name|${monthly.toStringAsFixed(2)}';
+}
+
+/// True when [set] holds a verdict for this stream under EITHER key: the stable
+/// one, or the sid a previous build stored it under. Keeps decisions already on
+/// the device working instead of silently resetting them all once.
+bool _recHasVerdict(Set<String> set, Map it) {
+  if (set.contains(_recKey(it))) return true;
+  final sid = ((it['sid'] as String?) ?? '').trim();
+  return sid.isNotEmpty && set.contains(sid);
+}
+
 bool _recCounted(Map it, Set<String> excl, Set<String> incl) {
   // A transfer (person-to-person, own-account, exchange) is NEVER a commitment —
   // not even if the user tapped "keep" on it. This check must come FIRST: letting
@@ -471,11 +515,11 @@ bool _recCounted(Map it, Set<String> excl, Set<String> incl) {
   // monthly total. (The backend already drops transfers from the list; this is
   // the belt-and-braces for any older cached dashboard that still carries one.)
   if (it['type'] == 'transfer') return false;
-  // Keyed by sid, not name: same-merchant streams at different prices must be
-  // toggled independently (a name key turned both off).
-  final sid = (it['sid'] as String? ?? '').trim();
-  if (sid.isNotEmpty && excl.contains(sid)) return false;
-  if (sid.isNotEmpty && incl.contains(sid)) return true;
+  // Keyed by name+amount, not by name alone: same-merchant streams at different
+  // prices must be toggled independently (a name key turned both off). Both the
+  // stable key and the legacy sid are honoured — see _recKey.
+  if (_recHasVerdict(excl, it)) return false;
+  if (_recHasVerdict(incl, it)) return true;
   return it['active'] == true;
 }
 
@@ -974,7 +1018,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
           _AccountTab(balance: _d['balance'] as Map<String, dynamic>),
       ];
 
-  // Theme flip must rebuild the cached tabs so their colours update.
+  // A theme flip OR a language change must rebuild the cached tabs.
+  //
+  // Language was missing, and that is the whole "half the app switched" bug:
+  // tr() is read at build time, so only widgets that actually rebuild pick up a
+  // new language. The nav bar rebuilds with this State; the four other tabs are
+  // built once and cached, so they kept whatever language they were first built
+  // in — Overview, AI chat and Account stayed English while the bar under them
+  // turned Lithuanian. Switching a language must invalidate them exactly as a
+  // theme flip does.
   void _onTheme() => setState(() => _otherTabs = null);
 
   // Controls the home ListView (used for pull-to-refresh).
@@ -1245,6 +1297,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     _applyTheme(AppPrefs.darkMode.value);
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
+    AppPrefs.locale.addListener(_onTheme); // ...and when the language changes
     // Let any detail/edit screen that mutates `_d['all']` (delete, edit,
     // convert, recategorise) ask the dashboard to recompute + persist.
     // The onboarding demo is decoration: it must not own the global refresh
@@ -1534,6 +1587,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     _chartDraw?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _themeVN.removeListener(_onTheme);
+    AppPrefs.locale.removeListener(_onTheme);
     _homeScroll.dispose();
     if (_dashRefresh == _refreshFromAll) _dashRefresh = null;
     super.dispose();
@@ -1827,7 +1881,19 @@ class _DashboardPreviewState extends State<DashboardPreview>
         m['count'] = (m['count'] as int) + 1;
         if ((m['count'] as int) > 1) m['ts'] = null; // merged → no single time
       }
-      final tx = merged.values.map((m) => {...m, 'count': (m['count'] as int) > 1 ? m['count'] : 0}).toList();
+      // `pos` drives the GREEN amount, and the group inherited it from whichever
+      // row happened to create the entry. Two APPLE.COM/BILL rows on one day —
+      // a charge and a smaller refund — merged to −117,46 € but kept the refund's
+      // pos:true and rendered green, i.e. money spent shown as money received.
+      // Once rows are summed, only the sum can say which direction the group went.
+      final tx = merged.values.map((m) {
+        final n = m['count'] as int;
+        return {
+          ...m,
+          if (n > 1) 'pos': (m['a'] as double) > 0,
+          'count': n > 1 ? n : 0,
+        };
+      }).toList();
       // Day "spent" uses the canonical rule (expenses only) so it stays
       // consistent with the month header and category totals.
       final total = dayTx.fold(0.0, (s, t) => s + _spendOf(t));
@@ -2151,7 +2217,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // allItems (incl. hidden + manual) go to the manager so it can restore hidden
     // ones; items (hidden dropped) drive the totals/split/review count.
     final allItems = _recItemsFull(subs);
-    final items = allItems.where((it) => !hidden.contains(it['sid'])).toList();
+    final items = allItems.where((it) => !_recHasVerdict(hidden, it)).toList();
     final excl = DashboardStore.recurringExcluded();
     final incl = DashboardStore.recurringIncluded();
     final reviewed = DashboardStore.recurringReviewed();
@@ -2170,7 +2236,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
     final pending = items.where((it) =>
         it['needsReview'] == true &&
-        !reviewed.contains(it['sid']) &&
+        !_recHasVerdict(reviewed, it) &&
         !excl.contains(((it['name'] as String?) ?? '').trim().toLowerCase())).toList()
       ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
     final n = pending.length;
@@ -2431,7 +2497,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
               ),
             ),
             const SizedBox(height: 9),
-            Text(d['lbl'] as String,
+            Text(_weekDayLbl(d),
                 style: TextStyle(
                     fontSize: 12,
                     color: selected ? _purple : _muted,
@@ -2461,7 +2527,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(children: [
-              Expanded(child: Text(d['dlabel'] as String, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink))),
+              Expanded(child: Text(_weekDateLbl(d), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink))),
               Text(tot > 0 ? '−${_eur(tot)}' : _eur(tot), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
             ]),
             if (cats.isEmpty)
@@ -2855,10 +2921,19 @@ class _DashboardPreviewState extends State<DashboardPreview>
           .toList()
         ..sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
       days.add({
+        // 'lbl'/'dlabel' are the language the week happened to be COMPUTED in,
+        // and this map is persisted to Hive — so after a language switch the
+        // bar-chart weekday letters and the tooltip date stayed Lithuanian, and
+        // survived a restart until the next bank sync. The numbers below are
+        // locale-neutral; the labels are built at render time from them, and the
+        // two strings stay only as a fallback for data persisted by older builds.
         'lbl': wdShort[i],
         'total': total,
         'cats': cats,
         'dlabel': '${_monGen[day.month - 1]} ${day.day}',
+        'wdi': day.weekday, // 1..7, Monday-first — matches wdShort's order
+        'mo': day.month,
+        'dd': day.day,
       });
     }
     return {
@@ -3241,8 +3316,11 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
       'mkey': 'manual-${DateTime.now().microsecondsSinceEpoch}',
       'd': _DashboardPreviewState._ymd(_date),
       // Same date fields bank rows carry, so search/detail don't show "· null".
+      // Written in whatever language the app is in at save time, and then
+      // persisted — so these are a fallback only. Everything that shows a date
+      // goes through _mdOf, which rebuilds it from 'd' in the CURRENT language.
       'md': '${_monGen[_date.month - 1]} ${_date.day}',
-      'wd': const ['Pir', 'Ant', 'Tre', 'Ket', 'Pen', 'Šeš', 'Sek'][_date.weekday - 1],
+      'wd': _wdShort[_date.weekday - 1],
       'cat': _cat.cat,
       'col': _cat.col,
       'ic': _cat.ic,
@@ -3687,6 +3765,49 @@ List<String> get _monGen => _enUi ? _monNomEn : _monGenLt;
 List<String> get _wdFull => _enUi ? _wdFullEn : _wdFullLt;
 List<String> get _wdShort => _enUi ? _wdShortEn : _wdShortLt;
 String _dateLabel(DateTime t) => '${_monAbbr[t.month - 1]} ${t.day}';
+
+/// The greyed "money moved, but it is not income or spending" line in a calendar
+/// cell. Deliberately NOT green/red and deliberately unsigned: the direction of a
+/// transfer is the part the app can't vouch for.
+Widget _calXfer(double x) => Text(
+      '↔ ${_eur0(x.abs())}',
+      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: _faint),
+    );
+
+// Week-chart labels, built at render time so they follow the UI language.
+// `_computeWeek` persists 'wdi'/'mo'/'dd' (numbers); the older 'lbl'/'dlabel'
+// strings are the fallback for a week still sitting in Hive from a build that
+// predates those keys — stale in language, but better than a crash or a blank.
+String _weekDayLbl(Map<String, dynamic> d) {
+  final wdi = d['wdi'];
+  if (wdi is int && wdi >= 1 && wdi <= 7) return _wdShort[wdi - 1];
+  return (d['lbl'] as String?) ?? '';
+}
+
+/// A transaction's "Liepos 14" / "July 14" label, rebuilt from its ISO 'd' so it
+/// follows the UI language. The stored 'md' is frozen in the language the row
+/// was created in — the server writes it in the language it was asked for, and a
+/// manually added transaction keeps it forever — so it is only the fallback for
+/// a row whose date won't parse.
+String _mdOf(Map<String, dynamic> t) {
+  final d = t['d'];
+  if (d is String && d.length >= 10) {
+    final mo = int.tryParse(d.substring(5, 7));
+    final dd = int.tryParse(d.substring(8, 10));
+    if (mo != null && dd != null && mo >= 1 && mo <= 12) {
+      return '${_monGen[mo - 1]} $dd';
+    }
+  }
+  return (t['md'] as String?) ?? '';
+}
+
+String _weekDateLbl(Map<String, dynamic> d) {
+  final mo = d['mo'], dd = d['dd'];
+  if (mo is int && mo >= 1 && mo <= 12 && dd is int) {
+    return '${_monGen[mo - 1]} $dd';
+  }
+  return (d['dlabel'] as String?) ?? '';
+}
 // Compact chart-axis amount, currency-aware (stored EUR → display currency).
 String _kEur(double v) {
   final c = v * Money.rate;
@@ -4641,7 +4762,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                       Row(children: [
                         Container(width: 5, height: 5, decoration: BoxDecoration(shape: BoxShape.circle, color: _purple)),
                         const SizedBox(width: 6),
-                        Flexible(child: Text('${s['md']}; ${tr((s['cat'] ?? '').toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted))),
+                        Flexible(child: Text('${_mdOf(s)}; ${tr((s['cat'] ?? '').toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted))),
                       ]),
                     ],
                   ),
@@ -4833,7 +4954,13 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     // chat asks for. A user who never accepted it must not have their finances sent
     // off-device; the templated fallback summary still renders (_aiText stays null).
     if (!AppPrefs.aiChatConsent) return;
-    final cached = _monthAiCache[widget.month];
+    // Keyed by month AND language: the summary comes back written in the UI
+    // language, so a month cached in Lithuanian was replayed verbatim after the
+    // user switched to English — the one paragraph on the screen stayed
+    // Lithuanian for the rest of the session.
+    final lang = effectiveLocale().languageCode;
+    final cacheKey = '${widget.month}|$lang';
+    final cached = _monthAiCache[cacheKey];
     if (cached != null && cached.isNotEmpty) {
       setState(() => _aiText = cached);
       return;
@@ -4841,9 +4968,9 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     setState(() => _aiLoading = true);
     try {
       final text = await BankingService.instance.monthSummary(
-          stats: _buildStats(), lang: effectiveLocale().languageCode);
+          stats: _buildStats(), lang: lang);
       if (!mounted) return;
-      if (text.isNotEmpty) _monthAiCache[widget.month] = text;
+      if (text.isNotEmpty) _monthAiCache[cacheKey] = text;
       setState(() {
         _aiText = text.isNotEmpty ? text : null;
         _aiLoading = false;
@@ -5255,7 +5382,16 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   }
 
   Widget _categoryList(List<_SecAgg> secs) {
-    final total = secs.fold(0.0, (s, x) => s + x.net.abs());
+    // Spending only in the divisor.
+    //
+    // This used to sum |net| across EVERY section, income and transfers
+    // included, so each category was measured against a total it is not part of:
+    // 400 € of food out of 1 000 € spent showed as 12% once a 2 000 € salary and
+    // a 1 000 € transfer sat in the denominator. Every share was quietly wrong,
+    // and they never added up to 100%.
+    final total = secs
+        .where((s) => !_isIncome(s.label) && !_isTransfer(s.label))
+        .fold(0.0, (s, x) => s + x.net.abs());
     final prevMk = _prevMonthKey;
     final prev = prevMk != null ? _netByLabelFor(prevMk) : const <String, double>{};
     double changePct(_SecAgg s) {
@@ -5276,6 +5412,10 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
     String valueOf(_SecAgg s) {
       if (_catSort == 1) {
+        // Income and transfers are not part of spending, so a "share of
+        // spending" for them is not a small number — it is a meaningless one.
+        // Salary against a spending total reads as 214%.
+        if (_isIncome(s.label) || _isTransfer(s.label)) return '—';
         final pct = total > 0 ? s.net.abs() / total * 100 : 0;
         return '${pct.toStringAsFixed(0)}%';
       }
@@ -5386,10 +5526,21 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final net = <int, double>{};
     final spend = <int, double>{}; // expenses only — drives the "heavy day" amber
     final daySec = <int, Map<String, double>>{};
+    // Transfers stay OUT of `net`: the app cannot tell a person paying you from
+    // money you moved between your own accounts, so counting them would invent
+    // income. But dropping them entirely left a day on which money genuinely
+    // arrived looking completely EMPTY, while the category panel right above the
+    // calendar showed the same movement as "Pervedimai +977 €". Collected
+    // separately and drawn greyed, so the day reads as "something moved here"
+    // without touching the day's spend/income figure.
+    final xfer = <int, double>{};
     for (final t in _rows) {
       final label = _secOf(t);
-      if (_isTransfer(label)) continue; // transfers are neutral — not income/spend
       final d = _dayOf(t);
+      if (_isTransfer(label)) {
+        xfer[d] = (xfer[d] ?? 0) + _aOf(t).toDouble();
+        continue;
+      }
       final a = _aOf(t).toDouble();
       net[d] = (net[d] ?? 0) + a;
       if (!_isIncome(label) && a < 0) {
@@ -5412,7 +5563,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
       // Highlight a day amber only for heavy SPENDING — never for a payday or a
       // big own-account transfer (those used to trip the "heavy spend" alarm).
       final c = ((spend[d] ?? 0) > 500) ? _secColor['amber'] : dom(d);
-      cells.add(_calCell(d, net[d], c));
+      cells.add(_calCell(d, net[d], c, xfer[d]));
     }
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
@@ -5434,7 +5585,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     );
   }
 
-  Widget _calCell(int d, double? n, Color? c) {
+  Widget _calCell(int d, double? n, Color? c, [double? x]) {
     return Container(
       margin: const EdgeInsets.all(2),
       decoration: BoxDecoration(
@@ -5446,7 +5597,10 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text('$d', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-          if (n != null) Text(_eur0(n), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: n >= 0 ? _good : _muted)),
+          if (n != null)
+            Text(_eur0(n), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: n >= 0 ? _good : _muted))
+          else if (x != null)
+            _calXfer(x),
         ],
       ),
     );
@@ -5849,7 +6003,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(_shortNm(top[i]['nm'] as String), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
                         const SizedBox(height: 2),
-                        Text('${top[i]['md']}${_hm(top[i]['ts']) != null ? ', ${_hm(top[i]['ts'])}' : ''}; ${tr((top[i]['cat'] ?? '').toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted)),
+                        Text('${_mdOf(top[i])}${_hm(top[i]['ts']) != null ? ', ${_hm(top[i]['ts'])}' : ''}; ${tr((top[i]['cat'] ?? '').toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: _muted)),
                       ]),
                     ),
                     const SizedBox(width: 8),
@@ -5984,7 +6138,7 @@ class _CategoryDetailScreen extends StatelessWidget {
                         child: Row(children: [
                           CategoryIcon(icon: _iconOf(subList[i].value[1] as String?), color: section.color, size: 40),
                           const SizedBox(width: 13),
-                          Expanded(child: Text(subList[i].key, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
+                          Expanded(child: Text(tr(subList[i].key), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ink))),
                           Text(_eur(subList[i].value[0] as double, signed: true),
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: (subList[i].value[0] as double) >= 0 ? _good : _ink, fontFeatures: const [FontFeature.tabularFigures()])),
                         ]),
@@ -6000,9 +6154,9 @@ class _CategoryDetailScreen extends StatelessWidget {
                   child: Row(children: [
                     CategoryIcon(icon: section.icon, color: section.color, size: 26),
                     const SizedBox(width: 8),
-                    Text('Neigiama: ${_eur(neg)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
+                    Text('${tr('Neigiama')}: ${_eur(neg)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
                     const Spacer(),
-                    Text('Teigiama: ${_eur(pos)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
+                    Text('${tr('Teigiama')}: ${_eur(pos)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
                   ]),
                 ),
               ],
@@ -6386,10 +6540,21 @@ class _OverviewTabState extends State<_OverviewTab> {
     final net = <int, double>{};
     final spend = <int, double>{}; // expenses only — drives the "heavy day" amber
     final daySec = <int, Map<String, double>>{};
+    // Transfers stay OUT of `net`: the app cannot tell a person paying you from
+    // money you moved between your own accounts, so counting them would invent
+    // income. But dropping them entirely left a day on which money genuinely
+    // arrived looking completely EMPTY, while the category panel right above the
+    // calendar showed the same movement as "Pervedimai +977 €". Collected
+    // separately and drawn greyed, so the day reads as "something moved here"
+    // without touching the day's spend/income figure.
+    final xfer = <int, double>{};
     for (final t in _rows) {
       final label = _secOf(t);
-      if (_isTransfer(label)) continue; // transfers are neutral — not income/spend
       final d = _dayOf(t);
+      if (_isTransfer(label)) {
+        xfer[d] = (xfer[d] ?? 0) + _aOf(t).toDouble();
+        continue;
+      }
       final a = _aOf(t).toDouble();
       net[d] = (net[d] ?? 0) + a;
       if (!_isIncome(label) && a < 0) {
@@ -6419,7 +6584,10 @@ class _OverviewTabState extends State<_OverviewTab> {
         ),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text('$d', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-          if (n != null) Text(_eur0(n), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: n >= 0 ? _good : _muted)),
+          if (n != null)
+            Text(_eur0(n), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: n >= 0 ? _good : _muted))
+          else if (xfer[d] != null)
+            _calXfer(xfer[d]!),
         ]),
       ));
     }
@@ -7363,7 +7531,7 @@ class _PlanningTabState extends State<_PlanningTab> {
   Widget _recurringCard() {
     final hidden = DashboardStore.recurringHidden();
     final allItems = _recItemsFull(widget.subs);
-    final items = allItems.where((it) => !hidden.contains(it['sid'])).toList();
+    final items = allItems.where((it) => !_recHasVerdict(hidden, it)).toList();
     final excl = DashboardStore.recurringExcluded();
     final incl = DashboardStore.recurringIncluded();
     final reviewed = DashboardStore.recurringReviewed();
@@ -7372,7 +7540,7 @@ class _PlanningTabState extends State<_PlanningTab> {
     // Pending review: flagged uncertain, not yet confirmed OR removed by the user.
     final pending = items.where((it) =>
         it['needsReview'] == true &&
-        !reviewed.contains(it['sid']) &&
+        !_recHasVerdict(reviewed, it) &&
         !excl.contains(((it['name'] as String?) ?? '').trim().toLowerCase())).toList()
       ..sort((a, b) => ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
     return Column(children: [
@@ -7496,7 +7664,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
   // re-sorts (that made rows jump around and feel like the switch "sprang back").
   late final List<Map<String, dynamic>> _ordered = [
     for (final it in widget.items)
-      if (!_hiddenSids.contains(it['sid'])) it
+      if (!_recHasVerdict(_hiddenSids, it)) it
   ]..sort(_byCountedThenAmount);
 
   int _byCountedThenAmount(Map a, Map b) {
@@ -7507,7 +7675,7 @@ class _RecurringScreenState extends State<_RecurringScreen> {
 
   // Currently-deleted items (to offer restore). Derived from the full input.
   List<Map<String, dynamic>> get _hiddenItems =>
-      widget.items.where((it) => _hiddenSids.contains(it['sid'])).toList();
+      widget.items.where((it) => _recHasVerdict(_hiddenSids, it)).toList();
 
   // Captured so a lingering floating snackbar (app-level messenger) is cleared
   // when we leave this screen.
@@ -7526,12 +7694,12 @@ class _RecurringScreenState extends State<_RecurringScreen> {
   }
 
   Future<void> _delete(Map<String, dynamic> it) async {
-    final sid = (it['sid'] as String?) ?? '';
-    if (sid.isEmpty) return;
-    await DashboardStore.setRecurringHidden(sid, true);
+    final key = _recKey(it);
+    if (key.isEmpty) return;
+    await DashboardStore.setRecurringHidden(key, true);
     if (!mounted) return;
     setState(() {
-      _hiddenSids.add(sid);
+      _hiddenSids.add(key);
       _ordered.remove(it);
     });
     // Immediate one-tap undo (in case it was a mis-tap); the item also stays
@@ -7548,12 +7716,16 @@ class _RecurringScreenState extends State<_RecurringScreen> {
   }
 
   Future<void> _restore(Map<String, dynamic> it) async {
-    final sid = (it['sid'] as String?) ?? '';
-    if (sid.isEmpty) return;
-    await DashboardStore.setRecurringHidden(sid, false);
+    final key = _recKey(it);
+    if (key.isEmpty) return;
+    await DashboardStore.setRecurringHidden(key, false);
+    // A row hidden by an older build is still stored under its sid; clear that
+    // too, or "restore" leaves it hidden and the tap looks like it did nothing.
+    final sid = ((it['sid'] as String?) ?? '').trim();
+    if (sid.isNotEmpty) await DashboardStore.setRecurringHidden(sid, false);
     if (!mounted) return;
     setState(() {
-      _hiddenSids.remove(sid);
+      _hiddenSids..remove(key)..remove(sid);
       _ordered.add(it);
       _ordered.sort(_byCountedThenAmount);
     });
@@ -7628,11 +7800,10 @@ class _RecurringScreenState extends State<_RecurringScreen> {
   }
 
   Future<void> _toggle(Map it, bool counted) async {
-    final sid = (it['sid'] as String?) ?? '';
     final backendActive = it['active'] == true && it['type'] != 'transfer';
     // Match the heuristic → clear the override; differ → store the user's choice.
     final bool? override = (counted == backendActive) ? null : counted;
-    await DashboardStore.setRecurringOverride(sid, override);
+    await DashboardStore.setRecurringOverride(_recKey(it), override);
     if (!mounted) return;
     setState(() {
       _excl = DashboardStore.recurringExcluded();
@@ -7894,13 +8065,13 @@ class _RecurringReviewSheetState extends State<_RecurringReviewSheet> {
   int _done = 0;
 
   Future<void> _decide(Map<String, dynamic> it, bool keep) async {
-    final sid = (it['sid'] as String?) ?? '';
     // Green ＋ = "yes, I track it" → force-INCLUDE so it actually lands in the
     // counted subscriptions (before, keep only marked it reviewed, so a stream
     // the engine hadn't counted just vanished). Red ✗ = force-EXCLUDE. Either way
-    // it leaves the review queue. Keyed by sid so same-name streams don't collide.
-    await DashboardStore.setRecurringOverride(sid, keep);
-    await DashboardStore.markRecurringReviewed(sid);
+    // it leaves the review queue. Keyed by name+amount so the verdict survives the
+    // deeper scan re-splitting the streams — see _recKey.
+    await DashboardStore.setRecurringOverride(_recKey(it), keep);
+    await DashboardStore.markRecurringReviewed(_recKey(it));
     if (!mounted) return;
     setState(() {
       _queue.remove(it);
@@ -9103,6 +9274,28 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     return r.toStringAsFixed(4);
   }
 
+  /// Payment reminders are handed to the OS scheduler with their text already
+  /// written, so a language change does not reach the ones already queued —
+  /// they would keep firing in the old language until the next app launch
+  /// reschedules them. Rewrite them now, from the persisted dashboard.
+  Future<void> _reschedulePaymentReminders() async {
+    try {
+      final dash = DashboardStore.load();
+      if (dash == null) return;
+      final subs = (dash['subs'] as Map?)?.cast<String, dynamic>();
+      final items = ((subs?['items'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      await NotificationService.instance.scheduleFromRecurring(
+        items,
+        excluded: DashboardStore.recurringExcluded(),
+        included: DashboardStore.recurringIncluded(),
+        isLithuanian: effectiveLocale().languageCode == 'lt',
+      );
+    } catch (_) {/* reminders are best-effort */}
+  }
+
   void _pickLanguage() {
     // Manual choice wins over the device Region default; the app rebuilds via
     // the AppPrefs.locale notifier.
@@ -9115,6 +9308,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       for (final o in opts)
         _radioRow(tr(o[0] as String), '', '', _langLabel == o[0], () {
           AppPrefs.setLocale(o[1] as Locale?);
+          _reschedulePaymentReminders();
           setState(() {});
           Navigator.pop(context);
         }),
@@ -9668,7 +9862,7 @@ class _SearchScreenState extends State<_SearchScreen> {
 
   void _open(Map<String, dynamic> t) {
     final day = {
-      'date': t['d'], 'label': t['md'], 'wd': t['wd'] ?? '',
+      'date': t['d'], 'label': _mdOf(t), 'wd': t['wd'] ?? '',
       'day': _dayOf(t),
       'total': t['a'], 'tx': [t],
     };
@@ -9753,7 +9947,7 @@ class _SearchScreenState extends State<_SearchScreen> {
                                     const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF5B301)),
                                   ],
                                 ]),
-                                Text('${tr((t['cat'] ?? '').toString())} · ${t['md']}', style: TextStyle(fontSize: 12.5, color: _muted)),
+                                Text('${tr((t['cat'] ?? '').toString())} · ${_mdOf(t)}', style: TextStyle(fontSize: 12.5, color: _muted)),
                               ]),
                             ),
                             Text(_eur(_aOf(t).toDouble(), signed: true),

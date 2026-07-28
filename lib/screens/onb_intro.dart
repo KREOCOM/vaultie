@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:flutter/services.dart';
 
 import '../i18n.dart';
+import 'preview/dashboard_preview.dart';
 import 'splash_screen.dart';
 
-/// Onboarding page 1 — a full-bleed looping intro video (the animated Vaultie
-/// tile mosaic) with a frosted-glass text block and a "Pradėti" action.
+/// Onboarding page 1 — a full-bleed still (the Vaultie tile mosaic) with the
+/// copy on a scrim and a "Pradėti" action.
 ///
-/// The video is a seamless boomerang loop (assets/onboarding/intro_loop.mp4) so
-/// it always looks in motion, with no visible restart.
+/// A video used to run here and was dropped deliberately. It was a brand reveal
+/// whose wordmark landed at eight seconds, and people leave this page in three —
+/// so almost nobody saw the payoff, and the splash one second earlier had just
+/// shown them the same wordmark anyway. What it did cost was real: a 9 MB decode
+/// on the slowest screen in the app, plus a poster to keep in sync, a
+/// hold-the-last-frame rule and a loop seam that could all drift. The still is
+/// 1.4 MB, draws on the first frame, and is the same composition people were
+/// seeing in practice.
 class OnbIntro extends StatefulWidget {
   const OnbIntro({super.key, required this.next});
 
@@ -19,9 +26,6 @@ class OnbIntro extends StatefulWidget {
 }
 
 class _OnbIntroState extends State<OnbIntro> {
-  late final VideoPlayerController _c;
-  bool _ready = false;
-
   @override
   void initState() {
     super.initState();
@@ -31,26 +35,37 @@ class _OnbIntroState extends State<OnbIntro> {
         if (mounted) _start();
       });
     }
-    _c = VideoPlayerController.asset('assets/onboarding/intro_loop.mp4')
-      ..setLooping(true)
-      ..setVolume(0);
-    _c.initialize().then((_) {
-      if (!mounted) return;
-      _c.play();
-      setState(() => _ready = true);
-    });
   }
 
   @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Used to hang off the video controller finishing its initialisation. With
+    // the video gone there is nothing to wait for, so it runs as soon as there
+    // is a context to precache against.
+    _warmNextPage();
+  }
+
+  /// The next page is by far the heaviest in the chain — a 2.4 MB scene image
+  /// plus a full dashboard built from ~900 transactions. Doing that work inside
+  /// its entry transition is what made "Toliau" stutter there and nowhere else,
+  /// so it happens now, while this page is just playing its clip.
+  ///
+  /// This used to live on the bank-tiles page that sat between the two. Taking
+  /// that page out of the chain took the warm-up with it, which would have put
+  /// the stutter straight back — so it moved here.
+  void _warmNextPage() {
+    if (!mounted) return;
+    DashboardPreview.warmDemo();
+    precacheImage(
+        const AssetImage('assets/onboarding/page3_scene.png'), context);
   }
 
   void _start() {
+    HapticFeedback.lightImpact();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 420),
+        transitionDuration: const Duration(milliseconds: 200),
         pageBuilder: (_, __, ___) => widget.next,
         transitionsBuilder: (_, a, __, child) =>
             FadeTransition(opacity: a, child: child),
@@ -61,43 +76,62 @@ class _OnbIntroState extends State<OnbIntro> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // A deep blue behind the video so the first frame doesn't flash white
-      // while the controller initialises.
-      backgroundColor: const Color(0xFF0A2A7A),
+      // The same near-black navy the scene pages settle on (`_deep` in
+      // onb_scene_page.dart), so page 1's copy sits on the identical field as
+      // every page after it.
+      backgroundColor: const Color(0xFF030E30),
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ── Full-bleed looping background video ──
-          // The video's first frame, shown until the file is decoded. A 2–7 MB
-          // asset does not open instantly, and without this the page arrived
-          // empty and filled in a beat later — which reads as the tap not
-          // having worked.
-          Positioned.fill(
-            child: Image.asset('assets/onboarding/page1_poster.jpg', fit: BoxFit.cover),
-          ),
-          if (_ready)
-            FittedBox(
+          // ── Full-bleed artwork ──
+          // The render arrives 2:3 and is re-laid to 853×1844 before it lands
+          // here — cards in the top 47%, the deep field extended below them — so
+          // `cover` is close to a 1:1 fit and crops almost nothing. Dropped in at
+          // its native 2:3 it would have lost 15% off each side and pushed the
+          // bottom card down under the copy.
+          //
+          // Anchored to the TOP, unlike the tile render before it: the cards are
+          // the subject and they live up there, so a short screen should lose
+          // empty floor from the bottom rather than clip a card off the top.
+          const Positioned.fill(
+            child: Image(
+              image: AssetImage('assets/onboarding/page1.png'),
               fit: BoxFit.cover,
-              child: SizedBox(
-                width: _c.value.size.width,
-                height: _c.value.size.height,
-                child: VideoPlayer(_c),
-              ),
+              alignment: Alignment.topCenter,
             ),
+          ),
 
-          // ── Bottom scrim: blends the video into a calm area with no hard line ──
-          const Align(
-            alignment: Alignment.bottomCenter,
-            child: FractionallySizedBox(
-              heightFactor: 0.62,
-              widthFactor: 1,
+          // ── Bottom wash ──
+          // Fades to #030E30 — the exact navy the scene pages use — so the strip
+          // the copy sits on is the same shade across the whole chain. Fading to
+          // the artwork's own blue instead left page 1 visibly lighter than every
+          // page after it.
+          //
+          // Fully OPAQUE from 62% down, which is where this differs from the
+          // scene pages: their scrim only reaches ~80% at its darkest, and this
+          // render's last tile rows go soft and out of focus around two thirds of
+          // the way down. A translucent wash left that blur glowing through the
+          // text. Below 62% there is flat colour and nothing else.
+          const Positioned.fill(
+            child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0x00041446), Color(0xB304113A), Color(0xFF030E32)],
-                    stops: [0.0, 0.55, 0.86],
+                    colors: [
+                      Color(0x00030E30),
+                      Color(0x99030E30),
+                      Color(0xFF030E30),
+                      Color(0xFF030E30),
+                    ],
+                    // Placed against this render, not by eye: the cards finish at
+                    // 54% and the copy begins around 58%, so the fade starts just
+                    // under the last card — grounding it rather than slicing it —
+                    // and is fully opaque by 72%, which also buries the seam at
+                    // 76% where the render's own frame ends and the extended
+                    // canvas begins.
+                    stops: [0.54, 0.64, 0.72, 1.0],
                   ),
                 ),
               ),
@@ -137,46 +171,46 @@ class _OnbIntroState extends State<OnbIntro> {
                     const SizedBox(height: 11),
                     Text(
                       tr('Vaultie padeda aiškiau matyti, kur keliauja tavo pinigai, priimti geresnius sprendimus ir viską stebėti vienoje vietoje.'),
+                      // No drop shadow any more. It existed to keep this legible
+                      // over moving artwork; the copy now sits on flat colour, and
+                      // a shadow there only softens the edges of the letters.
                       style: TextStyle(
-                        fontSize: 14,
-                        height: 1.45,
-                        color: Colors.white.withValues(alpha: 0.86),
-                        shadows: const [
-                          Shadow(color: Color(0x99001038), blurRadius: 12),
-                        ],
+                        fontSize: 14.5,
+                        height: 1.5,
+                        color: Colors.white.withValues(alpha: 0.92),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
                     for (final b in const [
                       'Veikia su 2 500+ bankų ES, JK ir EEE',
                       'Reguliuojama PSD2 atviroji bankininkystė',
                       'Duomenys lieka tavo telefone',
                     ])
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.only(bottom: 7),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Padding(
                               padding: EdgeInsets.only(top: 2),
                               child: Icon(Icons.check_rounded,
-                                  size: 14, color: Color(0xFF8FB4FF)),
+                                  size: 14, color: Color(0xFF9EC0FF)),
                             ),
-                            const SizedBox(width: 7),
+                            const SizedBox(width: 8),
                             Flexible(
                               child: Text(
                                 tr(b),
                                 style: TextStyle(
                                   fontSize: 13,
-                                  height: 1.3,
-                                  color: Colors.white.withValues(alpha: 0.80),
+                                  height: 1.35,
+                                  color: Colors.white.withValues(alpha: 0.86),
                                 ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 22),
                     GestureDetector(
                       onTap: _start,
                       child: Container(
