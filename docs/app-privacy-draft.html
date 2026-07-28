@@ -78,6 +78,38 @@
 
 <p><strong>„Do you use data for tracking?“ → NE.</strong> Nėra reklamos SDK, nėra Firebase Analytics, nėra IDFA, jokie duomenys nedalinami duomenų brokeriams. Todėl <code>AppTrackingTransparency</code> nereikalingas.</p>
 
+<h2>Spaudžiam per App Store Connect — eilės tvarka</h2>
+<p class="sub" style="margin-bottom:16px">App Store Connect → tavo programa → <em>App Privacy</em> → <em>Get Started</em>. Eik iš viršaus į apačią; ko čia nėra — žymėk „nerenkama“.</p>
+
+<div class="card">
+<ol>
+  <li><strong>„Do you or your third-party partners collect data from this app?“</strong> → <strong>Yes</strong></li>
+  <li>Pažymėk <strong>tik šiuos penkis</strong> duomenų tipus:
+    <ul>
+      <li>Contact Info → <strong>Email Address</strong></li>
+      <li>Financial Info → <strong>Other Financial Info</strong></li>
+      <li>Identifiers → <strong>User ID</strong></li>
+      <li>Purchases → <strong>Purchase History</strong></li>
+      <li>Diagnostics → <strong>Crash Data</strong></li>
+    </ul>
+  </li>
+  <li>Kiekvienam iš penkių Apple užduos tuos pačius tris klausimus. Atsakymai <strong>vienodi visiems penkiems</strong>:
+    <ul>
+      <li>Paskirtis → <strong>App Functionality</strong> (daugiau nieko nežymėk)</li>
+      <li>„Is this data linked to the user’s identity?“ → <strong>Yes</strong></li>
+      <li>„Is this data used for tracking purposes?“ → <strong>No</strong></li>
+    </ul>
+  </li>
+  <li>Peržiūros lange turi likti <strong>„Data Linked to You“ — 5 tipai</strong>, o „Data Used to Track You“ — <strong>tuščia</strong>. Jei tracking neliko tuščias, kažkur pažymėta ne taip.</li>
+  <li><strong>Publish</strong>.</li>
+</ol>
+</div>
+
+<div class="card warn">
+  <h3>Dažniausia klaida čia</h3>
+  <p><strong>Crash Data</strong> instinktyviai žymimas kaip <em>Not Linked</em>, nes atrodo anoniminis. Vaultie atveju tai neteisinga: <code>user_session.dart:60</code> nustato Crashlytics vartotojo ID. Turi būti <strong>Linked</strong>.</p>
+</div>
+
 <h2>Kiekvieno „TAIP“ pagrindimas</h2>
 
 <h3>Email Address <span class="tag">Contact Info</span></h3>
