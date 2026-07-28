@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 
 import 'main.dart';
+import 'logic/display_currency.dart';
 import 'services/fx_rates.dart';
 import 'ui/design_system.dart';
 
@@ -23,6 +24,11 @@ class AppPrefs {
 
   /// Currency symbol used for all money formatting (defaults to euro).
   static final ValueNotifier<String> currency = ValueNotifier<String>('€');
+
+  /// False when the chosen currency could NOT be applied (no FX rate yet) and
+  /// amounts are therefore still euros. The picker and the settings row read
+  /// this instead of each deciding for themselves whether the choice took.
+  static final ValueNotifier<bool> displayConverted = ValueNotifier<bool>(true);
 
   /// The user's chosen DISPLAY currency (ISO code). Amounts are stored in EUR
   /// and converted for display via [FxRates]. Default 'EUR'. Bumps [currency]
@@ -118,13 +124,13 @@ class AppPrefs {
     // Amounts are stored in EUR, so falling back to EUR is always truthful. When
     // the real table lands, main.dart's listener calls this again and the chosen
     // currency takes effect then.
-    if (FxRates.instance.hasRateFor(info.code)) {
-      Money.rate = FxRates.instance.rateFor(info.code);
-      Money.symbol = info.symbol;
-    } else {
-      Money.rate = 1.0;
-      Money.symbol = '€';
-    }
+    final d = resolveDisplayCurrency(
+        info.code, info.symbol, FxRates.instance.rates.value);
+    Money.rate = d.rate;
+    Money.symbol = d.symbol;
+    // Report whether the choice actually applied, so no screen has to re-derive
+    // it and a currency change can never silently do nothing.
+    displayConverted.value = d.converted;
     currency.value = Money.symbol; // legacy notifier → triggers rebuilds
   }
 

@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/auth_service.dart';
 import '../../app_prefs.dart';
+import '../../logic/display_currency.dart';
 import '../../content_theme.dart';
 import '../../i18n.dart';
 import '../../services/app_lock.dart';
@@ -9235,35 +9236,28 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                 itemBuilder: (_, i) {
                   final c = kCurrencies[i];
                   final rate = rates[c.code];
+                  final usable = canDisplayCurrency(c.code, rates);
                   final sub = c.code == 'EUR'
                       ? tr('Bazinė valiuta')
-                      : (rate != null
+                      : (usable && rate != null
                           ? '1 EUR = ${_fmtRate(rate)} ${c.code}'
-                          : c.code);
+                          : tr('Kursas nepasiekiamas'));
                   final sel = c.code == cur;
                   return InkWell(
-                    onTap: () async {
-                      await AppPrefs.setCurrencyCode(c.code);
-                      if (!mounted) return;
-                      setState(() => _currency = _currencyLabel(c.code));
-                      if (ctx.mounted) Navigator.pop(ctx);
-                      // Without a rate the app keeps showing euros — amounts are
-                      // stored in EUR and a foreign symbol on an unconverted
-                      // number is a wrong figure stated with confidence. That
-                      // fallback was SILENT, so picking a currency on a fresh
-                      // install or a bad connection looked like a dead button.
-                      // The choice is saved and applies itself once the table
-                      // lands; say so instead of appearing broken.
-                      if (!FxRates.instance.hasRateFor(c.code) && mounted) {
-                        ScaffoldMessenger.of(context)
-                          ..clearSnackBars()
-                          ..showSnackBar(SnackBar(
-                            content: Text(tr(
-                                'Valiutų kursai dar neužkrauti — sumos liks eurais, kol jie atsinaujins.')),
-                            duration: const Duration(seconds: 4),
-                          ));
-                      }
-                    },
+                    // A currency we have no rate for cannot be applied: amounts
+                    // are stored in EUR and a foreign symbol on an unconverted
+                    // number is a wrong figure stated with confidence. Offering
+                    // it anyway and quietly staying in euros is the worst of the
+                    // options — the user taps, nothing changes, nothing explains
+                    // it. Don't offer what cannot work.
+                    onTap: !usable
+                        ? null
+                        : () async {
+                            await AppPrefs.setCurrencyCode(c.code);
+                            if (!mounted) return;
+                            setState(() => _currency = _currencyLabel(c.code));
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 14),
@@ -9278,10 +9272,11 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                                         fontWeight: sel
                                             ? FontWeight.w800
                                             : FontWeight.w600,
-                                        color: _ink)),
+                                        color: usable ? _ink : _faint)),
                                 Text(sub,
                                     style: TextStyle(
-                                        fontSize: 12.5, color: _muted)),
+                                        fontSize: 12.5,
+                                        color: usable ? _muted : _faint)),
                               ]),
                         ),
                         Padding(

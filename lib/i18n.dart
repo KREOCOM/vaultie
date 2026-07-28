@@ -744,8 +744,7 @@ const Map<String, String> _en = {
   'Atjungti bankus?': 'Disconnect banks?',
   'Pašalinsime visus prijungtus bankus ir jų duomenis iš šio telefono. Galėsi prijungti iš naujo. Tavo paskyra ir prenumerata nenukentės.':
       "We'll remove every connected bank and its data from this phone. You can reconnect later. Your account and subscription stay intact.",
-  'Valiutų kursai dar neužkrauti — sumos liks eurais, kol jie atsinaujins.':
-      "Exchange rates haven't loaded yet — amounts stay in euros until they do.",
+  'Kursas nepasiekiamas': 'Rate unavailable',
   'Kitos valiutos atsiras, kai sumos bus ir perskaičiuojamos, o ne tik perrašomos kitu ženklu.':
       "Other currencies will appear once amounts are actually converted, not just relabelled with a different symbol.",
 
