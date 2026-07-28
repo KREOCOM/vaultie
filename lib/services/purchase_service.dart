@@ -107,6 +107,12 @@ abstract class PurchaseService {
   /// haven't loaded — callers fall back to the static [plans] price.
   String? priceString(PlanId id);
 
+  /// The numeric price and its ISO currency code, when the store offering has
+  /// loaded. The paywall needs the NUMBER to derive per-month / per-year / saving
+  /// figures — [priceString] is already formatted and cannot be divided.
+  double? priceAmount(PlanId id);
+  String? priceCurrency(PlanId id);
+
   /// The live subscription snapshot for the account screen, or null while it
   /// hasn't loaded (or offline). Reflects the store's own record.
   Future<SubscriptionInfo?> subscriptionInfo();
@@ -160,6 +166,10 @@ class MockPurchaseService implements PurchaseService {
 
   @override
   String? priceString(PlanId id) => null; // fall back to static plan prices
+  @override
+  double? priceAmount(PlanId id) => null;
+  @override
+  String? priceCurrency(PlanId id) => null;
 
   @override
   int? freeTrialDays(PlanId id) => null; // no store, so no offer to report
@@ -243,6 +253,8 @@ class RevenueCatPurchaseService implements PurchaseService {
   /// Purchasable package + localized price per plan, from the current offering.
   final Map<PlanId, rc.Package> _packages = {};
   final Map<PlanId, String> _prices = {};
+  final Map<PlanId, double> _amounts = {};
+  final Map<PlanId, String> _currencies = {};
 
   /// Free-trial length per plan, in days, for plans whose store product carries
   /// a zero-price introductory offer.
@@ -290,6 +302,12 @@ class RevenueCatPurchaseService implements PurchaseService {
         if (plan != null) {
           _packages[plan] = pkg;
           _prices[plan] = pkg.storeProduct.priceString;
+          // The NUMBER and its currency, not just the formatted string: the
+          // paywall derives "per month", "per year" and "you save" from these.
+          // Deriving them from the hard-coded EUR constants instead printed
+          // "3,33 €" under a plan the store was showing as "$5.99".
+          _amounts[plan] = pkg.storeProduct.price;
+          _currencies[plan] = pkg.storeProduct.currencyCode;
           ids.add(pkg.storeProduct.identifier);
         }
       }
@@ -369,6 +387,10 @@ class RevenueCatPurchaseService implements PurchaseService {
 
   @override
   String? priceString(PlanId id) => _prices[id];
+  @override
+  double? priceAmount(PlanId id) => _amounts[id];
+  @override
+  String? priceCurrency(PlanId id) => _currencies[id];
 
   @override
   int? freeTrialDays(PlanId id) => _trialDays[id];

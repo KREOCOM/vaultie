@@ -1,7 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-
+import '../app_prefs.dart';
 import '../i18n.dart';
+import '../logic/paywall_prices.dart';
 import '../services/auth_service.dart';
 import '../services/purchase_service.dart';
 import '../user_session.dart';
@@ -17,11 +18,10 @@ import 'login_screen.dart';
 /// behind it without a plan. The close button signs the user out and returns
 /// them to sign-in rather than advancing — it is a way out, not a way in.
 ///
-/// The prices shown are the live, localized store prices when the RevenueCat
-/// offering has loaded, falling back to [_monthly]/[_yearly] otherwise. The
-/// derived figures (savings, discount %) are always computed from those EUR
-/// constants — they are display-only and the app is EUR-first, but they will
-/// read slightly off in regions Apple prices non-proportionally.
+/// Every price on this screen — the plan prices AND the figures derived from
+/// them (per month, per year, savings, discount %) — comes from the live store
+/// offering in the store's own currency, falling back to [_monthly]/[_yearly]
+/// in EUR only until it loads. See [_PaywallPrices].
 ///
 /// Two departures from the reference, both deliberate:
 ///
@@ -50,15 +50,11 @@ const _blueBright = Color(0xFF0A4DFD);
 const _green = Color(0xFF25C26B);
 const _greenSoft = Color(0xFF071B12);
 
-// One source for the money: every other figure on the screen is derived.
+// Fallback prices, used ONLY until the store offering loads (or if it never
+// does). Every derived figure below is computed from the LIVE store price when
+// there is one — see _PaywallPrices.
 const _monthly = 4.99;
 const _yearly = 39.99;
-const double _yearOfMonthly = _monthly * 12;             // 59,88
-const double _saving = _yearOfMonthly - _yearly;         // 19,89
-final int _discount = (_saving / _yearOfMonthly * 100).round();  // 33
-const double _yearlyPerMonth = _yearly / 12;             // 3,33
-
-String _eur(double v) => '${v.toStringAsFixed(2).replaceAll('.', ',')} €';
 
 class _OnbPaywallState extends State<OnbPaywall> {
   bool _annual = true;
@@ -98,13 +94,29 @@ class _OnbPaywallState extends State<OnbPaywall> {
     super.dispose();
   }
 
+  /// Rebuilt on demand: the RevenueCat offering can land AFTER this screen is
+  /// first built, and a cached price object would keep showing the EUR fallback.
+  PaywallPrices get _p {
+    final svc = PurchaseService.instance;
+    return PaywallPrices.from(
+      monthly: svc.priceAmount(PlanId.monthly),
+      yearly: svc.priceAmount(PlanId.yearly),
+      currency: svc.priceCurrency(PlanId.yearly) ??
+          svc.priceCurrency(PlanId.monthly),
+      fallback: const PaywallPrices(
+          monthly: _monthly, yearly: _yearly, currency: 'EUR'),
+    );
+  }
+
+  String _fmt(double v) => _p.format(v, effectiveLocale().toString());
+
   PlanId get _plan => _annual ? PlanId.yearly : PlanId.monthly;
 
   /// Live store price for [id], falling back to the constant above until the
   /// RevenueCat offering has loaded (or if it never does).
   String _priceFor(PlanId id) =>
       PurchaseService.instance.priceString(id) ??
-      _eur(id == PlanId.yearly ? _yearly : _monthly);
+      _fmt(id == PlanId.yearly ? _p.yearly : _p.monthly);
 
   /// Free-trial length for [id], straight from the store product. Null until
   /// the offer actually exists in App Store Connect — every bit of trial copy
@@ -303,7 +315,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           price: _priceFor(PlanId.yearly),
                           period: tr('/ metus'),
                           trialDays: _trialFor(PlanId.yearly),
-                          chip: '${_eur(_yearlyPerMonth)} ${tr('/ mėn.')}',
+                          chip: '${_fmt(_p.yearlyPerMonth)} ${tr('/ mėn.')}',
                         ),
                         const SizedBox(height: 10),
                         _planCard(
@@ -311,7 +323,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           title: tr('Mėnesinis planas'),
                           price: _priceFor(PlanId.monthly),
                           period: tr('/ mėn.'),
-                          chip: '${_eur(_yearOfMonthly)} ${tr('per metus')}',
+                          chip: '${_fmt(_p.yearOfMonthly)} ${tr('per metus')}',
                           trialDays: _trialFor(PlanId.monthly),
                         ),
                         _trialLine(),
@@ -416,7 +428,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           border: Border.all(
                               color: _green.withValues(alpha: 0.45))),
                       child: Text(
-                          '${tr('Sutaupai')} ${_eur(_saving)}',
+                          '${tr('Sutaupai')} ${_fmt(_p.saving)}',
                           style: const TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w800,
@@ -462,7 +474,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                               color: trialDays != null ? _green : _sub)),
                       if (annual) ...[
                         const SizedBox(height: 3),
-                        Text('${tr('Sutaupyk')} $_discount %',
+                        Text('${tr('Sutaupyk')} ${_p.discount} %',
                             style: const TextStyle(
                                 fontSize: 13, fontWeight: FontWeight.w800, color: _green)),
                       ],
@@ -478,7 +490,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                         decoration:
                             BoxDecoration(color: _green, borderRadius: BorderRadius.circular(6)),
-                        child: Text('−$_discount %',
+                        child: Text('−${_p.discount} %',
                             style: const TextStyle(
                                 fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
                       ),
