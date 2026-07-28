@@ -1363,11 +1363,22 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   // Auto-sync on open and on resume: re-fetch all connected banks and swap the
   // fresher data in, so a user who just made a purchase sees it without knowing
-  // to pull-to-refresh. A short throttle keeps rapid re-opens from re-scanning,
-  // but it's low because the user is present (PSU headers → Enable Banking's
-  // quota is uncapped for attended calls), so opening the app can sync freely.
-  // No-op in the standalone preview (no connected banks).
-  static const _autoSyncEvery = Duration(minutes: 3);
+  // to pull-to-refresh. No-op in the standalone preview (no connected banks).
+  //
+  // This was 3 minutes. Enable Banking bills per CONNECTED USER PER MONTH, not
+  // per call, so syncing often costs nothing there — an earlier version of this
+  // comment claimed otherwise and was simply wrong.
+  //
+  // What a sync does still cost is our own Cloud Functions: each one is a full
+  // multi-bank, 6-month scan, invoked and CPU-billed per run, plus the user's
+  // battery and mobile data. Every three minutes buys nothing for that — bank
+  // feeds update a few times a day, not continuously, so most of those scans
+  // returned identical data. Half an hour is also roughly what comparable apps
+  // do (Bilance syncs about every 28 minutes).
+  //
+  // Pull-to-refresh is deliberately NOT throttled by this: when the user
+  // explicitly asks for new data, they get it immediately.
+  static const _autoSyncEvery = Duration(minutes: 30);
   // Bank names currently represented in a dashboard payload's accounts.
   Set<String> _banksIn(Map<String, dynamic>? d) {
     final accts = ((d?['balance'] as Map?)?['accounts'] as List?) ?? const [];
