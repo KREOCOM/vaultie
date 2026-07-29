@@ -20,6 +20,7 @@ import 'models/subscription.dart';
 import 'services/dashboard_store.dart';
 import 'services/banking_deep_links.dart';
 import 'services/feature_flags.dart';
+import 'services/local_crypto.dart';
 import 'services/fx_rates.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
@@ -82,8 +83,9 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 /// data). Dropping one bad box loses only that box's cache, which the app re-fetches
 /// from the bank; the app still boots.
 Future<Box<T>> _openBoxSafe<T>(String name) async {
+  final cipher = LocalCrypto.cipher;
   try {
-    return await Hive.openBox<T>(name);
+    return await Hive.openBox<T>(name, encryptionCipher: cipher);
   } catch (e, s) {
     try {
       await FirebaseCrashlytics.instance
@@ -93,7 +95,7 @@ Future<Box<T>> _openBoxSafe<T>(String name) async {
       await Hive.deleteBoxFromDisk(name);
     } catch (_) {}
     try {
-      return await Hive.openBox<T>(name);
+      return await Hive.openBox<T>(name, encryptionCipher: cipher);
     } catch (_) {
       // The retry failed too — disk full, or the store is unwritable. Returning
       // an in-memory box keeps the app BOOTING: this session cannot persist, but
@@ -165,6 +167,25 @@ Future<void> main() async {
       Hive.registerAdapter(SubscriptionAdapter());
     }
   } catch (_) {/* already registered by a hot restart */}
+  // The local boxes hold a year of real bank transactions, so they are encrypted
+  // with a Keychain-held key. This must run BEFORE any box is opened, and the
+  // one-time migration must run before that — an existing plaintext box cannot
+  // be opened with a cipher, it has to be read and rewritten.
+  await LocalCrypto.init();
+  if (LocalCrypto.cipher != null && !await LocalCrypto.migrated) {
+    var ok = await LocalCrypto.migrateBox<Subscription>(HiveBoxes.subscriptions);
+    for (final b in const [
+      HiveBoxes.settings,
+      HiveBoxes.cancellations,
+      HiveBoxes.monthlyStats,
+      HiveBoxes.dashboard,
+    ]) {
+      ok = await LocalCrypto.migrateBox<dynamic>(b) && ok;
+    }
+    // Only claim it if EVERY box came across; a partial pass retries next launch
+    // rather than leaving one box readable and calling the job done.
+    if (ok) await LocalCrypto.markMigrated();
+  }
   final subsBox = await _openBoxSafe<Subscription>(HiveBoxes.subscriptions);
   final settings = await _openBoxSafe<dynamic>(HiveBoxes.settings);
   await _openBoxSafe<dynamic>(HiveBoxes.cancellations);

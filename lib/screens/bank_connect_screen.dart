@@ -13,6 +13,7 @@ import '../services/banking_service.dart';
 import '../services/dashboard_store.dart';
 import '../services/feature_flags.dart';
 import '../user_session.dart';
+import 'bank_how_it_works.dart';
 import 'bank_import_screen.dart';
 import 'login_screen.dart';
 import 'preview/dashboard_preview.dart';
@@ -136,7 +137,7 @@ class BankConnectScreen extends StatefulWidget {
   State<BankConnectScreen> createState() => _BankConnectScreenState();
 }
 
-enum _Phase { country, loading, list, connecting, analysing, error }
+enum _Phase { intro, country, loading, list, redirect, connecting, analysing, error }
 
 class _BankConnectScreenState extends State<BankConnectScreen> {
   /// Starts on [_Phase.loading], not on the country picker.
@@ -146,10 +147,15 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   /// step almost nobody needs: the default is Lithuania and the chip at the top
   /// of the list changes it. The picker itself is untouched, just no longer the
   /// first thing between a person and their bank.
-  _Phase _phase = _Phase.loading;
+  /// First connection opens on [_Phase.intro] — the three-step explanation of
+  /// what is about to happen. Someone adding a SECOND bank has already been
+  /// through it, so they skip straight to the list.
+  late _Phase _phase =
+      DashboardStore.bankCount == 0 ? _Phase.intro : _Phase.loading;
   List<Bank> _banks = const [];
   String? _error;
   String? _connectingBank;
+  Bank? _pendingBank; // shown on _Phase.redirect, then connected
 
   _Country _country = _countries.first; // Lithuania by default
   final _countrySearch = TextEditingController();
@@ -244,7 +250,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   @override
   void initState() {
     super.initState();
-    _loadBanks();
+    _loadBanks(prefetch: _phase == _Phase.intro);
   }
 
   void _pickCountry(_Country c) {
@@ -252,7 +258,11 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     _loadBanks();
   }
 
-  Future<void> _loadBanks() async {
+  /// [prefetch] loads the list WITHOUT taking over the screen — used while the
+  /// intro is being read, so tapping "Tęsti" opens a list that is already there
+  /// instead of a spinner. Errors are held until the user actually asks for the
+  /// list; failing at them while they are reading an explanation would be noise.
+  Future<void> _loadBanks({bool prefetch = false}) async {
     // The kill-switch, finally connected to something. It was fetched from
     // Remote Config, updated in realtime, and read by nothing — flipping it in
     // the Firebase console changed precisely nothing in the app. This is the
@@ -263,12 +273,12 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         _error = _isLt
             ? 'Banko prijungimas laikinai nepasiekiamas. Pabandyk vėliau.'
             : 'Bank connection is temporarily unavailable. Please try later.';
-        _phase = _Phase.error;
+        if (!prefetch) _phase = _Phase.error;
       });
       return;
     }
     setState(() {
-      _phase = _Phase.loading;
+      if (!prefetch) _phase = _Phase.loading;
       _error = null;
     });
     try {
@@ -276,15 +286,132 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       if (!mounted) return;
       setState(() {
         _banks = banks;
-        _phase = _Phase.list;
+        if (!prefetch) _phase = _Phase.list;
       });
     } on BankingException catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.message;
-        _phase = _Phase.error;
+        if (!prefetch) _phase = _Phase.error;
       });
     }
+  }
+
+  /// One step before leaving the app. Being thrown onto a bank's website with no
+  /// warning is where people abandon — and where a careful person suspects a
+  /// scam. This names the bank, shows its real logo and says what will happen.
+  void _confirm(Bank bank) {
+    if (_phase == _Phase.connecting || _phase == _Phase.analysing) return;
+    setState(() {
+      _pendingBank = bank;
+      _phase = _Phase.redirect;
+    });
+  }
+
+  /// "You are about to leave for <bank>" — the last screen before the browser.
+  Widget _redirectView(Bank bank) {
+    final lt = _isLt;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Spacer(flex: 2),
+          // The bank's OWN logo, not an initial in a circle. A person about to
+          // hand over access recognises the mark long before they read the name.
+          Center(child: _bankLogoLarge(bank)),
+          const SizedBox(height: 22),
+          Text(
+            lt ? 'Nukreipiame į\n${bank.name}' : 'Taking you to\n${bank.name}',
+            style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                height: 1.18,
+                letterSpacing: -0.6,
+                color: cxInk),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            lt
+                ? 'Dabar trumpam paliksi Vaultie ir atsidursi savo banke. Ten prisijungi ir patvirtini prieigą prie sąskaitos. Kai baigsi — automatiškai grįši atgal.'
+                : "You'll leave Vaultie for a moment and land in your bank. Sign in there and approve access to your account. When you're done you'll come straight back.",
+            style: const TextStyle(fontSize: 14.5, height: 1.5, color: cxSubtle),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+            decoration: BoxDecoration(
+              color: cxCard,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.lock_outline_rounded, size: 18, color: Color(0xFF9FB0D8)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  lt
+                      ? 'Prisijungimo duomenis įvedi tik savo banke. Vaultie jų nemato ir nesaugo.'
+                      : 'You enter your credentials only at your bank. Vaultie never sees or stores them.',
+                  style: const TextStyle(fontSize: 12.5, height: 1.45, color: cxSubtle),
+                ),
+              ),
+            ]),
+          ),
+          const Spacer(flex: 3),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: ElevatedButton(
+              onPressed: () => _connect(bank),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: VaultieColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Text(lt ? 'Tęsti į banką' : 'Continue to bank',
+                  style: const TextStyle(
+                      fontSize: 16.5, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Center(
+            child: TextButton(
+              onPressed: () => setState(() => _phase = _Phase.list),
+              child: Text(lt ? 'Rinktis kitą banką' : 'Choose a different bank',
+                  style: const TextStyle(fontSize: 13.5, color: cxSubtle)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bankLogoLarge(Bank bank) {
+    final logo = bank.logo;
+    final fallback = Container(
+      width: 72,
+      height: 72,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+          color: cxCard, borderRadius: BorderRadius.circular(20)),
+      child: Text(
+        bank.name.isNotEmpty ? bank.name.characters.first.toUpperCase() : '?',
+        style: const TextStyle(
+            fontSize: 30, fontWeight: FontWeight.w800, color: cxInk),
+      ),
+    );
+    if (logo == null || logo.isEmpty) return fallback;
+    return Container(
+      width: 72,
+      height: 72,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(20)),
+      child: Image.network(logo,
+          fit: BoxFit.contain, errorBuilder: (_, __, ___) => fallback),
+    );
   }
 
   Future<void> _connect(Bank bank) async {
@@ -417,6 +544,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   Widget build(BuildContext context) {
     // From the bank list / error, "back" returns to country selection rather
     // than leaving the flow entirely.
+    final dark = _phase == _Phase.redirect;
     final atRoot = _phase == _Phase.country;
     // Reached in two contexts: during onboarding the stack is empty (nowhere to
     // pop to — the old dead-end), while the in-app "+ add bank" flow pushes this
@@ -425,8 +553,12 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     return Theme(
       data: contentTheme(Theme.of(context)),
       child: Scaffold(
-        backgroundColor: cBg,
+        // The trust screens are deep navy in BOTH themes (see cxBg): white copy
+        // on the light theme's white background would be invisible.
+        backgroundColor: dark ? cxBg : cBg,
         appBar: AppBar(
+          backgroundColor: dark ? cxBg : null,
+          foregroundColor: dark ? cxInk : null,
           leading: atRoot
               ? (canPop
                   ? IconButton(
@@ -436,7 +568,10 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                   : null)
               : IconButton(
                   icon: const Icon(Icons.arrow_back_rounded),
-                  onPressed: () => setState(() => _phase = _Phase.country),
+                  // From the redirect screen, back means the bank list — the
+                  // country picker is two steps behind and is not what was left.
+                  onPressed: () => setState(() => _phase =
+                      _phase == _Phase.redirect ? _Phase.list : _Phase.country),
                 ),
           // No route beneath = onboarding/wrong-account: give a way out instead
           // of trapping the user until they delete the app.
@@ -459,6 +594,18 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   Widget _body() {
     switch (_phase) {
+      case _Phase.intro:
+        return BankHowItWorks(onContinue: () {
+          // The prefetch usually finished while this was being read.
+          if (_banks.isNotEmpty && _error == null) {
+            setState(() => _phase = _Phase.list);
+          } else {
+            setState(() => _phase = _Phase.loading);
+            _loadBanks();
+          }
+        });
+      case _Phase.redirect:
+        return _redirectView(_pendingBank!);
       case _Phase.country:
         return _countryList();
       case _Phase.loading:
@@ -708,7 +855,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _connect(bank),
+        onTap: () => _confirm(bank),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(

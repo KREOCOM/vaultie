@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../i18n.dart';
+import '../widgets/onb_pulse_line.dart';
 import 'preview/dashboard_preview.dart';
 import 'splash_screen.dart';
 
@@ -96,10 +97,14 @@ class _OnbIntroState extends State<OnbIntro> {
           // around 58%, so unlifted the artwork ran under the first lines.
           //
           // Landed on the device, not calculated: 6% left the phone's base
-          // touching the headline's rule with no gap at all, and 12% overshot —
-          // the base sat at 49% against copy starting at 60%, a 94pt hole, while
-          // the phone's top crowded the status bar. 9% is the midpoint and gives
-          // roughly 40pt of air with the top still clear.
+          // touching the headline's rule with no gap at all, and 12% overshot to
+          // a 94pt hole with the phone's top crowding the status bar. 9% was the
+          // midpoint that looked right.
+          //
+          // Now 12.5%, and that is not a reversal: the static 3pt rule became the
+          // 38pt OnbPulseLine, so the bottom-anchored copy block grew ~32pt
+          // upward and ate the gap. The extra 3.5% of lift buys exactly that back
+          // — the same air as before, above a taller block.
           //
           // Raising the art does this without washing the phone out under a
           // scrim that starts higher. The strip of Scaffold it exposes at the
@@ -107,7 +112,7 @@ class _OnbIntroState extends State<OnbIntro> {
           // by then — so it cannot be seen.
           Positioned.fill(
             child: Transform.translate(
-              offset: Offset(0, -MediaQuery.of(context).size.height * 0.09),
+              offset: Offset(0, -MediaQuery.of(context).size.height * 0.125),
               child: const Image(
                 image: AssetImage('assets/onboarding/page1.png'),
                 fit: BoxFit.cover,
@@ -169,15 +174,10 @@ class _OnbIntroState extends State<OnbIntro> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 34,
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF5B8CFF),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(height: 13),
+                    // Page 1 only — see OnbPulseLine. Pages 2-7 keep the still
+                    // rule; seven loops in a row would be noise.
+                    const OnbPulseLine(),
+                    const SizedBox(height: 10),
                     Text(
                       tr('Suprask savo\nfinansus geriau'),
                       style: const TextStyle(
