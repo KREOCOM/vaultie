@@ -84,20 +84,35 @@ class _OnbIntroState extends State<OnbIntro> {
         fit: StackFit.expand,
         children: [
           // ── Full-bleed artwork ──
-          // The render arrives 2:3 and is re-laid to 853×1844 before it lands
-          // here — cards in the top 47%, the deep field extended below them — so
-          // `cover` is close to a 1:1 fit and crops almost nothing. Dropped in at
-          // its native 2:3 it would have lost 15% off each side and pushed the
-          // bottom card down under the copy.
-          //
-          // Anchored to the TOP, unlike the tile render before it: the cards are
+          // 862×1825, a hair wider than the screen's ratio, so `cover` matches
+          // the height and trims a few points off each side — nothing near the
+          // subject. Anchored to the TOP: the phone and the floating cards are
           // the subject and they live up there, so a short screen should lose
-          // empty floor from the bottom rather than clip a card off the top.
-          const Positioned.fill(
-            child: Image(
-              image: AssetImage('assets/onboarding/page1.png'),
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
+          // empty floor from the bottom rather than clip the phone.
+          //
+          // Then lifted. Detail per horizontal strip of the render goes flat from
+          // 63% down, so that is where the phone and the cards end and the
+          // reflection begins; the copy block is bottom-anchored and starts
+          // around 58%, so unlifted the artwork ran under the first lines.
+          //
+          // Landed on the device, not calculated: 6% left the phone's base
+          // touching the headline's rule with no gap at all, and 12% overshot —
+          // the base sat at 49% against copy starting at 60%, a 94pt hole, while
+          // the phone's top crowded the status bar. 9% is the midpoint and gives
+          // roughly 40pt of air with the top still clear.
+          //
+          // Raising the art does this without washing the phone out under a
+          // scrim that starts higher. The strip of Scaffold it exposes at the
+          // bottom is #030E30 — the colour the wash is already fully opaque in
+          // by then — so it cannot be seen.
+          Positioned.fill(
+            child: Transform.translate(
+              offset: Offset(0, -MediaQuery.of(context).size.height * 0.09),
+              child: const Image(
+                image: AssetImage('assets/onboarding/page1.png'),
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+              ),
             ),
           ),
 
@@ -107,11 +122,10 @@ class _OnbIntroState extends State<OnbIntro> {
           // the artwork's own blue instead left page 1 visibly lighter than every
           // page after it.
           //
-          // Fully OPAQUE from 62% down, which is where this differs from the
-          // scene pages: their scrim only reaches ~80% at its darkest, and this
-          // render's last tile rows go soft and out of focus around two thirds of
-          // the way down. A translucent wash left that blur glowing through the
-          // text. Below 62% there is flat colour and nothing else.
+          // Fully OPAQUE well before the copy, which is where this differs from
+          // the scene pages: their scrim only reaches ~80% at its darkest, and
+          // this render's reflection stays faintly lit all the way down. A
+          // translucent wash left that glow coming through the text.
           const Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
@@ -125,13 +139,19 @@ class _OnbIntroState extends State<OnbIntro> {
                       Color(0xFF030E30),
                       Color(0xFF030E30),
                     ],
-                    // Placed against this render, not by eye: the cards finish at
-                    // 54% and the copy begins around 58%, so the fade starts just
-                    // under the last card — grounding it rather than slicing it —
-                    // and is fully opaque by 72%, which also buries the seam at
-                    // 76% where the render's own frame ends and the extended
-                    // canvas begins.
-                    stops: [0.54, 0.64, 0.72, 1.0],
+                    // Measured against this render AFTER the lift above: its
+                    // subject ends at 63% of the image, which the 9% lift puts
+                    // around 55% of the screen. The wash starts just under that,
+                    // so it grounds the reflection rather than slicing the phone,
+                    // and is flat colour by 68% — clear of the copy block, which
+                    // is bottom-anchored and starts around 58%.
+                    //
+                    // These three numbers belong to THIS artwork. Every previous
+                    // set was measured against a different render and carried
+                    // over wrongly. Re-measure when the image changes: crop 24px
+                    // strips down the file and watch where the compressed size
+                    // stops falling — that is where the subject ends.
+                    stops: [0.55, 0.62, 0.68, 1.0],
                   ),
                 ),
               ),
@@ -144,7 +164,7 @@ class _OnbIntroState extends State<OnbIntro> {
             child: Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(28, 0, 28, 26),
+                padding: const EdgeInsets.fromLTRB(28, 0, 28, 16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,14 +200,14 @@ class _OnbIntroState extends State<OnbIntro> {
                         color: Colors.white.withValues(alpha: 0.92),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     for (final b in const [
                       'Veikia su 2 500+ bankų ES, JK ir EEE',
                       'Reguliuojama PSD2 atviroji bankininkystė',
                       'Duomenys lieka tavo telefone',
                     ])
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 7),
+                        padding: const EdgeInsets.only(bottom: 6),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -210,7 +230,7 @@ class _OnbIntroState extends State<OnbIntro> {
                           ],
                         ),
                       ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 16),
                     GestureDetector(
                       onTap: _start,
                       child: Container(
