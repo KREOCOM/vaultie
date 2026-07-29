@@ -1955,12 +1955,29 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // payload, so what shows always matches what the user linked. Tapping opens the
   // full balance sheet. Text colour follows the theme so it stays legible: light
   // "on hero" ink over the dark violet backdrop, dark ink over the Frost page.
-  Color get _heroInk => _darkMode ? const Color(0xFFEDEAF6) : _ink;
-  Color get _heroDim => _darkMode ? const Color(0xFF948DAC) : _muted;
+  // The light theme's hero sits on a blue header (see _heroGradient), so its
+  // text is light there too — reading these against the page background is what
+  // would put near-black type on deep blue.
+  Color get _heroInk => _darkMode ? const Color(0xFFEDEAF6) : Colors.white;
+  Color get _heroDim =>
+      _darkMode ? const Color(0xFF948DAC) : const Color(0xFFB3C6F2);
+  Color get _heroLine => const Color(0xFF8FB6FF);
+
+  /// The blue header behind the balance. Light theme only: dark mode keeps its
+  /// violet page, which is that theme's identity.
+  Gradient? get _heroGradient => _darkMode
+      ? null
+      : const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF1F46B8), Color(0xFF12246A)],
+        );
   // "gyvai" / sync indicator: cyan glows on the dark theme, a solid green/blue on
   // Frost (a light cyan would vanish on the pale page).
-  Color get _liveTint => _darkMode ? const Color(0xFF6EE7FF) : _good;
-  Color get _syncTint => _darkMode ? const Color(0xFF6EE7FF) : _purple;
+  Color get _liveTint =>
+      _darkMode ? const Color(0xFF6EE7FF) : const Color(0xFF5AE08C);
+  Color get _syncTint =>
+      _darkMode ? const Color(0xFF6EE7FF) : const Color(0xFFB3C6F2);
 
   Widget _topBanner() {
     // Plot the FULL balance-over-time series — the same data the tapped balance
@@ -2004,10 +2021,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final (delta, deltaPct) = _balanceDelta(seriesRaw, curVal);
     final dateLabels = _sparkDateLabels(seriesRaw);
     final topInset = MediaQuery.of(context).padding.top;
-    return Padding(
-      // Transparent: the header sits directly on the page's violet gradient
-      // (darkest at the very top), so it melts into the feed below with no card
-      // edge or seam. Just the status-bar inset + side padding.
+    return Container(
+      // Dark mode: transparent, so the header melts into the page's violet
+      // gradient with no card edge. Light mode: a blue header that runs to the
+      // screen edges and under the status bar, carrying the onboarding's colour
+      // into the app instead of dropping it at the door. Rounded only at the
+      // bottom, so it reads as one panel the feed slides out from under.
+      decoration: BoxDecoration(
+        gradient: _heroGradient,
+        borderRadius: _darkMode
+            ? null
+            : const BorderRadius.vertical(bottom: Radius.circular(26)),
+      ),
       padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2102,7 +2127,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
                       animation: _chartDraw ?? kAlwaysCompleteAnimation,
                       builder: (_, __) => CustomPaint(
                         painter: _NeonSparkPainter(spark,
-                            dark: _darkMode,
+                            // The hero backdrop is dark in BOTH themes now.
+                            dark: true,
+                            lineColor: _darkMode ? null : _heroLine,
                             endLabel: _hideBal ? null : balStr,
                             progress: _chartDraw?.value ?? 1),
                       ),
@@ -2141,10 +2168,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
-                          color: _darkMode ? Colors.white.withValues(alpha: 0.10) : _card,
+                          // Glass on the hero's dark backdrop in BOTH themes: a
+                          // white card with a shadow floated oddly on the blue.
+                          color: Colors.white.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _darkMode ? Colors.white.withValues(alpha: 0.17) : _hair),
-                          boxShadow: _darkMode ? null : DS.e1,
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.17)),
                         ),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           _acctGlyph(a, diameter: 24, fontSize: 11),
@@ -2154,7 +2183,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                           const SizedBox(width: 8),
                           Text(_hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
                               style: TextStyle(fontSize: 13,
-                                  color: _darkMode ? _heroInk : _purpleDeep,
+                                  color: _heroInk,
                                   fontWeight: FontWeight.w800,
                                   fontFeatures: const [FontFeature.tabularFigures()])),
                           if (!_hideBal && acctTotal > 0) ...[
@@ -3577,7 +3606,12 @@ class _SparkPainter extends CustomPainter {
 /// the line's endpoint. [pulse] is a 0→1 animation value from the host widget.
 class _NeonSparkPainter extends CustomPainter {
   _NeonSparkPainter(this.pts,
-      {this.dark = true, this.endLabel, this.progress = 1});
+      {this.dark = true, this.endLabel, this.progress = 1, this.lineColor});
+
+  /// Overrides the theme line colour. The light theme's hero now sits on a blue
+  /// header, so its chart needs a light line — but it is NOT the dark theme, and
+  /// borrowing the dark theme's violet would pull that identity into light mode.
+  final Color? lineColor;
   final List<double> pts;
   final bool dark;
   /// How much of the line is drawn, 0→1. Always 1 in the app; the onboarding
@@ -3589,7 +3623,8 @@ class _NeonSparkPainter extends CustomPainter {
   static const double rightPad = 66;
 
   // One solid line colour (violet on dark, Frost blue on light).
-  Color get _line => dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
+  Color get _line =>
+      lineColor ?? (dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF));
   Color get _gridColor =>
       (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A)).withValues(alpha: 0.07);
 
