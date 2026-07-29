@@ -8,8 +8,12 @@ import 'package:flutter/material.dart';
 /// NOT use these — the toggle never touches them.
 
 // ── Light ("Frost") — the primary look: airy blue-tinted page, dark ink ───────
-const _lBg = Color(0xFFEEF1F7);
-const _lCard = Color(0xFFFFFFFF);
+// The same blue-tinted page the dashboard uses (see _applyTheme in
+// dashboard_preview.dart). Kept identical on purpose: these screens sit either
+// side of the dashboard in the same session, and two different "whites" read as
+// two different apps.
+const _lBg = Color(0xFFC8D9F6);
+const _lCard = Color(0xFFF6F9FF);
 const _lInk = Color(0xFF14203A);
 const _lSubtle = Color(0xFF5C6A85);
 const _lLine = Color(0xFFE3E9F2);

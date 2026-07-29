@@ -83,13 +83,18 @@ void _applyTheme(bool dark) {
   // it was — the screens read as one surface instead of a white sheet, and the
   // cards now have something to sit on. Cards keep a hint of the same blue
   // rather than pure white, so nothing on them looks like a cut-out.
-  _bg         = dark ? const Color(0xFF0A0910) : const Color(0xFFD6E1F5);
+  // Light page carries a visible BLUE tint rather than reading as white. The app
+  // opens in deep blue and the dashboard used to drop that entirely; the tint is
+  // what carries the brand through instead of a dark block on one screen (that
+  // was tried and rejected — it cut the screen in two). Cards stay near-white,
+  // so the contrast between page and card went UP, not down.
+  _bg         = dark ? const Color(0xFF0A0910) : const Color(0xFFC8D9F6);
   _purpleSoft = dark ? const Color(0xFF2A2150) : const Color(0xFFE4EDFD);
   _muted      = dark ? const Color(0xFFBDB7CE) : const Color(0xFF2E3A54);
   _faint      = dark ? const Color(0xFF948DAC) : const Color(0xFF47536D);
   _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF14203A);
   _navOff     = dark ? const Color(0xFF8C86A0) : const Color(0xFF97A2B5);
-  _card       = dark ? const Color(0xFF16131F) : const Color(0xFFEFF4FF);
+  _card       = dark ? const Color(0xFF16131F) : const Color(0xFFF6F9FF);
   _hair       = dark ? const Color(0xFF2C2740) : const Color(0xFFC3D3EB);
   _soft       = dark ? const Color(0xFF221D31) : const Color(0xFFEEF2F8);
   _purple     = dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
@@ -1959,37 +1964,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // payload, so what shows always matches what the user linked. Tapping opens the
   // full balance sheet. Text colour follows the theme so it stays legible: light
   // "on hero" ink over the dark violet backdrop, dark ink over the Frost page.
-  // The light theme's hero sits on a blue header (see _heroGradient), so its
-  // text is light there too — reading these against the page background is what
-  // would put near-black type on deep blue.
-  Color get _heroInk => _darkMode ? const Color(0xFFEDEAF6) : Colors.white;
-  Color get _heroDim =>
-      _darkMode ? const Color(0xFF948DAC) : const Color(0xFFB3C6F2);
-  /// Green, not blue. The line was drawn in the header's own colour family, so
-  /// it dissolved into the background it was sitting on.
-  Color get _heroLine => const Color(0xFF4ADE80);
-
-  /// The blue header behind the balance. Light theme only: dark mode keeps its
-  /// violet page, which is that theme's identity.
-  Gradient? get _heroGradient => _darkMode
-      ? null
-      : LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            const Color(0xFF1F46B8),
-            const Color(0xFF1B3FA6),
-            const Color(0xFF2C57C0).withValues(alpha: 0.35),
-            _bg, // the page's own colour: the panel ends without an edge
-          ],
-          stops: const [0, 0.55, 0.86, 1],
-        );
+  Color get _heroInk => _darkMode ? const Color(0xFFEDEAF6) : _ink;
+  Color get _heroDim => _darkMode ? const Color(0xFF948DAC) : _muted;
   // "gyvai" / sync indicator: cyan glows on the dark theme, a solid green/blue on
   // Frost (a light cyan would vanish on the pale page).
-  Color get _liveTint =>
-      _darkMode ? const Color(0xFF6EE7FF) : const Color(0xFF5AE08C);
-  Color get _syncTint =>
-      _darkMode ? const Color(0xFF6EE7FF) : const Color(0xFFB3C6F2);
+  Color get _liveTint => _darkMode ? const Color(0xFF6EE7FF) : _good;
+  Color get _syncTint => _darkMode ? const Color(0xFF6EE7FF) : _purple;
 
   Widget _topBanner() {
     // Plot the FULL balance-over-time series — the same data the tapped balance
@@ -2045,13 +2025,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // screen edges and under the status bar, carrying the onboarding's colour
       // into the app instead of dropping it at the door. Rounded only at the
       // bottom, so it reads as one panel the feed slides out from under.
-      // No rounded corners and no border: the blue FADES into the page colour
-      // over the last stretch, so there is no edge to round. A hard-edged blue
-      // panel is what made the block read as a slab dropped on the screen.
-      decoration: BoxDecoration(gradient: _heroGradient),
-      // The extra bottom padding is the fade itself — content has to end before
-      // the blue runs out, or light text lands on a light background.
-      padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, _darkMode ? 18 : 30),
+      // Transparent in both themes: the header sits directly on the page, so it
+      // melts into the feed below with no card edge or seam.
+      //
+      // A dark blue panel was tried here and rejected on the device — it carried
+      // the onboarding's colour into the app, but it also cut the screen in two.
+      // The tint the app needed turned out to belong to the PAGE, not to a block
+      // on it; see _applyTheme.
+      padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2113,14 +2094,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
                         // Bigger and tighter than the rest of the block. It was
                         // the same weight as the labels around it and sank into
                         // them — this is the number the screen exists for.
-                        fontSize: _darkMode ? 34 : 42,
+                        // Bigger in light mode: it was the same weight as the
+                        // labels around it and sank into them.
+                        fontSize: _darkMode ? 34 : 40,
                         fontWeight: FontWeight.w800,
                         color: _heroInk,
                         letterSpacing: -1.2,
                         height: 1.05,
                         shadows: _darkMode
                             ? const [Shadow(color: Color(0x808B5CF6), blurRadius: 18)]
-                            : const [Shadow(color: Color(0x33000B2E), blurRadius: 14)],
+                            : null,
                       )),
               // Month-over-month change: green up / red down, "% | € nuo praėjusio mėn."
               if (!_hideBal && delta != null && deltaPct != null && delta.abs() >= 1) ...[
@@ -2152,9 +2135,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                       animation: _chartDraw ?? kAlwaysCompleteAnimation,
                       builder: (_, __) => CustomPaint(
                         painter: _NeonSparkPainter(spark,
-                            // The hero backdrop is dark in BOTH themes now.
-                            dark: true,
-                            lineColor: _darkMode ? null : _heroLine,
+                            dark: _darkMode,
                             endLabel: _hideBal ? null : balStr,
                             progress: _chartDraw?.value ?? 1),
                       ),
@@ -2197,12 +2178,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
-                          // Glass on the hero's dark backdrop in BOTH themes: a
-                          // white card with a shadow floated oddly on the blue.
-                          color: Colors.white.withValues(alpha: 0.10),
+                          color: _darkMode
+                              ? Colors.white.withValues(alpha: 0.10)
+                              : _card,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.17)),
+                              color: _darkMode
+                                  ? Colors.white.withValues(alpha: 0.17)
+                                  : _hair),
+                          boxShadow: _darkMode ? null : DS.e1,
                         ),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           _acctGlyph(a, diameter: 24, fontSize: 11),
@@ -2212,7 +2196,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                           const SizedBox(width: 8),
                           Text(_hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
                               style: TextStyle(fontSize: 13,
-                                  color: _heroInk,
+                                  color: _darkMode ? _heroInk : _purpleDeep,
                                   fontWeight: FontWeight.w800,
                                   fontFeatures: const [FontFeature.tabularFigures()])),
                           if (!_hideBal && acctTotal > 0) ...[
