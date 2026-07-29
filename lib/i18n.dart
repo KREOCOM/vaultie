@@ -745,6 +745,7 @@ const Map<String, String> _en = {
   'Pašalinsime visus prijungtus bankus ir jų duomenis iš šio telefono. Galėsi prijungti iš naujo. Tavo paskyra ir prenumerata nenukentės.':
       "We'll remove every connected bank and its data from this phone. You can reconnect later. Your account and subscription stay intact.",
   'Kursas nepasiekiamas': 'Rate unavailable',
+  'Suskleisti': 'Show less',
   'Reikia aktyvios „Vaultie Pro" prenumeratos.':
       'An active Vaultie Pro subscription is required.',
   'Kažkas nepavyko. Bandyk dar kartą.': 'Something went wrong. Please try again.',

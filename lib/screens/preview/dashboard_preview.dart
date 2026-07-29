@@ -963,6 +963,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // assistant from the first frame, not the home feed switching over to it.
   late int _tab = widget.demo && widget.script == DemoScript.chat ? 2 : 0;
   bool _hideBal = false;
+
+  /// Whether every connected account is listed in the header, or just the
+  /// largest one plus a "+N" chip.
+  bool _acctsOpen = false;
   int? _weekSel; // tapped weekday bar
   int _shownPast = 2; // how many past months are shown below the current one
   final _txFilter = _TxFilter(); // feed filter (type + sections)
@@ -1961,16 +1965,24 @@ class _DashboardPreviewState extends State<DashboardPreview>
   Color get _heroInk => _darkMode ? const Color(0xFFEDEAF6) : Colors.white;
   Color get _heroDim =>
       _darkMode ? const Color(0xFF948DAC) : const Color(0xFFB3C6F2);
-  Color get _heroLine => const Color(0xFF8FB6FF);
+  /// Green, not blue. The line was drawn in the header's own colour family, so
+  /// it dissolved into the background it was sitting on.
+  Color get _heroLine => const Color(0xFF4ADE80);
 
   /// The blue header behind the balance. Light theme only: dark mode keeps its
   /// violet page, which is that theme's identity.
   Gradient? get _heroGradient => _darkMode
       ? null
-      : const LinearGradient(
+      : LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1F46B8), Color(0xFF12246A)],
+          colors: [
+            const Color(0xFF1F46B8),
+            const Color(0xFF1B3FA6),
+            const Color(0xFF2C57C0).withValues(alpha: 0.35),
+            _bg, // the page's own colour: the panel ends without an edge
+          ],
+          stops: const [0, 0.55, 0.86, 1],
         );
   // "gyvai" / sync indicator: cyan glows on the dark theme, a solid green/blue on
   // Frost (a light cyan would vanish on the pale page).
@@ -2004,7 +2016,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final balStr = cur is num ? _eur0(cur) : '—';
     final accounts = (((_d['balance'] as Map?)?['accounts'] as List?) ?? const [])
         .whereType<Map>()
-        .toList();
+        .toList()
+      // Biggest first: collapsed, the header shows ONE account, and it has to be
+      // the one that holds the money. Left in server order it showed whichever
+      // happened to be first — for Osvaldas a 0 € Revolut currency pocket.
+      ..sort((a, b) => ((b['amount'] ?? 0) as num)
+          .toDouble()
+          .compareTo(((a['amount'] ?? 0) as num).toDouble()));
     final acctTotal =
         accounts.fold(0.0, (s, a) => s + ((a['amount'] ?? 0) as num).toDouble());
     // € labels for the chart (max/min of the balance) so the line isn't just a
@@ -2027,13 +2045,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // screen edges and under the status bar, carrying the onboarding's colour
       // into the app instead of dropping it at the door. Rounded only at the
       // bottom, so it reads as one panel the feed slides out from under.
-      decoration: BoxDecoration(
-        gradient: _heroGradient,
-        borderRadius: _darkMode
-            ? null
-            : const BorderRadius.vertical(bottom: Radius.circular(26)),
-      ),
-      padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, 18),
+      // No rounded corners and no border: the blue FADES into the page colour
+      // over the last stretch, so there is no edge to round. A hard-edged blue
+      // panel is what made the block read as a slab dropped on the screen.
+      decoration: BoxDecoration(gradient: _heroGradient),
+      // The extra bottom padding is the fade itself — content has to end before
+      // the blue runs out, or light text lands on a light background.
+      padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, _darkMode ? 18 : 30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2092,10 +2110,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
                       style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: _heroInk, letterSpacing: 2))
                   : Text(balStr,
                       style: TextStyle(
-                        fontSize: 34, fontWeight: FontWeight.w800, color: _heroInk, letterSpacing: -0.6,
+                        // Bigger and tighter than the rest of the block. It was
+                        // the same weight as the labels around it and sank into
+                        // them — this is the number the screen exists for.
+                        fontSize: _darkMode ? 34 : 42,
+                        fontWeight: FontWeight.w800,
+                        color: _heroInk,
+                        letterSpacing: -1.2,
+                        height: 1.05,
                         shadows: _darkMode
                             ? const [Shadow(color: Color(0x808B5CF6), blurRadius: 18)]
-                            : null,
+                            : const [Shadow(color: Color(0x33000B2E), blurRadius: 14)],
                       )),
               // Month-over-month change: green up / red down, "% | € nuo praėjusio mėn."
               if (!_hideBal && delta != null && deltaPct != null && delta.abs() >= 1) ...[
@@ -2158,13 +2183,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
               ],
               if (accounts.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                // Compact account chips (logo · name · balance · share) that flow
-                // in a row instead of a tall card — takes far less space.
+                // Compact account chips (logo · name · balance · share). Only the
+                // BIGGEST is shown until asked: four accounts — three of them
+                // Revolut currency pockets sitting at 0 € — filled the header
+                // with rows carrying no information. The rest are one tap away.
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    for (final a in accounts)
+                    for (final a in (_acctsOpen
+                        ? accounts
+                        : accounts.take(1)))
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
@@ -2192,6 +2221,38 @@ class _DashboardPreviewState extends State<DashboardPreview>
                                 style: TextStyle(fontSize: 11, color: _heroDim, fontWeight: FontWeight.w600)),
                           ],
                         ]),
+                      ),
+                    if (accounts.length > 1)
+                      GestureDetector(
+                        onTap: () => setState(() => _acctsOpen = !_acctsOpen),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 11, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.17)),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Text(
+                              _acctsOpen
+                                  ? tr('Suskleisti')
+                                  : '+${accounts.length - 1}',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: _heroInk,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(width: 3),
+                            Icon(
+                                _acctsOpen
+                                    ? Icons.expand_less_rounded
+                                    : Icons.expand_more_rounded,
+                                size: 17,
+                                color: _heroInk),
+                          ]),
+                        ),
                       ),
                   ],
                 ),
