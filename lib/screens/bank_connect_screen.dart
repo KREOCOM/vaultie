@@ -309,25 +309,44 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   }
 
   /// "You are about to leave for <bank>" — the last screen before the browser.
+  ///
+  /// Centred, and built around a hand-off: Vaultie's mark, an arrow, the bank's
+  /// own. Left-aligned with the logo floating above it, this read as two
+  /// unrelated things stacked; the pair with an arrow between them says what is
+  /// actually happening in one glance, before the sentence is read.
   Widget _redirectView(Bank bank) {
     final lt = _isLt;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Spacer(flex: 2),
-          // The bank's OWN logo, not an initial in a circle. A person about to
-          // hand over access recognises the mark long before they read the name.
-          Center(child: _bankLogoLarge(bank)),
-          const SizedBox(height: 22),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _markTile(
+                child: Image.asset('assets/icon/app_icon.png',
+                    width: 64, height: 64, fit: BoxFit.cover),
+                padded: false,
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14),
+                child: Icon(Icons.arrow_forward_rounded,
+                    size: 22, color: Color(0xFF9FB0D8)),
+              ),
+              _bankLogoLarge(bank),
+            ],
+          ),
+          const SizedBox(height: 26),
           Text(
-            lt ? 'Nukreipiame į\n${bank.name}' : 'Taking you to\n${bank.name}',
+            lt ? 'Nukreipiame į ${bank.name}' : 'Taking you to ${bank.name}',
+            textAlign: TextAlign.center,
             style: const TextStyle(
-                fontSize: 26,
+                fontSize: 24,
                 fontWeight: FontWeight.w800,
-                height: 1.18,
-                letterSpacing: -0.6,
+                height: 1.2,
+                letterSpacing: -0.5,
                 color: cxInk),
           ),
           const SizedBox(height: 12),
@@ -335,9 +354,10 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             lt
                 ? 'Dabar trumpam paliksi Vaultie ir atsidursi savo banke. Ten prisijungi ir patvirtini prieigą prie sąskaitos. Kai baigsi — automatiškai grįši atgal.'
                 : "You'll leave Vaultie for a moment and land in your bank. Sign in there and approve access to your account. When you're done you'll come straight back.",
+            textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 14.5, height: 1.5, color: cxSubtle),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
             decoration: BoxDecoration(
@@ -345,14 +365,16 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.lock_outline_rounded, size: 18, color: Color(0xFF9FB0D8)),
+              const Icon(Icons.lock_outline_rounded,
+                  size: 18, color: Color(0xFF9FB0D8)),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   lt
                       ? 'Prisijungimo duomenis įvedi tik savo banke. Vaultie jų nemato ir nesaugo.'
                       : 'You enter your credentials only at your bank. Vaultie never sees or stores them.',
-                  style: const TextStyle(fontSize: 12.5, height: 1.45, color: cxSubtle),
+                  style:
+                      const TextStyle(fontSize: 12.5, height: 1.45, color: cxSubtle),
                 ),
               ),
             ]),
@@ -370,45 +392,51 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
               ),
-              child: Text(lt ? 'Tęsti į banką' : 'Continue to bank',
+              child: Text(lt ? 'Prisijungti banke' : 'Continue to bank',
                   style: const TextStyle(
                       fontSize: 16.5, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 6),
-          Center(
-            child: TextButton(
-              onPressed: () => setState(() => _phase = _Phase.list),
-              child: Text(lt ? 'Rinktis kitą banką' : 'Choose a different bank',
-                  style: const TextStyle(fontSize: 13.5, color: cxSubtle)),
-            ),
+          TextButton(
+            onPressed: () => setState(() => _phase = _Phase.list),
+            child: Text(lt ? 'Rinktis kitą banką' : 'Choose a different bank',
+                style: const TextStyle(fontSize: 13.5, color: cxSubtle)),
           ),
         ],
       ),
     );
   }
 
+  Widget _markTile({required Widget child, bool padded = true}) => Container(
+        width: 64,
+        height: 64,
+        clipBehavior: Clip.antiAlias,
+        padding: padded ? const EdgeInsets.all(9) : EdgeInsets.zero,
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(18)),
+        child: child,
+      );
+
+  /// The bank's own mark. Enable Banking returns a logo for the banks people
+  /// actually use; smaller ASPSPs sometimes have none, which is why the initial
+  /// tile stays as a fallback rather than being deleted.
   Widget _bankLogoLarge(Bank bank) {
     final logo = bank.logo;
     final fallback = Container(
-      width: 72,
-      height: 72,
+      width: 64,
+      height: 64,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-          color: cxCard, borderRadius: BorderRadius.circular(20)),
+          color: cxCard, borderRadius: BorderRadius.circular(18)),
       child: Text(
         bank.name.isNotEmpty ? bank.name.characters.first.toUpperCase() : '?',
         style: const TextStyle(
-            fontSize: 30, fontWeight: FontWeight.w800, color: cxInk),
+            fontSize: 27, fontWeight: FontWeight.w800, color: cxInk),
       ),
     );
     if (logo == null || logo.isEmpty) return fallback;
-    return Container(
-      width: 72,
-      height: 72,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(20)),
+    return _markTile(
       child: Image.network(logo,
           fit: BoxFit.contain, errorBuilder: (_, __, ___) => fallback),
     );
@@ -544,7 +572,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   Widget build(BuildContext context) {
     // From the bank list / error, "back" returns to country selection rather
     // than leaving the flow entirely.
-    final dark = _phase == _Phase.redirect;
+    final dark = _phase == _Phase.redirect || _phase == _Phase.intro;
     final atRoot = _phase == _Phase.country;
     // Reached in two contexts: during onboarding the stack is empty (nowhere to
     // pop to — the old dead-end), while the in-app "+ add bank" flow pushes this

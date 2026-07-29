@@ -1018,6 +1018,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
           all: (_d['all'] as List).cast<Map<String, dynamic>>(),
           subs: _d['subs'] as Map<String, dynamic>,
           demo: widget.demo,
+          onVerdictChanged: () {
+            if (mounted) setState(() {});
+          },
         ),
         if (!_tabNeeded(3))
           const SizedBox.shrink()
@@ -2269,7 +2272,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
     Future<void> openManager() async {
       await Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => _RecurringScreen(items: allItems)));
-      if (mounted) setState(() {});
+      // Same reason as openReview: toggling a payment off in the manager has to
+      // reach Planning's copy of the list too.
+      if (mounted) setState(() => _otherTabs = null);
     }
 
     // The demo taps this card by calling the very handler the card's own
@@ -2283,7 +2288,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
         backgroundColor: Colors.transparent,
         builder: (_) => _RecurringReviewSheet(items: pending),
       );
-      if (mounted) setState(() {});
+      // Planning lives in the CACHED tab list and reads the same verdicts. A
+      // plain setState only repaints this tab, so answering here made the
+      // questions vanish from Home while Planning went on offering the very
+      // same two — the user answers, and is asked again one tab away.
+      if (mounted) setState(() => _otherTabs = null);
     }
 
     return Padding(
@@ -7000,9 +7009,18 @@ VoidCallback? _demoAddBudget;
 final GlobalKey _kAddBudget = GlobalKey();
 
 class _PlanningTab extends StatefulWidget {
-  const _PlanningTab({required this.all, required this.subs, this.demo = false});
+  const _PlanningTab(
+      {required this.all,
+      required this.subs,
+      this.demo = false,
+      this.onVerdictChanged});
   final List<Map<String, dynamic>> all;
   final Map<String, dynamic> subs;
+
+  /// Answering a review here also changes what Home shows. Home is not in the
+  /// cached tab list, so it does not rebuild on its own — without this the badge
+  /// on the dashboard kept its old count after the questions were answered.
+  final VoidCallback? onVerdictChanged;
 
   /// Onboarding walkthrough: publish the add-budget handler and key.
   final bool demo;
@@ -7667,6 +7685,7 @@ class _PlanningTabState extends State<_PlanningTab> {
       builder: (_) => _RecurringReviewSheet(items: pending),
     );
     if (mounted) setState(() {});
+    widget.onVerdictChanged?.call();
   }
 }
 

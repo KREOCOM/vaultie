@@ -5,6 +5,7 @@ import '../content_theme.dart';
 import '../i18n.dart';
 import '../services/dashboard_store.dart';
 import 'bank_connect_screen.dart';
+import 'bank_how_it_works.dart';
 import 'bank_import_screen.dart';
 import 'preview/dashboard_preview.dart';
 
@@ -79,7 +80,10 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
     return Theme(
       data: contentTheme(Theme.of(context)),
       child: Scaffold(
-        backgroundColor: cBg,
+        // Deep navy, matching the two screens on either side of this one: the
+        // hand-off to the bank before it and the bank's own page after. A white
+        // screen in the middle of that made the return feel like a different app.
+        backgroundColor: cxBg,
         body: SafeArea(
           child: Center(
             child: _failed ? _errorView() : _busyView(),
@@ -89,24 +93,60 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
     );
   }
 
-  Widget _busyView() => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Image.asset('assets/icon/app_icon.png',
-                width: 72, height: 72, fit: BoxFit.cover),
-          ),
-          const SizedBox(height: 28),
-          const CircularProgressIndicator(),
-          const SizedBox(height: 20),
-          Text(
-            _isLt
-                ? 'Užbaigiame banko prijungimą…'
-                : 'Finishing your bank connection…',
-            style: TextStyle(fontSize: 15.5, color: cInk, fontWeight: FontWeight.w600),
-          ),
-        ],
+  /// What the person sees on returning from the bank.
+  ///
+  /// It used to be the app icon and a spinner — which says the app is alive, but
+  /// not that anything was ACHIEVED. Coming back from approving access, the
+  /// first thing they need is confirmation that it worked, then what is being
+  /// done with it, then how long. A logo cannot say any of that.
+  Widget _busyView() => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 74,
+              height: 74,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                  color: Color(0x2634D399), shape: BoxShape.circle),
+              child: const Icon(Icons.check_rounded,
+                  size: 38, color: Color(0xFF34D399)),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              _isLt ? 'Prieiga patvirtinta' : 'Access approved',
+              style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                  color: cxInk),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _isLt
+                  ? 'Užbaigiame prijungimą ir tvarkome tavo operacijas — ieškome pasikartojančių mokėjimų, prenumeratų ir kategorijų.'
+                  : "We're finishing the connection and sorting your transactions — looking for recurring payments, subscriptions and categories.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14.5, height: 1.5, color: cxSubtle),
+            ),
+            const SizedBox(height: 26),
+            const SizedBox(
+              width: 26,
+              height: 26,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2.6, color: Color(0xFF9FB0D8)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _isLt
+                  ? 'Netrukus atidarysime tavo apžvalgą. Neuždaryk programėlės.'
+                  : "We'll open your dashboard shortly. Keep the app open.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12.5, height: 1.45, color: Color(0xFF7F8DB0)),
+            ),
+          ],
+        ),
       );
 
   Widget _errorView() => Padding(
@@ -114,14 +154,14 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, size: 44, color: cInk),
+            Icon(Icons.error_outline_rounded, size: 44, color: cxInk),
             const SizedBox(height: 16),
             Text(
               _isLt
                   ? 'Nepavyko užbaigti prijungimo. Bandyk prijungti banką iš naujo.'
                   : "We couldn't finish the connection. Please try connecting your bank again.",
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15.5, color: cInk, height: 1.4),
+              style: const TextStyle(fontSize: 15.5, color: cxInk, height: 1.4),
             ),
             const SizedBox(height: 22),
             GestureDetector(

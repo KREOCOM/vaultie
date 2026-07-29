@@ -40,7 +40,7 @@ class BankHowItWorks extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                tr('Prijungsim saugiai — per 3 žingsnius'),
+                tr('Kaip prijungsime tavo banką'),
                 style: TextStyle(
                   fontSize: 27,
                   fontWeight: FontWeight.w800,
@@ -71,25 +71,37 @@ class BankHowItWorks extends StatelessWidget {
                 last: true,
               ),
               const Spacer(),
+              // A blue link on deep navy disappeared into the background. This
+              // is the answer to the question people actually have before
+              // handing over bank access, so it gets a surface of its own.
               GestureDetector(
                 onTap: () => showWhySafeSheet(context),
                 behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: cxCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF2E56C8)),
+                  ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.lock_outline_rounded,
-                          size: 15, color: VaultieColors.primary),
-                      const SizedBox(width: 7),
-                      Text(
-                        tr('Kodėl tai saugu'),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: VaultieColors.primary,
+                      const Icon(Icons.shield_outlined,
+                          size: 19, color: Color(0xFF8FB6FF)),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Text(
+                          tr('Kodėl tai saugu'),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: cxInk,
+                          ),
                         ),
                       ),
+                      const Icon(Icons.chevron_right_rounded,
+                          size: 20, color: Color(0xFF8FB6FF)),
                     ],
                   ),
                 ),

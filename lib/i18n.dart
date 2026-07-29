@@ -745,6 +745,11 @@ const Map<String, String> _en = {
   'Pašalinsime visus prijungtus bankus ir jų duomenis iš šio telefono. Galėsi prijungti iš naujo. Tavo paskyra ir prenumerata nenukentės.':
       "We'll remove every connected bank and its data from this phone. You can reconnect later. Your account and subscription stay intact.",
   'Kursas nepasiekiamas': 'Rate unavailable',
+  'Reikia aktyvios „Vaultie Pro" prenumeratos.':
+      'An active Vaultie Pro subscription is required.',
+  'Kažkas nepavyko. Bandyk dar kartą.': 'Something went wrong. Please try again.',
+  'Kaip prijungsime tavo banką': 'How we\'ll connect your bank',
+  'Prisijungti banke': 'Sign in at your bank',
   'Kitos valiutos atsiras, kai sumos bus ir perskaičiuojamos, o ne tik perrašomos kitu ženklu.':
       "Other currencies will appear once amounts are actually converted, not just relabelled with a different symbol.",
 

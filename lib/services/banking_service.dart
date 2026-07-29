@@ -6,6 +6,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
 import '../main.dart' show navigatorKey;
 import '../models/subscription.dart';
 import '../screens/login_screen.dart';
@@ -271,7 +272,15 @@ class BankingService {
         navigatorKey.currentState?.pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
       }
-      throw BankingException(e.message ?? 'Something went wrong. Please try again.');
+      // Server messages are written in English for the logs. The ones a user can
+      // actually meet get a localised text here — an English sentence in the
+      // middle of a Lithuanian app reads like a crash, not like an explanation.
+      if (e.code == 'permission-denied') {
+        throw BankingException(tr(
+            'Reikia aktyvios „Vaultie Pro" prenumeratos.'));
+      }
+      throw BankingException(e.message ??
+          tr('Kažkas nepavyko. Bandyk dar kartą.'));
     } catch (_) {
       throw BankingException('Could not reach the server. Check your connection.');
     }
