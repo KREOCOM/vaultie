@@ -322,9 +322,15 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                               ),
                               const SizedBox(height: 6),
                               Text(
+                                // Not "prenumeratų sekiklis": subscriptions are
+                                // only part of what the scan finds. Rent, loans,
+                                // utilities and any other standing payment are
+                                // the larger half of a real monthly commitment,
+                                // and naming only subscriptions undersells the
+                                // product on the very first screen.
                                 isLt
-                                    ? 'Tavo prenumeratų sekiklis'
-                                    : 'Your subscription tracker',
+                                    ? 'Visi tavo mokėjimai vienoje vietoje'
+                                    : 'Every recurring payment in one place',
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.55),
                                   fontSize: 15,

@@ -142,7 +142,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     final isLt = _isLt;
     final email = _auth.currentUser?.email ?? '';
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6F4),
+      // Shared with login_screen: this gate sits BETWEEN two dark screens, so
+      // its own cream background made sign-up flash dark → light → dark.
+      backgroundColor: authPaper,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -165,17 +167,17 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               Text(
                 isLt ? 'Patvirtinkite savo el. paštą' : 'Verify your email',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: const TextStyle(
+                    color: authInk,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5),
               ),
               const SizedBox(height: 12),
               Text.rich(
                 TextSpan(
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: VaultieColors.subtle, height: 1.4),
+                  style: const TextStyle(
+                      color: authSub, fontSize: 13.5, height: 1.45),
                   children: [
                     TextSpan(
                       text: isLt
@@ -185,8 +187,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                     TextSpan(
                       text: email,
                       style: const TextStyle(
-                        color: VaultieColors.ink,
-                        fontWeight: FontWeight.w600,
+                        color: authInk,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     TextSpan(
@@ -205,7 +207,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                     : 'The link is valid for 24 hours — verify anytime.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: VaultieColors.subtle,
+                  color: authSub,
                   fontSize: 13,
                 ),
               ),
@@ -215,14 +217,18 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF6E5),
+                  // Amber carried onto the dark ground as a translucent wash
+                  // rather than the cream panel it was: a solid light block here
+                  // reads as a second background, which is what made this screen
+                  // look like a different app.
+                  color: const Color(0x1FF0C674),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFF0C674)),
+                  border: Border.all(color: const Color(0x66F0C674)),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.report_gmailerrorred_outlined,
-                        color: Color(0xFF9A7B2E), size: 20),
+                        color: Color(0xFFF0C674), size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -230,7 +236,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                             ? 'Nerandi laiško? Patikrink šlamšto (Spam) aplanką ir pažymėk „Ne šlamštas".'
                             : "Can't find it? Check your Spam folder and mark it \"Not spam\".",
                         style: const TextStyle(
-                            color: Color(0xFF6B5A20),
+                            color: Color(0xFFEBD9AE),
                             fontSize: 12.5,
                             height: 1.3),
                       ),
@@ -242,18 +248,35 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               ElevatedButton(
                 onPressed:
                     _checking ? null : () => _checkVerified(showFeedback: true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: authBrand,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFF1B2A55),
+                  disabledForegroundColor: authSub,
+                  minimumSize: const Size.fromHeight(54),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  textStyle: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700),
+                ),
                 child: Text(isLt ? 'Patvirtinau' : "I've verified"),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: _resending ? null : _resend,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: VaultieColors.primary,
+                  foregroundColor: authInk,
                   minimumSize: const Size.fromHeight(54),
-                  side: const BorderSide(color: VaultieColors.primary),
+                  // A brand-blue hairline on near-black is almost invisible;
+                  // the secondary action needs a border that can be seen.
+                  side: const BorderSide(color: Color(0x3DFFFFFF)),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
+                  textStyle: const TextStyle(
+                      fontSize: 15.5, fontWeight: FontWeight.w600),
                 ),
                 child: Text(isLt ? 'Siųsti dar kartą' : 'Resend email'),
               ),
@@ -262,7 +285,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 onPressed: _signOut,
                 child: Text(
                   isLt ? 'Naudoti kitą paskyrą' : 'Use a different account',
-                  style: const TextStyle(color: VaultieColors.subtle),
+                  style: const TextStyle(color: authSub),
                 ),
               ),
             ],

@@ -392,10 +392,14 @@ class _OnbPaywallState extends State<OnbPaywall> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         decoration: BoxDecoration(
-          color: on ? const Color(0xFF07184A) : const Color(0xFF041038),
+          // Both fills sit clearly ABOVE the page (#00082D). They used to be
+          // within a few points of it, so the cards dissolved into the
+          // background and there was nothing to choose between.
+          color: on ? const Color(0xFF122A63) : const Color(0xFF0B1740),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: on ? _blue : const Color(0xFF17275C), width: on ? 1.8 : 1),
+              color: on ? _blueBright : const Color(0xFF1E2F66),
+              width: on ? 1.8 : 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,10 +462,13 @@ class _OnbPaywallState extends State<OnbPaywall> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Always white. Tinting the SELECTED title blue made the
+                      // plan you had just chosen the dimmer of the two.
                       Text(title,
-                          style: TextStyle(
-                              fontSize: 17, fontWeight: FontWeight.w800,
-                              color: on ? const Color(0xFF9FC0FF) : _ink)),
+                          style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: _ink)),
                       const SizedBox(height: 2),
                       Text(
                           trialDays != null
@@ -472,12 +479,11 @@ class _OnbPaywallState extends State<OnbPaywall> {
                               fontWeight:
                                   trialDays != null ? FontWeight.w800 : null,
                               color: trialDays != null ? _green : _sub)),
-                      if (annual) ...[
-                        const SizedBox(height: 3),
-                        Text('${tr('Sutaupyk')} ${_p.discount} %',
-                            style: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w800, color: _green)),
-                      ],
+                      // "Sutaupyk 33 %" used to sit here as well — the same
+                      // saving was then stated THREE times in one card
+                      // ("Sutaupai 19,89 €", "−33 %", "Sutaupyk 33 %"), each in
+                      // green. Saying it once in money and once as a percentage
+                      // is the argument; the third was just noise.
                     ],
                   ),
                 ),
@@ -497,10 +503,18 @@ class _OnbPaywallState extends State<OnbPaywall> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
+                        // The price is the single most important number here,
+                        // and selecting a plan used to turn it #003DE1 on a
+                        // dark blue card — blue on blue, the least legible it
+                        // could be at the moment it mattered most. Selection is
+                        // already carried by the radio, the border and the
+                        // fill; the number just stays readable.
                         Text(price,
-                            style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.w800,
-                                color: on ? _blue : _ink, letterSpacing: -0.5)),
+                            style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: _ink,
+                                letterSpacing: -0.5)),
                         const SizedBox(width: 3),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 2),
@@ -512,13 +526,18 @@ class _OnbPaywallState extends State<OnbPaywall> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: annual ? _greenSoft : const Color(0xFFEDF1FD),
+                        // The monthly chip was #EDF1FD — a near-white slab, the
+                        // only light block anywhere on a near-black screen, and
+                        // it pulled the eye to the plan we are NOT recommending.
+                        // It carries a neutral fact (what a year costs monthly),
+                        // so it is now neutral.
+                        color: annual ? _greenSoft : const Color(0xFF16234E),
                         borderRadius: BorderRadius.circular(7),
                       ),
                       child: Text(chip,
                           style: TextStyle(
                               fontSize: 11, fontWeight: FontWeight.w700,
-                              color: annual ? _green : _blueBright)),
+                              color: annual ? _green : const Color(0xFFB9C6E4))),
                     ),
                   ],
                 ),
@@ -548,31 +567,37 @@ class _OnbPaywallState extends State<OnbPaywall> {
         ),
       );
     }
+    // Deliberately NOT a panel. A filled, bordered, full-width block directly
+    // under two filled, bordered, full-width plan cards is read as a third
+    // plan — the same mistake the saving chip already had to be rescued from
+    // above. This is a promise about the plan you picked, so it is set as a
+    // line of type, and the green is spent only on the two words that carry
+    // the offer.
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: _greenSoft,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _green.withValues(alpha: 0.45)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.lock_open_rounded, size: 17, color: _green),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                '${tr('Išbandyk')} $trial ${tr('d. nemokamai')} · ${tr('atšaukti gali bet kada')}',
+      padding: const EdgeInsets.only(top: 14),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.lock_open_rounded, size: 15, color: _green),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text.rich(
+              TextSpan(
                 style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    height: 1.3,
-                    color: _green),
+                    fontSize: 13, fontWeight: FontWeight.w600, color: _sub),
+                children: [
+                  TextSpan(
+                    text: '${tr('Išbandyk')} $trial ${tr('d. nemokamai')}',
+                    style: const TextStyle(
+                        color: _green, fontWeight: FontWeight.w800),
+                  ),
+                  TextSpan(text: ' · ${tr('atšaukti gali bet kada')}'),
+                ],
               ),
+              textAlign: TextAlign.center,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -622,13 +647,45 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           ),
                         ]
                       : [
-                          Text(
-                              trial != null
-                                  ? '${tr('Išbandyti')} ${_trialLabel(trial)}'
-                                  : tr('Tęsti'),
-                              style: const TextStyle(
-                                  fontSize: 17, fontWeight: FontWeight.w800,
-                                  color: Colors.white)),
+                          // The button names the plan it will buy, and changes
+                          // the moment another plan is tapped.
+                          //
+                          // Without this the screen read as "there is a free
+                          // trial button, and some cards above it": nothing
+                          // connected the choice to the action, so a person
+                          // could press it never having understood that a plan
+                          // had to be picked — or which one they had just
+                          // agreed to pay for. The second line is the same
+                          // commitment Apple already requires us to state, put
+                          // where the decision is made instead of in grey type
+                          // underneath it.
+                          Flexible(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                    trial != null
+                                        ? '${tr('Išbandyti')} ${_trialLabel(trial)}'
+                                        : tr('Tęsti'),
+                                    style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white)),
+                                const SizedBox(height: 1),
+                                Text(
+                                    trial != null
+                                        ? '$plan · ${tr('tada')} $price / $per'
+                                        : '$plan · $price / $per',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xCCFFFFFF))),
+                              ],
+                            ),
+                          ),
                           const SizedBox(width: 10),
                           const Icon(Icons.arrow_forward_rounded,
                               size: 19, color: Colors.white),

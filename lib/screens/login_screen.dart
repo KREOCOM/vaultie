@@ -29,10 +29,19 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-const _ink = Color(0xFFFFFFFF);
-const _sub = Color(0xFF9DB0D6);
-const _brand = Color(0xFF2F6BFF);
-const _paper = Color(0xFF00041D);
+// The auth flow's palette. PUBLIC and shared on purpose: the verify-email gate
+// sits in the middle of this flow and used to carry its own hard-coded cream
+// background, so signing up went dark → light → dark and looked like two
+// different products. One token, one place to change it.
+const authInk = Color(0xFFFFFFFF);
+const authSub = Color(0xFF9DB0D6);
+const authBrand = Color(0xFF2F6BFF);
+const authPaper = Color(0xFF00041D);
+
+const _ink = authInk;
+const _sub = authSub;
+const _brand = authBrand;
+const _paper = authPaper;
 
 class _LoginScreenState extends State<LoginScreen> {
   late final _auth = AuthService();
