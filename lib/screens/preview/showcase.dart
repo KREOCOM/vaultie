@@ -609,7 +609,14 @@ class _PhoneShowcaseState extends State<PhoneShowcase>
   /// building glyph would undercut exactly the point being made.
   Widget _bankChips(double t) => Opacity(
         opacity: Curves.easeOut.transform(t.clamp(0.0, 1.0)),
-        child: Row(children: [
+        // Scales down instead of overflowing. Three fixed-width chips in a plain
+        // Row did not fit the phone frame on onboarding page 2, so the last one
+        // was clipped mid-word — "gyvai" rendered as "gyv". A hair smaller is
+        // invisible inside a mock; a cut-off word is the first thing you see.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(children: [
           _bankChip('swedbank', 'Swedbank'),
           const SizedBox(width: 8),
           _bankChip('revolut', 'Revolut'),
@@ -631,7 +638,8 @@ class _PhoneShowcaseState extends State<PhoneShowcase>
                       fontSize: 16, fontWeight: FontWeight.w600, color: _muted)),
             ]),
           ),
-        ]),
+          ]),
+        ),
       );
 
   Widget _bankChip(String asset, String name) => Container(
