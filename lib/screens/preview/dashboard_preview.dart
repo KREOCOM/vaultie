@@ -2027,10 +2027,19 @@ class _DashboardPreviewState extends State<DashboardPreview>
         accounts.fold(0.0, (s, a) => s + ((a['amount'] ?? 0) as num).toDouble());
     // € labels for the chart (max/min of the balance) so the line isn't just a
     // shape — the user asked to see the monetary values.
+    // Max/min of the balance line, so the chart carries figures and not just a
+    // shape. Either is dropped when it IS the current balance: the endpoint pill
+    // already states that number, and both are drawn against the right edge — on
+    // a falling balance the low and the pill landed on top of each other and the
+    // same "6 808 €" was printed twice, overlapping.
     String? hi, lo;
     if (spark.length >= 2) {
-      hi = _eur0(spark.reduce((a, b) => a > b ? a : b));
-      lo = _eur0(spark.reduce((a, b) => a < b ? a : b));
+      final maxV = spark.reduce((a, b) => a > b ? a : b);
+      final minV = spark.reduce((a, b) => a < b ? a : b);
+      final last = spark.last;
+      const eps = 0.5; // both are rendered to the nearest euro
+      if ((maxV - last).abs() > eps) hi = _eur0(maxV);
+      if ((minV - last).abs() > eps) lo = _eur0(minV);
     }
     // Dated balance points → month-over-month change + x-axis date labels.
     final seriesRaw = (((_d['balance'] as Map?)?['series'] as List?) ?? const [])
