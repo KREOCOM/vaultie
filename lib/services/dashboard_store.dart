@@ -184,6 +184,34 @@ class DashboardStore {
     } catch (_) {/* a missed stamp only means one extra full scan */}
   }
 
+  // ── Bank consent lifetime ────────────────────────────────────────────────
+  // PSD2 access is granted for 90 days (enable_banking.py: valid_days=90) and
+  // then the bank simply stops answering: the figures quietly stop moving and
+  // nothing says why. The user is warned before that happens.
+  //
+  // APPROXIMATION, deliberately on the safe side. The real per-bank expiry is
+  // computed server-side at auth time and is not stored or returned, so this
+  // stamps the FIRST connection and never extends it. Reconnecting a bank
+  // therefore warns earlier than it strictly needs to — a harmless nudge —
+  // rather than risking silence past a date that had already passed. Replace
+  // with the server's own `valid_until` per session when it is plumbed through.
+  static const _kConsentAt = 'consentAt';
+
+  static Future<void> markConsentGranted() async {
+    try {
+      if (_box.get(_kConsentAt) != null) return; // keep the earliest
+      await _box.put(_kConsentAt, DateTime.now().toIso8601String());
+    } catch (_) {/* only costs the expiry warning */}
+  }
+
+  /// When the oldest live bank consent lapses, or null if nothing is connected.
+  static DateTime? get consentExpiry {
+    if (connections().isEmpty) return null;
+    final s = _str(_kConsentAt);
+    final at = s == null ? null : DateTime.tryParse(s);
+    return at?.add(const Duration(days: 90));
+  }
+
   // ── Revoked strikes ──────────────────────────────────────────────────────
   // A bank answering 401/403 usually means the consent is gone — but not always.
   // A token refresh mid-flight, a bank-side hiccup, a header the ASPSP wanted on

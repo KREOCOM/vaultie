@@ -170,6 +170,20 @@ class AppPrefs {
     await _box.put(_kNotifBannerDismissed, value);
   }
 
+  // Whether the notifications explainer has been shown. The OS prompt can be
+  // answered exactly once per install — ask at the wrong moment and a "no" is
+  // permanent — so the explainer runs once, after the first bank connect, when
+  // there are real payments to be reminded about.
+  static const _kNotifAsked = 'notifIntroShown';
+
+  static bool get notifIntroShown => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _boolOr(_kNotifAsked, false)
+      : true; // box not open → never prompt
+
+  static Future<void> setNotifIntroShown(bool value) async {
+    await _box.put(_kNotifAsked, value);
+  }
+
   // Opt-in: allow sending unresolved BUSINESS merchant names (only) to the AI
   // classifier for better categorisation. Off by default. Never sends amounts,
   // IBANs, identifiers, dates or person/P2P names.

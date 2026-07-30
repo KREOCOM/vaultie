@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -32,6 +33,16 @@ class NotificationService {
 
   /// The hour of day (local) reminders fire at.
   static const int _remindHour = 10;
+
+  /// Budget warnings go out in the evening, not with the morning reminders —
+  /// it is about the day you are still spending in, and it should not arrive in
+  /// the same batch as everything else.
+  static const int _budgetHour = 19;
+
+  /// Above this, a yearly charge gets a 7-day warning as well as the 2-day one.
+  /// Set where cancelling is worth the trouble: nobody reorganises their week
+  /// over 15 €, and everybody wants a week's notice before 60 € goes out.
+  static const double _bigChargeThreshold = 40;
 
   Future<void> init() async {
     if (_initialized) return;
@@ -172,11 +183,21 @@ class NotificationService {
   /// user-excluded streams, and trivial amounts. Deduplicated by name.
   ///
   /// [excluded]/[included] are the user's manager overrides (DashboardStore).
+  /// [consentExpiry] is when the bank access itself lapses (PSD2 re-consent,
+  /// ~90 days). [spent] is the month's spending so far, against [budget].
+  /// Both are optional: nothing is scheduled for them when they are unknown.
+  ///
+  /// This method owns the WHOLE schedule. It opens by cancelling everything, so
+  /// anything scheduled elsewhere would be silently wiped the next time a scan
+  /// finished — every notification the app sends has to be (re)built here.
   Future<void> scheduleFromRecurring(
     List<Map<String, dynamic>> items, {
     required Set<String> excluded,
     required Set<String> included,
     required bool isLithuanian,
+    DateTime? consentExpiry,
+    double? spent,
+    double? budget,
   }) async {
     await init();
     // One clean slate — clears every prior reminder, including the stale
@@ -185,6 +206,9 @@ class NotificationService {
     if (!AppPrefs.notificationsEnabled) return;
 
     final now = tz.TZDateTime.now(tz.local);
+    await _scheduleMonthlyReport(now, isLithuanian);
+    await _scheduleConsentExpiry(now, consentExpiry, isLithuanian);
+    await _scheduleBudgetWarning(now, spent, budget, isLithuanian);
     final today = DateTime(now.year, now.month, now.day);
     final seen = <String>{};
     for (final it in items) {
@@ -214,22 +238,160 @@ class NotificationService {
       while (due.isBefore(today) && guard++ < 24) {
         due = _advance(due, cycle);
       }
+      // What the bank will actually take, not the monthly EQUIVALENT. `monthly`
+      // is a normalised figure: a 120 €/year subscription carries monthly ≈ 10,
+      // and the reminder used to announce "10 € – due in 2 days" two days before
+      // 120 € left the account. The amount in a reminder about money has to be
+      // the amount that moves.
+      final charge = chargeFor(monthly, cycle);
+
       final remindDay = due.subtract(const Duration(days: 2));
       final scheduled = tz.TZDateTime(
           tz.local, remindDay.year, remindDay.month, remindDay.day, _remindHour);
-      if (!scheduled.isAfter(now)) continue; // already passed → skip
+      if (scheduled.isAfter(now)) {
+        await _plugin.zonedSchedule(
+          id: key.hashCode & 0x3FFFFFFF,
+          scheduledDate: scheduled,
+          notificationDetails: _details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          title: 'Vaultie 🔔',
+          body: isLithuanian
+              ? '$name · ${formatMoney(charge)} – mokėjimas po 2 d.'
+              : '$name · ${formatMoney(charge)} – due in 2 days',
+        );
+      }
 
+      // A big, infrequent charge needs more than two days' notice. Two days is
+      // enough to move money across; it is not enough to decide whether you
+      // still want a subscription, find the cancel button and have it take
+      // effect before the year renews. This is the reminder that actually saves
+      // somebody money, so it is the one with room to act on.
+      final infrequent = cycle == 'yearly' || cycle == 'semiannual';
+      if (infrequent && charge >= _bigChargeThreshold) {
+        final earlyDay = due.subtract(const Duration(days: 7));
+        final early = tz.TZDateTime(
+            tz.local, earlyDay.year, earlyDay.month, earlyDay.day, _remindHour);
+        if (early.isAfter(now)) {
+          await _plugin.zonedSchedule(
+            id: '$key#early'.hashCode & 0x3FFFFFFF,
+            scheduledDate: early,
+            notificationDetails: _details,
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            title: 'Vaultie 🔔',
+            body: isLithuanian
+                ? '$name · ${formatMoney(charge)} atsinaujina po 7 d. — dar spėji atšaukti.'
+                : '$name · ${formatMoney(charge)} renews in 7 days — still time to cancel.',
+          );
+        }
+      }
+    }
+  }
+
+  /// A single charge, from the monthly-equivalent figure and the cycle.
+  @visibleForTesting
+  static double chargeFor(double monthly, String cycle) => switch (cycle) {
+        'yearly' => monthly * 12,
+        'semiannual' => monthly * 6,
+        'quarterly' => monthly * 3,
+        'weekly' => monthly * 12 / 52,
+        'biweekly' => monthly / 2.174,
+        _ => monthly,
+      };
+
+  // Fixed ids for the schedule-wide notifications. Hashed payee ids are masked
+  // to 30 bits, so these low, hand-picked numbers cannot be hit by a payee name.
+  static const _idReportBase = 10;   // + month index, 10..21
+  static const _idConsent7 = 30;
+  static const _idConsent1 = 31;
+  static const _idBudget = 40;
+
+  /// "Last month is ready" — the first of each month, for a year ahead.
+  ///
+  /// On the 1st rather than the last day of the month: on the 31st the month is
+  /// still running, so any total shown would be wrong by whatever is spent that
+  /// evening. A report is worth reading once it is final.
+  Future<void> _scheduleMonthlyReport(
+      tz.TZDateTime now, bool isLithuanian) async {
+    for (var i = 0; i < 12; i++) {
+      final m = DateTime(now.year, now.month + 1 + i, 1);
+      final at = tz.TZDateTime(tz.local, m.year, m.month, m.day, _remindHour);
+      if (!at.isAfter(now)) continue;
       await _plugin.zonedSchedule(
-        id: key.hashCode & 0x3FFFFFFF,
-        scheduledDate: scheduled,
+        id: _idReportBase + i,
+        scheduledDate: at,
         notificationDetails: _details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        title: 'Vaultie 🔔',
+        title: 'Vaultie 📊',
         body: isLithuanian
-            ? '$name · ${formatMoney(monthly)} – mokėjimas po 2 d.'
-            : '$name · ${formatMoney(monthly)} – due in 2 days',
+            ? 'Praėjusio mėnesio ataskaita paruošta — pažiūrėk, kur nuėjo pinigai.'
+            : "Last month's report is ready — see where the money went.",
       );
     }
+  }
+
+  /// Bank access lapses after ~90 days (PSD2 re-consent). Warned at 7 days and
+  /// again the day before.
+  ///
+  /// This is the only reminder that decides whether the app keeps working at
+  /// all: when the consent runs out the bank simply stops answering, the
+  /// figures quietly stop moving, and nothing on screen says why. Everything
+  /// else here is a convenience; this one prevents a silent failure.
+  Future<void> _scheduleConsentExpiry(
+      tz.TZDateTime now, DateTime? expiry, bool isLithuanian) async {
+    if (expiry == null) return;
+    for (final (id, days) in [(_idConsent7, 7), (_idConsent1, 1)]) {
+      final d = expiry.subtract(Duration(days: days));
+      final at = tz.TZDateTime(tz.local, d.year, d.month, d.day, _remindHour);
+      if (!at.isAfter(now)) continue;
+      await _plugin.zonedSchedule(
+        id: id,
+        scheduledDate: at,
+        notificationDetails: _details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        title: 'Vaultie 🔗',
+        body: isLithuanian
+            ? (days == 1
+                ? 'Rytoj baigiasi banko prieiga. Prisijunk iš naujo, kad duomenys nesustotų.'
+                : 'Po 7 d. baigiasi banko prieiga — reikės prisijungti iš naujo.')
+            : (days == 1
+                ? 'Bank access expires tomorrow. Reconnect to keep your data flowing.'
+                : 'Bank access expires in 7 days — you will need to reconnect.'),
+      );
+    }
+  }
+
+  /// A nudge when the month's spending is closing on the budget.
+  ///
+  /// Deliberately worded as "by the last check". Vaultie has no push and no
+  /// background refresh, so the only spending figure it can ever schedule
+  /// against is the one from the last time the app was open — by tonight it may
+  /// be out of date. Claiming a live number would be a lie about somebody's
+  /// money; saying which number it is costs nothing and is true.
+  Future<void> _scheduleBudgetWarning(tz.TZDateTime now, double? spent,
+      double? budget, bool isLithuanian) async {
+    if (spent == null || budget == null || budget <= 0) return;
+    final pct = spent / budget;
+    if (pct < 0.8) return;
+    // This evening, or tomorrow evening if the day is already past it.
+    var at = tz.TZDateTime(tz.local, now.year, now.month, now.day, _budgetHour);
+    if (!at.isAfter(now)) at = at.add(const Duration(days: 1));
+    // Never carry the warning into a month whose spending it does not describe.
+    if (at.month != now.month) return;
+    final shown = (pct * 100).round();
+    await _plugin.zonedSchedule(
+      id: _idBudget,
+      scheduledDate: at,
+      notificationDetails: _details,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      title: 'Vaultie 🎯',
+      body: isLithuanian
+          ? (pct >= 1
+              ? 'Mėnesio biudžetas viršytas — pagal paskutinį patikrinimą $shown %.'
+              : 'Išleista $shown % mėnesio biudžeto (pagal paskutinį patikrinimą).')
+          : (pct >= 1
+              ? "You're over the monthly budget — $shown % at the last check."
+              : "You've used $shown % of the monthly budget (at the last check)."),
+    );
   }
 
   /// Cancels all reminders previously scheduled for a subscription id. Covers

@@ -74,6 +74,10 @@ Future<BankConnectionResult> completeBankConnection(String code,
       sessionId: conn['sessionId'] as String?,
       accounts: connAccounts,
     );
+    // Starts the 90-day PSD2 clock, so the user can be warned before the bank
+    // stops answering. Stamped only on a connection that actually produced
+    // accounts — the empty-consent case above is not access to anything.
+    await DashboardStore.markConsentGranted();
   }
   Map<String, dynamic>? dash = scan.dash;
   // Set when the combined re-fetch came back missing a bank we already had (e.g.

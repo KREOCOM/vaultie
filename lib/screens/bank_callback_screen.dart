@@ -1,12 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../app_prefs.dart';
 import '../content_theme.dart';
 import '../i18n.dart';
 import '../services/dashboard_store.dart';
 import 'bank_connect_screen.dart';
 import 'bank_how_it_works.dart';
 import 'bank_import_screen.dart';
+import 'onb_notifications.dart';
 import 'preview/dashboard_preview.dart';
 
 /// Finishes a bank connection that returned via a deep link.
@@ -61,12 +63,17 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
       // inert — its timer has already fired and stood down (see splash_screen).
       // pushReplacement would leave that dead route underneath, giving the
       // dashboard a back arrow to nowhere.
+      final landing = r.dash != null
+          ? DashboardPreview(data: r.dash!, deeper: r.deeper)
+          : BankImportScreen(result: r.scan);
+      // The one moment worth spending the OS notification prompt on: the scan
+      // has just found this person's real payments, so the reminders being
+      // offered are about something they can already see. Asked once ever.
+      final next = AppPrefs.notifIntroShown
+          ? landing
+          : OnbNotifications(next: landing);
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => r.dash != null
-              ? DashboardPreview(data: r.dash!, deeper: r.deeper)
-              : BankImportScreen(result: r.scan),
-        ),
+        MaterialPageRoute(builder: (_) => next),
         (route) => false,
       );
     } catch (_) {
@@ -154,7 +161,7 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, size: 44, color: cxInk),
+            const Icon(Icons.error_outline_rounded, size: 44, color: cxInk),
             const SizedBox(height: 16),
             Text(
               _isLt

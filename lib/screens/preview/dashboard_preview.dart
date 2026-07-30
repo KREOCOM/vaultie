@@ -1678,11 +1678,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
           .map((e) => e.cast<String, dynamic>())
           .toList();
       final isLt = Localizations.localeOf(context).languageCode == 'lt';
+      final now = DateTime.now();
+      final mk = '${now.year}-${now.month.toString().padLeft(2, '0')}';
       await NotificationService.instance.scheduleFromRecurring(
         items,
         excluded: DashboardStore.recurringExcluded(),
         included: DashboardStore.recurringIncluded(),
         isLithuanian: isLt,
+        consentExpiry: DashboardStore.consentExpiry,
+        // This month's spending as of right now. It is scheduled against, not
+        // read live — see _scheduleBudgetWarning for why the wording says so.
+        spent: _monthExpenses(mk),
+        budget: AppPrefs.budget.value,
       );
     } catch (_) {/* reminders are best-effort */}
   }
