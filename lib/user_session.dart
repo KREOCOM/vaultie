@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_prefs.dart';
@@ -30,7 +31,7 @@ Future<void> ensureLocalDataForCurrentUser() async {
       // local-only, so a wipe here used to be silent, irreversible, and not
       // undone by signing back in. Set the previous owner's data aside first,
       // and only clear the live boxes once the copy is verified.
-      if (!await _archiveVault(owner)) {
+      if (!await archiveVault(owner)) {
         // Could not preserve it (disk full, corrupt box). Destroying it is not
         // an acceptable fallback, and neither is handing it to the new account,
         // so refuse the switch: sign back out, leaving everything untouched.
@@ -44,7 +45,7 @@ Future<void> ensureLocalDataForCurrentUser() async {
     // re-read the cached prefs: the restore wrote straight to Hive, so the
     // in-memory notifiers (budget, name, currency) still hold what the wipe
     // left behind until they are reloaded.
-    await _restoreVault(uid);
+    await restoreVault(uid);
     AppPrefs.load();
     await settings.put(_kDataOwner, uid);
   }
@@ -127,7 +128,8 @@ const _kVaultSettings = <String>[
 /// Box-name suffix for a uid. Hive folds box names to lower case, so the raw
 /// uid can't be used directly — two uids differing only in case would land in
 /// the same file. The FNV-1a hash keeps them apart.
-String _vaultTag(String uid) {
+@visibleForTesting
+String vaultTag(String uid) {
   var h = 0x811c9dc5;
   for (final c in uid.codeUnits) {
     h = ((h ^ c) * 0x01000193) & 0xFFFFFFFF;
@@ -141,8 +143,9 @@ String _archiveName(String box, String tag) => '${box}__$tag';
 
 /// Copies [owner]'s data into its archive boxes. Returns false if any box did
 /// not come across intact — the caller must then leave the live data alone.
-Future<bool> _archiveVault(String owner) async {
-  final tag = _vaultTag(owner);
+@visibleForTesting
+Future<bool> archiveVault(String owner) async {
+  final tag = vaultTag(owner);
   try {
     final subs = Hive.box<Subscription>(HiveBoxes.subscriptions);
     final subsArchive = await Hive.openBox<Subscription>(
@@ -174,8 +177,9 @@ Future<bool> _archiveVault(String owner) async {
 
 /// Moves [uid]'s archived vault back into the live boxes, if it has one. The
 /// archive is emptied only once its contents are in place.
-Future<void> _restoreVault(String uid) async {
-  final tag = _vaultTag(uid);
+@visibleForTesting
+Future<void> restoreVault(String uid) async {
+  final tag = vaultTag(uid);
   try {
     final subsName = _archiveName(HiveBoxes.subscriptions, tag);
     if (await Hive.boxExists(subsName)) {
