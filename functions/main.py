@@ -355,6 +355,36 @@ def _norm_iban(iban) -> str | None:
     return str(iban).replace(" ", "").upper()
 
 
+def _consent_valid_until(session: dict, *, now=None) -> str:
+    """When this bank consent lapses, as an ISO-8601 UTC string.
+
+    PSD2 access is granted for a fixed window (we ask for 90 days in
+    ``enable_banking.start_auth``) and then the bank simply stops answering:
+    the figures quietly stop moving and nothing tells the user why. Handing the
+    date to the client is what lets it warn BEFORE that happens.
+
+    The bank's own answer wins — it, not us, decides what it granted, and some
+    ASPSPs shorten the window. When the session carries no usable date we fall
+    back to the 90 days we asked for, because a date that is approximately right
+    still produces a timely warning, whereas returning nothing produces silence
+    exactly where silence is the failure being prevented.
+    """
+    # Defensive at every step: this is a third party's JSON, and a bank sending
+    # `access` as anything but an object must not take the connection down
+    # AFTER the consent has already been granted — the code is spent by then and
+    # the user would have to walk the whole bank login again.
+    access = session.get("access") if isinstance(session, dict) else None
+    raw = access.get("valid_until") if isinstance(access, dict) else None
+    if isinstance(raw, str) and raw.strip():
+        try:
+            dt.datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+            return raw.strip()
+        except ValueError:
+            logging.warning("consent: unparseable valid_until %r", raw)
+    base = now or dt.datetime.now(dt.timezone.utc)
+    return (base + dt.timedelta(days=90)).replace(microsecond=0).isoformat()
+
+
 def _account_meta(acc: dict, bank: str | None) -> dict:
     """Normalise an Enable Banking account object OR a stored client account ref
     to the fields the scan core needs: uid, name, currency, iban, bank."""
@@ -893,6 +923,9 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     result["connection"] = {
         "sessionId": session.get("session_id"),
         "bank": bank,
+        # So the app can warn before the bank stops answering — see
+        # _consent_valid_until.
+        "validUntil": _consent_valid_until(session),
         "accounts": [
             {"uid": m["uid"], "iban": m["iban"], "name": m["name"],
              "currency": m["currency"]}

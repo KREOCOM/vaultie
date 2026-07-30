@@ -100,6 +100,94 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
     );
   }
 
+  /// The connected bank's logo with an "approved" tick on its corner, falling
+  /// back to its initial and then to a plain tick.
+  ///
+  /// Enable Banking ships a logo for the banks people actually use, but not for
+  /// every smaller ASPSP — and the logo is a network image, so it can also just
+  /// fail. Each step down still confirms the connection; none of them can leave
+  /// the screen without an answer on it.
+  Widget _bankMark() {
+    final logo = DashboardStore.pendingConnectLogo();
+    final name = DashboardStore.pendingConnect() ?? '';
+    final initial =
+        name.isNotEmpty ? name.characters.first.toUpperCase() : null;
+
+    Widget plate(Widget child) => Container(
+          width: 78,
+          height: 78,
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            // White, because a bank's mark is drawn for white and several of
+            // them disappear entirely on a dark ground.
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Center(child: child),
+        );
+
+    Widget base;
+    if (logo != null && logo.isNotEmpty) {
+      base = plate(Image.network(
+        logo,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => initial != null
+            ? Text(initial,
+                style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF10182F)))
+            : const Icon(Icons.account_balance_rounded,
+                size: 32, color: Color(0xFF10182F)),
+      ));
+    } else if (initial != null) {
+      base = plate(Text(initial,
+          style: const TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF10182F))));
+    } else {
+      base = Container(
+        width: 74,
+        height: 74,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+            color: Color(0x2634D399), shape: BoxShape.circle),
+        child: const Icon(Icons.check_rounded,
+            size: 38, color: Color(0xFF34D399)),
+      );
+      return base; // already a tick — don't badge a tick with a tick
+    }
+
+    return SizedBox(
+      width: 92,
+      height: 86,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Align(alignment: Alignment.topCenter, child: base),
+          Positioned(
+            right: 2,
+            bottom: 0,
+            child: Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFF34D399),
+                shape: BoxShape.circle,
+                border: Border.all(color: cxBg, width: 3),
+              ),
+              child: const Icon(Icons.check_rounded,
+                  size: 16, color: Color(0xFF06301F)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// What the person sees on returning from the bank.
   ///
   /// It used to be the app icon and a spinner — which says the app is alive, but
@@ -111,15 +199,15 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 74,
-              height: 74,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                  color: Color(0x2634D399), shape: BoxShape.circle),
-              child: const Icon(Icons.check_rounded,
-                  size: 38, color: Color(0xFF34D399)),
-            ),
+            // The BANK's own mark, not a generic tick.
+            //
+            // Coming back from a bank's own login, the thing that has to land
+            // first is "yes — that bank, the one you just approved". A green
+            // check says something worked; it does not say what. The mark is
+            // already on the phone from the redirect screen, so this costs
+            // nothing, and the small tick riding on its corner keeps the
+            // "approved" reading it used to carry alone.
+            _bankMark(),
             const SizedBox(height: 22),
             Text(
               _isLt ? 'Prieiga patvirtinta' : 'Access approved',

@@ -74,10 +74,13 @@ Future<BankConnectionResult> completeBankConnection(String code,
       sessionId: conn['sessionId'] as String?,
       accounts: connAccounts,
     );
-    // Starts the 90-day PSD2 clock, so the user can be warned before the bank
-    // stops answering. Stamped only on a connection that actually produced
+    // The bank's own expiry date, so the user can be warned before it stops
+    // answering. Recorded only for a connection that actually produced
     // accounts — the empty-consent case above is not access to anything.
-    await DashboardStore.markConsentGranted();
+    await DashboardStore.markConsentGranted(
+      bank ?? conn['bank'] as String? ?? 'Bankas',
+      conn['validUntil'] as String?,
+    );
   }
   Map<String, dynamic>? dash = scan.dash;
   // Set when the combined re-fetch came back missing a bank we already had (e.g.
@@ -461,7 +464,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       // Remember which bank this is BEFORE the browser opens: if it hands off to
       // its own app and the return cold-launches Vaultie, the callback carries
       // only a code, and the resume path recovers the label from here.
-      await DashboardStore.setPendingConnect(bank.name);
+      await DashboardStore.setPendingConnect(bank.name, logo: bank.logo);
       final url = await BankingService.instance.startBankAuth(bank.name,
           country: bank.country.isNotEmpty ? bank.country : _country.code);
       final result = await FlutterWebAuth2.authenticate(

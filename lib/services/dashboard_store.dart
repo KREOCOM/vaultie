@@ -189,27 +189,50 @@ class DashboardStore {
   // then the bank simply stops answering: the figures quietly stop moving and
   // nothing says why. The user is warned before that happens.
   //
-  // APPROXIMATION, deliberately on the safe side. The real per-bank expiry is
-  // computed server-side at auth time and is not stored or returned, so this
-  // stamps the FIRST connection and never extends it. Reconnecting a bank
-  // therefore warns earlier than it strictly needs to — a harmless nudge —
-  // rather than risking silence past a date that had already passed. Replace
-  // with the server's own `valid_until` per session when it is plumbed through.
-  static const _kConsentAt = 'consentAt';
+  // The date comes from the BANK, relayed by finish_bank_auth as
+  // `connection.validUntil` (see _consent_valid_until) — some banks grant less
+  // than the 90 days we ask for, and assuming 90 would warn after access had
+  // already died. Kept per bank, because they expire on their own schedules.
+  static const _kConsentAt = 'consentUntilByBank';
 
-  static Future<void> markConsentGranted() async {
+  static Future<void> markConsentGranted(String bank, String? validUntil) async {
+    if (validUntil == null || validUntil.isEmpty) return;
     try {
-      if (_box.get(_kConsentAt) != null) return; // keep the earliest
-      await _box.put(_kConsentAt, DateTime.now().toIso8601String());
+      final raw = _box.get(_kConsentAt) as String?;
+      final m = raw == null
+          ? <String, dynamic>{}
+          : (jsonDecode(raw) as Map).cast<String, dynamic>();
+      m[bank] = validUntil;
+      await _box.put(_kConsentAt, jsonEncode(m));
     } catch (_) {/* only costs the expiry warning */}
   }
 
-  /// When the oldest live bank consent lapses, or null if nothing is connected.
+  /// When the FIRST live bank consent lapses, or null if none is known.
+  ///
+  /// The earliest, not the latest: that is the one that fails first, and the
+  /// user needs telling before their data stops moving — not after two of three
+  /// banks have already gone quiet. Banks no longer connected are ignored, so a
+  /// disconnected bank cannot keep raising an alarm about access nobody has.
   static DateTime? get consentExpiry {
-    if (connections().isEmpty) return null;
-    final s = _str(_kConsentAt);
-    final at = s == null ? null : DateTime.tryParse(s);
-    return at?.add(const Duration(days: 90));
+    try {
+      final live = connections()
+          .map((c) => (c['bank'] as String?) ?? '')
+          .where((b) => b.isNotEmpty)
+          .toSet();
+      if (live.isEmpty) return null;
+      final raw = _box.get(_kConsentAt) as String?;
+      if (raw == null) return null;
+      final m = (jsonDecode(raw) as Map).cast<String, dynamic>();
+      final dates = m.entries
+          .where((e) => live.contains(e.key))
+          .map((e) => DateTime.tryParse('${e.value}'))
+          .whereType<DateTime>()
+          .toList()
+        ..sort();
+      return dates.isEmpty ? null : dates.first;
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── Revoked strikes ──────────────────────────────────────────────────────
@@ -649,12 +672,23 @@ class DashboardStore {
   // needs to store the connection under. Cleared on completion, cancel or error.
   static const _kPendingBank = 'pendingConnectBank';
 
-  static Future<void> setPendingConnect(String? bank) async {
+  /// The bank's own mark, kept beside the name for the same reason: the return
+  /// from a universal link carries only a `code`, so without this the screen
+  /// confirming the connection cannot show whose connection it is.
+  static const _kPendingLogo = 'pendingConnectLogo';
+
+  static Future<void> setPendingConnect(String? bank, {String? logo}) async {
     try {
       if (bank == null) {
         await _box.delete(_kPendingBank);
+        await _box.delete(_kPendingLogo);
       } else {
         await _box.put(_kPendingBank, bank);
+        if (logo != null && logo.isNotEmpty) {
+          await _box.put(_kPendingLogo, logo);
+        } else {
+          await _box.delete(_kPendingLogo);
+        }
       }
     } catch (_) {/* no box (preview) → nothing to resume anyway */}
   }
@@ -662,6 +696,14 @@ class DashboardStore {
   static String? pendingConnect() {
     try {
       return _box.get(_kPendingBank) as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String? pendingConnectLogo() {
+    try {
+      return _box.get(_kPendingLogo) as String?;
     } catch (_) {
       return null;
     }
