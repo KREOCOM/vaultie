@@ -35,9 +35,20 @@ def bank_of(entry) -> str | None:
 
 
 def merge_known(all_txns: list, summaries: list, own_ibans: set, scan_diag: list,
-                known: dict, months_back: int, *, today=None):
-    """Return ``(txns, summaries, own_ibans, stale_banks)`` with quiet banks
-    filled in from [known].
+                known: dict, months_back: int, *, today=None, fresh_from=None):
+    """Return ``(txns, summaries, own_ibans, stale_banks)`` with history filled
+    in from [known].
+
+    Two jobs, and they used to be one:
+
+    * **Quiet banks.** A bank that failed or wasn't asked is served entirely from
+      the phone's copy, so rent doesn't vanish from the dashboard because one
+      provider rate-limited us.
+    * **Incremental sync** (when [fresh_from] is given). A bank that DID answer
+      was asked only for the days since [fresh_from]; everything older comes from
+      the phone. Re-downloading six months every half hour is the reason a
+      refresh took most of a minute — a booked transaction is final and cannot
+      change, so fetching it again buys nothing.
 
     Only BOOKED entries are reused: they are final at the bank, so they can't
     resurrect something that was later cancelled. Anything still pending comes
@@ -84,6 +95,38 @@ def merge_known(all_txns: list, summaries: list, own_ibans: set, scan_diag: list
                  and t.get("status") == "BOOK"
                  and (t.get("booking_date") or "") >= cutoff]
     stale = sorted({b for b in (bank_of(a) for a in kept_accts) if b})
+
+    # ── Incremental history for the banks that DID answer ────────────────────
+    #
+    # These are not stale: their recent data is fresh, only their older data was
+    # not requested. So they are added to `kept_txns` but NOT to `stale`, or the
+    # UI would mark a bank that just synced as "not updated".
+    #
+    # Revoked banks stay excluded. Serving their history from cache after the
+    # user withdrew consent is exactly what withdrawing consent must stop.
+    if fresh_from:
+        seen = {t.get("entry_reference") for t in all_txns
+                if t.get("entry_reference")}
+        incremental = [
+            t for t in k_txns
+            if bank_of(t) in answered
+            and bank_of(t) not in revoked
+            and t.get("status") == "BOOK"
+            # Strictly OLDER than the window we just fetched. Anything inside it
+            # came from the bank a moment ago and is authoritative — reusing a
+            # cached copy of the same day is how a transaction gets counted twice
+            # when it was still pending in the cache and is booked now.
+            and (t.get("booking_date") or "") < fresh_from
+            and (t.get("booking_date") or "") >= cutoff
+            # Belt and braces on top of the date rule: never re-add a reference
+            # the fresh scan already returned.
+            and (not t.get("entry_reference")
+                 or t.get("entry_reference") not in seen)
+        ]
+        if incremental:
+            logging.info("known: reusing %d older txns for answered banks %s",
+                         len(incremental), sorted(answered))
+            kept_txns = kept_txns + incremental
     if kept_txns or kept_accts:
         logging.info("known: reusing %d txns / %d accounts for quiet banks %s",
                      len(kept_txns), len(kept_accts), stale)

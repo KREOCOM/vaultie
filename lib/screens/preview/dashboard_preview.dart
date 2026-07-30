@@ -1517,8 +1517,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (refs.isEmpty) return;
       if (!mounted) return;
       setState(() => _deepening = true);
+      final full = _needsFullScan();
       final fresh = await BankingService.instance.refreshDashboard(refs,
-          aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6, onDiag: (d) => _lastDiag = d);
+          aiEnrichment: AppPrefs.aiEnrichment,
+          monthsBack: 6,
+          freshDays: full ? null : 21,
+          onDiag: (d) => _lastDiag = d);
+      if (full) await DashboardStore.markFullScan();
       if (!mounted) return;
       final revoked = await _handleRevokedBanks();
       if (!mounted) return;
@@ -1546,6 +1551,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
   }
 
+  /// A refresh normally asks the bank for the last three weeks and reuses the
+  /// phone's history for the rest. That is blind to a bank posting a transaction
+  /// dated weeks back, so once a week the scan goes full depth and catches it.
+  static const _fullScanEvery = Duration(days: 7);
+
+  bool _needsFullScan() {
+    final last = DashboardStore.fullScanAt;
+    return last == null || DateTime.now().difference(last) >= _fullScanEvery;
+  }
+
   Future<void> _maybeAutoSync() async {
     try {
       // Respect the banking kill-switch: during an Enable Banking outage it must
@@ -1559,8 +1574,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (refs.isEmpty) return;
       if (!mounted) return;
       setState(() => _deepening = true);
+      final full = _needsFullScan();
       final fresh = await BankingService.instance.refreshDashboard(refs,
-          aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6, onDiag: (d) => _lastDiag = d);
+          aiEnrichment: AppPrefs.aiEnrichment,
+          monthsBack: 6,
+          freshDays: full ? null : 21,
+          onDiag: (d) => _lastDiag = d);
+      if (full) await DashboardStore.markFullScan();
       if (!mounted) return;
       final revoked = await _handleRevokedBanks();
       if (!mounted) return;

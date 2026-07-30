@@ -454,15 +454,24 @@ class BankingService {
   /// payload entirely; [onDiag] receives that scan's per-account diagnostics so
   /// the caller can tell WHY a bank is missing — a rate-limited bank needs a
   /// wait, an expired one needs a reconnect — instead of guessing.
+  /// [freshDays] asks the bank for only that many recent days and fills the rest
+  /// of [monthsBack] from the phone's own copy. A booked transaction is final, so
+  /// re-downloading six months every refresh fetched data we already hold — that
+  /// is most of what a refresh used to spend its time on. Pass null to force a
+  /// full scan (first refresh after a wipe, or when the cache is suspect); the
+  /// backend also falls back to a full scan on its own if the phone sends no
+  /// history to merge with.
   Future<Map<String, dynamic>?> refreshDashboard(
       List<Map<String, dynamic>> accounts,
       {bool aiEnrichment = false,
       int monthsBack = 6,
+      int? freshDays = 21,
       void Function(List<dynamic> scanDiag)? onDiag}) async {
     Map<String, dynamic>? known;
     final dash = await _call('refresh_dashboard',
         {'accounts': accounts, 'aiEnrichment': aiEnrichment,
          'monthsBack': monthsBack, 'today': _localToday(),
+         if (freshDays != null) 'freshDays': freshDays,
          'known': DashboardStore.knownScan()},
         (m) {
       known = _known(m);

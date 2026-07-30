@@ -157,6 +157,24 @@ class DashboardStore {
     return s == null ? null : DateTime.tryParse(s);
   }
 
+  /// When a FULL (non-incremental) scan last ran.
+  ///
+  /// Refreshes normally ask the bank only for recent days and reuse the phone's
+  /// history, which is right for everyday use and blind to one thing: a bank
+  /// posting a transaction dated weeks back. A periodic full scan is what
+  /// notices that. Null means "never" — the next refresh runs full.
+  static const _kFullScanAt = 'fullScanAt';
+  static DateTime? get fullScanAt {
+    final s = _str(_kFullScanAt);
+    return s == null ? null : DateTime.tryParse(s);
+  }
+
+  static Future<void> markFullScan() async {
+    try {
+      await _box.put(_kFullScanAt, DateTime.now().toIso8601String());
+    } catch (_) {/* a missed stamp only means one extra full scan */}
+  }
+
   static String? get bank => _str(_kBank);
 
   // ── Multi-bank connections ──────────────────────────────────────────────

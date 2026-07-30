@@ -405,6 +405,23 @@ def _psu_available(req) -> dict:
         return {}
 
 
+def _fresh_days(data: dict) -> int | None:
+    """How many days of NEW data the phone is asking for, or None for a full scan.
+
+    Clamped: below a week and a bank that posts late (or a missed sync) leaves a
+    hole; above ~90 days there is nothing left to save. Anything unparseable
+    means "just do the full scan" — the safe direction.
+    """
+    raw = (data or {}).get("freshDays")
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if n <= 0:
+        return None
+    return max(7, min(n, 90))
+
+
 def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int,
                    psu_available: dict | None = None):
     """Fetch transactions + current balance for each account BY UID (no session
@@ -853,12 +870,29 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
             message="These bank connections aren't linked to your account. "
                     "Please reconnect your bank.",
         )
-    all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
-        _client(), metas, months_back=months_back, psu_available=_psu_available(req))
     today = _client_today(data)
+    known = data.get("known") or {}
+    # ── Incremental refresh ──────────────────────────────────────────────────
+    # The phone sends how many days it actually needs from the bank. Everything
+    # older it already holds, and a booked transaction never changes, so asking
+    # the bank for six months on every refresh re-downloads data we have.
+    #
+    # Only when the phone HAS that history: a cache with no transactions (fresh
+    # install, first refresh after a wipe) falls back to the full window, or the
+    # dashboard would come back holding three weeks and nothing else.
+    fresh_days = _fresh_days(data)
+    has_history = bool(isinstance(known, dict) and known.get("txns"))
+    fetch_months = months_back
+    fresh_from = None
+    if fresh_days and has_history:
+        fresh_from = (today - dt.timedelta(days=fresh_days)).isoformat()
+        fetch_months = max(1, (fresh_days + 29) // 30)
+    all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
+        _client(), metas, months_back=fetch_months,
+        psu_available=_psu_available(req))
     all_txns, summaries, own_ibans, stale = _merge_known(
-        all_txns, summaries, own_ibans, scan_diag, data.get("known") or {},
-        months_back, today=today)
+        all_txns, summaries, own_ibans, scan_diag, known,
+        months_back, today=today, fresh_from=fresh_from)
     return _build_result(all_txns, summaries, own_ibans, scan_diag, ai_enabled,
                          stale_banks=stale, today=today)
 
