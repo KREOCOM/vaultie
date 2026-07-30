@@ -499,8 +499,22 @@ List<Map<String, dynamic>> _recItemsFull(Map subs) =>
 /// Name + monthly amount is stable across a re-split and still separates the case
 /// a plain name key got wrong (iCloud €2.99 vs Apple One €19.95 share a name).
 String _recKey(Map it) {
+  // The backend's series id, which is now built to survive exactly the things
+  // that used to move it: a deeper scan changing the average, a price rise, the
+  // streams being re-split (see _series_id in dashboard.py — merchant + cadence
+  // + an amount BAND, not the exact cents).
+  //
+  // The client used to key verdicts on `name|monthly` to two decimals. That is
+  // the same mistake one layer up: `monthly` is an average, so it shifts when
+  // the window shifts — which incremental sync does on every refresh, and
+  // connecting another bank does again. Each shift silently discarded every
+  // decision the user had made, and the review sheet asked the same questions
+  // for the fourth time.
+  final sid = ((it['sid'] as String?) ?? '').trim();
+  if (sid.isNotEmpty) return sid;
+  // Only for a payload old enough to carry no sid.
   final name = ((it['name'] as String?) ?? '').trim().toLowerCase();
-  if (name.isEmpty) return ((it['sid'] as String?) ?? '').trim();
+  if (name.isEmpty) return '';
   final monthly = ((it['monthly'] ?? 0) as num).toDouble();
   return '$name|${monthly.toStringAsFixed(2)}';
 }
@@ -514,11 +528,17 @@ bool _recHasVerdict(Set<String> set, Map it) =>
 /// Every key this stream may already be stored under: the old positional sid and
 /// the bare lowercase name that even earlier builds used. A write must clear ALL
 /// of them, or a stale entry keeps winning the lookup — see setRecurringOverride.
-List<String> _recAliases(Map it) => [
-      _recKey(it),
-      ((it['sid'] as String?) ?? '').trim(),
-      ((it['name'] as String?) ?? '').trim().toLowerCase(),
-    ].where((s) => s.isNotEmpty).toList();
+List<String> _recAliases(Map it) {
+  final name = ((it['name'] as String?) ?? '').trim().toLowerCase();
+  final monthly = ((it['monthly'] ?? 0) as num).toDouble();
+  return [
+    _recKey(it),
+    ((it['sid'] as String?) ?? '').trim(),
+    // The two shapes earlier builds wrote: name|monthly, and the bare name.
+    if (name.isNotEmpty) '$name|${monthly.toStringAsFixed(2)}',
+    name,
+  ].where((s) => s.isNotEmpty).toSet().toList();
+}
 
 bool _recCounted(Map it, Set<String> excl, Set<String> incl) {
   // A transfer (person-to-person, own-account, exchange) is NEVER a commitment —
@@ -6634,7 +6654,19 @@ class _OverviewTabState extends State<_OverviewTab> {
             const SizedBox(width: 12),
             Expanded(child: Text(tr('Santaupų norma'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink), overflow: TextOverflow.ellipsis)),
             const SizedBox(width: 8),
-            Text(savStr, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+            // Two different months met in this row with nothing to tell them
+            // apart: the badge on the left is LAST month's rate, the figure on
+            // the right is THIS month's — and this month's reads "—" until a
+            // salary lands. A dash beside a proud "28 %" looks like a fault in
+            // the app, so the dash now says which month it is waiting for.
+            if (savStr == '—')
+              Text(tr('šį mėn. dar nėra'),
+                  style: TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w600, color: _faint))
+            else
+              Text(savStr,
+                  style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
             const SizedBox(width: 4),
             Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
           ]),
