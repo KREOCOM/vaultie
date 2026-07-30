@@ -87,6 +87,21 @@ Future<Box<T>> _openBoxSafe<T>(String name) async {
   try {
     return await Hive.openBox<T>(name, encryptionCipher: cipher);
   } catch (e, s) {
+    // Try ONCE more before destroying anything. A box that is genuinely corrupt
+    // fails again immediately; a file still locked by a process that has just
+    // died, or an open that lost a race with low storage, opens fine on the
+    // second attempt. Deleting on the first failure treats those as corruption —
+    // and for the subscriptions box that means the user's own edits, which no
+    // amount of re-syncing brings back.
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      final retry = await Hive.openBox<T>(name, encryptionCipher: cipher);
+      try {
+        await FirebaseCrashlytics.instance.recordError(e, s,
+            reason: 'Hive box "$name" failed once, opened on retry');
+      } catch (_) {}
+      return retry;
+    } catch (_) {/* really is broken — fall through and rebuild it */}
     try {
       await FirebaseCrashlytics.instance
           .recordError(e, s, reason: 'Hive box "$name" corrupt — recreating');
