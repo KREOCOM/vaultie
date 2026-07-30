@@ -1496,29 +1496,73 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// so, rather than keep showing it as if it were merely quiet.
   Future<Set<String>> _handleRevokedBanks() async {
     final revoked = <String>{}; // bank names — for the message + lost-guard
-    final revokedKeys = <String>{}; // IBAN|CURRENCY of the exact revoked accounts
     for (final e in _lastDiag) {
       if (e is! Map || e['revoked'] != true) continue;
       if (e['bank'] is String) revoked.add(e['bank'] as String);
-      final iban = (e['iban'] as String?)?.replaceAll(' ', '').toUpperCase();
-      if (iban != null && iban.isNotEmpty) {
-        final cur = (e['currency'] as String?)?.toUpperCase() ?? '';
-        revokedKeys.add('$iban|$cur');
+    }
+    // A bank that answered has clearly not withdrawn anything — wipe its history
+    // of refusals so two strikes have to be CONSECUTIVE.
+    for (final e in _lastDiag) {
+      if (e is! Map || e['revoked'] == true) continue;
+      final b = e['bank'];
+      if (b is String && b.isNotEmpty) {
+        await DashboardStore.clearRevokedStrike(b);
       }
     }
     if (revoked.isEmpty) return const <String>{};
-    if (revokedKeys.isNotEmpty) {
+
+    // One refusal is not proof. A token refresh mid-flight, a bank-side hiccup,
+    // an ASPSP wanting a header on that one call — all arrive as 401, and
+    // removing the connection on the first one destroys a working setup over a
+    // blip, leaving the user to walk the whole consent flow again to undo it.
+    // SEB did exactly this: it scanned 150 transactions at midday and refused
+    // once four hours later, and the app deleted it.
+    final confirmed = <String>{};
+    for (final bank in revoked) {
+      if (await DashboardStore.bumpRevokedStrike(bank) >= 2) confirmed.add(bank);
+    }
+    if (!mounted) return const <String>{};
+    final isLt = Localizations.localeOf(context).languageCode == 'lt';
+
+    if (confirmed.isEmpty) {
+      // Still connected, and the next scan may well succeed. Say what happened
+      // without sending anyone to reconnect something that is not broken.
+      final names = revoked.join(', ');
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(
+          content: Text(isLt
+              ? '$names neatsakė šį kartą. Rodomi paskutiniai duomenys — bandysim dar kartą.'
+              : "$names didn't answer this time. Showing the latest data — we'll try again."),
+          duration: const Duration(seconds: 5),
+        ));
+      return const <String>{};
+    }
+
+    // Refused twice in a row: treat it as genuinely withdrawn and clean up.
+    final confirmedKeys = <String>{};
+    for (final e in _lastDiag) {
+      if (e is! Map || e['revoked'] != true) continue;
+      final b = e['bank'];
+      if (b is! String || !confirmed.contains(b)) continue;
+      final iban = (e['iban'] as String?)?.replaceAll(' ', '').toUpperCase();
+      if (iban != null && iban.isNotEmpty) {
+        confirmedKeys.add('$iban|${(e['currency'] as String?)?.toUpperCase() ?? ''}');
+      }
+    }
+    if (confirmedKeys.isNotEmpty) {
       // Drop only the revoked wallet(s), keeping any still-valid same-bank sibling.
-      await DashboardStore.removeRevokedAccounts(revokedKeys);
+      await DashboardStore.removeRevokedAccounts(confirmedKeys);
     } else {
-      // No account identity in the diag — fall back to removing by bank name.
-      for (final bank in revoked) {
+      for (final bank in confirmed) {
         await DashboardStore.removeConnection(bank);
       }
     }
-    if (!mounted) return revoked;
-    final isLt = Localizations.localeOf(context).languageCode == 'lt';
-    final names = revoked.join(', ');
+    for (final bank in confirmed) {
+      await DashboardStore.clearRevokedStrike(bank);
+    }
+    if (!mounted) return confirmed;
+    final names = confirmed.join(', ');
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(SnackBar(
@@ -1527,7 +1571,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
             : 'Access to $names was revoked. Reconnect the bank to see new data.'),
         duration: const Duration(seconds: 6),
       ));
-    return revoked;
+    return confirmed;
   }
 
   Future<void> _runSync() async {
@@ -3701,12 +3745,7 @@ class _SparkPainter extends CustomPainter {
 /// the line's endpoint. [pulse] is a 0→1 animation value from the host widget.
 class _NeonSparkPainter extends CustomPainter {
   _NeonSparkPainter(this.pts,
-      {this.dark = true, this.endLabel, this.progress = 1, this.lineColor});
-
-  /// Overrides the theme line colour. The light theme's hero now sits on a blue
-  /// header, so its chart needs a light line — but it is NOT the dark theme, and
-  /// borrowing the dark theme's violet would pull that identity into light mode.
-  final Color? lineColor;
+      {this.dark = true, this.endLabel, this.progress = 1});
   final List<double> pts;
   final bool dark;
   /// How much of the line is drawn, 0→1. Always 1 in the app; the onboarding
@@ -3718,8 +3757,7 @@ class _NeonSparkPainter extends CustomPainter {
   static const double rightPad = 66;
 
   // One solid line colour (violet on dark, Frost blue on light).
-  Color get _line =>
-      lineColor ?? (dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF));
+  Color get _line => dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
   Color get _gridColor =>
       (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A)).withValues(alpha: 0.07);
 

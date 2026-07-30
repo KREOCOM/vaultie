@@ -175,6 +175,53 @@ class DashboardStore {
     } catch (_) {/* a missed stamp only means one extra full scan */}
   }
 
+  // ── Revoked strikes ──────────────────────────────────────────────────────
+  // A bank answering 401/403 usually means the consent is gone — but not always.
+  // A token refresh mid-flight, a bank-side hiccup, a header the ASPSP wanted on
+  // that one call: all arrive as 401. Removing the connection on the first one
+  // destroys a working setup over a blip, and the user has to walk the whole
+  // consent flow again to undo it.
+  //
+  // So a bank has to refuse us TWICE in a row. One strike shows a warning and
+  // changes nothing; a successful scan clears it.
+  static const _kRevokedStrikes = 'revokedStrikes';
+
+  static Map<String, int> _strikes() {
+    final raw = _str(_kRevokedStrikes);
+    if (raw == null) return {};
+    try {
+      return (jsonDecode(raw) as Map)
+          .map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> _putStrikes(Map<String, int> m) async {
+    try {
+      await _box.put(_kRevokedStrikes, jsonEncode(m));
+    } catch (_) {/* a lost strike only costs one extra warning */}
+  }
+
+  /// Records a refusal and returns how many in a row this bank has now had.
+  static Future<int> bumpRevokedStrike(String bank) async {
+    final k = bank.trim().toLowerCase();
+    if (k.isEmpty) return 0;
+    final m = _strikes();
+    final n = (m[k] ?? 0) + 1;
+    m[k] = n;
+    await _putStrikes(m);
+    return n;
+  }
+
+  /// Called for every bank that answered — a good scan wipes its history of
+  /// refusals, so two strikes must be CONSECUTIVE.
+  static Future<void> clearRevokedStrike(String bank) async {
+    final k = bank.trim().toLowerCase();
+    final m = _strikes();
+    if (m.remove(k) != null) await _putStrikes(m);
+  }
+
   static String? get bank => _str(_kBank);
 
   // ── Multi-bank connections ──────────────────────────────────────────────
