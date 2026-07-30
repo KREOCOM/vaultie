@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -6874,20 +6875,64 @@ class _OverviewTabState extends State<_OverviewTab> {
                 Expanded(
                   child: Column(children: [
                     Text(inc[i] >= 1 ? '+${_kEur(inc[i])}' : '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _muted)),
+                    // The grid line sits INSIDE each column rather than being
+                    // painted behind the row: the columns already own these
+                    // heights, so the line lands exactly on the scale's edge
+                    // instead of on a guess about the layout. Column by column
+                    // they read as one continuous line.
+                    //
+                    // Without a scale the bars said nothing: +4,7K and +2,0K
+                    // looked much the same, because the tallest bar always fills
+                    // the box whatever it holds. These two lines are the scale,
+                    // and the figure at the end of each says what they are worth.
                     SizedBox(
                       height: upH,
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Container(width: 16, height: (inc[i] / maxUp * upH).clamp(0.0, upH), decoration: BoxDecoration(color: _secColor['green'], borderRadius: const BorderRadius.vertical(top: Radius.circular(8)))),
-                      ),
+                      child: Stack(children: [
+                        Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(height: 1, color: _hair)),
+                        if (i == keys.length - 1 && maxUp >= 1)
+                          Positioned(
+                            top: 2,
+                            right: 0,
+                            child: Text('+${_kEur(maxUp)}',
+                                style: TextStyle(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _faint)),
+                          ),
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(width: 16, height: (inc[i] / maxUp * upH).clamp(0.0, upH), decoration: BoxDecoration(color: _secColor['green'], borderRadius: const BorderRadius.vertical(top: Radius.circular(8)))),
+                        ),
+                      ]),
                     ),
                     Container(height: 1, color: _hair),
                     SizedBox(
                       height: dnH,
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: Container(width: 16, height: (spd[i] / maxDn * dnH).clamp(0.0, dnH), decoration: BoxDecoration(color: _secColor['red'], borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)))),
-                      ),
+                      child: Stack(children: [
+                        Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(height: 1, color: _hair)),
+                        if (i == keys.length - 1 && maxDn >= 1)
+                          Positioned(
+                            bottom: 2,
+                            right: 0,
+                            child: Text('−${_kEur(maxDn)}',
+                                style: TextStyle(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _faint)),
+                          ),
+                        Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(width: 16, height: (spd[i] / maxDn * dnH).clamp(0.0, dnH), decoration: BoxDecoration(color: _secColor['red'], borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)))),
+                        ),
+                      ]),
                     ),
                     Text(spd[i] >= 1 ? '−${_kEur(spd[i])}' : '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _muted)),
                     const SizedBox(height: 4),
@@ -7106,22 +7151,25 @@ class _SavingsRateScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(tr('Paskutinių 6 mėn. normos'), style: TextStyle(fontSize: 12.5, color: _muted))),
                 Container(
-                  padding: const EdgeInsets.fromLTRB(6, 16, 6, 8),
+                  padding: const EdgeInsets.fromLTRB(10, 18, 10, 8),
                   decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _hair)),
                   child: SizedBox(
                     height: 150,
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      for (final k in last6)
-                        Expanded(
-                          child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                            Text('${savingsOf(rowsOf(k))} %', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _muted)),
-                            const SizedBox(height: 6),
-                            Container(width: 20, height: (savingsOf(rowsOf(k)) / 100 * 110).clamp(2.0, 110.0), decoration: BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(6))),
-                            const SizedBox(height: 8),
-                            Text(_monNom[_moInt(k) - 1].substring(0, 3), style: TextStyle(fontSize: 11.5, color: _muted)),
-                          ]),
-                        ),
-                    ]),
+                    child: CustomPaint(
+                      size: Size.infinite,
+                      painter: _SavingsTrendPainter(
+                        points: [
+                          for (final k in last6)
+                            (_monNom[_moInt(k) - 1].substring(0, 3),
+                                savingsOf(rowsOf(k)))
+                        ],
+                        line: _purple,
+                        good: _good,
+                        grid: _hair,
+                        label: _muted,
+                        faint: _faint,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -7131,6 +7179,132 @@ class _SavingsRateScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// Six months of savings rate as a line with an area under it.
+///
+/// It was six bars floating in an empty card: no zero line, no target, nothing
+/// to say whether 28% is good. The lines here are the point — a baseline, and
+/// the 20% target the explainer above already names as "a decent goal". A grid
+/// that means nothing is just more ink.
+class _SavingsTrendPainter extends CustomPainter {
+  _SavingsTrendPainter({
+    required this.points,
+    required this.line,
+    required this.good,
+    required this.grid,
+    required this.label,
+    required this.faint,
+  });
+
+  /// (month label, rate %) oldest → newest.
+  final List<(String, int)> points;
+  final Color line, good, grid, label, faint;
+
+  static const _target = 20; // the goal the explainer states
+  static const _labelBand = 16.0; // room for the peak's figure
+  static const _monthBand = 20.0; // room for the month names
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty || size.width <= 0) return;
+    final top = _labelBand;
+    final bottom = size.height - _monthBand;
+    final h = bottom - top;
+    if (h <= 0) return;
+
+    // Scale to the biggest of: the highest month, the target, or 30% — so a run
+    // of poor months doesn't magnify a 2% bar into a mountain.
+    final maxRate = points.map((p) => p.$2).fold(0, (a, b) => a > b ? a : b);
+    final scaleMax = [maxRate, _target, 30].reduce((a, b) => a > b ? a : b) * 1.15;
+    double y(num pct) => bottom - (pct / scaleMax) * h;
+    double x(int i) => points.length == 1
+        ? size.width / 2
+        : (size.width - 24) * i / (points.length - 1) + 12;
+
+    // Baseline.
+    canvas.drawLine(Offset(0, bottom), Offset(size.width, bottom),
+        Paint()..color = grid..strokeWidth = 1);
+
+    // Target, dashed, with its own label — the one number that makes the rest
+    // readable.
+    final ty = y(_target);
+    final dash = Paint()
+      ..color = good.withValues(alpha: 0.55)
+      ..strokeWidth = 1;
+    for (double dx = 0; dx < size.width - 62; dx += 8) {
+      canvas.drawLine(Offset(dx, ty), Offset(dx + 4, ty), dash);
+    }
+    final tp = TextPainter(
+      text: TextSpan(
+          text: 'tikslas $_target %',
+          style: TextStyle(
+              fontSize: 9.5, fontWeight: FontWeight.w700, color: good)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(size.width - tp.width, ty - tp.height - 2));
+
+    // The line itself.
+    final path = Path()..moveTo(x(0), y(points.first.$2));
+    for (var i = 1; i < points.length; i++) {
+      path.lineTo(x(i), y(points[i].$2));
+    }
+    final area = Path.from(path)
+      ..lineTo(x(points.length - 1), bottom)
+      ..lineTo(x(0), bottom)
+      ..close();
+    canvas.drawPath(
+        area,
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(0, top),
+            Offset(0, bottom),
+            [line.withValues(alpha: 0.26), line.withValues(alpha: 0.0)],
+          ));
+    canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2
+          ..strokeJoin = StrokeJoin.round
+          ..color = line);
+
+    // Only the best month carries a figure; the rest are read off the target.
+    final peak = points.indexWhere((p) => p.$2 == maxRate);
+    for (var i = 0; i < points.length; i++) {
+      final o = Offset(x(i), y(points[i].$2));
+      final isPeak = i == peak && maxRate > 0;
+      canvas.drawCircle(o, isPeak ? 3.6 : 2.2,
+          Paint()..color = isPeak ? good : line);
+      if (isPeak) {
+        final lp = TextPainter(
+          text: TextSpan(
+              text: '${points[i].$2} %',
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w800, color: good)),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        lp.paint(
+            canvas,
+            Offset((o.dx - lp.width / 2).clamp(0.0, size.width - lp.width),
+                o.dy - lp.height - 6));
+      }
+      final mp = TextPainter(
+        text: TextSpan(
+            text: points[i].$1,
+            style: TextStyle(fontSize: 11, color: faint)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      mp.paint(
+          canvas,
+          Offset((o.dx - mp.width / 2).clamp(0.0, size.width - mp.width),
+              bottom + 5));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SavingsTrendPainter old) => old.points != points;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -8936,6 +9110,9 @@ class _AccountTabState extends State<_AccountTab> {
         ]),
       );
 
+  /// Banks whose accounts are unfolded in the Account tab.
+  final Set<String> _openBanks = <String>{};
+
   Widget _accountsCard() {
     // Group accounts by bank so a multi-bank user sees each bank's accounts +
     // its subtotal. A single bank (or old data without a bank tag) stays a flat
@@ -8956,21 +9133,45 @@ class _AccountTabState extends State<_AccountTab> {
     final rows = <Widget>[];
     groups.forEach((bank, accts) {
       final isStale = bank.isNotEmpty && staleBanks.contains(bank.toLowerCase());
-      // Show the bank header when there are several banks, OR for a lone bank
-      // that is stale — so the "not updated" chip has a place to sit.
-      if ((multi || isStale) && bank.isNotEmpty) {
+      final open = _openBanks.contains(bank);
+      // The header is now the bank's own row — its total, how many accounts, and
+      // the control that opens them — so it is always shown when the bank has a
+      // name, not only when there are several.
+      if (bank.isNotEmpty) {
         final subtotal = accts.fold(0.0, (s, a) => s + ((a['amount'] ?? 0) as num).toDouble());
-        rows.add(Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+        final empty = accts
+            .where((a) => ((a['amount'] ?? 0) as num).toDouble().abs() < 0.005)
+            .length;
+        rows.add(GestureDetector(
+          onTap: () => setState(() =>
+              open ? _openBanks.remove(bank) : _openBanks.add(bank)),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
           child: Row(children: [
+            Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                size: 20, color: _faint),
+            const SizedBox(width: 6),
             Flexible(
-              child: Text(bank,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 0.2)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(bank,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
+                  Text(
+                    empty > 0
+                        ? '${accts.length} ${tr('sąsk.')} · $empty ${tr('tuščios')}'
+                        : '${accts.length} ${tr('sąsk.')}',
+                    style: TextStyle(fontSize: 11.5, color: _faint),
+                  ),
+                ],
+              ),
             ),
             if (isStale) ...[const SizedBox(width: 8), _staleChip()],
             const Spacer(),
-            Text(_eur(subtotal), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _muted)),
+            Text(_eur(subtotal), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
             // Only with several banks. With one, disconnecting it is the same
             // action as "disconnect and start over", which already has a button
             // of its own further down the screen.
@@ -8986,8 +9187,15 @@ class _AccountTabState extends State<_AccountTab> {
               ),
             ],
           ]),
-        ));
+        )));
       }
+      // Collapsed by default: one row per BANK with its total, accounts behind a
+      // tap. Three Revolut rows carrying the same name, two of them 0 EUR
+      // currency pockets, made a tall block holding two figures. Expanding is
+      // per bank, so opening one does not unfold the others.
+      // `return`, not `continue`: this is a forEach closure, so returning skips
+      // the rest of THIS bank and moves on to the next.
+      if (!open) return;
       for (final a in accts) {
         rows.add(Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),

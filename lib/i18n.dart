@@ -746,6 +746,8 @@ const Map<String, String> _en = {
       "We'll remove every connected bank and its data from this phone. You can reconnect later. Your account and subscription stay intact.",
   'Kursas nepasiekiamas': 'Rate unavailable',
   'Suskleisti': 'Show less',
+  'sąsk.': 'accounts',
+  'tuščios': 'empty',
   'šį mėn. dar nėra': 'not yet this month',
   'Atjungti': 'Disconnect',
   'valiutos — sąskaitos kitomis valiutomis suvedamos į vieną bendrą sumą.':
