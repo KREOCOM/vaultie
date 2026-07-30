@@ -35,6 +35,10 @@ class OnbOverview extends StatelessWidget {
         stampAsset: 'assets/onboarding/page4_statusbar.png',
         geometry: _geometry,
         kind: ShowcaseKind.overview,
+        // Until the live screen is up, cover the artwork's OWN baked-in
+        // screen — otherwise its static content (a chart, on the budget
+        // render) flashes for a frame before the real one fades in.
+        blankUntilLive: showcaseBg,
         badgeIcon: Icons.donut_large_rounded,
         badge: 'Visos sąskaitos kartu',
         headline: 'Matyk visą\nfinansų vaizdą',

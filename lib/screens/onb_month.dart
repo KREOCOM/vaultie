@@ -37,6 +37,10 @@ class OnbMonth extends StatelessWidget {
         stampAsset: 'assets/onboarding/page3_statusbar.png',
         geometry: _geometry,
         kind: ShowcaseKind.home,
+        // Until the live screen is up, cover the artwork's OWN baked-in
+        // screen — otherwise its static content (a chart, on the budget
+        // render) flashes for a frame before the real one fades in.
+        blankUntilLive: showcaseBg,
         badgeIcon: Icons.auto_graph_rounded,
         badge: 'Rūšiuoja už tave',
         headline: 'Kiekviena išlaida\nsavo vietoje',

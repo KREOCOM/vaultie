@@ -46,6 +46,10 @@ class OnbBudget extends StatelessWidget {
         stampAsset: 'assets/onboarding/page6_statusbar.png',
         geometry: _geometry,
         kind: ShowcaseKind.budget,
+        // Until the live screen is up, cover the artwork's OWN baked-in
+        // screen — otherwise its static content (a chart, on the budget
+        // render) flashes for a frame before the real one fades in.
+        blankUntilLive: showcaseBg,
         badgeIcon: Icons.tune_rounded,
         badge: 'Randa prenumeratas',
         headline: 'Nepraleisk nė vienos\nprenumeratos',

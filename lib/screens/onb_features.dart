@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../i18n.dart';
+import '../services/fx_rates.dart';
 import 'splash_screen.dart';
 
 /// The last page before the bank connect: everything the intro had no room to
@@ -158,7 +159,19 @@ class _OnbFeaturesState extends State<OnbFeatures> {
                       _row(
                         Icons.public_rounded,
                         'Kitos valiutos',
-                        'Sąskaitos svarais ar doleriais suvedamos į vieną bendrą sumą.',
+                        // The count comes from the catalogue, not from prose. It
+                        // used to name two currencies ("svarais ar doleriais")
+                        // while the app supports every one in kCurrencies —
+                        // understating the product, and a sentence that would
+                        // have gone stale the moment the list changed.
+                        //
+                        // Translated HERE, not by _row: _row runs its body
+                        // through tr(), and an interpolated string can never
+                        // match a translation key, so it would have stayed
+                        // Lithuanian in English. tr() on an already-translated
+                        // string falls through unchanged, so composing it first
+                        // is safe.
+                        '${kCurrencies.length} ${tr('valiutos — sąskaitos kitomis valiutomis suvedamos į vieną bendrą sumą.')}',
                       ),
                       _row(
                         Icons.dark_mode_outlined,

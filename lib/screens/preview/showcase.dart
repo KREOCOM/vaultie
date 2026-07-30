@@ -30,9 +30,12 @@ class PhoneShowcase extends StatefulWidget {
 }
 
 // The app's own light palette, so the phone in the scene and the app a person
-// opens afterwards are recognisably the same product.
-const _bg = Color(0xFFD6E1F5);
-const _card = Color(0xFFEFF4FF);
+// opens afterwards are recognisably the same product. These drifted once already
+// when the app's page tint changed and these copies did not, which is why the
+// background is exported rather than re-typed as a hex in every scene page.
+const showcaseBg = Color(0xFFC8D9F6);
+const _bg = showcaseBg;
+const _card = Color(0xFFF6F9FF);
 const _ink = Color(0xFF14203A);
 const _muted = Color(0xFF4A5878);
 const _blue = Color(0xFF2F6BFF);

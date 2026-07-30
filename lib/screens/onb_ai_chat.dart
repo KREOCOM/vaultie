@@ -42,7 +42,7 @@ class OnbAiChat extends StatelessWidget {
         stampAsset: 'assets/onboarding/page5_statusbar.png',
         geometry: _geometry,
         kind: ShowcaseKind.chat,
-        blankUntilLive: const Color(0xFFEEF1F7),
+        blankUntilLive: showcaseBg,
         badgeIcon: Icons.auto_awesome_rounded,
         badge: 'Klausk apie savo pinigus',
         headline: 'Paklausk.\nGauk atsakymą.',
