@@ -80,9 +80,18 @@ class DashboardStore {
     String? bankOf(dynamic e) =>
         e is Map ? _asStr(e['_bank'] ?? e['bank']) : null;
     final fresh = {...txns.map(bankOf), ...accounts.map(bankOf)}..remove(null);
+    // A bank replaces its cached TRANSACTIONS only if it actually returned some.
+    //
+    // A provider hiccup that answers "here are your accounts, and no
+    // transactions" is indistinguishable from a real answer, and replacing on
+    // that emptied the phone's only copy of the user's history — the copy that
+    // exists precisely so a bad scan cannot make their rent disappear. Banks do
+    // not spontaneously forget a year of transactions; a scan that returns none
+    // for a bank that had hundreds is a failure wearing a success's clothes.
+    final freshTxnBanks = {...txns.map(bankOf)}..remove(null);
     final old = knownScan();
     final keptTxns = ((old['txns'] as List?) ?? const [])
-        .where((t) => !fresh.contains(bankOf(t)));
+        .where((t) => !freshTxnBanks.contains(bankOf(t)));
     final keptAccounts = ((old['accounts'] as List?) ?? const [])
         .where((a) => !fresh.contains(bankOf(a)));
     await _box.put(

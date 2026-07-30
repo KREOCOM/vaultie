@@ -474,6 +474,12 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
             # phone's cache be merged back per-bank when one bank goes quiet.
             for t in acc_txns:
                 t["_bank"] = bank
+                # ALSO the account. A bank's entry_reference is only promised to
+                # be unique within one account — several number their entries
+                # per account, so two wallets at the same bank can both return
+                # "1". Deduping on the reference alone then silently DROPPED one
+                # of two real transactions.
+                t["_acct"] = uid
             all_txns.extend(acc_txns)
             # Prefer the balance's own currency; 'XXX' ("no currency") isn't real.
             ccy = normalize.real_currency(bal_ccy, m.get("currency"))

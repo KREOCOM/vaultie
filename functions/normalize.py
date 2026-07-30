@@ -246,19 +246,72 @@ def dedupe(txns):
     kept = []
     for t in txns:
         ref = t.get("entry_reference") or t.get("transaction_id")
+        # Scoped to the ACCOUNT: a reference is only promised to be unique within
+        # one account, and banks that number entries per account hand two wallets
+        # the same "1". Unscoped, the second wallet's transaction was dropped as a
+        # duplicate — money quietly missing rather than double-counted.
+        acct = t.get("_acct") or t.get("_bank") or ""
         if ref:
-            key = ("ref", str(ref))
+            key = ("ref", acct, str(ref))
         else:
-            key = ("cmp", t.get("booking_date"), amount_value(t),
+            key = ("cmp", acct, t.get("booking_date"), amount_value(t),
                    t.get("credit_debit_indicator"), merchant_name(t)[:24].lower())
         if key in seen:
             continue
         seen.add(key)
         kept.append(t)
+    return _drop_settled_pendings(kept)
 
-    def sig(t):
-        return (t.get("booking_date"), amount_value(t), merchant_name(t)[:24].lower())
 
-    booked = {sig(t) for t in kept if t.get("status") == "BOOK"}
-    return [t for t in kept
-            if not (t.get("status") == "PDNG" and sig(t) in booked)]
+def _drop_settled_pendings(txns):
+    """Remove PENDING rows whose BOOKED version has arrived.
+
+    The old rule matched on (date, amount, merchant), which only works when the
+    amount does not change. It routinely does: a fuel pump authorises 1 EUR and
+    books 62, a hotel authorises the room and books the extras. Both rows then
+    survived and the day was counted twice.
+
+    So the match ignores the amount and pairs on (account, merchant) within a few
+    days — but ONE-TO-ONE, so two genuine visits to the same shop cannot be
+    collapsed into one. A booked row can settle exactly one pending.
+
+    The residual error is the safer one: an unmatched pending is shown until it
+    books, whereas the old behaviour invented spending that never happened.
+    """
+    from datetime import date as _date
+
+    def key(t):
+        return (t.get("_acct") or t.get("_bank") or "",
+                merchant_name(t)[:24].lower())
+
+    def day(t):
+        try:
+            return _date.fromisoformat((t.get("booking_date") or "")[:10])
+        except ValueError:
+            return None
+
+    booked_by_key = {}
+    for t in txns:
+        if t.get("status") == "BOOK":
+            booked_by_key.setdefault(key(t), []).append(t)
+
+    settled = set()
+    out = []
+    for t in txns:
+        if t.get("status") != "PDNG":
+            out.append(t)
+            continue
+        d = day(t)
+        match = None
+        for b in booked_by_key.get(key(t), []):
+            if id(b) in settled:
+                continue  # this booked row already settled another pending
+            bd = day(b)
+            if d is None or bd is None or abs((bd - d).days) <= 4:
+                match = b
+                break
+        if match is None:
+            out.append(t)
+        else:
+            settled.add(id(match))
+    return out
