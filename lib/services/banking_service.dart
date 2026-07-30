@@ -290,6 +290,25 @@ class BankingService {
   /// (bank_links ownership + entitlement cache). Best-effort — must NEVER block
   /// account deletion, so any failure is swallowed. Call BEFORE Firebase auth
   /// deletion, while the token is still valid. Returns how many sessions revoked.
+  /// Revokes ONE bank's consent and forgets its accounts server-side, leaving
+  /// every other bank connected. The backend ignores any id this user is not
+  /// recorded as owning, so passing the wrong one removes nothing rather than
+  /// somebody else's bank.
+  ///
+  /// Best-effort by design: if the call fails the bank is still removed locally,
+  /// because refusing to let someone disconnect their own bank is the worse
+  /// outcome — the consent then lapses at the ~90-day cliff.
+  Future<void> disconnectBank(
+      {required List<String> sessionIds,
+      required List<String> accountUids}) async {
+    try {
+      await _call<void>('disconnect_bank',
+          {'sessionIds': sessionIds, 'accountUids': accountUids}, (_) {});
+    } catch (e) {
+      if (kDebugMode) debugPrint('disconnectBank failed: $e');
+    }
+  }
+
   Future<int> deleteUserData(List<String> sessionIds) async {
     try {
       return await _call<int>('delete_user_data', {'sessionIds': sessionIds},

@@ -8939,6 +8939,20 @@ class _AccountTabState extends State<_AccountTab> {
             if (isStale) ...[const SizedBox(width: 8), _staleChip()],
             const Spacer(),
             Text(_eur(subtotal), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _muted)),
+            // Only with several banks. With one, disconnecting it is the same
+            // action as "disconnect and start over", which already has a button
+            // of its own further down the screen.
+            if (multi) ...[
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => _disconnectOneBank(bank),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Icon(Icons.link_off_rounded, size: 17, color: _faint),
+                ),
+              ),
+            ],
           ]),
         ));
       }
@@ -8999,6 +9013,70 @@ class _AccountTabState extends State<_AccountTab> {
           ),
       ]),
     );
+  }
+
+  /// Disconnect ONE bank, keeping the others.
+  ///
+  /// Until this existed the only way out was dropping every bank and walking the
+  /// consent flow again for the ones you were keeping. It also revokes the
+  /// consent at the bank rather than only forgetting it here — Enable Banking
+  /// bills per connected user, and a consent nobody wants is a standing cost as
+  /// well as access the user thinks they withdrew.
+  Future<void> _disconnectOneBank(String bank) async {
+    final conns = DashboardStore.connections()
+        .where((c) => (c['bank'] as String?)?.trim() == bank.trim())
+        .toList();
+    if (conns.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        title: Text(!_enUi ? 'Atjungti $bank?' : 'Disconnect $bank?',
+            style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        content: Text(
+            !_enUi
+                ? 'Pašalinsime $bank sąskaitas ir jų duomenis iš šio telefono, o '
+                    'prieigą atšauksime banke. Kiti prijungti bankai nenukentės. '
+                    'Galėsi prijungti iš naujo bet kada.'
+                : "We'll remove $bank's accounts and their data from this phone "
+                    'and revoke the access at the bank. Your other connected '
+                    'banks are untouched. You can reconnect any time.',
+            style: TextStyle(color: _muted, height: 1.4)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Atšaukti'))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Atjungti'),
+                  style: const TextStyle(color: DS.danger))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final sessionIds = conns
+        .map((c) => (c['sessionId'] as String?) ?? '')
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final accountUids = conns
+        .expand((c) => ((c['accounts'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((a) => (a['uid'] as String?) ?? ''))
+        .where((s) => s.isNotEmpty)
+        .toList();
+    await BankingService.instance
+        .disconnectBank(sessionIds: sessionIds, accountUids: accountUids);
+    await DashboardStore.removeConnection(bank);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(!_enUi ? '$bank atjungtas' : '$bank disconnected'),
+        duration: const Duration(seconds: 3),
+      ));
+    // The removed bank must leave the dashboard now, not at the next sync.
+    _dashRefresh?.call();
+    setState(() {});
   }
 
   Future<void> _disconnectAllBanks() async {

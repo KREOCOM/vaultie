@@ -688,6 +688,84 @@ def delete_user_data(req: https_fn.CallableRequest) -> dict:
     return {"revoked": revoked, "sessions": len(to_revoke)}
 
 
+def _disconnect_plan(session_ids, account_uids, owned_sessions, owned_accounts):
+    """Which ids a disconnect may actually touch: ``(sessions, accounts)``.
+
+    Pure, so it can be tested — and it is the part worth testing. Everything the
+    caller sent is filtered against what the user is RECORDED as owning: without
+    that, a signed-in user could pass someone else's session id and revoke their
+    bank access, which is the hole delete_user_data was fixed for.
+
+    Returned sorted so a caller cannot depend on request order.
+    """
+    # set() before sorting: _authorised_sessions preserves what the caller sent,
+    # so a repeated id meant revoking the same session twice.
+    sessions = sorted(set(_authorised_sessions(session_ids, owned_sessions)))
+    accounts = sorted({a for a in account_uids if a in owned_accounts})
+    return sessions, accounts
+
+
+@https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])
+def disconnect_bank(req: https_fn.CallableRequest) -> dict:
+    """Revoke ONE bank's consent and forget its accounts, leaving the rest alone.
+
+    Until this existed the only way out was "disconnect everything and start
+    again": someone with two banks who wanted rid of one had to drop both and
+    walk the consent flow again for the one they were keeping. Enable Banking
+    also bills per connected user, so a consent nobody wants is a standing cost.
+
+    Deliberately NOT premium-gated. Withdrawing access to your own bank data is
+    the one thing a lapsed subscriber must always be able to do — the same
+    reasoning as delete_user_data.
+
+    Same IDOR guard as delete_user_data: only sessions and accounts this user is
+    RECORDED as owning are touched, never an id the caller merely supplied.
+    """
+    _require_auth(req)
+    uid = _uid(req)
+    data = req.data or {}
+    session_ids = [str(s) for s in (data.get("sessionIds") or []) if s]
+    account_uids = [str(a) for a in (data.get("accountUids") or []) if a]
+    if not session_ids and not account_uids:
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+            message="Nothing to disconnect.",
+        )
+    to_revoke, to_forget = _disconnect_plan(
+        session_ids, account_uids, _owned_sessions(uid), _owned_accounts(uid))
+    revoked = 0
+    if to_revoke:
+        try:
+            client = _client()
+            for sid in to_revoke:
+                if client.delete_session(sid):
+                    revoked += 1
+        except Exception:  # noqa: BLE001
+            # Best-effort, exactly as in delete_user_data: a session we cannot
+            # reach must not block the user from removing the bank locally. The
+            # consent then lapses at the ~90-day cliff, which is the safe
+            # direction to fail in.
+            logging.exception("disconnect_bank: revoke error uid=%s", uid)
+    from firebase_admin import firestore
+    try:
+        doc = firestore.client().collection(_BANK_LINKS).document(uid)
+        payload = {}
+        if to_forget:
+            payload["accounts"] = firestore.ArrayRemove(to_forget)
+        if to_revoke:
+            payload["sessions"] = firestore.ArrayRemove(to_revoke)
+        if payload:
+            # ArrayRemove, never a document delete: the OTHER banks' accounts live
+            # in the same record, and dropping it would lock the user out of
+            # refreshing the banks they kept.
+            doc.set(payload, merge=True)
+    except Exception:  # noqa: BLE001
+        logging.exception("disconnect_bank: bank_links cleanup failed uid=%s", uid)
+    logging.info("disconnect_bank uid=%s revoked=%d/%d accounts_forgotten=%d",
+                 uid, revoked, len(to_revoke), len(to_forget))
+    return {"revoked": revoked, "forgotten": len(to_forget)}
+
+
 @https_fn.on_call(region=_REGION,
                   secrets=[ENABLE_BANKING_PRIVATE_KEY, REVENUECAT_API_KEY])
 def start_bank_auth(req: https_fn.CallableRequest) -> dict:
