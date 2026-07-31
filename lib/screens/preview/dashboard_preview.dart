@@ -4035,6 +4035,20 @@ const _wdShortEn = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
 // Locale-aware name arrays — one switch localizes every month/weekday usage.
 bool get _enUi => effectiveLocale().languageCode == 'en';
+
+/// Lithuanian number agreement. "1 tuščia", "2 tuščios", "11 tuščių" — the app
+/// printed "1 tuščios" everywhere a count met a noun, which reads as broken
+/// Lithuanian to every native speaker on the first screen they see it.
+///   ends in 1 (but not 11)        → [one]
+///   ends in 2–9 (but not 12–19)   → [few]
+///   everything else (0, 10–19, …) → [many]
+@visibleForTesting
+String ltPlural(int n, String one, String few, String many) {
+  final t = n % 10, h = n % 100;
+  if (t == 1 && h != 11) return one;
+  if (t >= 2 && t <= 9 && (h < 11 || h > 19)) return few;
+  return many;
+}
 List<String> get _monAbbr => _enUi ? _monAbbrEn : _monAbbrLt;
 List<String> get _monNom => _enUi ? _monNomEn : _monNomLt;
 List<String> get _monGen => _enUi ? _monNomEn : _monGenLt;
@@ -9252,11 +9266,13 @@ class _AccountTabState extends State<_AccountTab> {
               open ? _openBanks.remove(bank) : _openBanks.add(bank)),
           behavior: HitTestBehavior.opaque,
           child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+          padding: const EdgeInsets.fromLTRB(12, 11, 8, 11),
           child: Row(children: [
-            Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                size: 20, color: _faint),
-            const SizedBox(width: 6),
+            // The bank's own mark, from the bundled assets — the same glyph the
+            // account rows below use. A list of banks with no bank on it was the
+            // one place in the app that named brands and showed none.
+            _acctGlyph({'bank': bank, 'name': bank}, diameter: 34, fontSize: 15),
+            const SizedBox(width: 11),
             Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -9267,7 +9283,7 @@ class _AccountTabState extends State<_AccountTab> {
                       style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
                   Text(
                     empty > 0
-                        ? '${accts.length} ${tr('sąsk.')} · $empty ${tr('tuščios')}'
+                        ? '${accts.length} ${tr('sąsk.')} · $empty ${_enUi ? 'empty' : ltPlural(empty, 'tuščia', 'tuščios', 'tuščių')}'
                         : '${accts.length} ${tr('sąsk.')}',
                     style: TextStyle(fontSize: 11.5, color: _faint),
                   ),
@@ -9276,21 +9292,30 @@ class _AccountTabState extends State<_AccountTab> {
             ),
             if (isStale) ...[const SizedBox(width: 8), _staleChip()],
             const Spacer(),
+            const SizedBox(width: 8),
             Text(_eur(subtotal), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
             // Only with several banks. With one, disconnecting it is the same
             // action as "disconnect and start over", which already has a button
             // of its own further down the screen.
-            if (multi) ...[
-              const SizedBox(width: 6),
+            //
+            // Given room of its own: pressed against the figure it read as part
+            // of the amount, and it is the one control here that cannot be
+            // undone without walking the bank's whole consent flow again.
+            if (multi)
               GestureDetector(
                 onTap: () => _disconnectOneBank(bank),
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                   child: Icon(Icons.link_off_rounded, size: 17, color: _faint),
                 ),
               ),
-            ],
+            // Disclosure sits where a disclosure sits — on the trailing edge.
+            Padding(
+              padding: EdgeInsets.only(left: multi ? 0 : 8),
+              child: Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                  size: 20, color: _faint),
+            ),
           ]),
         )));
       }
@@ -9344,15 +9369,28 @@ class _AccountTabState extends State<_AccountTab> {
                 tr('Pažymėti bankai kol kas neatidavė naujų duomenų — rodomi paskutiniai žinomi.'),
                 style: TextStyle(fontSize: 12, color: _muted, height: 1.3)),
           ),
+        // Destructive, and it was styled as a caption: muted grey, left-aligned,
+        // floating under the card with nothing to say it could be tapped — so it
+        // read as a stray label rather than the one control here that revokes
+        // every bank consent. Centred, named in the negative tone the app
+        // already uses for money leaving, with the icon that means "unlink".
         if (DashboardStore.bankCount > 0)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
+          Center(
             child: GestureDetector(
               onTap: _disconnectAllBanks,
+              behavior: HitTestBehavior.opaque,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                child: Text(tr('Atjungti bankus ir pradėti iš naujo'),
-                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _muted)),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.link_off_rounded,
+                      size: 15, color: Color(0xFFE0574F)),
+                  const SizedBox(width: 6),
+                  Text(tr('Atjungti bankus ir pradėti iš naujo'),
+                      style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFE0574F))),
+                ]),
               ),
             ),
           ),
