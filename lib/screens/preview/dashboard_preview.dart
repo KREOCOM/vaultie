@@ -3078,7 +3078,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     const items = [
       ['Pradžia', Icons.dashboard_rounded],
       ['Apžvalga', Icons.donut_large_rounded],
-      ['AI pokalbis', Icons.auto_awesome_rounded],
+      ['Agentas', Icons.auto_awesome_rounded],
       ['Planavimas', Icons.event_note_rounded],
       ['Paskyra', Icons.person_outline_rounded],
     ];
@@ -10880,7 +10880,11 @@ class _AiChatTabState extends State<_AiChatTab> {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(tr('AI pokalbis'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+                // The feature's name, not a description of the technology.
+                // "AI pokalbis" says what it is built from; "Tavo finansų
+                // agentas" says what it does for you, which is what the tab is
+                // for. The nav label is the short form of the same name.
+                Text(tr('Tavo finansų agentas'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
                 Text(tr('Klausk apie savo pinigus'), style: TextStyle(fontSize: 13, color: _muted)),
               ]),
             ),

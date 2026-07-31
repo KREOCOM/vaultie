@@ -26,6 +26,7 @@ const Map<String, String> _en = {
   'Pradžia': 'Home',
   'Apžvalga': 'Overview',
   'AI pokalbis': 'AI chat',
+  'Agentas': 'Agent',
   'Planavimas': 'Planning',
   'Paskyra': 'Account',
 

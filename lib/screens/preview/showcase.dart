@@ -373,7 +373,7 @@ class _PhoneShowcaseState extends State<PhoneShowcase>
 
   // ── Chat: a question and an answer, large enough to actually read ──
   Widget _chat(double t) => _page(
-        title: 'Tavo AI agentas',
+        title: 'Tavo finansų agentas',
         children: [
           _bubble(tr('Kiek išleidau šį mėnesį?'), true, t, 0.0),
           _bubble(
@@ -574,7 +574,7 @@ class _PhoneShowcaseState extends State<PhoneShowcase>
           children: [
             Row(children: [
               // Flexible + scaleDown, not a plain Text: the titles used to be one
-              // short word each ("Pradžia", "Apžvalga"), and "Tavo AI agentas"
+              // short word each ("Pradžia", "Apžvalga"), and "Tavo finansų agentas"
               // plus the two icons is wider than the glass. It shrinks rather
               // than overflowing or being cut with an ellipsis.
               Flexible(
