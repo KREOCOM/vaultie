@@ -9436,15 +9436,15 @@ class _AccountTabState extends State<_AccountTab> {
   Future<void> _feedback() async {
     final uri = Uri(
       scheme: 'mailto',
-      path: 'labas@vaultie.app',
+      path: 'support@vaultieapp.com',
       queryParameters: {'subject': 'Vaultie atsiliepimas'},
     );
     try {
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        if (mounted) _snack(tr('Parašyk mums: labas@vaultie.app'));
+        if (mounted) _snack(tr('Parašyk mums: support@vaultieapp.com'));
       }
     } catch (_) {
-      if (mounted) _snack(tr('Parašyk mums: labas@vaultie.app'));
+      if (mounted) _snack(tr('Parašyk mums: support@vaultieapp.com'));
     }
   }
 }
@@ -10053,15 +10053,15 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   Future<void> _sendFeedback() async {
     final uri = Uri(
       scheme: 'mailto',
-      path: 'labas@vaultie.app',
+      path: 'support@vaultieapp.com',
       queryParameters: {'subject': 'Vaultie atsiliepimas'},
     );
     try {
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        if (mounted) _snack(tr('Parašyk mums: labas@vaultie.app'));
+        if (mounted) _snack(tr('Parašyk mums: support@vaultieapp.com'));
       }
     } catch (_) {
-      if (mounted) _snack(tr('Parašyk mums: labas@vaultie.app'));
+      if (mounted) _snack(tr('Parašyk mums: support@vaultieapp.com'));
     }
   }
 

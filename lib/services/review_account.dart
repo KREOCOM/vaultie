@@ -24,7 +24,7 @@ class ReviewAccount {
   /// credentials in the App Review notes. The domain does not need to exist —
   /// nothing is ever sent to it, and [isSignedIn] below is what makes the
   /// unverified address usable.
-  static const email = 'appreview@vaultie.app';
+  static const email = 'appreview@vaultieapp.com';
 
   /// True when the reviewer's account is the one signed in.
   static bool get isSignedIn {

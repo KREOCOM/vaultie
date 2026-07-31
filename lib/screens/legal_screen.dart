@@ -27,7 +27,7 @@ class LegalScreen extends StatelessWidget {
   final String intro;
   final List<LegalSection> sections;
 
-  static const _contactEmail = 'osva50042@gmail.com';
+  static const _contactEmail = 'support@vaultieapp.com';
 
   // The data controller under the GDPR — the party that decides why and how
   // personal data is processed. That is the company, because the Enable Banking

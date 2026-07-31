@@ -395,7 +395,7 @@ const Map<String, String> _en = {
   'Turi pastabų?': 'Have feedback?',
   'Pasakyk, ką galvoji': 'Tell us what you think',
   'Palikti atsiliepimą': 'Leave feedback',
-  'Parašyk mums: labas@vaultie.app': 'Write to us: labas@vaultie.app',
+  'Parašyk mums: support@vaultieapp.com': 'Write to us: support@vaultieapp.com',
 
   // ── Settings ──
   'Nustatymai': 'Settings',
