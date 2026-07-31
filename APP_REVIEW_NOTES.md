@@ -13,7 +13,7 @@ App Review Information → Notes**, after filling in the demo credentials.
 
 ```
 DEMO ACCOUNT (email/password)
-Email:    <demo email, e.g. appreview@vaultie.app>
+Email:    <demo email, e.g. appreview@vaultieapp.com>
 Password: <demo password>
 
 This account is already email-verified, so it goes straight to the dashboard.
