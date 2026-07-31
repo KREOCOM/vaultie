@@ -224,6 +224,58 @@
   .sc-nav span { font-size: 6.5px; font-weight: 600; }
   .sc-nav .act { color: #2F6BFF; }
 
+
+  /* Feature phones — same device, three-quarter size, one per benefit. The
+     pattern every established finance app uses: you see the product again and
+     again rather than once at the top. All three are real screens from
+     showcase.dart (overview / chat / budget). */
+  .phone.sm { width: min(250px, 76%); border-radius: 36px; padding: 7px; }
+  .phone.sm .screen { border-radius: 30px; }
+  .phone.sm .sc-body { padding: 11px 13px 5px; }
+
+  .donuts { display: flex; gap: 8px; margin-top: 2px; }
+  .donuts > div { flex: 1; background: #F6F9FF; border-radius: 14px; padding: 9px 6px; text-align: center; }
+  .donuts svg { width: 100%; height: auto; max-width: 74px; display: block; margin: 0 auto; }
+  .donuts u { display: block; text-decoration: none; font-size: 8px; color: #4A5878; font-weight: 600; margin-top: 4px; }
+  .donuts b { display: block; font-size: 12.5px; font-weight: 800; letter-spacing: -.3px; }
+  .netrow {
+    display: flex; align-items: center; background: #F6F9FF; border-radius: 13px;
+    padding: 9px 11px; margin: 9px 0;
+  }
+  .netrow span { flex: 1; font-size: 9px; color: #4A5878; font-weight: 600; }
+  .netrow b { font-size: 13px; font-weight: 800; color: #12A150; }
+  .cats { display: flex; flex-direction: column; gap: 7px; }
+  .cats > div { display: flex; align-items: center; gap: 8px; }
+  .cats i { width: 20px; height: 20px; border-radius: 7px; flex: none; display: grid; place-items: center; }
+  .cats i svg { width: 11px; height: 11px; }
+  .cats span { flex: 1; font-size: 9px; font-weight: 650; }
+  .cats b { font-size: 9px; font-weight: 750; }
+  .cats em { font-style: normal; font-size: 7.5px; font-weight: 800; border-radius: 6px; padding: 2px 5px; margin-left: 5px; }
+
+  .bubbles { display: flex; flex-direction: column; gap: 6px; }
+  .bub { max-width: 82%; padding: 7px 10px; font-size: 8.8px; line-height: 1.4; border-radius: 13px; }
+  .bub.me { align-self: flex-end; background: #2F6BFF; color: #fff; border-bottom-right-radius: 4px; font-weight: 600; }
+  .bub.ai { align-self: flex-start; background: #F6F9FF; color: #14203A; border-bottom-left-radius: 4px; }
+  .ask {
+    display: flex; align-items: center; gap: 8px; margin-top: 9px;
+    background: #F6F9FF; border: 1px solid rgba(0,0,0,.06);
+    border-radius: 20px; padding: 8px 12px; font-size: 8.5px; color: #4A5878;
+  }
+  .ask svg { width: 11px; height: 11px; color: #2F6BFF; flex: none; }
+  .ask span { flex: 1; }
+
+  .subs { display: flex; flex-direction: column; gap: 7px; }
+  .subs > div { display: flex; align-items: center; gap: 8px; }
+  .subs i { width: 20px; height: 20px; border-radius: 7px; flex: none; display: grid; place-items: center; overflow: hidden; }
+  .subs i svg { width: 11px; height: 11px; }
+  .subs u { flex: 1; text-decoration: none; }
+  .subs u b { display: block; font-size: 9px; font-weight: 700; }
+  .subs u span { display: block; font-size: 7.5px; color: #4A5878; }
+  .subs > div > b { font-size: 9px; font-weight: 750; }
+  .tabs { display: flex; gap: 5px; margin: 8px 0 9px; }
+  .tabs span { font-size: 8px; font-weight: 700; padding: 4px 9px; border-radius: 20px; background: #F6F9FF; color: #4A5878; }
+  .tabs span.on2 { background: #2F6BFF; color: #fff; }
+
   /* Bank tiles */
   .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; max-width: 400px; margin: 0 auto; }
   .tile {
@@ -474,56 +526,103 @@
 <!-- ── FEATURES ──────────────────────────────────────────────────── -->
 <section>
   <div class="wrap split">
+    <div>
+      <p class="eyebrow on" data-lang="lt">Apžvalga</p>
+      <p class="eyebrow" data-lang="en">Overview</p>
+      <div data-lang="lt" class="on"><h2>Pamatyk, kur nuėjo mėnuo</h2><p class="sec-lede">Kiek gavai, kiek išleidai ir kas liko — viena eilute. Kategorijos susidėlioja pačios, be jokio rankinio žymėjimo.</p></div>
+      <div data-lang="en"><h2>See where the month went</h2><p class="sec-lede">What came in, what went out and what is left — in one line. Categories sort themselves, with nothing to tag by hand.</p></div>
+    </div>
     <div class="art">
-      <div class="chartbox">
-        <svg viewBox="0 0 320 190" role="img" aria-hidden="true">
-          <defs>
-            <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#2F6BFF" stop-opacity=".46"/>
-              <stop offset="100%" stop-color="#2F6BFF" stop-opacity="0"/>
-            </linearGradient>
-            <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="4.5"/>
-            </filter>
-          </defs>
-          <g stroke="#1E2F66" stroke-width="1">
-            <line x1="0" y1="40" x2="320" y2="40"/><line x1="0" y1="90" x2="320" y2="90"/>
-            <line x1="0" y1="140" x2="320" y2="140"/>
-          </g>
-          <path d="M8 138 L60 120 L112 128 L164 92 L216 74 L268 46 L312 30" fill="none"
-                stroke="#7FA6FF" stroke-width="7" opacity=".5" filter="url(#soft)"/>
-          <path d="M8 138 L60 120 L112 128 L164 92 L216 74 L268 46 L312 30 L312 178 L8 178 Z" fill="url(#fill)"/>
-          <path d="M8 138 L60 120 L112 128 L164 92 L216 74 L268 46 L312 30" fill="none"
-                stroke="#7FA6FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-          <line x1="0" y1="58" x2="320" y2="58" stroke="#25C26B" stroke-width="1.6" stroke-dasharray="6 6" opacity=".8"/>
-          <circle cx="312" cy="30" r="5.5" fill="#7FA6FF"/>
-          <circle cx="312" cy="30" r="11" fill="#7FA6FF" opacity=".22"/>
-        </svg>
-      </div>
+      <div class="phone sm"><div class="screen">
+        <div class="sc-body">
+          <div class="notch"></div>
+          <div class="sc-head"><h4><span data-lang="lt" class="on">Apžvalga</span><span data-lang="en">Overview</span></h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.4"/><path d="M15.5 15.5 21 21"/></svg></div>
+          <div class="donuts">
+            <div><svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="30" fill="none" stroke="#ffffff" stroke-width="8" opacity=".85"/><circle cx="40" cy="40" r="30" fill="none" stroke="#2F6BFF" stroke-width="8" stroke-dasharray="78.9 188.5" stroke-dashoffset="0.0" transform="rotate(-90 40 40)"/><circle cx="40" cy="40" r="30" fill="none" stroke="#12A150" stroke-width="8" stroke-dasharray="57.3 188.5" stroke-dashoffset="-78.9" transform="rotate(-90 40 40)"/><circle cx="40" cy="40" r="30" fill="none" stroke="#E9A21B" stroke-width="8" stroke-dasharray="27.1 188.5" stroke-dashoffset="-136.1" transform="rotate(-90 40 40)"/><circle cx="40" cy="40" r="30" fill="none" stroke="#8B5CF6" stroke-width="8" stroke-dasharray="25.2 188.5" stroke-dashoffset="-163.3" transform="rotate(-90 40 40)"/></svg><u><span data-lang="lt" class="on">Išleista</span><span data-lang="en">Spent</span></u><b>−1 836 €</b></div>
+            <div><svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="30" fill="none" stroke="#ffffff" stroke-width="8" opacity=".85"/><circle cx="40" cy="40" r="30" fill="none" stroke="#E9A21B" stroke-width="8" stroke-dasharray="166.2 188.5" stroke-dashoffset="0.0" transform="rotate(-90 40 40)"/><circle cx="40" cy="40" r="30" fill="none" stroke="#8B5CF6" stroke-width="8" stroke-dasharray="22.3 188.5" stroke-dashoffset="-166.2" transform="rotate(-90 40 40)"/></svg><u><span data-lang="lt" class="on">Gauta</span><span data-lang="en">Received</span></u><b>+2 700 €</b></div>
+          </div>
+          <div class="netrow"><span><span data-lang="lt" class="on">Mėnesio rezultatas</span><span data-lang="en">Month result</span></span><b>+864 €</b></div>
+          <div class="cats">
+            <div><i style="background:#2F6BFF2E;color:#2F6BFF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20H4z"/><path d="M9.6 20v-5.4h4.8V20"/></svg></i><span><span data-lang="lt" class="on">Būstas</span><span data-lang="en">Housing</span></span><b>620,00 €</b><em style="background:#2F6BFF2E;color:#2F6BFF">34 %</em></div>
+            <div><i style="background:#12A1502E;color:#12A150"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M5 3v8a2.6 2.6 0 005.2 0V3M7.6 3v6M16.5 3c-1.5 1.6-2 3.4-2 5.4 0 1.6.8 2.6 2 2.6M16.5 11v10"/></svg></i><span><span data-lang="lt" class="on">Maistas</span><span data-lang="en">Food</span></span><b>450,30 €</b><em style="background:#12A1502E;color:#12A150">25 %</em></div>
+            <div><i style="background:#E9A21B2E;color:#E9A21B"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M4.5 16.5v2.6H7v-2.6m10 0v2.6h2.5v-2.6"/><path d="M3.6 16.5h16.8v-4.2l-1.9-4.6a1.8 1.8 0 00-1.7-1.1H7.2a1.8 1.8 0 00-1.7 1.1L3.6 12.3z"/><circle cx="7.4" cy="14" r="1"/><circle cx="16.6" cy="14" r="1"/></svg></i><span><span data-lang="lt" class="on">Transportas</span><span data-lang="en">Transport</span></span><b>213,20 €</b><em style="background:#E9A21B2E;color:#E9A21B">12 %</em></div>
+            <div><i style="background:#8B5CF62E;color:#8B5CF6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="M10 9.2v5.6l4.6-2.8z"/></svg></i><span><span data-lang="lt" class="on">Pramogos</span><span data-lang="en">Fun</span></span><b>198,40 €</b><em style="background:#8B5CF62E;color:#8B5CF6">11 %</em></div>
+          </div>
+        </div>
+        <div class="sc-nav">
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><rect x="3.4" y="3.4" width="7" height="7" rx="1.6"/><rect x="13.6" y="3.4" width="7" height="7" rx="1.6"/><rect x="3.4" y="13.6" width="7" height="7" rx="1.6"/><rect x="13.6" y="13.6" width="7" height="7" rx="1.6"/></svg><span><span data-lang="lt" class="on">Pradžia</span><span data-lang="en">Home</span></span></div>
+            <div class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.4"/></svg><span><span data-lang="lt" class="on">Apžvalga</span><span data-lang="en">Overview</span></span></div>
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M12 3.2l2.1 5.4 5.4 2.1-5.4 2.1L12 18.2l-2.1-5.4-5.4-2.1 5.4-2.1z"/></svg><span><span data-lang="lt" class="on">AI</span><span data-lang="en">AI</span></span></div>
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><rect x="3.6" y="5" width="16.8" height="15.4" rx="2.4"/><path d="M3.6 9.6h16.8M8.4 3.4v3.2m7.2-3.2v3.2"/></svg><span><span data-lang="lt" class="on">Planavimas</span><span data-lang="en">Planning</span></span></div>
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="12" cy="8.4" r="3.8"/><path d="M4.8 20.2a7.2 7.2 0 0114.4 0"/></svg><span><span data-lang="lt" class="on">Paskyra</span><span data-lang="en">Account</span></span></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+<section>
+  <div class="wrap split">
+    <div class="art">
+      <div class="phone sm"><div class="screen">
+        <div class="sc-body">
+          <div class="notch"></div>
+          <div class="sc-head"><h4><span data-lang="lt" class="on">Tavo AI agentas</span><span data-lang="en">Your AI agent</span></h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.4"/><path d="M15.5 15.5 21 21"/></svg></div>
+          <div class="bubbles">
+            <div class="bub me"><span data-lang="lt" class="on">Kiek išleidau šį mėnesį?</span><span data-lang="en">How much did I spend this month?</span></div>
+            <div class="bub ai"><span data-lang="lt" class="on">1 836 € — 32 % mažiau nei uždirbai. Daugiausia būstui (620 €) ir maistui (450 €).</span><span data-lang="en">€1,836 — 32% less than you earned. Mostly housing (€620) and food (€450).</span></div>
+            <div class="bub me"><span data-lang="lt" class="on">Kur galėčiau sutaupyti?</span><span data-lang="en">Where could I save?</span></div>
+            <div class="bub ai"><span data-lang="lt" class="on">Prenumeratos — 57,94 € per mėnesį, 695 € per metus. Dvi nenaudotos nuo balandžio.</span><span data-lang="en">Subscriptions — €57.94 a month, €695 a year. Two unused since April.</span></div>
+          </div>
+          <div class="ask"><span><span data-lang="lt" class="on">Klausk apie savo finansus…</span><span data-lang="en">Ask about your finances…</span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+        </div>
+        <div class="sc-nav">
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><rect x="3.4" y="3.4" width="7" height="7" rx="1.6"/><rect x="13.6" y="3.4" width="7" height="7" rx="1.6"/><rect x="3.4" y="13.6" width="7" height="7" rx="1.6"/><rect x="13.6" y="13.6" width="7" height="7" rx="1.6"/></svg><span><span data-lang="lt" class="on">Pradžia</span><span data-lang="en">Home</span></span></div>
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.4"/></svg><span><span data-lang="lt" class="on">Apžvalga</span><span data-lang="en">Overview</span></span></div>
+            <div class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M12 3.2l2.1 5.4 5.4 2.1-5.4 2.1L12 18.2l-2.1-5.4-5.4-2.1 5.4-2.1z"/></svg><span><span data-lang="lt" class="on">AI</span><span data-lang="en">AI</span></span></div>
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><rect x="3.6" y="5" width="16.8" height="15.4" rx="2.4"/><path d="M3.6 9.6h16.8M8.4 3.4v3.2m7.2-3.2v3.2"/></svg><span><span data-lang="lt" class="on">Planavimas</span><span data-lang="en">Planning</span></span></div>
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="12" cy="8.4" r="3.8"/><path d="M4.8 20.2a7.2 7.2 0 0114.4 0"/></svg><span><span data-lang="lt" class="on">Paskyra</span><span data-lang="en">Account</span></span></div>
+        </div>
+      </div></div>
     </div>
     <div>
-      <p class="eyebrow" data-lang="lt">Ką gauni</p>
-      <p class="eyebrow" data-lang="en">What you get</p>
-      <div data-lang="lt" class="on">
-        <h2>Ne tik prenumeratos</h2>
-        <p class="sec-lede">Nuoma, paskolos ir komunaliniai yra didesnė mėnesio dalis nei „Netflix". Vaultie skaičiuoja viską, kas kartojasi.</p>
-      </div>
-      <div data-lang="en">
-        <h2>More than subscriptions</h2>
-        <p class="sec-lede">Rent, loans and utilities are a bigger part of the month than Netflix. Vaultie counts everything that repeats.</p>
-      </div>
-      <ul class="checks">
-        <li data-lang="lt" class="on"><b>Mėnesio įsipareigojimas.</b> Viena suma, kurią privalai turėti kiekvieną mėnesį.</li>
-        <li data-lang="en"><b>Your monthly commitment.</b> One figure you need to have every month.</li>
-        <li data-lang="lt" class="on"><b>Priminimai prieš nurašymą.</b> Prieš 2 dienas, o prieš brangų metinį — prieš savaitę, kol dar spėji atšaukti.</li>
-        <li data-lang="en"><b>Reminders before a charge.</b> Two days ahead — and a week ahead for an expensive annual one, while cancelling still works.</li>
-        <li data-lang="lt" class="on"><b>Išlaidos pagal kategorijas.</b> Automatiškai, be rankinio žymėjimo.</li>
-        <li data-lang="en"><b>Spending by category.</b> Automatic, with nothing to tag by hand.</li>
-        <li data-lang="lt" class="on"><b>Keli bankai kartu.</b> Visos sąskaitos susidedamos į vieną vaizdą, be dublikatų.</li>
-        <li data-lang="en"><b>Several banks at once.</b> Every account merged into one picture, without duplicates.</li>
-        <li data-lang="lt" class="on"><b>Biudžetas ir mėnesio ataskaita.</b> Įspėjimas artėjant prie ribos, santrauka mėnesiui pasibaigus.</li>
-        <li data-lang="en"><b>Budget and a monthly report.</b> A warning as you near the limit, a summary once the month is done.</li>
-      </ul>
+      <p class="eyebrow on" data-lang="lt">AI</p>
+      <p class="eyebrow" data-lang="en">AI</p>
+      <div data-lang="lt" class="on"><h2>Paklausk apie savo pinigus paprastais žodžiais</h2><p class="sec-lede">Vaultie atsako pagal tavo tikrus duomenis — kiek išleidai, kur sutaupytum, kas kartojasi. Šią funkciją įjungi pats, ir gali išjungti bet kada.</p></div>
+      <div data-lang="en"><h2>Ask about your money in plain words</h2><p class="sec-lede">Vaultie answers from your own data — what you spent, where you could save, what repeats. You switch this on yourself, and can switch it off at any time.</p></div>
+    </div>
+  </div>
+</section>
+<section>
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow on" data-lang="lt">Sąskaitos ir prenumeratos</p>
+      <p class="eyebrow" data-lang="en">Bills and subscriptions</p>
+      <div data-lang="lt" class="on"><h2>Viskas, kas kartojasi, su datomis</h2><p class="sec-lede">Nuoma, draudimai, komunaliniai ir prenumeratos vienoje vietoje — su suma ir kita nurašymo diena. Būtent čia ir slypi didieji skaičiai.</p></div>
+      <div data-lang="en"><h2>Everything that repeats, with dates</h2><p class="sec-lede">Rent, insurance, utilities and subscriptions in one place — each with its amount and its next charge date. This is where the big numbers actually are.</p></div>
+    </div>
+    <div class="art">
+      <div class="phone sm"><div class="screen">
+        <div class="sc-body">
+          <div class="notch"></div>
+          <div class="sc-head"><h4><span data-lang="lt" class="on">Sąskaitos</span><span data-lang="en">Bills</span></h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.4"/><path d="M15.5 15.5 21 21"/></svg></div>
+          <div class="s-label"><span data-lang="lt" class="on">Per mėnesį</span><span data-lang="en">Per month</span></div>
+          <div class="s-big">796,29 €</div>
+          <div class="tabs"><span><span data-lang="lt" class="on">Prenumeratos</span><span data-lang="en">Subscriptions</span></span><span class="on2"><span data-lang="lt" class="on">Sąskaitos</span><span data-lang="en">Bills</span></span></div>
+          <div class="subs">
+            <div><i style="background:#2F6BFF2E;color:#2F6BFF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20H4z"/><path d="M9.6 20v-5.4h4.8V20"/></svg></i><u><b><span data-lang="lt" class="on">Nuoma</span><span data-lang="en">Rent</span></b><span><span data-lang="lt" class="on">Rugpjūčio 1</span><span data-lang="en">1 Aug</span></span></u><b>620,00 €</b></div>
+            <div><i style="background:#8B5CF62E;color:#8B5CF6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M12 3.4l7 2.8v5c0 4.3-2.9 8-7 9.4-4.1-1.4-7-5.1-7-9.4v-5z"/></svg></i><u><b><span data-lang="lt" class="on">Būsto draudimas</span><span data-lang="en">Home insurance</span></b><span><span data-lang="lt" class="on">Rugpjūčio 3</span><span data-lang="en">3 Aug</span></span></u><b>18,50 €</b></div>
+            <div><i style="background:#E9A21B2E;color:#E9A21B"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M13.2 2.5 4.5 13.4h6.2l-.9 8.1 8.7-10.9h-6.2z"/></svg></i><u><b><span data-lang="lt" class="on">Elektra</span><span data-lang="en">Electricity</span></b><span><span data-lang="lt" class="on">Rugpjūčio 8</span><span data-lang="en">8 Aug</span></span></u><b>46,20 €</b></div>
+            <div><i style="background:#12A1502E;color:#12A150"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M2.5 8.6a15 15 0 0119 0M5.8 12.2a10 10 0 0112.4 0M9.2 15.8a5 5 0 015.6 0"/><circle cx="12" cy="19.4" r="1.1"/></svg></i><u><b><span data-lang="lt" class="on">Internetas</span><span data-lang="en">Internet</span></b><span><span data-lang="lt" class="on">Rugpjūčio 10</span><span data-lang="en">10 Aug</span></span></u><b>22,00 €</b></div>
+          </div>
+        </div>
+        <div class="sc-nav">
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><rect x="3.4" y="3.4" width="7" height="7" rx="1.6"/><rect x="13.6" y="3.4" width="7" height="7" rx="1.6"/><rect x="3.4" y="13.6" width="7" height="7" rx="1.6"/><rect x="13.6" y="13.6" width="7" height="7" rx="1.6"/></svg><span><span data-lang="lt" class="on">Pradžia</span><span data-lang="en">Home</span></span></div>
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.4"/></svg><span><span data-lang="lt" class="on">Apžvalga</span><span data-lang="en">Overview</span></span></div>
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M12 3.2l2.1 5.4 5.4 2.1-5.4 2.1L12 18.2l-2.1-5.4-5.4-2.1 5.4-2.1z"/></svg><span><span data-lang="lt" class="on">AI</span><span data-lang="en">AI</span></span></div>
+            <div class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><rect x="3.6" y="5" width="16.8" height="15.4" rx="2.4"/><path d="M3.6 9.6h16.8M8.4 3.4v3.2m7.2-3.2v3.2"/></svg><span><span data-lang="lt" class="on">Planavimas</span><span data-lang="en">Planning</span></span></div>
+            <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="12" cy="8.4" r="3.8"/><path d="M4.8 20.2a7.2 7.2 0 0114.4 0"/></svg><span><span data-lang="lt" class="on">Paskyra</span><span data-lang="en">Account</span></span></div>
+        </div>
+      </div></div>
     </div>
   </div>
 </section>
