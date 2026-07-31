@@ -3846,14 +3846,10 @@ class _NeonSparkPainter extends CustomPainter {
   // Room on the right so the endpoint pill + € labels don't touch the line.
   static const double rightPad = 66;
 
-  // One solid line colour — Frost blue on both themes now. Dark mode used a
-  // violet (#8B5CF6, the app's general dark-mode accent) here; asked to try
-  // blue instead. Lightened a step past the light-mode blue (#2F6BFF) rather
-  // than reused flat, because a colour tuned for a pale blue page (#C8D9F6)
-  // reads duller against near-black (#0A0910) than the same hex does in
-  // daylight — the lift keeps it feeling like the same electric blue instead
-  // of a muted one.
-  Color get _line => dark ? const Color(0xFF4C82FF) : const Color(0xFF2F6BFF);
+  // One solid line colour (violet on dark, Frost blue on light) — the app's
+  // usual dark-mode accent. A blue variant was tried here and reverted on the
+  // device: it read as out of place next to the rest of the dark palette.
+  Color get _line => dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
   Color get _gridColor =>
       (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A)).withValues(alpha: 0.07);
 
@@ -8431,7 +8427,14 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1D45C4), Color(0xFF3B78FF)]),
+              // Was a hardcoded blue gradient, always — the one hero panel in
+              // the app that ignored the theme entirely, so it stayed blue in
+              // dark mode while everything around it (the "Kaip naudotis"
+              // block right below, its own icon and heading) is the app's
+              // purple family. Now follows the same [_purpleDeep, _purple]
+              // pair the other hero panels use: violet in dark mode, the same
+              // blue as before in light mode.
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_purpleDeep, _purple]),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${_eur(total)} ${tr('/ mėn')}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -8443,7 +8446,14 @@ class _RecurringScreenState extends State<_RecurringScreen> {
           Container(
             margin: const EdgeInsets.fromLTRB(2, 12, 2, 8),
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
+            // A neutral card, not the purple-tinted `_purpleSoft` this used to
+            // sit on — now that the hero card above is a solid purple
+            // gradient, a purple-on-purple-tinted block directly under it
+            // had no edge between them. The purple accent stays on the icon,
+            // heading and row glyphs below, so this still reads as the same
+            // "tip" block; only the background moved to the plain surface the
+            // rest of this screen's cards already use.
+            decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12), border: Border.all(color: _hair)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Icon(Icons.lightbulb_outline_rounded, size: 18, color: _purple),
@@ -9233,7 +9243,14 @@ class _AccountTabState extends State<_AccountTab> {
               Container(
                 width: 140, height: 50,
                 padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: _purpleSoft, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  // Dark mode: solid black, not the dark-violet `_purpleSoft`
+                  // — that tint sat only a shade off the card around it, so
+                  // the purple line had almost no backdrop to stand out
+                  // against. Light mode is untouched.
+                  color: _darkMode ? Colors.black : _purpleSoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: CustomPaint(painter: _SparkPainter(spark)),
               ),
             ]),
