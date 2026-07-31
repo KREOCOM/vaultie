@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="lt">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vaultie — Terms of Use</title>
+<title>Vaultie — Naudojimo sąlygos</title>
 <style>
   :root {
     --ink: #0B1533; --sub: #4C5B7D; --paper: #FCFCFD;
@@ -44,10 +44,14 @@
   }
   h2 { font-size: 17px; margin: 0 0 9px; letter-spacing: -0.2px; }
   section p { margin: 0; color: var(--sub); }
+  section p + p { margin-top: 11px; }
+  section ul { margin: 11px 0 0; padding-left: 20px; color: var(--sub); }
+  section li { margin-bottom: 7px; }
+  section li:last-child { margin-bottom: 0; }
   a { color: var(--blue); }
   footer { margin-top: 34px; color: var(--sub); font-size: 13.5px; text-align: center; }
-  [data-lang] { display: none; }
-  [data-lang].on { display: block; }
+  footer a { color: var(--sub); }
+  [data-lang]:not(.on) { display: none; }
 </style>
 </head>
 <body>
@@ -56,96 +60,273 @@
   <header>
     <div class="brand"><span class="mark">V</span> Vaultie</div>
     <div class="langs">
-      <button type="button" data-set="en" aria-pressed="true">EN</button>
-      <button type="button" data-set="lt" aria-pressed="false">LT</button>
+      <button type="button" data-set="lt" aria-pressed="true">LT</button>
+      <button type="button" data-set="en" aria-pressed="false">EN</button>
     </div>
   </header>
 
-  <!-- ── English ─────────────────────────────────────────────── -->
-  <div data-lang="en" class="on">
-    <h1>Terms of Use</h1>
-    <p class="updated">Last updated: 7 July 2026</p>
-    <p class="intro">By using Vaultie you agree to these terms. If you do not agree, please do not use the app.</p>
-
-    <section>
-      <h2>The service</h2>
-      <p>Vaultie is a subscription tracker that helps you monitor recurring costs and get reminders. An optional Vaultie Pro feature lets you connect a bank via Enable Banking, a licensed PSD2 provider, to automatically detect recurring payments (read-only — we do not initiate payments). Vaultie provides information, not financial advice.</p>
-    </section>
-
-    <section>
-      <h2>Your account</h2>
-      <p>You are responsible for keeping your credentials secure and for activity under your account. Provide an accurate email address.</p>
-    </section>
-
-    <section>
-      <h2>Acceptable use</h2>
-      <p>Do not use the app for unlawful purposes or attempt to disrupt its operation or security.</p>
-    </section>
-
-    <section>
-      <h2>Subscriptions &amp; payments</h2>
-      <p>Vaultie is subscription-only — using the app requires an active Vaultie Pro plan: monthly (€4.99/month) or yearly (€39.99/year). Where a free trial is offered, its length and terms are shown on the purchase screen before you confirm; you are charged only when it ends, unless you cancel first. Purchases are processed by the Apple App Store and charged to your Apple ID; prices are shown before you buy and may vary by region. The subscription renews automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in App Store settings → your name → Subscriptions; deleting the app does not cancel it. Refunds are subject to Apple’s policies and applicable law.</p>
-    </section>
-
-    <section>
-      <h2>Disclaimer</h2>
-      <p>Vaultie is provided “as is”. We are not liable for missed payments or decisions made based on the app’s data. Always verify with the official service providers.</p>
-    </section>
-
-    <section>
-      <h2>Changes</h2>
-      <p>We may update these terms. Continued use of the app means you accept the updated version.</p>
-    </section>
-
-    <section>
-      <h2>Contact</h2>
-      <p>Questions? Contact us at <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>.</p>
-    </section>
-  </div>
-
   <!-- ── Lietuvių ────────────────────────────────────────────── -->
-  <div data-lang="lt">
+  <div data-lang="lt" class="on">
     <h1>Naudojimo sąlygos</h1>
-    <p class="updated">Atnaujinta: 2026-07-07</p>
-    <p class="intro">Naudodamasis Vaultie sutinki su šiomis sąlygomis. Jei nesutinki, programos nenaudok.</p>
+    <p class="updated">Atnaujinta: 2026-07-31</p>
+    <p class="intro">Šios sąlygos yra sutartis tarp tavęs ir Vaultie. Jos paaiškina, ką programėlė daro, ko ji nedaro, už ką moki ir kokias teises turi. Naudodamasis Vaultie patvirtini, kad su jomis susipažinai ir sutinki. Jei nesutinki — programėlės nenaudok ir gali ją ištrinti bet kada.</p>
 
     <section>
-      <h2>Paslauga</h2>
-      <p>Vaultie – prenumeratų sekimo programa, padedanti stebėti pasikartojančias išlaidas ir gauti priminimus. Neprivaloma „Vaultie Pro“ funkcija leidžia prijungti banką per licencijuotą PSD2 teikėją „Enable Banking“ ir automatiškai aptikti pasikartojančius mokėjimus (tik skaitymui — mokėjimų neinicijuojame). Vaultie teikia informaciją, o ne finansines konsultacijas.</p>
+      <h2>1. Kas yra Vaultie</h2>
+      <p>Vaultie yra asmeninių finansų programėlė. Ji prisijungia prie tavo banko sąskaitų tik skaitymo režimu, perskaito operacijų istoriją ir automatiškai atpažįsta pasikartojančius mokėjimus — prenumeratas, komunalines sąskaitas, nuomą, draudimus, paskolų įmokas ir kitus reguliarius nurašymus.</p>
+      <p>Programėlė parodo, kiek sudaro tavo mėnesio įsipareigojimai, suskirsto išlaidas į kategorijas, siunčia priminimus prieš nurašymus ir leidžia užsibrėžti biudžetą. Yra ir neprivaloma dirbtinio intelekto pokalbio funkcija, kurią įjungi pats.</p>
+      <p><b>Vaultie teikia informaciją, o ne finansines konsultacijas.</b> Mes nesame bankas, mokėjimo įstaiga, investicinė ar draudimo bendrovė. Nieko tavo vardu neperkame, neparduodame ir nemokame. Sprendimus dėl savo pinigų priimi tu.</p>
     </section>
 
     <section>
-      <h2>Paskyra</h2>
-      <p>Esi atsakingas už savo prisijungimo duomenų saugumą ir už veiklą savo paskyroje. Pateik tikslų el. pašto adresą.</p>
+      <h2>2. Kam gali naudotis</h2>
+      <p>Naudotis Vaultie gali fiziniai asmenys nuo 16 metų, turintys sąskaitą banke, kuris palaikomas per mūsų atviros bankininkystės partnerį. Programėlė skirta asmeniniam, o ne verslo naudojimui.</p>
+      <p>Jungdamas banko sąskaitą patvirtini, kad ji yra tavo arba kad turi teisėtą teisę ja naudotis ir suteikti prieigą prie jos duomenų. Svetimos sąskaitos jungti negalima.</p>
     </section>
 
     <section>
-      <h2>Priimtinas naudojimas</h2>
-      <p>Nesinaudok programa neteisėtiems tikslams ir nebandyk trikdyti jos veikimo ar saugumo.</p>
+      <h2>3. Paskyra</h2>
+      <p>Norint naudotis Vaultie reikia susikurti paskyrą — el. paštu su slaptažodžiu arba per „Google" ar „Apple". El. pašto adresą reikia patvirtinti.</p>
+      <p>Esi atsakingas už savo prisijungimo duomenų saugumą ir už visą veiklą savo paskyroje. Jei įtari, kad prie tavo paskyros prisijungė kas nors kitas, nedelsdamas pakeisk slaptažodį ir parašyk mums.</p>
+      <p><b>Svarbu:</b> Vaultie duomenys saugomi tik tavo telefone. Prisijungus prie tos pačios programėlės kita paskyra, ankstesnės paskyros duomenys iš aktyvios atminties pašalinami. Jie nėra sunaikinami — grįžus į savo paskyrą jie atkuriami — bet serverinės atsarginės kopijos nėra, todėl telefono praradimas ar programėlės ištrynimas reiškia, kad bankus reikės prijungti iš naujo.</p>
     </section>
 
     <section>
-      <h2>Prenumeratos ir mokėjimai</h2>
-      <p>Vaultie veikia tik su prenumerata — programai naudoti reikia aktyvaus „Vaultie Pro“ plano: mėnesinio (4,99 €/mėn.) arba metinio (39,99 €/metus). Jei siūlomas nemokamas bandomasis laikotarpis, jo trukmė ir sąlygos parodomos pirkimo ekrane prieš patvirtinant; mokestis nuskaičiuojamas tik jam pasibaigus, nebent atšauksi anksčiau. Pirkimus tvarko „Apple App Store“ ir jie nuskaičiuojami iš „Apple ID“; kainos parodomos prieš pirkimą ir gali skirtis pagal regioną. Prenumerata atsinaujina automatiškai, nebent atšaukiama likus ne mažiau kaip 24 val. iki laikotarpio pabaigos. Valdyti ar atšaukti galima bet kada „App Store“ nustatymuose → jūsų vardas → Prenumeratos; programos ištrynimas jos neatšaukia. Grąžinimams taikomos „Apple“ taisyklės ir įstatymai.</p>
+      <h2>4. Banko prijungimas</h2>
+      <p>Banko prijungimas vyksta per <b>Enable Banking</b> — licencijuotą sąskaitos informacijos paslaugos teikėją, veikiantį pagal ES PSD2 direktyvą. Prisijungimo duomenis suvedi savo banko puslapyje arba banko programėlėje, ne Vaultie. <b>Mes tavo banko slaptažodžio nematome ir jo negauname.</b></p>
+      <p>Suteikta prieiga yra <b>tik skaitymo</b>: matome sąskaitų duomenis, likučius ir operacijų istoriją. Inicijuoti mokėjimo, pervesti pinigų ar kaip nors kitaip valdyti sąskaitos Vaultie negali — tokios techninės galimybės tiesiog nėra.</p>
+      <p>Pagal PSD2 taisykles sutikimas galioja ribotą laiką (paprastai iki 90 dienų). Pasibaigus terminui bankas nustoja teikti duomenis, ir prieigą reikia patvirtinti iš naujo. Įspėsime prieš tai, jei būsi įjungęs pranešimus.</p>
+      <p>Prieigą gali atšaukti bet kada — programėlės nustatymuose atjungdamas vieną ar visus bankus, arba tiesiogiai savo banke.</p>
     </section>
 
     <section>
-      <h2>Atsakomybės ribojimas</h2>
-      <p>Vaultie teikiama „tokia, kokia yra“. Neatsakome už praleistus mokėjimus ar sprendimus, priimtus remiantis programos duomenimis. Visada pasitikrink oficialiuose paslaugų šaltiniuose.</p>
+      <h2>5. Prenumerata, kainos ir mokėjimai</h2>
+      <p>Vaultie veikia <b>tik su prenumerata</b> — nemokamo plano nėra. Programėlei naudoti reikia aktyvaus „Vaultie Pro" plano:</p>
+      <ul>
+        <li><b>Mėnesinis</b> — 4,99 € per mėnesį</li>
+        <li><b>Metinis</b> — 39,99 € per metus</li>
+      </ul>
+      <p>Jei siūlomas nemokamas bandomasis laikotarpis, jo trukmė ir sąlygos parodomos pirkimo ekrane prieš patvirtinant. Mokestis nuskaičiuojamas tik jam pasibaigus, nebent atšauksi anksčiau. Bandomasis laikotarpis suteikiamas vienam „Apple ID" vieną kartą.</p>
+      <p>Visus pirkimus tvarko <b>Apple App Store</b> ir jie nuskaičiuojami iš tavo „Apple ID". Kainos parodomos prieš pirkimą ir gali skirtis pagal šalį dėl mokesčių bei valiutos.</p>
+      <p>Prenumerata <b>atsinaujina automatiškai</b>, nebent ją atšauki likus ne mažiau kaip 24 valandoms iki einamojo laikotarpio pabaigos. Atšaukti gali bet kada: App Store nustatymai → tavo vardas → Prenumeratos. <b>Programėlės ištrynimas prenumeratos neatšaukia.</b></p>
+      <p>Atšaukus prenumerata galioja iki apmokėto laikotarpio pabaigos, o po to prieiga prie funkcijų nutrūksta. Pinigų grąžinimą administruoja Apple pagal savo taisykles ir galiojančius vartotojų teisių įstatymus — mes patys mokėjimų negrąžiname.</p>
+      <p>Kainas galime keisti. Apie pasikeitimą pranešame iš anksto, ir jis įsigalioja tik nuo kito atsinaujinimo — esamas apmokėtas laikotarpis nepabrangsta.</p>
     </section>
 
     <section>
-      <h2>Pakeitimai</h2>
-      <p>Šias sąlygas galime atnaujinti. Toliau naudodamasis programa sutinki su atnaujinta versija.</p>
+      <h2>6. Dirbtinio intelekto funkcijos</h2>
+      <p>Vaultie turi neprivalomą AI pokalbio funkciją ir mėnesio santraukas. Jos veikia tik tada, kai pats duodi atskirą sutikimą, ir gali būti išjungtos nustatymuose bet kada.</p>
+      <p>Įjungus šią funkciją, atsakymui parengti į AI paslaugą siunčiama <b>tik suvestinė</b>: likučiai, išlaidos pagal kategorijas ir pasikartojančių mokėjimų pavadinimai. Atskiros operacijos, IBAN numeriai, kortelių numeriai ir žmonių vardai nesiunčiami.</p>
+      <p>AI atsakymai gali būti netikslūs. Jie skirti orientacijai, o ne kaip pagrindas finansiniams sprendimams. Visada pasitikrink pirminiuose šaltiniuose.</p>
     </section>
 
     <section>
-      <h2>Susisiekimas</h2>
-      <p>Klausimais rašyk: <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>.</p>
+      <h2>7. Duomenų tikslumas</h2>
+      <p>Vaultie rodo duomenis, gautus iš tavo banko, ir juos automatiškai interpretuoja. Bankai duomenis pateikia skirtingai, kartais vėluoja arba juos vėliau pataiso. Automatinis atpažinimas taip pat gali klysti: mokėjimas gali būti priskirtas ne tai kategorijai, praleistas arba klaidingai palaikytas pasikartojančiu.</p>
+      <p>Todėl skaičiai programėlėje yra <b>orientaciniai</b>. Oficialus tavo finansų šaltinis yra tavo bankas. Prieš priimdamas svarbų sprendimą pasitikrink banko išraše.</p>
+      <p>Programėlė leidžia pataisyti atpažinimo klaidas — pervadinti mokėjimą, pakeisti jo tipą arba išbraukti jį iš skaičiavimo.</p>
+    </section>
+
+    <section>
+      <h2>8. Priminimai ir pranešimai</h2>
+      <p>Jei leidi, Vaultie siunčia pranešimus: prieš artėjantį nurašymą, prieš pasibaigiant banko prieigai, apie mėnesio ataskaitą ir apie artėjimą prie biudžeto ribos.</p>
+      <p>Pranešimai yra <b>pagalbinė priemonė, o ne garantija</b>. Jie gali nepasiekti dėl išjungto leidimo, telefono nustatymų, energijos taupymo režimo ar to, kad programėlė seniai nebuvo atidaryta. Neatsakome už praleistą mokėjimą, jei pranešimas neatėjo.</p>
+    </section>
+
+    <section>
+      <h2>9. Ką daryti draudžiama</h2>
+      <p>Naudodamasis Vaultie įsipareigoji:</p>
+      <ul>
+        <li>nenaudoti programėlės neteisėtiems tikslams;</li>
+        <li>nejungti sąskaitų, kurios tau nepriklauso ir kurioms neturi teisės;</li>
+        <li>nebandyti apeiti mokėjimo sistemos ar prieigos apribojimų;</li>
+        <li>netrikdyti paslaugos veikimo, neapkrauti jos automatizuotomis užklausomis;</li>
+        <li>nebandyti nagrinėti, kopijuoti ar atkurti programėlės kodo;</li>
+        <li>nedalinti savo paskyros kitiems asmenims.</li>
+      </ul>
+      <p>Pažeidus šias nuostatas galime apriboti arba nutraukti prieigą.</p>
+    </section>
+
+    <section>
+      <h2>10. Prieinamumas</h2>
+      <p>Stengiamės, kad Vaultie veiktų nuolat, bet negarantuojame nepertraukiamo veikimo. Paslauga gali būti laikinai neprieinama dėl priežiūros darbų, klaidų taisymo, banko ar mūsų partnerių trikdžių.</p>
+      <p>Bankai kartais riboja užklausų dažnumą arba laikinai nutraukia prieigą. Tokiais atvejais programėlė rodo paskutinius turimus duomenis.</p>
+      <p>Galime keisti, pridėti arba pašalinti funkcijas. Jei pašalintume esminę funkciją, apie tai pranešime iš anksto.</p>
+    </section>
+
+    <section>
+      <h2>11. Intelektinė nuosavybė</h2>
+      <p>Vaultie programėlė, jos dizainas, logotipas, tekstai ir kodas priklauso mums. Naudodamasis programėle gauni asmeninę, neišimtinę, neperleidžiamą teisę ja naudotis — bet ne nuosavybės teisę.</p>
+      <p>Tavo finansiniai duomenys lieka tavo. Mes jų nesavinamės ir neparduodame.</p>
+      <p>Trečiųjų šalių prekių ženklai (bankų, paslaugų pavadinimai ir logotipai) priklauso jų savininkams ir naudojami tik atpažinimo tikslais.</p>
+    </section>
+
+    <section>
+      <h2>12. Atsakomybės ribojimas</h2>
+      <p>Vaultie teikiama „tokia, kokia yra". Neteikiame garantijų, kad programėlė bus be klaidų, kad duomenys visada bus pilni ar kad atpažinimas bus tikslus.</p>
+      <p>Neatsakome už netiesioginius nuostolius: praleistus mokėjimus, neatšauktas prenumeratas, viršytus biudžetus, banko taikomus mokesčius ar sprendimus, priimtus remiantis programėlės duomenimis.</p>
+      <p>Neatsakome už trečiųjų šalių — bankų, Enable Banking, Apple, AI paslaugos teikėjo — veiksmus, trikdžius ar sprendimus.</p>
+      <p>Šios sąlygos <b>neriboja</b> teisės aktuose numatytų tavo, kaip vartotojo, teisių, ir neriboja mūsų atsakomybės tais atvejais, kai jos riboti neleidžia įstatymas.</p>
+    </section>
+
+    <section>
+      <h2>13. Sutarties nutraukimas</h2>
+      <p>Nutraukti gali bet kada: atšaukti prenumeratą App Store, atjungti bankus, ištrinti paskyrą programėlės nustatymuose arba <a href="delete-account.html">šiame puslapyje</a>. Ištrynus paskyrą banko sutikimai atšaukiami, o duomenys pašalinami.</p>
+      <p>Mes galime nutraukti arba apriboti prieigą, jei šiurkščiai pažeidi šias sąlygas, naudoji programėlę neteisėtai arba to reikalauja įstatymas. Įprastu atveju apie tai įspėsime iš anksto.</p>
+    </section>
+
+    <section>
+      <h2>14. Sąlygų pakeitimai</h2>
+      <p>Šias sąlygas galime atnaujinti — pasikeitus funkcijoms, partneriams arba teisiniams reikalavimams. Esminius pakeitimus paskelbsime programėlėje arba el. paštu prieš jiems įsigaliojant.</p>
+      <p>Toliau naudodamasis programėle po pakeitimų įsigaliojimo su jais sutinki. Nesutikdamas gali nutraukti prenumeratą ir ištrinti paskyrą.</p>
+    </section>
+
+    <section>
+      <h2>15. Taikoma teisė ir ginčai</h2>
+      <p>Šioms sąlygoms taikoma Lietuvos Respublikos teisė, nepažeidžiant privalomų tavo gyvenamosios šalies vartotojų apsaugos nuostatų.</p>
+      <p>Ginčą pirmiausia siūlome spręsti derybomis — parašyk mums. Jei nepavyktų, ES vartotojai gali kreiptis į elektroninę ginčų sprendimo platformą arba į savo šalies vartotojų teisių instituciją.</p>
+    </section>
+
+    <section>
+      <h2>16. Susisiekimas</h2>
+      <p>Klausimais dėl šių sąlygų rašyk <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>. Atsakome per 1–2 darbo dienas.</p>
+      <p>Kaip tvarkome duomenis, aprašyta <a href="privacy.html">privatumo politikoje</a>.</p>
     </section>
   </div>
 
-  <footer>Vaultie · <a href="privacy.html">Privacy Policy</a> · <a href="delete-account.html">Delete account</a></footer>
+  <!-- ── English ─────────────────────────────────────────────── -->
+  <div data-lang="en">
+    <h1>Terms of Use</h1>
+    <p class="updated">Last updated: 31 July 2026</p>
+    <p class="intro">These terms are an agreement between you and Vaultie. They explain what the app does, what it does not do, what you pay for and what rights you have. By using Vaultie you confirm that you have read and accept them. If you do not accept them, do not use the app — you can delete it at any time.</p>
+
+    <section>
+      <h2>1. What Vaultie is</h2>
+      <p>Vaultie is a personal finance app. It connects to your bank accounts in read-only mode, reads your transaction history and automatically recognises recurring payments — subscriptions, utility bills, rent, insurance, loan instalments and other regular charges.</p>
+      <p>It shows what your monthly commitment adds up to, sorts spending into categories, sends reminders before charges and lets you set a budget. There is also an optional AI chat feature that you switch on yourself.</p>
+      <p><b>Vaultie provides information, not financial advice.</b> We are not a bank, a payment institution, an investment firm or an insurer. We do not buy, sell or pay anything on your behalf. Decisions about your money are yours.</p>
+    </section>
+
+    <section>
+      <h2>2. Who can use it</h2>
+      <p>Vaultie is for individuals aged 16 or over who hold an account with a bank supported through our open-banking partner. The app is for personal, not business, use.</p>
+      <p>By connecting a bank account you confirm that it is yours, or that you are lawfully entitled to use it and to grant access to its data. You may not connect someone else's account.</p>
+    </section>
+
+    <section>
+      <h2>3. Your account</h2>
+      <p>Using Vaultie requires an account — by email and password, or through Google or Apple. Your email address must be verified.</p>
+      <p>You are responsible for keeping your credentials secure and for all activity under your account. If you suspect someone else has accessed it, change your password immediately and contact us.</p>
+      <p><b>Important:</b> Vaultie's data is stored only on your phone. If a different account signs in on the same phone, the previous account's data is removed from active storage. It is not destroyed — signing back in restores it — but there is no server backup, so losing the phone or deleting the app means reconnecting your banks.</p>
+    </section>
+
+    <section>
+      <h2>4. Connecting a bank</h2>
+      <p>Bank connections run through <b>Enable Banking</b>, a licensed account information service provider operating under the EU PSD2 directive. You enter your credentials on your bank's own page or app, not in Vaultie. <b>We never see or receive your banking password.</b></p>
+      <p>The access granted is <b>read-only</b>: we can see account details, balances and transaction history. Vaultie cannot initiate a payment, transfer money or otherwise operate the account — that capability does not technically exist.</p>
+      <p>Under PSD2 rules, consent is time-limited (typically up to 90 days). When it lapses the bank stops providing data and access must be re-approved. We will warn you beforehand if you have notifications enabled.</p>
+      <p>You can revoke access at any time — by disconnecting one or all banks in the app's settings, or directly with your bank.</p>
+    </section>
+
+    <section>
+      <h2>5. Subscription, pricing and payment</h2>
+      <p>Vaultie is <b>subscription-only</b> — there is no free tier. Using the app requires an active Vaultie Pro plan:</p>
+      <ul>
+        <li><b>Monthly</b> — €4.99 per month</li>
+        <li><b>Yearly</b> — €39.99 per year</li>
+      </ul>
+      <p>Where a free trial is offered, its length and terms are shown on the purchase screen before you confirm. You are charged only when it ends, unless you cancel first. A trial is available once per Apple ID.</p>
+      <p>All purchases are processed by the <b>Apple App Store</b> and charged to your Apple ID. Prices are shown before you buy and may vary by country because of tax and currency.</p>
+      <p>The subscription <b>renews automatically</b> unless cancelled at least 24 hours before the end of the current period. Cancel any time: App Store settings → your name → Subscriptions. <b>Deleting the app does not cancel the subscription.</b></p>
+      <p>After cancelling, the subscription runs to the end of the paid period and access then stops. Refunds are administered by Apple under its own policies and applicable consumer law — we do not process refunds ourselves.</p>
+      <p>We may change prices. We will give notice in advance, and a change takes effect only from the next renewal — a period you have already paid for does not become more expensive.</p>
+    </section>
+
+    <section>
+      <h2>6. AI features</h2>
+      <p>Vaultie has an optional AI chat and monthly summaries. They work only after you give separate consent, and can be switched off in settings at any time.</p>
+      <p>When enabled, only a <b>summary</b> is sent to the AI service to produce an answer: balances, spending by category and the names of recurring payments. Individual transactions, IBANs, card numbers and people's names are not sent.</p>
+      <p>AI answers can be inaccurate. They are for orientation, not a basis for financial decisions. Always check against primary sources.</p>
+    </section>
+
+    <section>
+      <h2>7. Accuracy of data</h2>
+      <p>Vaultie displays data received from your bank and interprets it automatically. Banks present data differently, sometimes late, and sometimes correct it afterwards. Automatic recognition can also be wrong: a payment may be put in the wrong category, missed, or mistaken for a recurring one.</p>
+      <p>The figures in the app are therefore <b>indicative</b>. The authoritative source for your finances is your bank. Check your bank statement before making an important decision.</p>
+      <p>The app lets you correct recognition errors — rename a payment, change its type or exclude it from the totals.</p>
+    </section>
+
+    <section>
+      <h2>8. Reminders and notifications</h2>
+      <p>With your permission, Vaultie sends notifications: before an upcoming charge, before bank access expires, when a monthly report is ready, and as you approach a budget limit.</p>
+      <p>Notifications are <b>an aid, not a guarantee</b>. They may not arrive because permission is off, because of device or power-saving settings, or because the app has not been opened for a long time. We are not liable for a missed payment if a notification did not arrive.</p>
+    </section>
+
+    <section>
+      <h2>9. What you may not do</h2>
+      <p>In using Vaultie you agree not to:</p>
+      <ul>
+        <li>use the app for unlawful purposes;</li>
+        <li>connect accounts that are not yours or that you have no right to;</li>
+        <li>attempt to circumvent payment or access restrictions;</li>
+        <li>disrupt the service or overload it with automated requests;</li>
+        <li>attempt to reverse-engineer, copy or reproduce the app's code;</li>
+        <li>share your account with other people.</li>
+      </ul>
+      <p>We may restrict or terminate access if these provisions are breached.</p>
+    </section>
+
+    <section>
+      <h2>10. Availability</h2>
+      <p>We aim to keep Vaultie running continuously, but we do not guarantee uninterrupted service. It may be temporarily unavailable because of maintenance, fixes, or problems at a bank or one of our partners.</p>
+      <p>Banks sometimes rate-limit requests or suspend access. In those cases the app shows the most recent data it has.</p>
+      <p>We may change, add or remove features. If we removed a material feature, we would give notice in advance.</p>
+    </section>
+
+    <section>
+      <h2>11. Intellectual property</h2>
+      <p>The Vaultie app, its design, logo, text and code belong to us. Using the app grants you a personal, non-exclusive, non-transferable right to use it — not ownership.</p>
+      <p>Your financial data remains yours. We do not claim it and we do not sell it.</p>
+      <p>Third-party trademarks (bank and service names and logos) belong to their owners and are used for identification only.</p>
+    </section>
+
+    <section>
+      <h2>12. Limitation of liability</h2>
+      <p>Vaultie is provided "as is". We give no warranty that the app will be free of errors, that data will always be complete, or that recognition will be accurate.</p>
+      <p>We are not liable for indirect losses: missed payments, subscriptions left uncancelled, exceeded budgets, bank charges, or decisions made on the basis of the app's data.</p>
+      <p>We are not liable for the acts, failures or decisions of third parties — banks, Enable Banking, Apple, or the AI provider.</p>
+      <p>These terms <b>do not limit</b> your statutory rights as a consumer, and do not limit our liability where the law does not allow it to be limited.</p>
+    </section>
+
+    <section>
+      <h2>13. Ending the agreement</h2>
+      <p>You may end it at any time: cancel the subscription in the App Store, disconnect your banks, and delete your account in the app's settings or on <a href="delete-account.html">this page</a>. Deleting the account revokes bank consents and removes your data.</p>
+      <p>We may terminate or restrict access if you seriously breach these terms, use the app unlawfully, or where the law requires it. Ordinarily we would give notice first.</p>
+    </section>
+
+    <section>
+      <h2>14. Changes to these terms</h2>
+      <p>We may update these terms as features, partners or legal requirements change. Material changes will be announced in the app or by email before they take effect.</p>
+      <p>Continuing to use the app after they take effect means you accept them. If you do not accept them, you can cancel your subscription and delete your account.</p>
+    </section>
+
+    <section>
+      <h2>15. Governing law and disputes</h2>
+      <p>These terms are governed by the law of the Republic of Lithuania, without prejudice to mandatory consumer-protection provisions of your country of residence.</p>
+      <p>We would rather resolve a dispute by talking — please write to us first. Failing that, EU consumers may use the online dispute resolution platform or their national consumer authority.</p>
+    </section>
+
+    <section>
+      <h2>16. Contact</h2>
+      <p>For questions about these terms, write to <a href="mailto:osva50042@gmail.com">osva50042@gmail.com</a>. We reply within 1–2 working days.</p>
+      <p>How we handle data is described in the <a href="privacy.html">privacy policy</a>.</p>
+    </section>
+  </div>
+
+  <footer>
+    <span data-lang="lt" class="on">Vaultie · <a href="index.html">Pagalba</a> · <a href="privacy.html">Privatumo politika</a> · <a href="delete-account.html">Ištrinti paskyrą</a></span>
+    <span data-lang="en">Vaultie · <a href="index.html">Support</a> · <a href="privacy.html">Privacy Policy</a> · <a href="delete-account.html">Delete account</a></span>
+  </footer>
 </div>
 
 <script>
@@ -162,7 +343,7 @@
   buttons.forEach(function (b) {
     b.addEventListener('click', function () { setLang(b.getAttribute('data-set')); });
   });
-  setLang((navigator.language || 'en').toLowerCase().indexOf('lt') === 0 ? 'lt' : 'en');
+  setLang((navigator.language || 'lt').toLowerCase().indexOf('lt') === 0 ? 'lt' : 'en');
 </script>
 </body>
 </html>
