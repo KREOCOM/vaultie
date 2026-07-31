@@ -42,6 +42,8 @@ const Map<String, String> _en = {
   'Visas laikas': 'All time',
   'Šios savaitės išlaidos': 'This week’s spending',
   'vidurkis': 'average',
+  'Šią savaitę išėjo': 'Left your account this week',
+  'Išėjo, ne išlaidos': 'Left, not spending',
 
   // ── Subscriptions card ──
   'PRENUMERATOS IR SĄSKAITOS': 'SUBSCRIPTIONS & BILLS',

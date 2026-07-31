@@ -315,6 +315,24 @@ double _spendOf(Map t) {
 double _sumExpenses(Iterable rows) =>
     rows.fold(0.0, (s, t) => s + _spendOf(t as Map));
 
+/// Money that LEFT the account without being spending — a transfer to a person,
+/// cash withdrawn. Drawn on the week bars so a day whose balance clearly moved
+/// is never blank, and added to NO total: spending, categories, budgets and the
+/// savings rate never see it.
+///
+/// Own-account moves and currency conversions are excluded on purpose. That
+/// money never left the user, and drawing a 500 € bar for SEB → Revolut would
+/// read as a 500 € spending day — a worse lie than the empty bar this fixes.
+/// Mirrors `_week` in dashboard.py; the two must agree, because the filtered
+/// feed recomputes here while the unfiltered one comes from the server.
+double _goneOf(Map t) {
+  final a = _aOf(t).toDouble();
+  if (a >= 0 || _flowOf(t) != 'transfer') return 0.0;
+  final cat = (t['cat'] as String?) ?? '';
+  if (cat == 'Savas pervedimas' || cat == 'Valiutos keitimas') return 0.0;
+  return -a;
+}
+
 double _sumIncome(Iterable rows) => rows.fold(0.0,
     (s, t) => s + (_flowOf(t as Map) == 'income' ? _aOf(t).toDouble() : 0.0));
 
@@ -2572,10 +2590,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ? _computeWeek(_feedAll.toList())
         : (_d['week'] as Map<String, dynamic>?) ?? _computeWeek(_feedAll.toList());
     final days = (week['days'] as List).cast<Map<String, dynamic>>();
-    final total = (week['total'] as num).toDouble();
+    // The chart answers "where did the balance go", so it is scaled and totalled
+    // on money OUT — spending plus what left without being spending (a transfer
+    // to a person, cash). Every other figure in the app stays on spending
+    // alone; nothing here feeds them. `gone` is absent on a week persisted by
+    // an older build, hence the ?? 0.
+    double outOf(Map<String, dynamic> d) =>
+        (d['total'] as num).toDouble() + ((d['gone'] as num?)?.toDouble() ?? 0);
+    final total = (week['total'] as num).toDouble() +
+        ((week['gone'] as num?)?.toDouble() ?? 0);
     double maxV = 1;
     for (final d in days) {
-      final t = (d['total'] as num).toDouble();
+      final t = outOf(d);
       if (t > maxV) maxV = t;
     }
     // Average per ELAPSED day: the week is usually still in progress, so dividing
@@ -2604,7 +2630,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
           padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(tr('Šios savaitės išlaidos'), style: TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w500)),
+              Text(tr('Šią savaitę išėjo'), style: TextStyle(fontSize: 14.5, color: _muted, fontWeight: FontWeight.w500)),
               // Average lives in the header (never on top of a bar or its number).
               if (avg > 0)
                 Padding(
@@ -2671,7 +2697,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   Widget _bar(Map<String, dynamic> d, double maxV, int i) {
     final cats = (d['cats'] as List).cast<Map<String, dynamic>>();
-    final tot = (d['total'] as num).toDouble();
+    final spend = (d['total'] as num).toDouble();
+    final gone = (d['gone'] as num?)?.toDouble() ?? 0;
+    // Bar height and the number above it are money OUT. The coloured segments
+    // are spending by category; the muted one on top is what left without being
+    // spending, and it is in no total anywhere.
+    final tot = spend + gone;
     final h = tot > 0 ? (tot / maxV * 118).clamp(3.0, 118.0) : 2.0;
     final selected = _weekSel == i;
     return Expanded(
@@ -2699,6 +2730,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
                               Container(
                                   height: (ct['amount'] as num).toDouble() / tot * h,
                                   color: _secColor[ct['color']] ?? _muted),
+                            if (gone > 0)
+                              Container(
+                                  height: gone / tot * h,
+                                  color: _faint.withValues(alpha: 0.45)),
                           ],
                         )
                       : Container(color: const Color(0xFFDDE0DD)),
@@ -2719,7 +2754,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   Widget _weekTip(Map<String, dynamic> d) {
     final cats = (d['cats'] as List).cast<Map<String, dynamic>>();
-    final tot = (d['total'] as num).toDouble();
+    final gone = (d['gone'] as num?)?.toDouble() ?? 0;
+    final tot = (d['total'] as num).toDouble() + gone;
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -2739,7 +2775,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
               Expanded(child: Text(_weekDateLbl(d), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink))),
               Text(tot > 0 ? '−${_eur(tot)}' : _eur(tot), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
             ]),
-            if (cats.isEmpty)
+            if (cats.isEmpty && gone <= 0)
               Padding(padding: const EdgeInsets.only(top: 6), child: Text(tr('Nėra išlaidų'), style: TextStyle(fontSize: 12.5, color: _muted))),
             for (final ct in cats) ...[
               const SizedBox(height: 9),
@@ -2753,6 +2789,25 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 Expanded(child: Text(tr(ct['label'] as String).split(',')[0], style: TextStyle(fontSize: 13, color: _ink, fontWeight: FontWeight.w600))),
                 Text('−${_eur((ct['amount'] as num).toDouble())}',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink, fontFeatures: const [FontFeature.tabularFigures()])),
+              ]),
+            ],
+            // The muted part of the bar, named. Without a line for it the day's
+            // total would not add up from what the tooltip lists, which is the
+            // one property that makes these numbers checkable.
+            if (gone > 0) ...[
+              const SizedBox(height: 9),
+              Row(children: [
+                Container(
+                  width: 20, height: 20,
+                  decoration: BoxDecoration(
+                      color: _faint.withValues(alpha: 0.45), shape: BoxShape.circle),
+                  child: Icon(Icons.swap_horiz_rounded, size: 12, color: _card),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(tr('Išėjo, ne išlaidos'),
+                    style: TextStyle(fontSize: 13, color: _muted, fontWeight: FontWeight.w600))),
+                Text('−${_eur(gone)}',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _muted, fontFeatures: const [FontFeature.tabularFigures()])),
               ]),
             ],
           ],
@@ -3112,12 +3167,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final wdShort = _wdShort;
     final days = <Map<String, dynamic>>[];
     var weekTotal = 0.0;
+    var weekGone = 0.0;
     for (var i = 0; i < 7; i++) {
       final day = monday.add(Duration(days: i));
       final ds = _ymd(day);
       final rows = all.where((t) => t['d'] == ds);
       final total = _sumExpenses(rows);
+      final gone = rows.fold(0.0, (double s, t) => s + _goneOf(t as Map));
       weekTotal += total;
+      weekGone += gone;
       final bySec = <String, double>{};
       final secColor = <String, String>{};
       for (final t in rows) {
@@ -3145,6 +3203,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
         // two strings stay only as a fallback for data persisted by older builds.
         'lbl': wdShort[i],
         'total': total,
+        'gone': gone,
         'cats': cats,
         'dlabel': '${_monGen[day.month - 1]} ${day.day}',
         'wdi': day.weekday, // 1..7, Monday-first — matches wdShort's order
@@ -3154,6 +3213,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
     return {
       'total': weekTotal,
+      'gone': weekGone,
       'days': days,
       'range': '${_ymd(monday)}..${_ymd(monday.add(const Duration(days: 6)))}',
     };

@@ -718,13 +718,27 @@ def _week(txns, salary_refs, resolve_cat, today, own_ibans=None):
     bydate = defaultdict(list)
     for t in txns:
         bydate[t["booking_date"]].append(t)
-    days, wtot = [], 0.0
+    days, wtot, gtot = [], 0.0, 0.0
     for i in range(7):
         dd = monday + dt.timedelta(days=i)
         secagg = {}
+        # Money that LEFT the account on this day without being spending: a
+        # transfer to a person, cash withdrawn. It is drawn on the bar — so a
+        # day whose balance clearly moved is never blank — but it is added to no
+        # total, so spending, categories, budgets and the savings rate are
+        # untouched by it.
+        #
+        # Own-account moves and currency conversions are deliberately NOT
+        # counted: that money never left the user, and drawing a 500 € bar for
+        # SEB → Revolut would read as a 500 € spending day, which is a worse lie
+        # than the empty bar this exists to fix.
+        gone = 0.0
         for t in bydate.get(dd.isoformat(), []):
             _canon, cat, _col, _ic, sec, secc, _pos, is_tr = _classify(t, resolve_cat, salary_refs, own_ibans)
             if is_tr or sec in ("Pajamos", "Pervedimai"):
+                a = _amt(t)
+                if a < 0 and cat not in ("Savas pervedimas", "Valiutos keitimas"):
+                    gone += -a
                 continue
             a = _amt(t)
             # Refunds net the week down, exactly as they net the month down.
@@ -743,10 +757,16 @@ def _week(txns, salary_refs, resolve_cat, today, own_ibans=None):
             # the month totals, and a bar chart has no honest way to go below 0.
             c["amount"] = round(max(c["amount"], 0.0), 2)
         total = round(sum(c["amount"] for c in cats), 2)
+        # `total` stays SPENDING — every existing consumer depends on that, and
+        # the month figure, categories and budget are all built on it. `gone` is
+        # additional information the bar may draw; nothing sums the two but the
+        # chart itself.
         days.append({"lbl": ["Pr", "An", "Tr", "Kt", "Pn", "Št", "Sk"][i], "total": total,
+                     "gone": round(gone, 2),
                      "cats": cats, "dlabel": f"{LT_GEN[dd.month]} {dd.day}"})
         wtot += total
-    return {"total": round(wtot, 2), "days": days,
+        gtot += gone
+    return {"total": round(wtot, 2), "gone": round(gtot, 2), "days": days,
             "range": f"{monday.isoformat()}..{(monday + dt.timedelta(days=6)).isoformat()}"}
 
 
