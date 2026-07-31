@@ -149,9 +149,15 @@ def _begin(req: https_fn.CallableRequest, name: str) -> str:
     return rid
 
 
-# Firebase uid of the App Review demo account (appreview@vaultie.app). See
+# Firebase uid of the App Review demo account (appreview@vaultieapp.com). See
 # _require_premium below and lib/services/review_account.dart on the client.
-_REVIEW_UID = "6X4ktnyRMKOTCZSCr0NDdehQPbt2"
+#
+# The uid, not the email — so this must be re-read from Firebase Authentication
+# whenever the demo account is recreated. It was missed once already: moving the
+# address off vaultie.app (a domain we do not own) meant a NEW account with a
+# NEW uid, the server kept denying the old one, and the reviewer's first tap on
+# the AI chat would have returned "permission denied".
+_REVIEW_UID = "iO6gSjDDj1gp69kPz1hDFI0tP3l2"
 
 
 def _require_premium(req: https_fn.CallableRequest) -> None:

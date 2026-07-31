@@ -14,6 +14,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/review_account.dart';
 import '../../app_prefs.dart';
 import '../../logic/display_currency.dart';
 import '../../content_theme.dart';
@@ -10241,6 +10242,16 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   /// A human status line from the live subscription, e.g.
   /// "Metinis planas · atsinaujina 2027-07-20" or "Bandomasis laikotarpis iki …".
   String _subStatusLine(SubscriptionInfo? info) {
+    // App Review's account holds no subscription and never will, yet it has
+    // full access — so "Status: inactive" told the reviewer the opposite of
+    // what they were looking at, on the one screen that explains what they are
+    // paying for. Say what the account actually is instead of implying the app
+    // should be locked in front of them.
+    if (ReviewAccount.isSignedIn) {
+      return _enUi
+          ? 'Review account — full access, no subscription needed'
+          : 'Peržiūros paskyra — visos funkcijos, prenumeratos nereikia';
+    }
     if (info == null) return tr('Nepavyko įkelti būsenos.');
     if (!info.isActive) return tr('Būsena: neaktyvi');
     final plan = info.plan == PlanId.yearly
