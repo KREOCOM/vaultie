@@ -62,7 +62,7 @@
   /* ── hero ────────────────────────────────────────────────────────── */
   .hero { position: relative; overflow: hidden; }
   .hero::before {
-    content: ""; position: absolute; inset: -40% 20% auto -20%; height: 620px;
+    content: ""; position: absolute; inset: -34% 42% auto -24%; height: 600px;
     background: radial-gradient(circle at 30% 30%, rgba(47,107,255,.30), transparent 62%);
     pointer-events: none;
   }
@@ -74,7 +74,6 @@
   h1 em { font-style: normal; color: var(--blue-soft); }
   .lede { font-size: clamp(16px, 1.7vw, 18.5px); color: var(--sub); margin: 0 0 26px; max-width: 30em; }
   .hero-img { position: relative; }
-  .hero-img img { width: 100%; height: auto; display: block; border-radius: 22px; }
   .badges { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 24px; }
   .pill {
     display: inline-flex; align-items: center; gap: 7px;
@@ -111,7 +110,6 @@
   }
 
   .split { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: center; }
-  .split img { width: 100%; height: auto; display: block; border-radius: 20px; border: 1px solid var(--line); }
   ul.checks { list-style: none; margin: 0; padding: 0; }
   ul.checks li { position: relative; padding-left: 30px; margin-bottom: 14px; color: var(--sub); font-size: 15.3px; line-height: 1.55; }
   ul.checks li::before {
@@ -153,6 +151,73 @@
      one, or every element with its own display (pills, tags, list items)
      loses it the moment it becomes visible. */
   [data-lang]:not(.on) { display: none; }
+
+
+  /* ── Drawn visuals ───────────────────────────────────────────────────
+     Built from HTML and CSS rather than shipped as pictures. A picture is
+     always a rectangle sitting ON the page: it carries its own background,
+     which never quite matches, and the seam is what reads as "pasted". These
+     have no file, no backdrop and no edge — they ARE the page, so there is
+     nothing to blend. They also stay sharp on any screen and cost no download.
+  */
+  .art { position: relative; }
+  .art::before {
+    content: ""; position: absolute; left: 50%; top: 46%;
+    width: 118%; height: 78%; transform: translate(-50%, -50%);
+    background: radial-gradient(ellipse at center, rgba(47,107,255,.34), transparent 66%);
+    filter: blur(14px); pointer-events: none;
+  }
+  .art > * { position: relative; }
+
+  /* Phone */
+  .phone {
+    width: min(300px, 82%); margin: 0 auto; aspect-ratio: 9 / 18.6;
+    border-radius: 40px; padding: 9px;
+    background: linear-gradient(160deg, #35508F, #0A1330 42%, #060C22);
+    box-shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(127,166,255,.22),
+                0 0 60px rgba(47,107,255,.28);
+  }
+  .screen {
+    height: 100%; border-radius: 32px; overflow: hidden;
+    background: linear-gradient(180deg, #071233, #03081F);
+    padding: 20px 16px; display: flex; flex-direction: column; gap: 13px;
+  }
+  .notch { width: 74px; height: 5px; border-radius: 3px; background: #223362; margin: 0 auto 3px; }
+  .s-label { font-size: 10.5px; color: var(--sub); font-weight: 600; letter-spacing: .2px; }
+  .s-big { font-size: 30px; font-weight: 800; letter-spacing: -1.2px; line-height: 1; }
+  .s-sub { font-size: 9.5px; color: var(--green); font-weight: 700; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 62px; margin-top: 2px; }
+  .bars i { flex: 1; border-radius: 4px 4px 2px 2px; background: linear-gradient(180deg, #4B82FF, #1B3E9E); display: block; }
+  .bars i:last-child { background: linear-gradient(180deg, #7FA6FF, #2F6BFF); box-shadow: 0 0 14px rgba(47,107,255,.7); }
+  .rows { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+  .row { display: flex; align-items: center; gap: 9px; }
+  .dot { width: 24px; height: 24px; border-radius: 8px; flex: none; background: rgba(47,107,255,.18); border: 1px solid rgba(127,166,255,.3); }
+  .dot.g { background: rgba(37,194,107,.16); border-color: rgba(37,194,107,.4); }
+  .rl { flex: 1; }
+  .rl b { display: block; font-size: 10.5px; font-weight: 650; }
+  .rl span { display: block; font-size: 9px; color: var(--sub); }
+  .ra { font-size: 11px; font-weight: 750; }
+
+  /* Bank tiles */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; max-width: 400px; margin: 0 auto; }
+  .tile {
+    aspect-ratio: 1; border-radius: 15px; display: grid; place-items: center;
+    background: linear-gradient(160deg, rgba(47,107,255,.22), rgba(10,20,58,.9));
+    border: 1px solid rgba(127,166,255,.22);
+    box-shadow: 0 8px 22px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .tile svg { width: 44%; height: 44%; opacity: .85; }
+  .tile.lit {
+    background: linear-gradient(160deg, rgba(47,107,255,.5), rgba(20,44,120,.95));
+    border-color: rgba(127,166,255,.55);
+    box-shadow: 0 10px 26px rgba(0,0,0,.4), 0 0 28px rgba(47,107,255,.45), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .tile.lit svg { opacity: 1; }
+  .tile.more { font-weight: 800; color: var(--blue-soft); letter-spacing: 2px; font-size: 17px; }
+
+  /* Chart */
+  .chartbox { max-width: 430px; margin: 0 auto; }
+  .chartbox svg { width: 100%; height: auto; display: block; overflow: visible; }
 
   @media (max-width: 860px) {
     .hero .wrap { grid-template-columns: 1fr; padding-top: 44px; padding-bottom: 48px; }
@@ -200,7 +265,22 @@
         <span class="pill" data-lang="en">🇪🇺 PSD2 · licensed provider</span>
       </div>
     </div>
-    <div class="hero-img"><img src="img/page1.jpg" alt="Vaultie" loading="eager"></div>
+    <div class="hero-img art">
+      <div class="phone"><div class="screen">
+        <div class="notch"></div>
+        <div>
+          <div class="s-label"><span data-lang="lt" class="on">Mėnesio įsipareigojimas</span><span data-lang="en">Monthly commitment</span></div>
+          <div class="s-big">1 248,50 €</div>
+          <div class="s-sub"><span data-lang="lt" class="on">↓ 42,90 € mažiau nei pernai</span><span data-lang="en">↓ €42.90 less than last year</span></div>
+        </div>
+        <div class="bars"><i style="height:46%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:71%"></i><i style="height:55%"></i><i style="height:88%"></i></div>
+        <div class="rows">
+          <div class="row"><span class="dot"></span><span class="rl"><b>Netflix</b><span data-lang="lt" class="on">po 2 d.</span><span data-lang="en">in 2 days</span></span><span class="ra">12,99 €</span></div>
+          <div class="row"><span class="dot g"></span><span class="rl"><b><span data-lang="lt" class="on">Nuoma</span><span data-lang="en">Rent</span></b><span data-lang="lt" class="on">kas mėnesį</span><span data-lang="en">monthly</span></span><span class="ra">640,00 €</span></div>
+          <div class="row"><span class="dot"></span><span class="rl"><b>Spotify</b><span data-lang="lt" class="on">po 9 d.</span><span data-lang="en">in 9 days</span></span><span class="ra">9,99 €</span></div>
+        </div>
+      </div></div>
+    </div>
   </div>
 </header>
 
@@ -307,14 +387,59 @@
         <li data-lang="en"><b>Disconnect whenever you like.</b> One bank or all of them, straight from the app.</li>
       </ul>
     </div>
-    <img src="img/page7_scene.jpg" alt="" loading="lazy">
+    <div class="art">
+      <div class="tiles">
+        <span class="tile lit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 4l9 6M5 10v9m14-9v9M4 19h16M9 19v-5m6 5v-5" fill="none" stroke="#CFE0FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="tile"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2.6" fill="none" stroke="#CFE0FF" stroke-width="1.6"/><path d="M2.5 10h19" stroke="#CFE0FF" stroke-width="1.6"/></svg></span>
+        <span class="tile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" fill="none" stroke="#CFE0FF" stroke-width="1.6"/><path d="M15 9a4 4 0 100 6M8 11h5m-5 2h5" fill="none" stroke="#CFE0FF" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+        <span class="tile lit"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12.5" rx="2.6" fill="none" stroke="#CFE0FF" stroke-width="1.6"/><circle cx="16.5" cy="12.2" r="1.5" fill="#CFE0FF"/></svg></span>
+        <span class="tile"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l7 2.8v5c0 4.3-2.9 8-7 9.4-4.1-1.4-7-5.1-7-9.4v-5z" fill="none" stroke="#CFE0FF" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+        <span class="tile lit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V8" fill="none" stroke="#CFE0FF" stroke-width="1.9" stroke-linecap="round"/></svg></span>
+        <span class="tile"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 4l9 6M5 10v9m14-9v9M4 19h16M9 19v-5m6 5v-5" fill="none" stroke="#CFE0FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="tile"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-3-3m3 11H6l3 3" fill="none" stroke="#CFE0FF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="tile lit"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.6" width="10" height="18.8" rx="2.6" fill="none" stroke="#CFE0FF" stroke-width="1.6"/><path d="M10.6 5.4h2.8" stroke="#CFE0FF" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+        <span class="tile"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2.6" fill="none" stroke="#CFE0FF" stroke-width="1.6"/><path d="M2.5 10h19" stroke="#CFE0FF" stroke-width="1.6"/></svg></span>
+        <span class="tile lit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 4l9 6M5 10v9m14-9v9M4 19h16M9 19v-5m6 5v-5" fill="none" stroke="#CFE0FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="tile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" fill="none" stroke="#CFE0FF" stroke-width="1.6"/><path d="M15 9a4 4 0 100 6M8 11h5m-5 2h5" fill="none" stroke="#CFE0FF" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+        <span class="tile"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12.5" rx="2.6" fill="none" stroke="#CFE0FF" stroke-width="1.6"/><circle cx="16.5" cy="12.2" r="1.5" fill="#CFE0FF"/></svg></span>
+        <span class="tile lit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V8" fill="none" stroke="#CFE0FF" stroke-width="1.9" stroke-linecap="round"/></svg></span>
+        <span class="tile"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l7 2.8v5c0 4.3-2.9 8-7 9.4-4.1-1.4-7-5.1-7-9.4v-5z" fill="none" stroke="#CFE0FF" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+        <span class="tile more">···</span>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- ── FEATURES ──────────────────────────────────────────────────── -->
 <section>
   <div class="wrap split">
-    <img src="img/paywall_hero.jpg" alt="" loading="lazy">
+    <div class="art">
+      <div class="chartbox">
+        <svg viewBox="0 0 320 190" role="img" aria-hidden="true">
+          <defs>
+            <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#2F6BFF" stop-opacity=".46"/>
+              <stop offset="100%" stop-color="#2F6BFF" stop-opacity="0"/>
+            </linearGradient>
+            <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="4.5"/>
+            </filter>
+          </defs>
+          <g stroke="#1E2F66" stroke-width="1">
+            <line x1="0" y1="40" x2="320" y2="40"/><line x1="0" y1="90" x2="320" y2="90"/>
+            <line x1="0" y1="140" x2="320" y2="140"/>
+          </g>
+          <path d="M8 138 L60 120 L112 128 L164 92 L216 74 L268 46 L312 30" fill="none"
+                stroke="#7FA6FF" stroke-width="7" opacity=".5" filter="url(#soft)"/>
+          <path d="M8 138 L60 120 L112 128 L164 92 L216 74 L268 46 L312 30 L312 178 L8 178 Z" fill="url(#fill)"/>
+          <path d="M8 138 L60 120 L112 128 L164 92 L216 74 L268 46 L312 30" fill="none"
+                stroke="#7FA6FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="0" y1="58" x2="320" y2="58" stroke="#25C26B" stroke-width="1.6" stroke-dasharray="6 6" opacity=".8"/>
+          <circle cx="312" cy="30" r="5.5" fill="#7FA6FF"/>
+          <circle cx="312" cy="30" r="11" fill="#7FA6FF" opacity=".22"/>
+        </svg>
+      </div>
+    </div>
     <div>
       <p class="eyebrow" data-lang="lt">Ką gauni</p>
       <p class="eyebrow" data-lang="en">What you get</p>
