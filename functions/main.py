@@ -19,6 +19,7 @@ import json
 import logging
 import re
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import firebase_admin
 from firebase_functions import https_fn, options
@@ -458,11 +459,90 @@ def _fresh_days(data: dict) -> int | None:
     return max(7, min(n, 90))
 
 
+# How many accounts to hit Enable Banking for at once. Each account costs two
+# blocking HTTP round-trips (balance, then transactions) to the ASPSP behind
+# Enable Banking, and those round-trips are the whole latency — nothing here is
+# CPU work. Scanned one account at a time, four accounts (one bank + a
+# multi-currency Revolut) meant four accounts' worth of real-bank latency added
+# up in series, which is most of where "sync takes about a minute" came from.
+# Bounded rather than unlimited so a user with a dozen accounts doesn't open a
+# dozen simultaneous connections to one ASPSP and get rate-limited for it.
+_SCAN_WORKERS = 6
+
+
+def _scan_one_account(client: EnableBankingClient, m: dict, *, months_back: int,
+                      psu_available: dict | None):
+    """Balance + transactions for ONE account. Never raises — every failure path
+    returns a result dict, so a thread pool can run these concurrently and the
+    caller just merges whatever comes back, in order, with no exception to catch
+    at the boundary between threads."""
+    bank = _bank_from_iban(m.get("iban")) or m.get("bank") or "Bankas"
+    is_revolut = "revolut" in str(m.get("name", "")).lower() \
+        or "revolut" in str(bank or "").lower()
+    psu = client.psu_headers_for(bank, DEFAULT_COUNTRY, psu_available or {}) \
+        if psu_available else {}
+    try:
+        # Balance FIRST — before the heavy transaction paging burns through the
+        # bank's rate limit. Swedbank has a low cap: fetched after ~2 min of
+        # paging it returned 429 → silently 0. Fresh at the top, it succeeds.
+        bal, bal_ccy = normalize.pick_balance(client.balances(m["uid"], psu=psu))
+        acc_txns, diag = client.transactions(m["uid"], months_back=months_back,
+                                             psu=psu)
+        for t in acc_txns:
+            # Tag every entry with the bank it came from: it's what lets the
+            # phone's cache be merged back per-bank when one bank goes quiet.
+            t["_bank"] = bank
+            # ALSO the account. A bank's entry_reference is only promised to be
+            # unique within one account — several number their entries per
+            # account, so two wallets at the same bank can both return "1".
+            # Deduping on the reference alone then silently DROPPED one of two
+            # real transactions.
+            t["_acct"] = m["uid"]
+        ccy = normalize.real_currency(bal_ccy, m.get("currency"))
+        return {
+            "ok": True, "bank": bank, "txns": acc_txns, "currency": ccy,
+            "summary": {
+                "name": m["name"], "amount": bal, "sub": None,
+                "icon": "R" if is_revolut else "bank",
+                "currency": ccy, "bank": bank, "iban": m.get("iban"),
+            },
+            "diag": {"account": m["name"], "bank": bank, **diag},
+        }
+    except EnableBankingError as e:
+        logging.warning("scan: account %r (%s) failed, skipping: %s",
+                        _mask_iban(m.get("name")), bank, e)
+        status = getattr(e, "status", None)
+        return {
+            "ok": False, "bank": bank,
+            "diag": {
+                "account": m["name"], "bank": bank, "error": str(e),
+                # Account identity so the client can drop ONLY the revoked
+                # wallet, not every same-named bank connection (a Revolut
+                # EUR + NOK pair shares an IBAN, so name/IBAN alone would wipe
+                # both).
+                "iban": m.get("iban"), "currency": m.get("currency"),
+                "rateLimited": status == 429,
+                # 401/403 means the bank is refusing us, not failing: the
+                # consent expired or the user withdrew it in their bank. That
+                # has to be told apart from a quiet bank, because the two
+                # deserve opposite treatment — one gets its cached data
+                # re-served, the other must stop being shown at all.
+                "revoked": status in (401, 403),
+            },
+        }
+
+
 def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int,
                    psu_available: dict | None = None):
     """Fetch transactions + current balance for each account BY UID (no session
     needed — Enable Banking addresses accounts directly, so this works for a
     freshly-created session AND for a stored multi-bank refresh weeks later).
+
+    Accounts are scanned CONCURRENTLY — the work is blocking I/O to a real
+    bank's servers, not CPU, so running them in series meant a user's total wait
+    was every account's latency added together. `ex.map` preserves input order,
+    so the merge below is deterministic regardless of which account's request
+    actually finishes first.
 
     Per-account isolation: one account failing (timeout / expired consent) never
     aborts the rest — it's logged into ``scan_diag`` and the scan carries on with
@@ -477,6 +557,7 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
     scan_diag: list = []
     own_ibans: set = set()
     seen_uids: set = set()
+    to_fetch: list = []
     for m in metas:
         uid = m.get("uid")
         if not uid:
@@ -491,67 +572,29 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
         norm = _norm_iban(m.get("iban"))
         if norm:
             own_ibans.add(norm)
-        # Prefer the bank the IBAN identifies — it's authoritative and can't be
-        # lost the way the client-passed label can. Fall back to that label (and
-        # then a generic word) only when the IBAN isn't a recognised LT one.
-        bank = _bank_from_iban(m.get("iban")) or m.get("bank") or "Bankas"
-        is_revolut = "revolut" in str(m.get("name", "")).lower() \
-            or "revolut" in str(bank or "").lower()
-        psu = client.psu_headers_for(bank, DEFAULT_COUNTRY, psu_available or {}) \
-            if psu_available else {}
-        try:
-            # Balance FIRST — before the heavy transaction paging burns through the
-            # bank's rate limit. Swedbank has a low cap: fetched after ~2 min of
-            # paging it returned 429 → silently 0. Fresh at the top, it succeeds.
-            bal, bal_ccy = normalize.pick_balance(client.balances(uid, psu=psu))
-            acc_txns, diag = client.transactions(uid, months_back=months_back,
-                                                 psu=psu)
-            # Tag every entry with the bank it came from: it's what lets the
-            # phone's cache be merged back per-bank when one bank goes quiet.
-            for t in acc_txns:
-                t["_bank"] = bank
-                # ALSO the account. A bank's entry_reference is only promised to
-                # be unique within one account — several number their entries
-                # per account, so two wallets at the same bank can both return
-                # "1". Deduping on the reference alone then silently DROPPED one
-                # of two real transactions.
-                t["_acct"] = uid
-            all_txns.extend(acc_txns)
-            # Prefer the balance's own currency; 'XXX' ("no currency") isn't real.
-            ccy = normalize.real_currency(bal_ccy, m.get("currency"))
-            # Carry the REAL balance currency back onto the account meta so the
-            # stored connection can tell a Revolut EUR wallet from its NOK wallet:
-            # the two share ONE IBAN and the account object frequently reports no
-            # currency (→ defaulted to EUR), which made connecting one wipe the
-            # other. The balance always carries the true currency.
-            m["currency"] = ccy
-            summaries.append({
-                "name": m["name"], "amount": bal, "sub": None,
-                "icon": "R" if is_revolut else "bank",
-                "currency": ccy, "bank": bank, "iban": m.get("iban"),
-            })
-            scan_diag.append({"account": m["name"], "bank": bank, **diag})
-        except EnableBankingError as e:
-            logging.warning("scan: account %r (%s) failed, skipping: %s",
-                            _mask_iban(m.get("name")), bank, e)
-            # A rate-limited bank is a "come back in a bit", not a broken
-            # connection — the client must say so rather than send the user to
-            # reconnect (which would burn even more of the bank's quota).
-            status = getattr(e, "status", None)
-            scan_diag.append({
-                "account": m["name"], "bank": bank, "error": str(e),
-                # Account identity so the client can drop ONLY the revoked wallet,
-                # not every same-named bank connection (a Revolut EUR + NOK pair
-                # shares an IBAN, so name/IBAN alone would wipe both).
-                "iban": m.get("iban"), "currency": m.get("currency"),
-                "rateLimited": status == 429,
-                # 401/403 means the bank is refusing us, not failing: the consent
-                # expired or the user withdrew it in their bank. That has to be
-                # told apart from a quiet bank, because the two deserve opposite
-                # treatment — one gets its cached data re-served, the other must
-                # stop being shown at all.
-                "revoked": status in (401, 403),
-            })
+        to_fetch.append(m)
+
+    if not to_fetch:
+        return all_txns, summaries, scan_diag, own_ibans
+
+    with ThreadPoolExecutor(max_workers=min(_SCAN_WORKERS, len(to_fetch))) as ex:
+        results = list(ex.map(
+            lambda m: _scan_one_account(client, m, months_back=months_back,
+                                        psu_available=psu_available),
+            to_fetch))
+
+    for m, r in zip(to_fetch, results):
+        scan_diag.append(r["diag"])
+        if not r["ok"]:
+            continue
+        all_txns.extend(r["txns"])
+        # Carry the REAL balance currency back onto the account meta so the
+        # stored connection can tell a Revolut EUR wallet from its NOK wallet:
+        # the two share ONE IBAN and the account object frequently reports no
+        # currency (→ defaulted to EUR), which made connecting one wipe the
+        # other. The balance always carries the true currency.
+        m["currency"] = r["currency"]
+        summaries.append(r["summary"])
     return all_txns, summaries, scan_diag, own_ibans
 
 
