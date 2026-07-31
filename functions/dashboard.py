@@ -436,7 +436,27 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
             return (name, "Paskola, lizingas", "finance", "money", "Finansai", "red", amt > 0, False)
         if any(k in nl for k in _HOUSING_HINTS):
             return (name, "Būstas, nuoma", "housing", "house", "Būstas, sąskaitos", "olive", amt > 0, False)
-        return (name, "Pervedimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+        # An OUTGOING transfer to something that is neither a person nor one of
+        # the user's own accounts is a PAYMENT — the money is gone.
+        #
+        # Filing all of it as a "transfer" deleted real spending from every
+        # total at once: the week bars, the month figure, the categories and the
+        # budget. It matters here more than the rule's authors could have known,
+        # because paying a company by bank transfer is how invoices, utilities
+        # and payment gateways (Paysera, OPAY) are normally settled in this
+        # market — so a large share of ordinary spending simply vanished. The
+        # transaction still appeared in the feed with its amount, which is how
+        # this was found: a day whose header read −11,48 € drew an empty bar.
+        #
+        # Only the OUTGOING leg changes, and only after every safer reading has
+        # been ruled out above: own IBAN, exchange, salary, refund, top-up, cash
+        # and person all return before this. An INCOMING credit we cannot
+        # attribute stays a transfer — it may be the user's own money arriving
+        # from a bank whose IBAN we were never given, and calling that income
+        # would inflate the month from the other end.
+        if amt < 0:
+            return (name, "Pervedimas", "other", "swap", "Kita", "indigo", False, False)
+        return (name, "Pervedimas", "transfer", "swap", "Pervedimai", "indigo", True, True)
 
     # known merchant by name (BEFORE the fee check, so an oddly-coded Apple/Google
     # — e.g. MCOP/MDOP — isn't swallowed as a bank fee)
