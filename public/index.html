@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — visi tavo mokėjimai vienoje vietoje</title>
+<meta name="description" content="Vaultie prijungia tavo banką tik skaitymui ir suranda visus pasikartojančius mokėjimus — prenumeratas, sąskaitas, nuomą, paskolas. Duomenys lieka telefone.">
+<meta name="theme-color" content="#00041D">
+<link rel="icon" href="img/icon.png">
+<meta property="og:title" content="Vaultie — visi tavo mokėjimai vienoje vietoje">
+<meta property="og:description" content="Prijunk banką ir pamatyk, kiek iš tikrųjų kainuoja tavo mėnuo.">
+<meta property="og:image" content="img/page1.jpg">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- latin-ext is required, or ą č ę ė į š ų ū ž render as boxes. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap&subset=latin,latin-ext" rel="stylesheet">
+<style>
+  :root {
+    --paper: #00041D;
+    --paper2: #00082D;
+    --card: #0B1740;
+    --line: #1E2F66;
+    --ink: #FFFFFF;
+    --sub: #9DB0D6;
+    --blue: #2F6BFF;
+    --blue-soft: #7FA6FF;
+    --green: #25C26B;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.65 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 22px; }
+  a { color: var(--blue-soft); }
+
+  /* ── nav ─────────────────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(0, 4, 29, 0.82);
+    backdrop-filter: saturate(160%) blur(14px);
+    border-bottom: 1px solid rgba(30, 47, 102, 0.6);
+  }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 62px; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: -0.4px; }
+  .brand img { width: 30px; height: 30px; border-radius: 8px; display: block; }
+  .langs { display: flex; gap: 6px; }
+  .langs button {
+    font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    padding: 6px 12px; border-radius: 9px; border: 1px solid var(--line);
+    background: transparent; color: var(--sub); transition: .15s;
+  }
+  .langs button[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+  /* ── hero ────────────────────────────────────────────────────────── */
+  .hero { position: relative; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: -40% 20% auto -20%; height: 620px;
+    background: radial-gradient(circle at 30% 30%, rgba(47,107,255,.30), transparent 62%);
+    pointer-events: none;
+  }
+  .hero .wrap {
+    position: relative; display: grid; gap: 40px; align-items: center;
+    grid-template-columns: 1.05fr .95fr; padding-top: 66px; padding-bottom: 70px;
+  }
+  h1 { font-size: clamp(34px, 5.2vw, 54px); line-height: 1.08; letter-spacing: -1.6px; margin: 0 0 18px; font-weight: 800; }
+  h1 em { font-style: normal; color: var(--blue-soft); }
+  .lede { font-size: clamp(16px, 1.7vw, 18.5px); color: var(--sub); margin: 0 0 26px; max-width: 30em; }
+  .hero-img { position: relative; }
+  .hero-img img { width: 100%; height: auto; display: block; border-radius: 22px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 24px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+    background: rgba(47,107,255,.12); border: 1px solid rgba(47,107,255,.34); color: #C7D8FF;
+  }
+  .cta {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--blue); color: #fff; text-decoration: none;
+    font-weight: 800; font-size: 16px; padding: 15px 26px; border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(47,107,255,.32);
+  }
+  .cta-note { display: block; margin-top: 11px; font-size: 13px; color: var(--sub); }
+
+  /* ── sections ────────────────────────────────────────────────────── */
+  section { padding: 66px 0; border-top: 1px solid rgba(30,47,102,.55); }
+  .eyebrow { font-size: 12.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--blue-soft); margin: 0 0 12px; }
+  h2 { font-size: clamp(25px, 3.3vw, 35px); line-height: 1.16; letter-spacing: -0.9px; margin: 0 0 14px; font-weight: 800; }
+  .sec-lede { color: var(--sub); font-size: 16.5px; margin: 0 0 34px; max-width: 46em; }
+
+  .grid { display: grid; gap: 16px; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 17px; padding: 22px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 17px; letter-spacing: -0.25px; font-weight: 700; }
+  .card p { margin: 0; color: var(--sub); font-size: 14.7px; line-height: 1.6; }
+  .num {
+    width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+    background: rgba(47,107,255,.16); border: 1px solid rgba(47,107,255,.38);
+    color: var(--blue-soft); font-weight: 800; font-size: 15px; margin-bottom: 14px;
+  }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: center; }
+  .split img { width: 100%; height: auto; display: block; border-radius: 20px; border: 1px solid var(--line); }
+  ul.checks { list-style: none; margin: 0; padding: 0; }
+  ul.checks li { position: relative; padding-left: 30px; margin-bottom: 14px; color: var(--sub); font-size: 15.3px; line-height: 1.55; }
+  ul.checks li::before {
+    content: ""; position: absolute; left: 0; top: 6px; width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(37,194,107,.16); border: 1px solid rgba(37,194,107,.5);
+  }
+  ul.checks li::after {
+    content: ""; position: absolute; left: 6px; top: 11px; width: 6px; height: 3px;
+    border-left: 2px solid var(--green); border-bottom: 2px solid var(--green);
+    transform: rotate(-45deg);
+  }
+  ul.checks li b { color: var(--ink); font-weight: 650; }
+
+  /* ── pricing ─────────────────────────────────────────────────────── */
+  .plans { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 640px; }
+  .plan { background: var(--card); border: 1px solid var(--line); border-radius: 17px; padding: 22px; }
+  .plan.best { border-color: var(--blue); background: #122A63; }
+  .plan .tag { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .5px; padding: 4px 9px; border-radius: 7px; background: var(--blue); color: #fff; margin-bottom: 12px; }
+  .plan .price { font-size: 31px; font-weight: 800; letter-spacing: -1px; }
+  .plan .per { color: var(--sub); font-size: 14px; font-weight: 500; }
+  .plan .meta { color: var(--sub); font-size: 13.5px; margin-top: 7px; }
+  .trial { color: var(--green); font-weight: 700; font-size: 14px; margin-top: 12px; }
+
+  /* ── faq ─────────────────────────────────────────────────────────── */
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 15px; padding: 17px 20px; margin-bottom: 11px; }
+  details summary { cursor: pointer; font-weight: 700; font-size: 15.6px; list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: "+"; float: right; color: var(--blue-soft); font-weight: 800; }
+  details[open] summary::after { content: "–"; }
+  details p { color: var(--sub); font-size: 14.7px; margin: 11px 0 0; }
+
+  footer { padding: 44px 0 56px; border-top: 1px solid rgba(30,47,102,.55); color: var(--sub); font-size: 13.8px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 22px; justify-content: space-between; align-items: center; }
+  footer a { color: var(--sub); text-decoration: none; }
+  footer a:hover { color: var(--ink); }
+  .flinks { display: flex; flex-wrap: wrap; gap: 18px; }
+
+  /* Hide the other language only — never impose a display on the visible
+     one, or every element with its own display (pills, tags, list items)
+     loses it the moment it becomes visible. */
+  [data-lang]:not(.on) { display: none; }
+
+  @media (max-width: 860px) {
+    .hero .wrap { grid-template-columns: 1fr; padding-top: 44px; padding-bottom: 48px; }
+    .hero-img { order: -1; max-width: 380px; margin: 0 auto; }
+    .g3, .g2, .split, .plans { grid-template-columns: 1fr; }
+    .split { gap: 28px; }
+    section { padding: 52px 0; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><img src="img/icon.png" alt=""> Vaultie</div>
+    <div class="langs">
+      <button type="button" data-set="lt" aria-pressed="true">LT</button>
+      <button type="button" data-set="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ── HERO ──────────────────────────────────────────────────────── -->
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <div data-lang="lt" class="on">
+        <h1>Visi tavo mokėjimai <em>vienoje vietoje</em></h1>
+        <p class="lede">Prenumeratos, sąskaitos, nuoma, paskolos, draudimai. Vaultie prijungia tavo banką tik skaitymui ir parodo, kiek iš tikrųjų kainuoja tavo mėnuo — dar prieš tai, kai pinigai nurašomi.</p>
+        <a class="cta" href="#kaip">Kaip tai veikia →</a>
+        <span class="cta-note">Netrukus App Store. 7 dienos nemokamai.</span>
+      </div>
+      <div data-lang="en">
+        <h1>Every recurring payment <em>in one place</em></h1>
+        <p class="lede">Subscriptions, bills, rent, loans, insurance. Vaultie connects to your bank read-only and shows what your month actually costs — before the money leaves.</p>
+        <a class="cta" href="#kaip">See how it works →</a>
+        <span class="cta-note">Coming soon to the App Store. 7 days free.</span>
+      </div>
+      <div class="badges">
+        <span class="pill" data-lang="lt">🔒 Duomenys lieka telefone</span>
+        <span class="pill" data-lang="en">🔒 Data stays on your phone</span>
+        <span class="pill" data-lang="lt">👁 Tik skaitymas</span>
+        <span class="pill" data-lang="en">👁 Read-only</span>
+        <span class="pill" data-lang="lt">🇪🇺 PSD2 · licencijuotas tiekėjas</span>
+        <span class="pill" data-lang="en">🇪🇺 PSD2 · licensed provider</span>
+      </div>
+    </div>
+    <div class="hero-img"><img src="img/page1.jpg" alt="Vaultie" loading="eager"></div>
+  </div>
+</header>
+
+<!-- ── PROBLEM ───────────────────────────────────────────────────── -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow" data-lang="lt">Problema</p>
+    <p class="eyebrow" data-lang="en">The problem</p>
+    <div data-lang="lt" class="on">
+      <h2>Niekas nežino, kiek jam kainuoja mėnuo</h2>
+      <p class="sec-lede">Prenumeratos nurašomos tyliai. Sąskaitos ateina skirtingomis dienomis. Metinis mokestis pasirodo kartą per metus, kai jo jau nebeatšauksi. Banko programėlė rodo operacijas — bet ne tai, kas iš jų kartojasi.</p>
+    </div>
+    <div data-lang="en">
+      <h2>Nobody knows what their month costs</h2>
+      <p class="sec-lede">Subscriptions leave quietly. Bills arrive on different days. An annual charge shows up once a year, by which point cancelling is too late. Your banking app shows transactions — not which of them repeat.</p>
+    </div>
+    <div class="grid g3">
+      <div class="card">
+        <div class="num">1</div>
+        <h3 data-lang="lt" class="on">Pamiršti mokėjimai</h3>
+        <h3 data-lang="en">Forgotten payments</h3>
+        <p data-lang="lt" class="on">Prenumerata, kurios nebenaudoji, atrodo kaip 4,99 € — bet per metus tai 59,88 €.</p>
+        <p data-lang="en">A subscription you stopped using looks like €4.99 — over a year it is €59.88.</p>
+      </div>
+      <div class="card">
+        <div class="num">2</div>
+        <h3 data-lang="lt" class="on">Tylūs pabrangimai</h3>
+        <h3 data-lang="en">Silent price rises</h3>
+        <p data-lang="lt" class="on">Kaina pakyla nuo 9,99 iki 12,99 €, ir niekas apie tai nepraneša.</p>
+        <p data-lang="en">A price goes from €9.99 to €12.99 and nothing tells you.</p>
+      </div>
+      <div class="card">
+        <div class="num">3</div>
+        <h3 data-lang="lt" class="on">Keli bankai</h3>
+        <h3 data-lang="en">More than one bank</h3>
+        <p data-lang="lt" class="on">Dalis mokėjimų viename banke, dalis kitame. Bendro vaizdo nėra niekur.</p>
+        <p data-lang="en">Some payments in one bank, some in another. The whole picture lives nowhere.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ──────────────────────────────────────────────── -->
+<section id="kaip">
+  <div class="wrap">
+    <p class="eyebrow" data-lang="lt">Kaip veikia</p>
+    <p class="eyebrow" data-lang="en">How it works</p>
+    <div data-lang="lt" class="on">
+      <h2>Trys žingsniai, apie dvi minutes</h2>
+      <p class="sec-lede">Nereikia nieko vesti ranka. Vaultie perskaito operacijų istoriją ir pats atpažįsta, kas kartojasi.</p>
+    </div>
+    <div data-lang="en">
+      <h2>Three steps, about two minutes</h2>
+      <p class="sec-lede">Nothing to type in. Vaultie reads your transaction history and works out what repeats.</p>
+    </div>
+    <div class="grid g3">
+      <div class="card">
+        <div class="num">1</div>
+        <h3 data-lang="lt" class="on">Prijungi banką</h3>
+        <h3 data-lang="en">Connect your bank</h3>
+        <p data-lang="lt" class="on">Prisijungi savo banko puslapyje — taip pat, kaip visada. Vaultie tavo slaptažodžio nemato ir negauna.</p>
+        <p data-lang="en">You log in on your bank's own page, exactly as usual. Vaultie never sees or receives your password.</p>
+      </div>
+      <div class="card">
+        <div class="num">2</div>
+        <h3 data-lang="lt" class="on">Vaultie suranda</h3>
+        <h3 data-lang="en">Vaultie finds them</h3>
+        <p data-lang="lt" class="on">Peržiūri iki 12 mėnesių istorijos ir atpažįsta pasikartojančius mokėjimus, jų dažnumą ir realią sumą.</p>
+        <p data-lang="en">It reads up to 12 months of history and picks out recurring payments, how often they charge and what they really cost.</p>
+      </div>
+      <div class="card">
+        <div class="num">3</div>
+        <h3 data-lang="lt" class="on">Matai visą vaizdą</h3>
+        <h3 data-lang="en">You see the whole picture</h3>
+        <p data-lang="lt" class="on">Mėnesio įsipareigojimas viena suma, priminimai prieš nurašymus ir ataskaitos, kai mėnuo baigiasi.</p>
+        <p data-lang="en">Your monthly commitment as one figure, reminders before charges, and a report when the month closes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── BANKS / SECURITY ──────────────────────────────────────────── -->
+<section>
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow" data-lang="lt">Bankų prijungimas</p>
+      <p class="eyebrow" data-lang="en">Bank connections</p>
+      <div data-lang="lt" class="on">
+        <h2>Prieiga tik skaitymui — ir tik tiek, kiek leidi</h2>
+        <p class="sec-lede">Prisijungimas vyksta per licencijuotą sąskaitos informacijos tiekėją pagal ES PSD2 taisykles. Tai ta pati tvarka, kurią naudoja bankai tarpusavyje.</p>
+      </div>
+      <div data-lang="en">
+        <h2>Read-only access — and only as much as you allow</h2>
+        <p class="sec-lede">The connection runs through a licensed account information provider under EU PSD2 rules. It is the same arrangement banks use between themselves.</p>
+      </div>
+      <ul class="checks">
+        <li data-lang="lt" class="on"><b>Slaptažodžio nematome.</b> Prisijungi savo banko puslapyje, mes gauname tik laikiną prieigos raktą.</li>
+        <li data-lang="en"><b>We never see your password.</b> You log in on your bank's page; we receive only a temporary access token.</li>
+        <li data-lang="lt" class="on"><b>Mokėjimų atlikti neįmanoma.</b> Prieiga tik skaitymui — pinigų pervesti ar sąskaitos valdyti Vaultie negali.</li>
+        <li data-lang="en"><b>Payments are impossible.</b> Access is read-only — Vaultie cannot move money or manage the account.</li>
+        <li data-lang="lt" class="on"><b>Galioja 90 dienų.</b> Po to prieiga baigiasi savaime, ir turi patvirtinti iš naujo. Įspėsime prieš tai.</li>
+        <li data-lang="en"><b>Valid for 90 days.</b> Access then lapses on its own and you re-approve it. We warn you before it does.</li>
+        <li data-lang="lt" class="on"><b>Atjungi kada nori.</b> Vieną banką arba visus — iškart, iš programėlės.</li>
+        <li data-lang="en"><b>Disconnect whenever you like.</b> One bank or all of them, straight from the app.</li>
+      </ul>
+    </div>
+    <img src="img/page7_scene.jpg" alt="" loading="lazy">
+  </div>
+</section>
+
+<!-- ── FEATURES ──────────────────────────────────────────────────── -->
+<section>
+  <div class="wrap split">
+    <img src="img/paywall_hero.jpg" alt="" loading="lazy">
+    <div>
+      <p class="eyebrow" data-lang="lt">Ką gauni</p>
+      <p class="eyebrow" data-lang="en">What you get</p>
+      <div data-lang="lt" class="on">
+        <h2>Ne tik prenumeratos</h2>
+        <p class="sec-lede">Nuoma, paskolos ir komunaliniai yra didesnė mėnesio dalis nei „Netflix". Vaultie skaičiuoja viską, kas kartojasi.</p>
+      </div>
+      <div data-lang="en">
+        <h2>More than subscriptions</h2>
+        <p class="sec-lede">Rent, loans and utilities are a bigger part of the month than Netflix. Vaultie counts everything that repeats.</p>
+      </div>
+      <ul class="checks">
+        <li data-lang="lt" class="on"><b>Mėnesio įsipareigojimas.</b> Viena suma, kurią privalai turėti kiekvieną mėnesį.</li>
+        <li data-lang="en"><b>Your monthly commitment.</b> One figure you need to have every month.</li>
+        <li data-lang="lt" class="on"><b>Priminimai prieš nurašymą.</b> Prieš 2 dienas, o prieš brangų metinį — prieš savaitę, kol dar spėji atšaukti.</li>
+        <li data-lang="en"><b>Reminders before a charge.</b> Two days ahead — and a week ahead for an expensive annual one, while cancelling still works.</li>
+        <li data-lang="lt" class="on"><b>Išlaidos pagal kategorijas.</b> Automatiškai, be rankinio žymėjimo.</li>
+        <li data-lang="en"><b>Spending by category.</b> Automatic, with nothing to tag by hand.</li>
+        <li data-lang="lt" class="on"><b>Keli bankai kartu.</b> Visos sąskaitos susidedamos į vieną vaizdą, be dublikatų.</li>
+        <li data-lang="en"><b>Several banks at once.</b> Every account merged into one picture, without duplicates.</li>
+        <li data-lang="lt" class="on"><b>Biudžetas ir mėnesio ataskaita.</b> Įspėjimas artėjant prie ribos, santrauka mėnesiui pasibaigus.</li>
+        <li data-lang="en"><b>Budget and a monthly report.</b> A warning as you near the limit, a summary once the month is done.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRIVACY ───────────────────────────────────────────────────── -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow" data-lang="lt">Privatumas</p>
+    <p class="eyebrow" data-lang="en">Privacy</p>
+    <div data-lang="lt" class="on">
+      <h2>Tavo duomenys lieka tavo telefone</h2>
+      <p class="sec-lede">Vaultie nekuria tavo finansų kopijos savo serveriuose. Operacijos, likučiai ir kategorijos saugomi telefone, užšifruoti, o raktas laikomas įrenginio saugykloje.</p>
+    </div>
+    <div data-lang="en">
+      <h2>Your data stays on your phone</h2>
+      <p class="sec-lede">Vaultie does not keep a copy of your finances on its servers. Transactions, balances and categories are stored on the device, encrypted, with the key held in the phone's keychain.</p>
+    </div>
+    <div class="grid g2">
+      <div class="card">
+        <h3 data-lang="lt" class="on">Saugoma telefone</h3>
+        <h3 data-lang="en">Stored on the device</h3>
+        <p data-lang="lt" class="on">Šifruota vietinė saugykla. Ištrynus programėlę arba paskyrą, duomenys dingsta kartu.</p>
+        <p data-lang="en">Encrypted local storage. Delete the app or the account and the data goes with it.</p>
+      </div>
+      <div class="card">
+        <h3 data-lang="lt" class="on">AI analizė — tik leidus</h3>
+        <h3 data-lang="en">AI analysis — only if you allow it</h3>
+        <p data-lang="lt" class="on">Jei įjungi finansų pokalbį, į AI paslaugą siunčiama tavo išlaidų santrauka. Tai atskiras sutikimas, kurį gali bet kada išjungti. Neįjungus — nesiunčiama nieko.</p>
+        <p data-lang="en">If you turn on the finance chat, a summary of your spending is sent to an AI service. That is a separate consent you can switch off at any time. Leave it off and nothing is sent.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRICING ───────────────────────────────────────────────────── -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow" data-lang="lt">Kaina</p>
+    <p class="eyebrow" data-lang="en">Pricing</p>
+    <div data-lang="lt" class="on">
+      <h2>Viena prenumerata, kuri padeda suvaldyti visas kitas</h2>
+      <p class="sec-lede">Be reklamų. Tavo duomenys neparduodami — Vaultie uždirba tik iš prenumeratos.</p>
+    </div>
+    <div data-lang="en">
+      <h2>One subscription that helps you handle the rest</h2>
+      <p class="sec-lede">No ads. Your data is not sold — Vaultie earns from the subscription alone.</p>
+    </div>
+    <div class="plans">
+      <div class="plan best">
+        <span class="tag" data-lang="lt">POPULIARIAUSIAS</span>
+        <span class="tag" data-lang="en">MOST POPULAR</span>
+        <div class="price">39,99 € <span class="per" data-lang="lt">/ metus</span><span class="per" data-lang="en">/ year</span></div>
+        <div class="meta on" data-lang="lt">3,33 € per mėnesį · sutaupai 19,89 €</div>
+        <div class="meta" data-lang="en">€3.33 a month · saves €19.89</div>
+        <div class="trial" data-lang="lt">7 dienos nemokamai</div>
+        <div class="trial" data-lang="en">7 days free</div>
+      </div>
+      <div class="plan">
+        <div class="price">4,99 € <span class="per" data-lang="lt">/ mėn.</span><span class="per" data-lang="en">/ month</span></div>
+        <div class="meta on" data-lang="lt">59,88 € per metus</div>
+        <div class="meta" data-lang="en">€59.88 a year</div>
+        <div class="trial" data-lang="lt">7 dienos nemokamai</div>
+        <div class="trial" data-lang="en">7 days free</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FAQ ───────────────────────────────────────────────────────── -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow" data-lang="lt">Dažni klausimai</p>
+    <p class="eyebrow" data-lang="en">Questions</p>
+    <div data-lang="lt" class="on">
+      <h2>Tai, ko dažniausiai klausiama</h2>
+    </div>
+    <div data-lang="en">
+      <h2>What people ask first</h2>
+    </div>
+
+    <details>
+      <summary><span data-lang="lt" class="on">Ar Vaultie mato mano banko slaptažodį?</span><span data-lang="en">Does Vaultie see my banking password?</span></summary>
+      <p data-lang="lt" class="on">Ne. Prisijungi savo banko puslapyje arba banko programėlėje. Vaultie gauna tik laikiną prieigos raktą, kuris leidžia skaityti operacijas — ir nieko daugiau.</p>
+      <p data-lang="en">No. You log in on your bank's own page or app. Vaultie receives only a temporary token that permits reading transactions — and nothing else.</p>
+    </details>
+
+    <details>
+      <summary><span data-lang="lt" class="on">Ar galima Vaultie pervesti pinigus?</span><span data-lang="en">Can Vaultie move money?</span></summary>
+      <p data-lang="lt" class="on">Negalima. Prieiga yra tik skaitymui. Techniškai nėra kaip inicijuoti mokėjimo.</p>
+      <p data-lang="en">It cannot. Access is read-only; there is no technical route to initiating a payment.</p>
+    </details>
+
+    <details>
+      <summary><span data-lang="lt" class="on">Kur laikomi mano duomenys?</span><span data-lang="en">Where is my data kept?</span></summary>
+      <p data-lang="lt" class="on">Telefone, užšifruoti. Serveris apdoroja operacijas, kad atpažintų pasikartojančius mokėjimus, bet finansų kopijos nesaugo.</p>
+      <p data-lang="en">On your phone, encrypted. The server processes transactions in order to recognise recurring payments, but keeps no copy of your finances.</p>
+    </details>
+
+    <details>
+      <summary><span data-lang="lt" class="on">Kiek bankų galiu prijungti?</span><span data-lang="en">How many banks can I connect?</span></summary>
+      <p data-lang="lt" class="on">Kiek nori. Visos sąskaitos sudedamos į vieną vaizdą, o tas pats mokėjimas dviejuose bankuose nesudvigubinamas.</p>
+      <p data-lang="en">As many as you like. Accounts merge into one picture, and the same payment seen by two banks is not counted twice.</p>
+    </details>
+
+    <details>
+      <summary><span data-lang="lt" class="on">Kaip atšaukti prenumeratą?</span><span data-lang="en">How do I cancel?</span></summary>
+      <p data-lang="lt" class="on">App Store nustatymuose, bet kada. Atšaukus per bandomąjį laikotarpį, mokestis neimamas.</p>
+      <p data-lang="en">In your App Store settings, at any time. Cancel during the trial and you are not charged.</p>
+    </details>
+
+    <details>
+      <summary><span data-lang="lt" class="on">Kaip ištrinti paskyrą ir duomenis?</span><span data-lang="en">How do I delete my account and data?</span></summary>
+      <p data-lang="lt" class="on">Programėlės nustatymuose arba <a href="delete-account.html">šiame puslapyje</a>. Banko prieigos atšaukiamos, duomenys ištrinami.</p>
+      <p data-lang="en">In the app's settings, or on <a href="delete-account.html">this page</a>. Bank consents are revoked and the data is deleted.</p>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>© <span id="y">2026</span> Vaultie</div>
+    <div class="flinks">
+      <a href="privacy.html" data-lang="lt" class="on">Privatumo politika</a>
+      <a href="privacy.html" data-lang="en">Privacy Policy</a>
+      <a href="terms.html" data-lang="lt" class="on">Naudojimo sąlygos</a>
+      <a href="terms.html" data-lang="en">Terms of Use</a>
+      <a href="delete-account.html" data-lang="lt" class="on">Ištrinti paskyrą</a>
+      <a href="delete-account.html" data-lang="en">Delete account</a>
+      <a href="mailto:pagalba@vaultie.app">pagalba@vaultie.app</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('y').textContent = new Date().getFullYear();
+  // Language follows the browser on first paint, then the visitor's choice.
+  var buttons = document.querySelectorAll('.langs button');
+  function setLang(code) {
+    document.documentElement.lang = code;
+    document.querySelectorAll('[data-lang]').forEach(function (el) {
+      el.classList.toggle('on', el.getAttribute('data-lang') === code);
+    });
+    buttons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-set') === code));
+    });
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { setLang(b.getAttribute('data-set')); });
+  });
+  setLang((navigator.language || 'lt').toLowerCase().indexOf('lt') === 0 ? 'lt' : 'en');
+</script>
+</body>
+</html>
