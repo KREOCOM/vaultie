@@ -169,34 +169,53 @@
   }
   .art > * { position: relative; }
 
-  /* Phone */
+  /* Phone — the app's own onboarding showcase, rebuilt in CSS.
+     Figures, palette and layout are taken from lib/screens/preview/showcase.dart
+     (ShowcaseKind.home): the same demo month the onboarding runs, the same
+     #C8D9F6 tint, the same ink. Rebuilt rather than screenshotted so it stays
+     sharp, follows the language toggle and weighs nothing. */
   .phone {
-    width: min(300px, 82%); margin: 0 auto; aspect-ratio: 9 / 18.6;
-    border-radius: 40px; padding: 9px;
-    background: linear-gradient(160deg, #35508F, #0A1330 42%, #060C22);
-    box-shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(127,166,255,.22),
-                0 0 60px rgba(47,107,255,.28);
+    width: min(290px, 80%); margin: 0 auto; aspect-ratio: 9 / 18.4;
+    border-radius: 42px; padding: 8px;
+    background: linear-gradient(160deg, #3B5697, #0A1330 44%, #060C22);
+    box-shadow: 0 34px 74px rgba(0,0,0,.6), 0 0 0 1px rgba(127,166,255,.24),
+                0 0 70px rgba(47,107,255,.30);
   }
   .screen {
-    height: 100%; border-radius: 32px; overflow: hidden;
-    background: linear-gradient(180deg, #071233, #03081F);
-    padding: 20px 16px; display: flex; flex-direction: column; gap: 13px;
+    height: 100%; border-radius: 35px; overflow: hidden;
+    background: #C8D9F6; color: #14203A;
+    padding: 15px 14px 12px; display: flex; flex-direction: column;
+    font-size: 11px;
   }
-  .notch { width: 74px; height: 5px; border-radius: 3px; background: #223362; margin: 0 auto 3px; }
-  .s-label { font-size: 10.5px; color: var(--sub); font-weight: 600; letter-spacing: .2px; }
-  .s-big { font-size: 30px; font-weight: 800; letter-spacing: -1.2px; line-height: 1; }
-  .s-sub { font-size: 9.5px; color: var(--green); font-weight: 700; }
-  .bars { display: flex; align-items: flex-end; gap: 6px; height: 62px; margin-top: 2px; }
-  .bars i { flex: 1; border-radius: 4px 4px 2px 2px; background: linear-gradient(180deg, #4B82FF, #1B3E9E); display: block; }
-  .bars i:last-child { background: linear-gradient(180deg, #7FA6FF, #2F6BFF); box-shadow: 0 0 14px rgba(47,107,255,.7); }
-  .rows { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
-  .row { display: flex; align-items: center; gap: 9px; }
-  .dot { width: 24px; height: 24px; border-radius: 8px; flex: none; background: rgba(47,107,255,.18); border: 1px solid rgba(127,166,255,.3); }
-  .dot.g { background: rgba(37,194,107,.16); border-color: rgba(37,194,107,.4); }
-  .rl { flex: 1; }
-  .rl b { display: block; font-size: 10.5px; font-weight: 650; }
-  .rl span { display: block; font-size: 9px; color: var(--sub); }
-  .ra { font-size: 11px; font-weight: 750; }
+  .notch { width: 66px; height: 4px; border-radius: 3px; background: rgba(20,32,58,.22); margin: 0 auto 11px; }
+  .s-label { font-size: 9.5px; color: #4A5878; font-weight: 600; }
+  .s-big { font-size: 27px; font-weight: 800; letter-spacing: -1.1px; line-height: 1.05; margin-top: 2px; }
+  .s-delta { font-size: 9.5px; font-weight: 700; color: #12A150; margin-top: 3px; }
+  .s-delta em { font-style: normal; color: #4A5878; font-weight: 500; }
+  .chips { display: flex; gap: 5px; margin: 10px 0 4px; }
+  .chip {
+    background: #F6F9FF; border-radius: 20px; padding: 4px 8px;
+    font-size: 8.5px; font-weight: 600; color: #4A5878; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .chip i { width: 5px; height: 5px; border-radius: 50%; background: #12A150; display: block; }
+  .spark { margin: 6px 0 4px; }
+  .spark svg { width: 100%; height: auto; display: block; }
+  .duo { display: flex; gap: 7px; margin: 6px 0 9px; }
+  .duo div {
+    flex: 1; background: #F6F9FF; border-radius: 11px; padding: 7px 8px;
+  }
+  .duo span { display: block; font-size: 8.5px; color: #4A5878; font-weight: 600; }
+  .duo b { display: block; font-size: 13px; font-weight: 800; letter-spacing: -.4px; margin-top: 1px; }
+  .duo .in b { color: #12A150; }
+  .duo .out b { color: #E05563; }
+  .tx { display: flex; flex-direction: column; gap: 6px; }
+  .tx div { display: flex; align-items: center; gap: 7px; }
+  .tx i {
+    width: 19px; height: 19px; border-radius: 6px; flex: none; display: block;
+  }
+  .tx span { flex: 1; font-size: 9.5px; font-weight: 600; }
+  .tx b { font-size: 9.5px; font-weight: 750; }
 
   /* Bank tiles */
   .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; max-width: 400px; margin: 0 auto; }
@@ -268,16 +287,35 @@
     <div class="hero-img art">
       <div class="phone"><div class="screen">
         <div class="notch"></div>
-        <div>
-          <div class="s-label"><span data-lang="lt" class="on">Mėnesio įsipareigojimas</span><span data-lang="en">Monthly commitment</span></div>
-          <div class="s-big">1 248,50 €</div>
-          <div class="s-sub"><span data-lang="lt" class="on">↓ 42,90 € mažiau nei pernai</span><span data-lang="en">↓ €42.90 less than last year</span></div>
+        <div class="s-label"><span data-lang="lt" class="on">Bendras likutis</span><span data-lang="en">Total balance</span></div>
+        <div class="s-big"><span data-lang="lt" class="on">2 397 €</span><span data-lang="en">€2,397</span></div>
+        <div class="s-delta">↑ +3,6 % <em><span data-lang="lt" class="on">nuo praėjusio mėn.</span><span data-lang="en">from last month</span></em></div>
+        <div class="chips">
+          <span class="chip">Swedbank</span>
+          <span class="chip">Revolut</span>
+          <span class="chip"><i></i><span data-lang="lt" class="on">gyvai</span><span data-lang="en">live</span></span>
         </div>
-        <div class="bars"><i style="height:46%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:71%"></i><i style="height:55%"></i><i style="height:88%"></i></div>
-        <div class="rows">
-          <div class="row"><span class="dot"></span><span class="rl"><b>Netflix</b><span data-lang="lt" class="on">po 2 d.</span><span data-lang="en">in 2 days</span></span><span class="ra">12,99 €</span></div>
-          <div class="row"><span class="dot g"></span><span class="rl"><b><span data-lang="lt" class="on">Nuoma</span><span data-lang="en">Rent</span></b><span data-lang="lt" class="on">kas mėnesį</span><span data-lang="en">monthly</span></span><span class="ra">640,00 €</span></div>
-          <div class="row"><span class="dot"></span><span class="rl"><b>Spotify</b><span data-lang="lt" class="on">po 9 d.</span><span data-lang="en">in 9 days</span></span><span class="ra">9,99 €</span></div>
+        <div class="spark">
+          <svg viewBox="0 0 240 76" aria-hidden="true">
+            <defs><linearGradient id="sp" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#2F6BFF" stop-opacity=".30"/>
+              <stop offset="100%" stop-color="#2F6BFF" stop-opacity="0"/>
+            </linearGradient></defs>
+            <path d="M4 58 L34 46 L64 52 L94 33 L124 40 L154 22 L184 28 L214 12 L236 18 L236 74 L4 74 Z" fill="url(#sp)"/>
+            <path d="M4 58 L34 46 L64 52 L94 33 L124 40 L154 22 L184 28 L214 12 L236 18"
+                  fill="none" stroke="#2F6BFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="236" cy="18" r="4" fill="#2F6BFF"/>
+          </svg>
+        </div>
+        <div class="duo">
+          <div class="in"><span data-lang="lt" class="on">Pajamos</span><span data-lang="en">Income</span><b>2 700 €</b></div>
+          <div class="out"><span data-lang="lt" class="on">Išlaidos</span><span data-lang="en">Spending</span><b>1 836 €</b></div>
+        </div>
+        <div class="tx">
+          <div><i style="background:rgba(18,161,80,.18)"></i><span data-lang="lt" class="on">Maisto prekės</span><span data-lang="en">Groceries</span><b>−34,20 €</b></div>
+          <div><i style="background:rgba(233,162,27,.20)"></i><span data-lang="lt" class="on">Kavinė</span><span data-lang="en">Café</span><b>−4,80 €</b></div>
+          <div><i style="background:rgba(47,107,255,.18)"></i><span data-lang="lt" class="on">Nuoma</span><span data-lang="en">Rent</span><b>−620,00 €</b></div>
+          <div><i style="background:rgba(224,85,99,.18)"></i><span data-lang="lt" class="on">Degalai</span><span data-lang="en">Fuel</span><b>−52,40 €</b></div>
         </div>
       </div></div>
     </div>
