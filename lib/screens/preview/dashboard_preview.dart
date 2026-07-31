@@ -3310,6 +3310,23 @@ _ManualCat? _catMetaFor(String cat) {
   return null;
 }
 
+/// The month chronologically right before [key], or null if [key] is the
+/// first one (or isn't in the list at all).
+///
+/// Shared by the Overview savings badge and _SavingsRateScreen — both need
+/// "the month before whichever one is currently on screen". Both used to
+/// compute this as `monthKeys[monthKeys.length - 2]`, a fixed "second-to-last
+/// in the whole dataset" that was only ever correct when the month on screen
+/// happened to be the newest one: browsing April still showed May as "last
+/// month" (the actual second-to-last month while June exists), and tapping
+/// into the savings-rate screen from ANY month but the newest dropped the
+/// user onto June's figures regardless of what they'd tapped from.
+@visibleForTesting
+String? prevMonthKey(List<String> monthKeys, String key) {
+  final i = monthKeys.indexOf(key);
+  return i > 0 ? monthKeys[i - 1] : null;
+}
+
 // Saving streak: consecutive COMPLETED months (excluding the latest/current,
 // which may be partial) with a positive savings rate. Shared by the Overview
 // card and the savings-rate detail screen so both show the same number.
@@ -6611,7 +6628,8 @@ class _OverviewTabState extends State<_OverviewTab> {
             monthKeys: _monthKeys,
             savingsOf: _savingsOf,
             earnedOf: _earnedOf,
-            rowsOf: _rowsOf),
+            rowsOf: _rowsOf,
+            initialKey: _curKey),
       ));
 
   int _savingsOf(List<Map<String, dynamic>> rows) {
@@ -6655,7 +6673,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     final savings = _savingsOf(rows);
     // No income that month → a savings rate is undefined, so show "—" not "0 %".
     final savStr = earned > 0 ? '$savings %' : '—';
-    final prevKey = _monthKeys.length > 1 ? _monthKeys[_monthKeys.length - 2] : null;
+    final prevKey = prevMonthKey(_monthKeys, _curKey);
     final prevRows = prevKey != null ? _filter.apply(_rowsOf(prevKey)) : <Map<String, dynamic>>[];
     final prevStr = _earnedOf(prevRows) > 0 ? '${_savingsOf(prevRows)} %' : '—';
 
@@ -7134,11 +7152,17 @@ class _OverviewTabState extends State<_OverviewTab> {
 // SAVINGS RATE — detail screen
 // ══════════════════════════════════════════════════════════════════════════════
 class _SavingsRateScreen extends StatelessWidget {
-  const _SavingsRateScreen({required this.monthKeys, required this.savingsOf, required this.earnedOf, required this.rowsOf});
+  const _SavingsRateScreen({required this.monthKeys, required this.savingsOf, required this.earnedOf, required this.rowsOf, required this.initialKey});
   final List<String> monthKeys;
   final int Function(List<Map<String, dynamic>>) savingsOf;
   final double Function(List<Map<String, dynamic>>) earnedOf;
   final List<Map<String, dynamic>> Function(String) rowsOf;
+  // The month Overview was browsing when this was opened. Without it this
+  // screen always showed the dataset's LATEST month — so tapping the savings
+  // row while looking at April, or May, or any month but the newest one,
+  // dropped you onto June's figures every time, no matter which month you'd
+  // actually tapped from.
+  final String initialKey;
 
   @override
   Widget build(BuildContext context) {
@@ -7157,17 +7181,25 @@ class _SavingsRateScreen extends StatelessWidget {
         ),
       );
     }
-    final curKey = monthKeys.last;
+    // Falls back to the latest month only if the tapped-from key somehow
+    // isn't in this list (stale data mid-refresh) — never silently defaults
+    // to it otherwise, which is the bug this whole parameter exists to fix.
+    final curKey = monthKeys.contains(initialKey) ? initialKey : monthKeys.last;
     final curMon = _moInt(curKey);
     final rows = rowsOf(curKey);
     final earned = earnedOf(rows); // canonical income (matches Overview)
     final savings = savingsOf(rows);
     final savStr = earned > 0 ? '$savings %' : '—';
-    final prevKey = monthKeys.length > 1 ? monthKeys[monthKeys.length - 2] : null;
+    final prevKey = prevMonthKey(monthKeys, curKey);
     final prevMon = prevKey != null ? _moInt(prevKey) : 0;
     final prevRows = prevKey != null ? rowsOf(prevKey) : <Map<String, dynamic>>[];
     final prevSavings = savingsOf(prevRows);
     final prevStr = earnedOf(prevRows) > 0 ? '$prevSavings %' : '—';
+    // Deliberately NOT relative to curKey: this is the user's overall
+    // saving streak (consecutive completed months with a positive rate,
+    // ending at the dataset's actual latest completed month) — an
+    // achievement stat, not a per-browsed-month figure. See its own
+    // docstring.
     final streak = _streakOf(monthKeys, rowsOf, savingsOf);
     final last6 = monthKeys.length > 6 ? monthKeys.sublist(monthKeys.length - 6) : monthKeys;
 
@@ -7210,8 +7242,13 @@ class _SavingsRateScreen extends StatelessWidget {
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _purple)),
                     ),
                     const SizedBox(height: 10),
+                    // Same ink as the sentence above it, not `_muted` — this
+                    // IS the explanation (a worked example), not a secondary
+                    // caveat, and reading it in grey next to a black opening
+                    // line made it look like an afterthought rather than the
+                    // second half of the same point.
                     Text(tr('Pvz. uždirbai 1 000 €, išleidai 750 € → norma 25 %. Kuo didesnė, tuo daugiau atsidedi. Neblogas tikslas — 20 % ar daugiau.'),
-                        style: TextStyle(fontSize: 13, color: _muted, height: 1.45)),
+                        style: TextStyle(fontSize: 13, color: _ink, height: 1.45)),
                     const SizedBox(height: 8),
                     Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Icon(Icons.info_outline_rounded, size: 15, color: _faint),

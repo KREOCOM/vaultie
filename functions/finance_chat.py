@@ -7,8 +7,9 @@ people they paid. Nothing is persisted server-side; the summary lives only in
 the request. The Anthropic API does not train on API traffic, which is the point
 to disclose to the user and to App Review.
 
-Model: Haiku 4.5 (fast + cheap; this is Q&A over a short summary, not reasoning
-over a corpus). Prompt caching keeps follow-up questions ~10× cheaper by reusing
+Model: Sonnet 5 for both the chat and the monthly report — see the model
+constants below for why the report used to run on Haiku and why that was
+wrong. Prompt caching keeps follow-up chat questions ~10× cheaper by reusing
 the summary across a conversation.
 
 Called over plain HTTPS (requests) — no new pip dependency, same as
@@ -21,11 +22,24 @@ import time
 import requests
 
 _URL = "https://api.anthropic.com/v1/messages"
-_MODEL = "claude-haiku-4-5-20251001"  # monthly-report summariser: fast + cheap
-# The chat talks TO the user in Lithuanian, a heavily-inflected language where the
-# smallest tier makes visible declension/agreement errors. Sonnet 5 writes fluent
-# LT; thinking is disabled below to keep this Q&A snappy and cheap (no reasoning
-# tokens). Prompt caching still applies to the summary.
+# Both the report and the chat write TO the user in Lithuanian, a heavily-
+# inflected language where the smallest tier makes visible declension/
+# agreement errors — or worse, invents a word that isn't Lithuanian at all. A
+# real monthly report generated on Haiku 4.5 came back "Birželis buvo gan
+# šalatanas mėnuo" ("šalatanas" — not a Lithuanian word, nothing close to one)
+# and "Gaukos 2816 eurų" (not a real conjugation of "gauti"; should be
+# "Gavai"). This was found and reported by the person actually using the app,
+# not caught in testing — the exact way a language-quality bug slips past
+# anyone who tests mostly in English.
+#
+# The report used to run on Haiku specifically because it is short and
+# "just a summariser" (Q&A over a few numbers, not reasoning over a corpus) —
+# but that reasoning was about REASONING difficulty, not WRITING difficulty.
+# A monthly narrative is free-form generative prose with nothing to copy from,
+# which is a harder target for fluent Lithuanian than the chat's more
+# constrained, often shorter answers. If anything the report needed the
+# stronger model MORE than chat did, not less.
+_MODEL = "claude-sonnet-5"
 _CHAT_MODEL = "claude-sonnet-5"
 _TIMEOUT = 30
 
@@ -105,7 +119,10 @@ _REPORT_SYSTEM = (
     "2. Nemoralizuok ir nesmerk išlaidų — būk neutralus ir palaikantis.\n"
     "3. Neteik investicinių ar teisinių patarimų.\n"
     "4. Rašyk paprastu tekstu. NENAUDOK Markdown (jokių „**“, „#“ ar kitų "
-    "formatavimo simbolių)."
+    "formatavimo simbolių).\n"
+    "5. Naudok TIK tikrus, bendrinės kalbos žodžius ir taisyklingas jų formas "
+    "— niekada neišgalvok žodžio ir netaikyk neteisingos linksniuotės ar "
+    "asmenuotės, net jei skamba įtikinamai."
 )
 
 # The one line that differs per language. Two variants means two cached system
