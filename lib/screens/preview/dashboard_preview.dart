@@ -9273,7 +9273,13 @@ class _AccountTabState extends State<_AccountTab> {
             // one place in the app that named brands and showed none.
             _acctGlyph({'bank': bank, 'name': bank}, diameter: 34, fontSize: 15),
             const SizedBox(width: 11),
-            Flexible(
+            // Expanded, not Flexible — and no Spacer after it. Both Flexible and
+            // Spacer take flex 1, so they split the free space between them and
+            // the trailing group ended up wherever the bank's NAME happened to
+            // end. "SEB" and "Revolut" are different lengths, so their figures
+            // sat at different x positions in a column that is meant to be a
+            // column of figures.
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -9291,31 +9297,18 @@ class _AccountTabState extends State<_AccountTab> {
               ),
             ),
             if (isStale) ...[const SizedBox(width: 8), _staleChip()],
-            const Spacer(),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Text(_eur(subtotal), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
-            // Only with several banks. With one, disconnecting it is the same
-            // action as "disconnect and start over", which already has a button
-            // of its own further down the screen.
-            //
-            // Given room of its own: pressed against the figure it read as part
-            // of the amount, and it is the one control here that cannot be
-            // undone without walking the bank's whole consent flow again.
-            if (multi)
-              GestureDetector(
-                onTap: () => _disconnectOneBank(bank),
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                  child: Icon(Icons.link_off_rounded, size: 17, color: _faint),
-                ),
-              ),
             // Disclosure sits where a disclosure sits — on the trailing edge.
-            Padding(
-              padding: EdgeInsets.only(left: multi ? 0 : 8),
-              child: Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                  size: 20, color: _faint),
-            ),
+            // Disconnecting used to live here too, as a 17pt icon pressed
+            // against the figure: the smallest target on the card, immediately
+            // beside the spot people tap to open the bank, doing the one thing
+            // on this screen that cannot be undone without walking the bank's
+            // entire consent flow again. It now lives inside the expanded bank,
+            // spelled out — see below.
+            const SizedBox(width: 8),
+            Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                size: 20, color: _faint),
           ]),
         )));
       }
@@ -9347,6 +9340,36 @@ class _AccountTabState extends State<_AccountTab> {
         ));
         rows.add(const RowDivider(indent: 66));
       }
+      // Disconnecting is reachable only from an OPENED bank, and it is spelled
+      // out rather than drawn as a glyph. Three deliberate steps now stand
+      // between a stray thumb and a revoked consent: open the bank, press a row
+      // that says what it does, confirm a dialog that names the bank.
+      //
+      // Only with several banks — with one, this is the same action as
+      // "disconnect and start over" at the foot of the card.
+      if (multi) {
+        rows.add(GestureDetector(
+          onTap: () => _disconnectOneBank(bank),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Row(children: [
+              const SizedBox(width: 6),
+              const Icon(Icons.link_off_rounded, size: 17, color: Color(0xFFE0574F)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                    !_enUi ? 'Atjungti $bank' : 'Disconnect $bank',
+                    style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFE0574F))),
+              ),
+            ]),
+          ),
+        ));
+        rows.add(const RowDivider(indent: 66));
+      }
     });
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
@@ -9375,22 +9398,22 @@ class _AccountTabState extends State<_AccountTab> {
         // every bank consent. Centred, named in the negative tone the app
         // already uses for money leaving, with the icon that means "unlink".
         if (DashboardStore.bankCount > 0)
-          Center(
-            child: GestureDetector(
-              onTap: _disconnectAllBanks,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.link_off_rounded,
-                      size: 15, color: Color(0xFFE0574F)),
-                  const SizedBox(width: 6),
-                  Text(tr('Atjungti bankus ir pradėti iš naujo'),
-                      style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFE0574F))),
-                ]),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 14, 4, 2),
+            child: Center(
+              child: OutlinedButton.icon(
+                onPressed: _disconnectAllBanks,
+                icon: const Icon(Icons.link_off_rounded, size: 16),
+                label: Text(tr('Atjungti bankus ir pradėti iš naujo')),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFE0574F),
+                  side: const BorderSide(color: Color(0x55E0574F)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(13)),
+                  textStyle: const TextStyle(
+                      fontSize: 13.5, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ),
