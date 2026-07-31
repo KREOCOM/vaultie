@@ -169,13 +169,14 @@
   }
   .art > * { position: relative; }
 
-  /* Phone — the app's own onboarding showcase, rebuilt in CSS.
-     Figures, palette and layout are taken from lib/screens/preview/showcase.dart
-     (ShowcaseKind.home): the same demo month the onboarding runs, the same
-     #C8D9F6 tint, the same ink. Rebuilt rather than screenshotted so it stays
-     sharp, follows the language toggle and weighs nothing. */
+  /* Phone — the app's own home screen, rebuilt in CSS.
+     Figures, palette, chrome and icons all come from
+     lib/screens/preview/showcase.dart (ShowcaseKind.home) — the same demo month
+     onboarding page 2 runs inside the artwork's glass. Rebuilt rather than
+     screenshotted so it stays sharp, follows the language toggle and downloads
+     nothing but the two bank marks. */
   .phone {
-    width: min(290px, 80%); margin: 0 auto; aspect-ratio: 9 / 18.4;
+    width: min(292px, 82%); margin: 0 auto; aspect-ratio: 9 / 18.6;
     border-radius: 42px; padding: 8px;
     background: linear-gradient(160deg, #3B5697, #0A1330 44%, #060C22);
     box-shadow: 0 34px 74px rgba(0,0,0,.6), 0 0 0 1px rgba(127,166,255,.24),
@@ -184,38 +185,44 @@
   .screen {
     height: 100%; border-radius: 35px; overflow: hidden;
     background: #C8D9F6; color: #14203A;
-    padding: 15px 14px 12px; display: flex; flex-direction: column;
-    font-size: 11px;
+    display: flex; flex-direction: column;
   }
-  .notch { width: 66px; height: 4px; border-radius: 3px; background: rgba(20,32,58,.22); margin: 0 auto 11px; }
+  .sc-body { flex: 1; padding: 13px 15px 6px; display: flex; flex-direction: column; min-height: 0; }
+  .notch { width: 62px; height: 4px; border-radius: 3px; background: rgba(20,32,58,.20); margin: 6px auto 9px; }
+  .sc-head { display: flex; align-items: center; gap: 12px; margin-bottom: 11px; }
+  .sc-head h4 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.5px; flex: 1; }
+  .sc-head svg { width: 15px; height: 15px; flex: none; }
   .s-label { font-size: 9.5px; color: #4A5878; font-weight: 600; }
-  .s-big { font-size: 27px; font-weight: 800; letter-spacing: -1.1px; line-height: 1.05; margin-top: 2px; }
-  .s-delta { font-size: 9.5px; font-weight: 700; color: #12A150; margin-top: 3px; }
+  .s-big { font-size: 26px; font-weight: 800; letter-spacing: -1.1px; line-height: 1.05; margin-top: 1px; }
+  .s-delta { font-size: 9px; font-weight: 700; color: #12A150; margin-top: 3px; display: flex; align-items: center; gap: 3px; }
   .s-delta em { font-style: normal; color: #4A5878; font-weight: 500; }
-  .chips { display: flex; gap: 5px; margin: 10px 0 4px; }
+  .chips { display: flex; gap: 4px; margin: 9px 0 2px; }
   .chip {
-    background: #F6F9FF; border-radius: 20px; padding: 4px 8px;
-    font-size: 8.5px; font-weight: 600; color: #4A5878; white-space: nowrap;
+    background: #F6F9FF; border-radius: 20px; padding: 3px 7px 3px 3px;
+    font-size: 8px; font-weight: 700; color: #14203A; white-space: nowrap;
     display: inline-flex; align-items: center; gap: 4px;
   }
-  .chip i { width: 5px; height: 5px; border-radius: 50%; background: #12A150; display: block; }
-  .spark { margin: 6px 0 4px; }
+  .chip img { width: 13px; height: 13px; border-radius: 4px; display: block; }
+  .chip.live { padding: 3px 8px; color: #4A5878; font-weight: 600; }
+  .chip.live i { width: 5px; height: 5px; border-radius: 50%; background: #12A150; display: block; }
+  .spark { position: relative; margin: 7px 0 3px; }
   .spark svg { width: 100%; height: auto; display: block; }
-  .duo { display: flex; gap: 7px; margin: 6px 0 9px; }
-  .duo div {
-    flex: 1; background: #F6F9FF; border-radius: 11px; padding: 7px 8px;
-  }
-  .duo span { display: block; font-size: 8.5px; color: #4A5878; font-weight: 600; }
-  .duo b { display: block; font-size: 13px; font-weight: 800; letter-spacing: -.4px; margin-top: 1px; }
-  .duo .in b { color: #12A150; }
-  .duo .out b { color: #E05563; }
-  .tx { display: flex; flex-direction: column; gap: 6px; }
-  .tx div { display: flex; align-items: center; gap: 7px; }
-  .tx i {
-    width: 19px; height: 19px; border-radius: 6px; flex: none; display: block;
-  }
-  .tx span { flex: 1; font-size: 9.5px; font-weight: 600; }
+  .duo { display: flex; gap: 6px; margin: 5px 0 8px; }
+  .duo > div { flex: 1; background: #F6F9FF; border-radius: 12px; padding: 7px 9px; }
+  .duo u { display: flex; align-items: center; gap: 4px; text-decoration: none; font-size: 8.5px; color: #4A5878; font-weight: 600; }
+  .duo u svg { width: 10px; height: 10px; }
+  .duo b { display: block; font-size: 14px; font-weight: 800; letter-spacing: -.4px; margin-top: 2px; }
+  .tx { display: flex; flex-direction: column; gap: 7px; }
+  .tx > div { display: flex; align-items: center; gap: 8px; }
+  .tx i { width: 21px; height: 21px; border-radius: 7px; flex: none; display: grid; place-items: center; }
+  .tx i svg { width: 12px; height: 12px; }
+  .tx span { flex: 1; font-size: 9.5px; font-weight: 650; }
   .tx b { font-size: 9.5px; font-weight: 750; }
+  .sc-nav { background: #F6F9FF; display: flex; padding: 6px 0 9px; }
+  .sc-nav div { flex: 1; text-align: center; color: #4A5878; }
+  .sc-nav svg { width: 14px; height: 14px; display: block; margin: 0 auto 2px; }
+  .sc-nav span { font-size: 6.5px; font-weight: 600; }
+  .sc-nav .act { color: #2F6BFF; }
 
   /* Bank tiles */
   .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; max-width: 400px; margin: 0 auto; }
@@ -286,36 +293,52 @@
     </div>
     <div class="hero-img art">
       <div class="phone"><div class="screen">
-        <div class="notch"></div>
-        <div class="s-label"><span data-lang="lt" class="on">Bendras likutis</span><span data-lang="en">Total balance</span></div>
-        <div class="s-big"><span data-lang="lt" class="on">2 397 €</span><span data-lang="en">€2,397</span></div>
-        <div class="s-delta">↑ +3,6 % <em><span data-lang="lt" class="on">nuo praėjusio mėn.</span><span data-lang="en">from last month</span></em></div>
-        <div class="chips">
-          <span class="chip">Swedbank</span>
-          <span class="chip">Revolut</span>
-          <span class="chip"><i></i><span data-lang="lt" class="on">gyvai</span><span data-lang="en">live</span></span>
+        <div class="sc-body">
+          <div class="notch"></div>
+          <div class="sc-head">
+            <h4><span data-lang="lt" class="on">Pradžia</span><span data-lang="en">Home</span></h4>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.4"/><path d="M15.5 15.5 21 21"/></svg>
+          </div>
+          <div class="s-label"><span data-lang="lt" class="on">Bendras likutis</span><span data-lang="en">Total balance</span></div>
+          <div class="s-big"><span data-lang="lt" class="on">2 397 €</span><span data-lang="en">€2,397</span></div>
+          <div class="s-delta">↑ +3,6 % <em><span data-lang="lt" class="on">nuo praėjusio mėn.</span><span data-lang="en">from last month</span></em></div>
+          <div class="chips">
+            <span class="chip"><img src="img/swedbank.png" alt="">Swedbank</span>
+            <span class="chip"><img src="img/revolut.png" alt="">Revolut</span>
+            <span class="chip live"><i></i><span data-lang="lt" class="on">gyvai</span><span data-lang="en">live</span></span>
+          </div>
+          <div class="spark">
+            <svg viewBox="0 0 240 84" aria-hidden="true">
+              <defs><linearGradient id="sp" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#2F6BFF" stop-opacity=".26"/>
+                <stop offset="100%" stop-color="#2F6BFF" stop-opacity="0"/>
+              </linearGradient></defs>
+              <path d="M4 70 L33 60 L62 64 L91 48 L120 54 L149 38 L178 43 L207 30" fill="none" stroke="#2F6BFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 70 L33 60 L62 64 L91 48 L120 54 L149 38 L178 43 L207 30 L207 82 L4 82 Z" fill="url(#sp)"/>
+              <rect x="168" y="6" width="72" height="19" rx="6" fill="#2F6BFF"/>
+              <text x="204" y="19.5" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Inter, sans-serif">2 412 €</text>
+              <circle cx="207" cy="30" r="8" fill="#2F6BFF" opacity=".18"/>
+              <circle cx="207" cy="30" r="5" fill="#fff"/><circle cx="207" cy="30" r="3.2" fill="#2F6BFF"/>
+            </svg>
+          </div>
+          <div class="duo">
+            <div><u><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M6 18 17 7M17 7v9m0-9H8"/></svg><span data-lang="lt" class="on">Pajamos</span><span data-lang="en">Income</span></u><b style="color:#12A150">2 700 €</b></div>
+            <div><u><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M18 6 7 17M7 17V8m0 9h9"/></svg><span data-lang="lt" class="on">Išlaidos</span><span data-lang="en">Spending</span></u><b style="color:#E05563">1 836 €</b></div>
+          </div>
+          <div class="tx">
+            <div><i style="background:#12A1502E;color:#12A150"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="9.5" cy="19" r="1.4"/><circle cx="17.5" cy="19" r="1.4"/><path d="M2.5 3.5h2.6l2.6 11h11l2.3-8H6"/></svg></i><span><span data-lang="lt" class="on">Maisto prekės</span><span data-lang="en">Groceries</span></span><b>−34,20 €</b></div>
+            <div><i style="background:#E9A21B2E;color:#E9A21B"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M4 8h12v6a4 4 0 01-4 4H8a4 4 0 01-4-4z"/><path d="M16 9.5h2.4a2.4 2.4 0 010 4.8H16"/><path d="M3 21h14"/></svg></i><span><span data-lang="lt" class="on">Kavinė</span><span data-lang="en">Café</span></span><b>−4,80 €</b></div>
+            <div><i style="background:#2F6BFF2E;color:#2F6BFF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20H4z"/><path d="M9.6 20v-5.4h4.8V20"/></svg></i><span><span data-lang="lt" class="on">Nuoma</span><span data-lang="en">Rent</span></span><b>−620,00 €</b></div>
+            <div><i style="background:#E055632E;color:#E05563"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M4 20V5.5A1.5 1.5 0 015.5 4h6A1.5 1.5 0 0113 5.5V20"/><path d="M3 20h11"/><path d="M13 10h3.2a1.8 1.8 0 011.8 1.8v4.4a1.6 1.6 0 003.2 0V9l-2.6-2.6"/></svg></i><span><span data-lang="lt" class="on">Degalai</span><span data-lang="en">Fuel</span></span><b>−52,40 €</b></div>
+          </div>
         </div>
-        <div class="spark">
-          <svg viewBox="0 0 240 76" aria-hidden="true">
-            <defs><linearGradient id="sp" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#2F6BFF" stop-opacity=".30"/>
-              <stop offset="100%" stop-color="#2F6BFF" stop-opacity="0"/>
-            </linearGradient></defs>
-            <path d="M4 58 L34 46 L64 52 L94 33 L124 40 L154 22 L184 28 L214 12 L236 18 L236 74 L4 74 Z" fill="url(#sp)"/>
-            <path d="M4 58 L34 46 L64 52 L94 33 L124 40 L154 22 L184 28 L214 12 L236 18"
-                  fill="none" stroke="#2F6BFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="236" cy="18" r="4" fill="#2F6BFF"/>
-          </svg>
-        </div>
-        <div class="duo">
-          <div class="in"><span data-lang="lt" class="on">Pajamos</span><span data-lang="en">Income</span><b>2 700 €</b></div>
-          <div class="out"><span data-lang="lt" class="on">Išlaidos</span><span data-lang="en">Spending</span><b>1 836 €</b></div>
-        </div>
-        <div class="tx">
-          <div><i style="background:rgba(18,161,80,.18)"></i><span data-lang="lt" class="on">Maisto prekės</span><span data-lang="en">Groceries</span><b>−34,20 €</b></div>
-          <div><i style="background:rgba(233,162,27,.20)"></i><span data-lang="lt" class="on">Kavinė</span><span data-lang="en">Café</span><b>−4,80 €</b></div>
-          <div><i style="background:rgba(47,107,255,.18)"></i><span data-lang="lt" class="on">Nuoma</span><span data-lang="en">Rent</span><b>−620,00 €</b></div>
-          <div><i style="background:rgba(224,85,99,.18)"></i><span data-lang="lt" class="on">Degalai</span><span data-lang="en">Fuel</span><b>−52,40 €</b></div>
+        <div class="sc-nav">
+          <div class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><rect x="3.4" y="3.4" width="7" height="7" rx="1.6"/><rect x="13.6" y="3.4" width="7" height="7" rx="1.6"/><rect x="3.4" y="13.6" width="7" height="7" rx="1.6"/><rect x="13.6" y="13.6" width="7" height="7" rx="1.6"/></svg><span><span data-lang="lt" class="on">Pradžia</span><span data-lang="en">Home</span></span></div>
+          <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.4"/></svg><span><span data-lang="lt" class="on">Apžvalga</span><span data-lang="en">Overview</span></span></div>
+          <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><path d="M12 3.2l2.1 5.4 5.4 2.1-5.4 2.1L12 18.2l-2.1-5.4-5.4-2.1 5.4-2.1z"/></svg><span><span data-lang="lt" class="on">AI</span><span data-lang="en">AI</span></span></div>
+          <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><rect x="3.6" y="5" width="16.8" height="15.4" rx="2.4"/><path d="M3.6 9.6h16.8M8.4 3.4v3.2m7.2-3.2v3.2"/></svg><span><span data-lang="lt" class="on">Planavimas</span><span data-lang="en">Planning</span></span></div>
+          <div class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"  aria-hidden="true"><circle cx="12" cy="8.4" r="3.8"/><path d="M4.8 20.2a7.2 7.2 0 0114.4 0"/></svg><span><span data-lang="lt" class="on">Paskyra</span><span data-lang="en">Account</span></span></div>
         </div>
       </div></div>
     </div>
