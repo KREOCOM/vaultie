@@ -104,6 +104,16 @@ void _applyTheme(bool dark) {
   _themeVN.value = dark;
 }
 
+/// The quick flip: persist (Hive, survives restart) then apply (in-memory
+/// tokens + the `_themeVN` notifier every tab listens to). Same two calls
+/// `_pickTheme`'s sheet makes for "Šviesi"/"Tamsi" — this is just the
+/// one-tap path to the same two states, not a separate mechanism.
+void _toggleTheme() {
+  final next = !_darkMode;
+  AppPrefs.setDarkMode(next);
+  _applyTheme(next);
+}
+
 const _catColors = <String, Color>{
   'food': Color(0xFF46AE4B),
   'fuel': Color(0xFF5866F0),
@@ -2168,6 +2178,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   size: 24, color: _heroInk),
             ),
             const SizedBox(width: 14),
+            // Quick day/night flip, right on the home header — the full
+            // "Sistemos numatytoji / Šviesi / Tamsi" picker still lives in
+            // Settings for the one-time choice; this is the fast path for the
+            // two states people actually flip between day to day. Same size,
+            // colour and GestureDetector shape as its neighbours, so it reads
+            // as a third sibling icon rather than a bolted-on control.
+            GestureDetector(
+              onTap: _toggleTheme,
+              child: Icon(_darkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                  size: 24, color: _heroInk),
+            ),
+            const SizedBox(width: 14),
             GestureDetector(
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _SearchScreen(
                     all: (_d['all'] as List).cast<Map<String, dynamic>>(),
@@ -3824,8 +3846,14 @@ class _NeonSparkPainter extends CustomPainter {
   // Room on the right so the endpoint pill + € labels don't touch the line.
   static const double rightPad = 66;
 
-  // One solid line colour (violet on dark, Frost blue on light).
-  Color get _line => dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
+  // One solid line colour — Frost blue on both themes now. Dark mode used a
+  // violet (#8B5CF6, the app's general dark-mode accent) here; asked to try
+  // blue instead. Lightened a step past the light-mode blue (#2F6BFF) rather
+  // than reused flat, because a colour tuned for a pale blue page (#C8D9F6)
+  // reads duller against near-black (#0A0910) than the same hex does in
+  // daylight — the lift keeps it feeling like the same electric blue instead
+  // of a muted one.
+  Color get _line => dark ? const Color(0xFF4C82FF) : const Color(0xFF2F6BFF);
   Color get _gridColor =>
       (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A)).withValues(alpha: 0.07);
 
@@ -9581,7 +9609,12 @@ class _SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<_SettingsScreen> {
   String _name = AppPrefs.userName.isEmpty ? 'Vartotojas' : AppPrefs.userName;
   String _currency = _currencyLabel(AppPrefs.currencyCode.value);
-  String _theme = _darkMode ? 'Tamsi' : 'Šviesi';
+  // A live getter, not a field set once at construction. The home header's
+  // quick toggle can now flip dark mode while this screen sits cached in
+  // another tab, and a field only ever reassigns from _pickTheme's own
+  // setState — reading it here means this row keeps showing whatever it said
+  // when the tab was first built, stale until the tab happens to remount.
+  String get _theme => AppPrefs.darkMode.value ? 'Tamsi' : 'Šviesi';
   bool _pin = AppLock.isPinSet;
   bool _faceId = AppLock.faceIdEnabled;
   bool _faceAvailable = false;
@@ -9991,7 +10024,10 @@ class _SettingsScreenState extends State<_SettingsScreen> {
             // tokens in memory and reverted to the saved value on next launch.
             AppPrefs.setDarkMode(dark);
             _applyTheme(dark);
-            setState(() => _theme = label);
+            // _theme is now a getter on AppPrefs.darkMode, so nothing to
+            // assign — this setState just repaints the row immediately
+            // rather than waiting on the global _themeVN listener.
+            setState(() {});
             Navigator.pop(context);
           },
           child: Padding(
