@@ -135,6 +135,15 @@ const Map<String, String> _en = {
   'Grynieji': 'Cash',
   'Asmeninis pervedimas': 'Personal transfer',
   'Atlyginimas': 'Salary',
+  // Emitted by dashboard.py's classifier (_classify) as the `cat` on a row —
+  // read straight off the row and passed through tr() in "Largest expenses"
+  // (_largest) and the transaction feed, same as every other cat string here.
+  // Missing from this map for both, so an English-mode user with any currency
+  // exchange or own-account transfer among their biggest transactions saw
+  // "Exchanged to ... Valiutos keitimas" — the one Lithuanian word left in an
+  // otherwise fully English screen.
+  'Valiutos keitimas': 'Currency exchange',
+  'Savas pervedimas': 'Own-account transfer',
 
   // ── Transaction badges ──
   'Sąskaita': 'Bill',
