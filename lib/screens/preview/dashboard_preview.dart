@@ -10056,6 +10056,13 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   /// written, so a language change does not reach the ones already queued —
   /// they would keep firing in the old language until the next app launch
   /// reschedules them. Rewrite them now, from the persisted dashboard.
+  ///
+  /// Must pass the SAME consentExpiry/spent/budget the sync path does.
+  /// scheduleFromRecurring() opens with cancelAll() — it owns the WHOLE
+  /// schedule, not just payment reminders — so calling it without them here
+  /// would silently wipe the consent-expiry warning, the monthly-report
+  /// reminder and the budget warning on every language switch, leaving the
+  /// user unwarned until the next bank sync happened to reschedule them.
   Future<void> _reschedulePaymentReminders() async {
     try {
       final dash = DashboardStore.load();
@@ -10065,11 +10072,19 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           .whereType<Map>()
           .map((e) => e.cast<String, dynamic>())
           .toList();
+      final now = DateTime.now();
+      final mk = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+      final monthTotals =
+          ((dash['totals'] as Map?)?['months'] as Map?)?[mk] as Map?;
+      final spent = (monthTotals?['expenses'] as num?)?.toDouble();
       await NotificationService.instance.scheduleFromRecurring(
         items,
         excluded: DashboardStore.recurringExcluded(),
         included: DashboardStore.recurringIncluded(),
         isLithuanian: effectiveLocale().languageCode == 'lt',
+        consentExpiry: DashboardStore.consentExpiry,
+        spent: spent,
+        budget: AppPrefs.budget.value,
       );
     } catch (_) {/* reminders are best-effort */}
   }
@@ -10174,6 +10189,19 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   Future<void> _toggleNotif(bool on) async {
     await AppPrefs.setNotificationsEnabled(on);
     if (mounted) setState(() => _notif = on);
+    // scheduleFromRecurring() checks the preference AFTER cancelAll(), so
+    // flipping it off here alone left every already-scheduled reminder
+    // (payment, consent-expiry, monthly report, budget) armed and waiting
+    // for the next sync or language change to actually cancel them — a
+    // reminder due in the next few minutes would still fire after the user
+    // had just turned notifications off. Turning it back on reschedules from
+    // the last-known dashboard immediately, for the same reason: waiting on
+    // the next sync left the toggle looking like it did nothing.
+    if (on) {
+      await _reschedulePaymentReminders();
+    } else {
+      await NotificationService.instance.cancelAll();
+    }
   }
 
   Future<void> _toggleAiCat(bool on) async {
