@@ -8253,13 +8253,22 @@ class _RecurringScreenState extends State<_RecurringScreen> {
     // restorable later under the collapsed "Paslėpti" list.
     final messenger = _msgr ?? ScaffoldMessenger.of(context);
     messenger.clearSnackBars();
-    messenger.showSnackBar(SnackBar(
-      content: Text(tr('Pašalinta iš sąrašo')),
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 4),
-      action: SnackBarAction(
-        label: tr('Grąžinti'), textColor: _purple, onPressed: () => _restore(it)),
-    ));
+    // Showing the replacement in the SAME frame as clearSnackBars() left the
+    // toast on screen indefinitely instead of hiding itself after 4 seconds —
+    // a known ScaffoldMessenger race: the outgoing bar's removal and the
+    // incoming one's entrance collide, and the auto-dismiss timer that is
+    // meant to start once the entrance finishes never actually starts. One
+    // frame's delay lets the clear settle before the new SnackBar begins.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text(tr('Pašalinta iš sąrašo')),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+            label: tr('Grąžinti'), textColor: _purple, onPressed: () => _restore(it)),
+      ));
+    });
   }
 
   Future<void> _restore(Map<String, dynamic> it) async {
@@ -8400,7 +8409,13 @@ class _RecurringScreenState extends State<_RecurringScreen> {
             Text('$merchant · ${_eur0(monthly)} ${tr('/ mėn')}',
                 style: TextStyle(color: _muted, fontSize: 13)),
             const SizedBox(height: 4),
-            Text(tr('Bankas nepasako, kas tai. Pavadink, kad atpažintum.'),
+            // Shown for EVERY stream, whether the name above is a well-known
+            // merchant ("GymPlius") or a raw bank string — the client has no
+            // signal telling the two apart (the resolver's confidence never
+            // reaches this screen), and claiming "the bank didn't say what
+            // this is" next to a name that's clearly already correct read as
+            // the app not knowing its own data.
+            Text(tr('Pervadink, kad geriau atpažintum sąraše.'),
                 style: TextStyle(color: _faint, fontSize: 12)),
             const SizedBox(height: 12),
             TextField(
