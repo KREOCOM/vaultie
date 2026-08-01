@@ -12,6 +12,7 @@ import '../services/auth_service.dart';
 import '../services/banking_service.dart';
 import '../services/dashboard_store.dart';
 import '../services/feature_flags.dart';
+import '../services/fx_rates.dart';
 import '../user_session.dart';
 import 'bank_how_it_works.dart';
 import 'bank_import_screen.dart';
@@ -68,6 +69,9 @@ Future<BankConnectionResult> completeBankConnection(String code,
   // (refs empty) and the user is stuck with a permanent empty "connected" bank
   // they can only clear via disconnect-all. Skip it; the caller shows the empty
   // result screen instead.
+  // Read BEFORE addConnection, which is about to change it — this is what
+  // tells "first bank ever" apart from "just added a second one".
+  final wasFirstBank = DashboardStore.bankCount == 0;
   if (conn != null && connAccounts.isNotEmpty) {
     await DashboardStore.addConnection(
       bank: bank ?? conn['bank'] as String? ?? 'Bankas',
@@ -81,6 +85,24 @@ Future<BankConnectionResult> completeBankConnection(String code,
       bank ?? conn['bank'] as String? ?? 'Bankas',
       conn['validUntil'] as String?,
     );
+    // A Norwegian user connecting their first bank saw every figure in the
+    // app — including their own kroner balance — converted to euros, because
+    // the display currency defaults to EUR and nothing ever pointed it
+    // anywhere else. Everything still SUMS in EUR underneath (fx.py: mixed
+    // currencies cannot be added together, so a common base is not
+    // optional) — this only changes what the base is display-side, using
+    // the exact mechanism Settings' own "Bazinė valiuta" picker already
+    // calls.
+    //
+    // Only on the FIRST bank, and only away from the untouched EUR default:
+    // by the second bank the user has already seen and accepted whatever
+    // currency the app opened in, and overriding it again would undo a
+    // choice rather than make one for them. One tap in Settings reverses
+    // this either way, so getting the guess wrong here is cheap.
+    if (wasFirstBank && AppPrefs.currencyCode.value == 'EUR') {
+      final detected = detectFirstBankCurrency(connAccounts);
+      if (detected != null) await AppPrefs.setCurrencyCode(detected);
+    }
   }
   Map<String, dynamic>? dash = scan.dash;
   // Set when the combined re-fetch came back missing a bank we already had (e.g.
@@ -112,6 +134,35 @@ Future<BankConnectionResult> completeBankConnection(String code,
   // The flow is finished — clear the pending marker either path set.
   await DashboardStore.setPendingConnect(null);
   return (dash: dash, deeper: deeper, scan: scan);
+}
+
+/// The majority non-EUR currency among a first bank connection's accounts, or
+/// null if there isn't a real one to switch to (all EUR, no accounts, or the
+/// one that "wins" isn't a code the app's currency picker actually carries a
+/// name/symbol/live-rate for).
+///
+/// Majority by ACCOUNT COUNT, not balance — [accounts] here is connection-time
+/// metadata ({uid, iban, name, currency}, from finish_bank_auth's response)
+/// and carries no amount to weigh by. A Revolut connect returning one EUR
+/// wallet and two NOK wallets picks NOK; imperfect for someone who actually
+/// keeps most of their money in the one EUR wallet, but a reasonable guess for
+/// a screen the user can flip in one tap either way.
+@visibleForTesting
+String? detectFirstBankCurrency(List<Map<String, dynamic>> accounts) {
+  final counts = <String, int>{};
+  for (final a in accounts) {
+    final c = (a['currency'] as String? ?? '').toUpperCase();
+    if (c.isNotEmpty && c != 'EUR') counts[c] = (counts[c] ?? 0) + 1;
+  }
+  if (counts.isEmpty) return null;
+  final top = (counts.entries.toList()..sort((x, y) => y.value.compareTo(x.value)))
+      .first
+      .key;
+  // currencyByCode() falls back to the EUR entry for a code the picker
+  // doesn't carry (e.g. an exotic wallet currency fx.py still prices for
+  // totals) — comparing the resolved code back against `top` is what keeps
+  // that silent fallback from being reported as a real match.
+  return currencyByCode(top).code == top ? top : null;
 }
 
 /// The set of bank names present in a saved dashboard payload (lowercased), read
