@@ -5314,6 +5314,14 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
 
   /// A compact, PII-free block of this month's figures for the AI to narrate —
   /// only aggregates and category labels, never merchant names or single txns.
+  ///
+  /// Fixed labels ("Mėnuo:", "Pajamos:", …) switch with `_enUi`, same as
+  /// [buildFinanceSummary]: sending an English-mode narrative a 100%
+  /// Lithuanian-scaffolded stats block, every single time, is exactly the kind
+  /// of pressure that pulls a longer AI reply back into Lithuanian mid-way —
+  /// see that function's docstring for the full story. Category labels
+  /// (`s.label`) and month names (`widget.monthNom`, already `_enUi`-aware via
+  /// `_monNom`) are left as the data already resolves them to.
   String _buildStats() {
     final spent = _sumExpenses(_rows);
     final earned = _sumIncome(_rows);
@@ -5322,17 +5330,18 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final expenseSecs =
         secs.where((s) => !_isIncome(s.label) && !_isTransfer(s.label) && s.net < 0).toList();
     final b = StringBuffer()
-      ..writeln('Mėnuo: ${widget.monthNom}')
-      ..writeln('Pajamos: ${earned.round()} €')
-      ..writeln('Išlaidos: ${spent.round()} €')
-      ..writeln('Grynasis rezultatas: ${net.round()} €');
+      ..writeln('${_enUi ? 'Month' : 'Mėnuo'}: ${widget.monthNom}')
+      ..writeln('${_enUi ? 'Income' : 'Pajamos'}: ${earned.round()} €')
+      ..writeln('${_enUi ? 'Spending' : 'Išlaidos'}: ${spent.round()} €')
+      ..writeln('${_enUi ? 'Net result' : 'Grynasis rezultatas'}: ${net.round()} €');
     if (earned > 0) {
-      b.writeln('Santaupų norma: ${((earned - spent) / earned * 100).round().clamp(0, 100)} %');
+      b.writeln('${_enUi ? 'Savings rate' : 'Santaupų norma'}: '
+          '${((earned - spent) / earned * 100).round().clamp(0, 100)} %');
     } else {
-      b.writeln('Pajamų šį mėnesį neaptikta.');
+      b.writeln(_enUi ? 'No income detected this month.' : 'Pajamų šį mėnesį neaptikta.');
     }
     if (expenseSecs.isNotEmpty) {
-      b.writeln('Didžiausios išlaidų kategorijos:');
+      b.writeln(_enUi ? 'Biggest spending categories:' : 'Didžiausios išlaidų kategorijos:');
       for (final s in expenseSecs.take(4)) {
         b.writeln('- ${s.label}: ${(-s.net).round()} €');
       }
@@ -5340,8 +5349,18 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     final prevRows =
         widget.all.where((t) => _dOf(t).startsWith(_prevMonth)).toList();
     if (prevRows.isNotEmpty) {
-      b.writeln('Praėjęs mėnuo ($_prevMonthNom): pajamos ${_sumIncome(prevRows).round()} €, '
-          'išlaidos ${_sumExpenses(prevRows).round()} €.');
+      b.writeln(_enUi
+          ? 'Previous month ($_prevMonthNom): income ${_sumIncome(prevRows).round()} €, '
+              'spending ${_sumExpenses(prevRows).round()} €.'
+          : 'Praėjęs mėnuo ($_prevMonthNom): pajamos ${_sumIncome(prevRows).round()} €, '
+              'išlaidos ${_sumExpenses(prevRows).round()} €.');
+    }
+    // Same end-of-block reminder as buildFinanceSummary, for the same reason:
+    // recency in context matters more than a system prompt read once at the
+    // very start of it.
+    if (_enUi) {
+      b.writeln('\n(Category labels above are in Lithuanian — this is the '
+          'source data. Write the narrative entirely in English regardless.)');
     }
     return b.toString();
   }
@@ -10743,16 +10762,36 @@ class _SearchScreenState extends State<_SearchScreen> {
 /// amounts, and per-bank balances. NEVER raw transactions, IBANs, or the names
 /// of people the user paid — transfers are summed as one anonymous line, never
 /// itemised. This is the whole payload the assistant ever sees.
-String buildFinanceSummary(Map<String, dynamic> d) {
+/// [lang] switches only the FIXED structural labels below ("BALANSAS",
+/// "ŠIS MĖNUO", …) — never the data itself: bank names, category labels and
+/// merchant names all come from the backend's Lithuanian taxonomy and stay as
+/// they are regardless of UI language, exactly as they already do for a
+/// proper noun like "MOGO".
+///
+/// This existed with zero language switching until an English user watched a
+/// reply drift from English into Lithuanian partway through — the labels
+/// AROUND the data ("BALANSAS:", "PRENUMERATOS IR SĄSKAITOS", "ciklas:") were
+/// 100% Lithuanian on every request, English UI or not. The system prompt
+/// already says "ALWAYS respond in English, never switch" as forcefully as an
+/// instruction can, but a long reply grounded in an entirely Lithuanian-
+/// scaffolded data block can still get pulled back toward Lithuanian
+/// mid-generation — a known failure mode, and the fix is to reduce how much
+/// Lithuanian STRUCTURE surrounds the data, not to word the instruction even
+/// more strongly (see finance_chat.py's _CHAT_LANG_RULE for the other half of
+/// this fix — a reminder placed at the END of the summary, right before the
+/// question, since recency in context matters for exactly this kind of drift).
+String buildFinanceSummary(Map<String, dynamic> d, {String lang = 'lt'}) {
+  final en = lang.toLowerCase() == 'en';
   final b = StringBuffer();
   num n(v) => (v is num) ? v : 0;
 
   // ── Balances (per bank, no IBANs) ──
   final bal = (d['balance'] as Map?) ?? const {};
   final accts = ((bal['accounts'] as List?) ?? const []).whereType<Map>().toList();
-  b.writeln('BALANSAS: ${_eur(n(bal['current']))} iš viso.');
+  b.writeln('${en ? 'BALANCE' : 'BALANSAS'}: ${_eur(n(bal['current']))} '
+      '${en ? 'total' : 'iš viso'}.');
   for (final a in accts) {
-    final bank = (a['bank'] ?? a['name'] ?? 'Sąskaita').toString();
+    final bank = (a['bank'] ?? a['name'] ?? (en ? 'Account' : 'Sąskaita')).toString();
     b.writeln('  - $bank: ${_eur(n(a['amount']))}');
   }
 
@@ -10782,12 +10821,12 @@ String buildFinanceSummary(Map<String, dynamic> d) {
     }
   }
   if (month.isNotEmpty) {
-    b.writeln('\nŠIS MĖNUO ($month):');
-    b.writeln('  Išlaidos: ${_eur(spent)}');
-    if (income > 0) b.writeln('  Pajamos: ${_eur(income)}');
+    b.writeln('\n${en ? 'THIS MONTH' : 'ŠIS MĖNUO'} ($month):');
+    b.writeln('  ${en ? 'Spent' : 'Išlaidos'}: ${_eur(spent)}');
+    if (income > 0) b.writeln('  ${en ? 'Income' : 'Pajamos'}: ${_eur(income)}');
     final cats = byCat.entries.toList()..sort((x, y) => y.value.compareTo(x.value));
     if (cats.isNotEmpty) {
-      b.writeln('  Išlaidos pagal kategoriją:');
+      b.writeln('  ${en ? 'Spending by category' : 'Išlaidos pagal kategoriją'}:');
       for (final e in cats.take(12)) {
         b.writeln('    - ${e.key}: ${_eur(e.value)}');
       }
@@ -10802,12 +10841,27 @@ String buildFinanceSummary(Map<String, dynamic> d) {
     ..sort((x, y) => n(y['monthly']).compareTo(n(x['monthly'])));
   if (items.isNotEmpty) {
     final total = items.fold<double>(0, (s, it) => s + n(it['monthly']).toDouble());
-    b.writeln('\nPRENUMERATOS IR SĄSKAITOS (${_eur(total)} per mėn.):');
+    b.writeln('\n${en ? 'SUBSCRIPTIONS AND BILLS' : 'PRENUMERATOS IR SĄSKAITOS'} '
+        '(${_eur(total)} ${en ? 'per month' : 'per mėn.'}):');
     for (final it in items.take(20)) {
       final name = (it['name'] ?? '—').toString();
       final cycle = (it['cycle'] ?? 'monthly').toString();
-      b.writeln('  - $name: ${_eur(n(it['monthly']))}/mėn (ciklas: $cycle)');
+      b.writeln('  - $name: ${_eur(n(it['monthly']))}/${en ? 'mo' : 'mėn'} '
+          '(${en ? 'cycle' : 'ciklas'}: $cycle)');
     }
+  }
+
+  // Placed LAST, right before the actual question in the conversation —
+  // recency in context matters for exactly the drift this whole function's
+  // docstring describes. A reminder at the very end of a Lithuanian-heavy
+  // block is the most-recently-read instruction before the model starts
+  // writing, cheaper insurance than hoping the system prompt (read once, at
+  // the start of a long context) carries all the way to the last sentence of
+  // a multi-paragraph reply.
+  if (en) {
+    b.writeln('\n(The labels and category names above are in Lithuanian — '
+        'this is the source data. Your reply must still be entirely in '
+        'English, start to finish.)');
   }
 
   return b.toString().trim();
@@ -10942,10 +10996,11 @@ class _AiChatTabState extends State<_AiChatTab> {
 
     try {
       final history = _msgs.map((m) => {'role': m.role, 'text': m.text}).toList();
+      final lang = effectiveLocale().languageCode;
       final reply = await BankingService.instance.financeChat(
-        summary: buildFinanceSummary(widget.data),
+        summary: buildFinanceSummary(widget.data, lang: lang),
         messages: history,
-        lang: effectiveLocale().languageCode,
+        lang: lang,
       );
       if (!mounted) return;
       setState(() => _msgs.add(_ChatMsg('assistant',
