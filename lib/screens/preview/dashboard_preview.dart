@@ -353,9 +353,16 @@ double _sumIncome(Iterable rows) => rows.fold(0.0,
 // net / savings / budgets (those stay on _sumIncome). Refunds are excluded —
 // they already net down "Išleista", so counting them here would double-represent
 // the same money. Only positive legs count, so an outgoing transfer never
-// reduces it. ⚠️ Single-bank-safe only: once multi-bank lands, own-account
-// inbound transfers (SEB→Revolut) must be neutralised first (see M5) or this
-// over-counts the user's own money moving between accounts.
+// reduces it.
+//
+// Multi-bank own-account transfers ARE neutralised — see the "Savas
+// pervedimas" check below — but ONLY when the bank exposes the counterparty
+// IBAN; when it doesn't, that leg still counts here, and _showReceivedBreakdown
+// says so out loud rather than hiding the gap. This was reported live as a
+// discrepancy ("Gauta" bigger than the "Pajamos" category, net looking like a
+// third, unrelated number) — the figures were correct, but nothing on screen
+// said the "Gauta" circle could be tapped for the explanation. It now carries
+// a small ⓘ.
 double _receivedOf(Map t) {
   // Own-account transfers (SEB → Revolut etc., tagged "Savas pervedimas" by the
   // multi-bank backend) are the user's own money moving — never "received".
@@ -5488,7 +5495,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
               child: _donut(
                 received,
                 [if (earned > 0) [earned, _secColor['amber']!], if (other > 0) [other, _secColor['indigo']!]],
-                '+', 'Gauta'),
+                '+', 'Gauta', tappable: true),
             ),
           ),
         ],
@@ -5496,7 +5503,14 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
     );
   }
 
-  Widget _donut(double value, List<List<dynamic>> segs, String sign, String label) {
+  // [tappable] draws a small ⓘ next to the label. "Gauta" can genuinely be
+  // bigger than "Pajamos" the category list shows below — it also counts
+  // incoming transfers, per _receivedOf's own doc comment — and that gap sat
+  // fully explained in _showReceivedBreakdown, but nothing on screen said the
+  // circle could be tapped. Reported live as "neatitikimu" (a mismatch) —
+  // the numbers were never wrong, the explanation was just unreachable.
+  Widget _donut(double value, List<List<dynamic>> segs, String sign, String label,
+      {bool tappable = false}) {
     return AspectRatio(
       aspectRatio: 1,
       child: Stack(
@@ -5509,7 +5523,13 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
               Text(sign, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400, color: _muted, height: 1)),
               const SizedBox(height: 2),
               Text(_eur0(value), style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-              Text(tr(label), style: TextStyle(fontSize: 13, color: _muted)),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(tr(label), style: TextStyle(fontSize: 13, color: _muted)),
+                if (tappable) ...[
+                  const SizedBox(width: 3),
+                  Icon(Icons.info_outline_rounded, size: 12, color: _faint),
+                ],
+              ]),
             ],
           ),
         ],
@@ -6779,14 +6799,18 @@ class _OverviewTabState extends State<_OverviewTab> {
             child: _donut(
               received,
               [if (earned > 0) [earned, _secColor['amber']!], if (other > 0) [other, _secColor['indigo']!]],
-              '+', 'Gauta'),
+              '+', 'Gauta', tappable: true),
           ),
         ),
       ]),
     );
   }
 
-  Widget _donut(double v, List<List<dynamic>> segs, String sign, String label) => AspectRatio(
+  // [tappable]: see the sibling _donut in _MonthReviewScreenState for why —
+  // same fix, same reason, this class just keeps its own copy of the widget.
+  Widget _donut(double v, List<List<dynamic>> segs, String sign, String label,
+          {bool tappable = false}) =>
+      AspectRatio(
         aspectRatio: 1,
         child: Stack(alignment: Alignment.center, children: [
           CustomPaint(size: Size.infinite, painter: _DonutPainter(segs)),
@@ -6794,7 +6818,13 @@ class _OverviewTabState extends State<_OverviewTab> {
             Text(sign, style: TextStyle(fontSize: 20, color: _muted, height: 1)),
             const SizedBox(height: 2),
             Text(_hide ? '••• ${Money.symbol}' : _eur0(v), style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-            Text(tr(label), style: TextStyle(fontSize: 13, color: _muted)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(tr(label), style: TextStyle(fontSize: 13, color: _muted)),
+              if (tappable) ...[
+                const SizedBox(width: 3),
+                Icon(Icons.info_outline_rounded, size: 12, color: _faint),
+              ],
+            ]),
           ]),
         ]),
       );
