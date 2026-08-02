@@ -905,6 +905,17 @@ def start_bank_auth(req: https_fn.CallableRequest) -> dict:
     # for a faster cold start + the in-RAM merchant KB.
     timeout_sec=300,
     memory=options.MemoryOption.MB_512,
+    # Firebase's own default cap (visible in the console as "Min/Max
+    # Instances": 0/20, identical across every function — nobody set it, it's
+    # the platform default for a Blaze free-trial project) means at most 20
+    # of THIS function can run at once. Every other endpoint here finishes in
+    # seconds, so 20 cycles through a burst fast regardless. This one can hold
+    # an instance for up to the 5-minute timeout above (a real 12-month scan),
+    # so it is the one place a synchronised traffic spike — e.g. a social post
+    # everyone taps within the same minute — turns into a queue. Raised well
+    # clear of any realistic launch-week burst; costs nothing unless the
+    # capacity is actually used.
+    max_instances=200,
 )
 def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     """Exchange the redirect ``code``, fetch transactions, detect recurring ones.
@@ -989,6 +1000,12 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     secrets=[ENABLE_BANKING_PRIVATE_KEY, ANTHROPIC_API_KEY, REVENUECAT_API_KEY],
     timeout_sec=300,
     memory=options.MemoryOption.MB_512,
+    # Same reasoning as finish_bank_auth's max_instances: this is the OTHER
+    # endpoint that can hold an instance for minutes (every multi-bank
+    # refresh, and the background 12-month deepen after every connect), and
+    # it fires for every signed-in user on app open / pull-to-refresh, not
+    # just new connections. See finish_bank_auth for the full rationale.
+    max_instances=200,
 )
 def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
     """Re-fetch ALL of a user's connected banks by account UID (no re-login) and
