@@ -378,12 +378,31 @@ double _sumReceived(Iterable rows) =>
 // Breakdown sheet for "Gauta": recognised income vs everything else that came in
 // (personal transfers, top-ups). Keeps the honest message that not every inflow
 // is "earned" income. Shared by both Overview screens.
-void _showReceivedBreakdown(BuildContext context, double income, double other) {
+//
+// [rows] and [monthName] are optional so old call sites (and any I've missed)
+// keep compiling — but without [rows] the "Kiti pervedimai / įplaukos" figure
+// is a number with nothing behind it. Reported live: "kur kiti 5k, nematau
+// transakcijose" (where's the other 5k, I don't see it in transactions) — the
+// figure was correct, but there was no way to see WHICH rows it came from,
+// so it read as an unverifiable claim rather than real money. Tapping it now
+// opens the exact rows _receivedOf counted as "other", reusing
+// _CategoryDetailScreen (the same screen every category in the list already
+// opens into) rather than inventing a second way to browse transactions.
+void _showReceivedBreakdown(BuildContext context, double income, double other,
+    {List<Map<String, dynamic>>? rows, String? monthName}) {
+  final otherRows = rows == null
+      ? null
+      : rows
+          .where((t) => _receivedOf(t) > 0 && _flowOf(t) != 'income')
+          .toList();
   showModalBottomSheet(
     context: context,
     backgroundColor: _card,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
-    builder: (_) => SafeArea(
+    // Named, not `(_)`: the tap-through below must pop the SHEET's own route,
+    // not the screen underneath it — using the outer `context` for that pop
+    // would have closed Overview itself instead of the sheet.
+    builder: (sheetCtx) => SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(22, 18, 22, 24),
         child: Column(
@@ -400,7 +419,25 @@ void _showReceivedBreakdown(BuildContext context, double income, double other) {
             const SizedBox(height: 16),
             _breakdownRow(_secColor['amber']!, tr('Atpažintos pajamos'), tr('atlyginimas, reguliarios įplaukos'), income),
             const SizedBox(height: 12),
-            _breakdownRow(_secColor['indigo']!, tr('Kiti pervedimai / įplaukos'), tr('pavedimai iš žmonių, papildymai'), other),
+            _breakdownRow(
+              _secColor['indigo']!,
+              tr('Kiti pervedimai / įplaukos'),
+              tr('pavedimai iš žmonių, papildymai'),
+              other,
+              onTap: (otherRows == null || otherRows.isEmpty || monthName == null)
+                  ? null
+                  : () {
+                      Navigator.of(sheetCtx).pop(); // close the sheet, not the screen behind it
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => _CategoryDetailScreen(
+                          section: _SecAgg(tr('Kiti pervedimai / įplaukos'), 'indigo')
+                            ..net = other,
+                          rows: otherRows,
+                          monthName: monthName,
+                        ),
+                      ));
+                    },
+            ),
             const SizedBox(height: 16),
             Text(tr('Į santaupų normą įskaičiuojamos tik atpažintos pajamos — pervedimai iš kitų nelaikomi uždarbiu.'),
                 style: TextStyle(fontSize: 12.5, color: _faint, height: 1.35)),
@@ -426,8 +463,9 @@ void _showReceivedBreakdown(BuildContext context, double income, double other) {
   );
 }
 
-Widget _breakdownRow(Color color, String title, String sub, double amount) {
-  return Row(children: [
+Widget _breakdownRow(Color color, String title, String sub, double amount,
+    {VoidCallback? onTap}) {
+  final row = Row(children: [
     Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
     const SizedBox(width: 12),
     Expanded(
@@ -437,7 +475,15 @@ Widget _breakdownRow(Color color, String title, String sub, double amount) {
       ]),
     ),
     Text(_eur0(amount), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+    // Only drawn when there's somewhere to go — a chevron promising a tap
+    // that does nothing is worse than no chevron at all.
+    if (onTap != null) ...[
+      const SizedBox(width: 2),
+      Icon(Icons.chevron_right_rounded, size: 18, color: _faint),
+    ],
   ]);
+  if (onTap == null) return row;
+  return InkWell(borderRadius: BorderRadius.circular(10), onTap: onTap, child: row);
 }
 
 // ── Recurring lifecycle (client side) ───────────────────────────────────────
@@ -5491,7 +5537,8 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
           Expanded(child: _donut(spent, [for (final s in expenseSecs) [-s.net, s.color]], '−', 'Išleista')),
           Expanded(
             child: GestureDetector(
-              onTap: () => _showReceivedBreakdown(context, earned, other),
+              onTap: () => _showReceivedBreakdown(context, earned, other,
+                  rows: _rows, monthName: widget.monthNom),
               child: _donut(
                 received,
                 [if (earned > 0) [earned, _secColor['amber']!], if (other > 0) [other, _secColor['indigo']!]],
@@ -6795,7 +6842,8 @@ class _OverviewTabState extends State<_OverviewTab> {
         Expanded(child: _donut(spent, [for (final s in exp) [-s.net, s.color]], '−', 'Išleista')),
         Expanded(
           child: GestureDetector(
-            onTap: () => _showReceivedBreakdown(context, earned, other),
+            onTap: () => _showReceivedBreakdown(context, earned, other,
+                rows: _rows, monthName: _monGen[_curMon - 1]),
             child: _donut(
               received,
               [if (earned > 0) [earned, _secColor['amber']!], if (other > 0) [other, _secColor['indigo']!]],
