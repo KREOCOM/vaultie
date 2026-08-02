@@ -274,8 +274,27 @@ class AppPrefs {
 /// locale's country subtag (e.g. `en-LT`), so we key off the country — not the
 /// phone's display language — to match "in Lithuania → Lithuanian".
 Locale localeForRegion() {
-  final region = WidgetsBinding.instance.platformDispatcher.locale.countryCode;
-  return region == 'LT' ? const Locale('lt') : const Locale('en');
+  // Checked across the WHOLE preferred-locale list, not just the top one.
+  //
+  // iOS bundles Region together with the specific English variant a person
+  // picks as their phone Language ("English (United Kingdom)" often also
+  // sets Region to the UK) unless they separately go back and correct it —
+  // most people never do. So `.locale` (the single top entry) frequently
+  // reports a Lithuanian's phone as UK/US, even though the device — and its
+  // owner — are Lithuanian. `.locales` (plural) is the FULL ordered
+  // preference list iOS keeps regardless of that bundling; Lithuanian very
+  // often stays in it as a secondary entry (kept for the keyboard,
+  // autocorrect, or just never removed), and a Lithuanian Region can also
+  // survive there even when a non-LT language sits first. Either signal,
+  // anywhere in the list, is treated as "this phone is Lithuanian's".
+  //
+  // This only ever WIDENS who gets Lithuanian by default — it cannot turn a
+  // genuinely non-Lithuanian phone into one, since it is strictly a superset
+  // of what the single-locale check already caught.
+  final locales = WidgetsBinding.instance.platformDispatcher.locales;
+  final isLt = locales
+      .any((l) => l.languageCode == 'lt' || l.countryCode == 'LT');
+  return isLt ? const Locale('lt') : const Locale('en');
 }
 
 /// The locale the app should actually use: an explicit Settings choice wins,
