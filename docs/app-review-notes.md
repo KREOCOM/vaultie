@@ -24,7 +24,7 @@ The service is operated by **MB Živitoma** (company number 304754869, Vytauto g
 118-4, LT-00153 Palanga, Lithuania), which holds the agreement with Enable Banking.
 
 **Demo account**
-Email: appreview@vaultie.app
+Email: appreview@vaultieapp.com
 Password: Forappleteam2016
 
 **How to review without a real bank account**
@@ -59,9 +59,10 @@ is saved, on their own device.
 
 ## Checklist before submitting
 
-- [x] **`appreview@vaultie.app` created in Firebase → Authentication → Users**
-      (uid 6X4ktnyRMKOTCZSCr0NDdehQPbt2). The domain does not exist and the
-      address never receives mail — the app treats this one account as verified.
+- [x] **`appreview@vaultieapp.com` created in Firebase → Authentication → Users**
+      (uid 6X4ktnyRMKOTCZSCr0NDdehQPbt2). `lib/services/review_account.dart` matches
+      this exact address; the app treats this one account as verified without a
+      real mailbox check.
 - [x] Account created; password recorded above
 - [ ] Verify the demo account signs in and reaches the dashboard on a clean
       install of the **release** build — this is the one path a reviewer walks
