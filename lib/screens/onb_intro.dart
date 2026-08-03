@@ -84,52 +84,22 @@ class _OnbIntroState extends State<OnbIntro> {
         fit: StackFit.expand,
         children: [
           // ── Full-bleed artwork ──
-          // 862×1825, a hair wider than the screen's ratio, so `cover` matches
-          // the height and trims a few points off each side — nothing near the
-          // subject. Anchored to the TOP: the phone and the floating cards are
-          // the subject and they live up there, so a short screen should lose
-          // empty floor from the bottom rather than clip the phone.
-          //
-          // Then lifted. Detail per horizontal strip of the render goes flat from
-          // 63% down, so that is where the phone and the cards end and the
-          // reflection begins; the copy block is bottom-anchored and starts
-          // around 58%, so unlifted the artwork ran under the first lines.
-          //
-          // Landed on the device, not calculated: 6% left the phone's base
-          // touching the headline's rule with no gap at all, and 12% overshot to
-          // a 94pt hole with the phone's top crowding the status bar. 9% was the
-          // midpoint that looked right.
-          //
-          // Back to 9% with the animated line removed. 12.5% existed only to
-          // compensate for the 42pt OnbPulseLine pushing the copy block upward;
-          // with the plain rule restored that compensation clips the phone's top
-          // against the status bar instead.
-          //
-          // Raising the art does this without washing the phone out under a
-          // scrim that starts higher. The strip of Scaffold it exposes at the
-          // bottom is #030E30 — the colour the wash is already fully opaque in
-          // by then — so it cannot be seen.
-          Positioned.fill(
-            child: Transform.translate(
-              offset: Offset(0, -MediaQuery.of(context).size.height * 0.09),
-              child: const Image(
-                image: AssetImage('assets/onboarding/page1.png'),
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-              ),
+          // A night-city lifestyle photo (852×1846): the subject sits in the
+          // lower-right two-thirds, and the top ~38% is clear dark-blue sky —
+          // that empty band is deliberately where the copy block below sits,
+          // no scrim needed there since the sky is already near-black-blue.
+          const Positioned.fill(
+            child: Image(
+              image: AssetImage('assets/onboarding/page1_v2.png'),
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
             ),
           ),
 
           // ── Bottom wash ──
-          // Fades to #030E30 — the exact navy the scene pages use — so the strip
-          // the copy sits on is the same shade across the whole chain. Fading to
-          // the artwork's own blue instead left page 1 visibly lighter than every
-          // page after it.
-          //
-          // Fully OPAQUE well before the copy, which is where this differs from
-          // the scene pages: their scrim only reaches ~80% at its darkest, and
-          // this render's reflection stays faintly lit all the way down. A
-          // translucent wash left that glow coming through the text.
+          // Grounds the button/dots strip to the same #030E30 every later page
+          // opens on, same reasoning as before — just a shorter fade since this
+          // render is already dark near its own bottom edge.
           const Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
@@ -139,39 +109,27 @@ class _OnbIntroState extends State<OnbIntro> {
                     end: Alignment.bottomCenter,
                     colors: [
                       Color(0x00030E30),
-                      Color(0x99030E30),
-                      Color(0xFF030E30),
+                      Color(0xCC030E30),
                       Color(0xFF030E30),
                     ],
-                    // Measured against this render AFTER the lift above: its
-                    // subject ends at 63% of the image, which the 9% lift puts
-                    // around 55% of the screen. The wash starts just under that,
-                    // so it grounds the reflection rather than slicing the phone,
-                    // and is flat colour by 68% — clear of the copy block, which
-                    // is bottom-anchored and starts around 58%.
-                    //
-                    // These three numbers belong to THIS artwork. Every previous
-                    // set was measured against a different render and carried
-                    // over wrongly. Re-measure when the image changes: crop 24px
-                    // strips down the file and watch where the compressed size
-                    // stops falling — that is where the subject ends.
-                    stops: [0.55, 0.62, 0.68, 1.0],
+                    stops: [0.78, 0.9, 1.0],
                   ),
                 ),
               ),
             ),
           ),
 
-          // ── Variant A: text directly on the scrim, with the Vaultie mark
-          // highlighted (glowing app icon) above the headline. ──
+          // ── Copy block: centred horizontally, near the top, on the clear
+          // sky — no side elements, just the words (matches the approved
+          // HTML mockup exactly: no floating cards, no numbers). ──
           SafeArea(
             child: Align(
-              alignment: Alignment.bottomCenter,
+              alignment: Alignment.topCenter,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(28, 0, 28, 16),
+                padding: const EdgeInsets.fromLTRB(28, 40, 28, 0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
                       width: 34,
@@ -184,10 +142,11 @@ class _OnbIntroState extends State<OnbIntro> {
                     const SizedBox(height: 13),
                     Text(
                       tr('Suprask savo\nfinansus geriau'),
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.w800,
-                        height: 1.12,
+                        height: 1.15,
                         letterSpacing: -0.9,
                         color: Colors.white,
                       ),
@@ -195,46 +154,28 @@ class _OnbIntroState extends State<OnbIntro> {
                     const SizedBox(height: 11),
                     Text(
                       tr('Vaultie padeda aiškiau matyti, kur keliauja tavo pinigai, priimti geresnius sprendimus ir viską stebėti vienoje vietoje.'),
-                      // No drop shadow any more. It existed to keep this legible
-                      // over moving artwork; the copy now sits on flat colour, and
-                      // a shadow there only softens the edges of the letters.
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14.5,
                         height: 1.5,
                         color: Colors.white.withValues(alpha: 0.92),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    for (final b in const [
-                      'Veikia su 2 500+ bankų ES, JK ir EEE',
-                      'Reguliuojama PSD2 atviroji bankininkystė',
-                      'Duomenys lieka tavo telefone',
-                    ])
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2),
-                              child: Icon(Icons.check_rounded,
-                                  size: 14, color: Color(0xFF9EC0FF)),
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                tr(b),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  height: 1.35,
-                                  color: Colors.white.withValues(alpha: 0.86),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Button + dots: bottom, same as every page after this one. ──
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(28, 0, 28, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     GestureDetector(
                       onTap: _start,
                       child: Container(
