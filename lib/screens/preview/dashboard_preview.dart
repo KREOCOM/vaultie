@@ -97,7 +97,10 @@ void _applyTheme(bool dark) {
   _ink        = dark ? const Color(0xFFEDEAF6) : const Color(0xFF14203A);
   _navOff     = dark ? const Color(0xFF8C86A0) : const Color(0xFF97A2B5);
   _card       = dark ? const Color(0xFF16131F) : const Color(0xFFF6F9FF);
-  _hair       = dark ? const Color(0xFF2C2740) : const Color(0xFFC3D3EB);
+  // Light: pushed from a grey-blue hairline to a clearly blue one — every
+  // card border and row divider in the app reads off this single token, so
+  // this is the one lever for "blue outline on every block, everywhere".
+  _hair       = dark ? const Color(0xFF2C2740) : const Color(0xFF8FB4FF);
   _soft       = dark ? const Color(0xFF221D31) : const Color(0xFFEEF2F8);
   _purple     = dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
   _purpleDeep = dark ? const Color(0xFF6D3EE0) : const Color(0xFF1E50C8);
@@ -1137,7 +1140,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
         if (!_tabNeeded(3))
           const SizedBox.shrink()
         else
-          _AccountTab(balance: _d['balance'] as Map<String, dynamic>),
+          _AccountTab(
+              balance: _d['balance'] as Map<String, dynamic>,
+              allTransactions: (_d['all'] as List?)?.cast<Map<String, dynamic>>()),
       ];
 
   // A theme flip OR a language change must rebuild the cached tabs.
@@ -9096,8 +9101,11 @@ class _BudgetProjPainter extends CustomPainter {
 // ACCOUNT TAB — net worth, assets, accounts (real balance data) + Settings
 // ══════════════════════════════════════════════════════════════════════════════
 class _AccountTab extends StatefulWidget {
-  const _AccountTab({required this.balance});
+  const _AccountTab({required this.balance, this.allTransactions});
   final Map<String, dynamic> balance;
+  // Threaded through to _SettingsScreen so export uses the dashboard's live
+  // data instead of DashboardStore.load()'s separate disk snapshot.
+  final List<Map>? allTransactions;
   @override
   State<_AccountTab> createState() => _AccountTabState();
 }
@@ -9158,7 +9166,8 @@ class _AccountTabState extends State<_AccountTab> {
   Widget _settingsRow() => Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
         child: GestureDetector(
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _SettingsScreen())),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => _SettingsScreen(liveTransactions: widget.allTransactions))),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), boxShadow: DS.e1),
@@ -9571,7 +9580,7 @@ class _AccountTabState extends State<_AccountTab> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-          child: Row(children: [Text(tr('Sąskaitos'), style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text(tr('Likutis'), style: TextStyle(fontSize: 13.5, color: _muted))]),
+          child: Row(children: [Text(tr('Banko sąskaitos'), style: TextStyle(fontSize: 13.5, color: _muted)), const Spacer(), Text(tr('Likutis'), style: TextStyle(fontSize: 13.5, color: _muted))]),
         ),
         AppCard(color: _card, border: _hair,
           child: Column(children: [
@@ -9767,7 +9776,17 @@ class _AccountTabState extends State<_AccountTab> {
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 class _SettingsScreen extends StatefulWidget {
-  const _SettingsScreen();
+  const _SettingsScreen({this.liveTransactions});
+
+  /// The dashboard's own live `_d['all']`, passed in so export reflects
+  /// exactly what the user is looking at. This screen otherwise has no
+  /// access to in-memory state at all — it would fall back to
+  /// DashboardStore.load()'s disk snapshot, which can lag behind a fresh
+  /// scan or a local edit (persisted on its own schedule, not on every
+  /// change) and caused export to report "no transactions" when the
+  /// dashboard clearly had some.
+  final List<Map>? liveTransactions;
+
   @override
   State<_SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -10298,9 +10317,20 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     ]);
   }
 
+  // Prefers the live `_d['all']` the dashboard passed in — the exact data the
+  // user is looking at — over DashboardStore.load()'s separate disk snapshot,
+  // which can lag behind (a fresh scan or a local edit updates `_d`
+  // immediately but persists to Hive on its own schedule). Exporting from the
+  // stale copy is what caused "no transactions" while the dashboard clearly
+  // had 130 of them. Falls back to disk only if this screen was somehow
+  // reached without the live list.
   List<Map> _exportRows() {
-    final dash = DashboardStore.load();
-    final all = ((dash?['all'] as List?) ?? const []).whereType<Map>().toList();
+    final live = widget.liveTransactions;
+    final all = (live != null && live.isNotEmpty)
+        ? live
+        : ((DashboardStore.load()?['all'] as List?) ?? const [])
+            .whereType<Map>()
+            .toList();
     return List<Map>.from(all)
       ..sort((a, b) => (b['d'] ?? '').toString().compareTo((a['d'] ?? '').toString()));
   }
@@ -10366,10 +10396,8 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   }
 
   Future<void> _exportCsv() async {
-    final dash = DashboardStore.load();
-    final all = ((dash?['all'] as List?) ?? const [])
-        .whereType<Map>()
-        .toList();
+    // Same source/fallback as _exportRows() (unsorted order is fine for CSV).
+    final all = _exportRows();
     if (all.isEmpty) {
       _snack(tr('Nėra sandorių eksportui'));
       return;

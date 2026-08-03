@@ -133,6 +133,16 @@ const Map<String, String> _en = {
   'Mokslas': 'Education',
   'Kursai, knygos': 'Courses & books',
   'Grynieji': 'Cash',
+  'Jungiklis — įjungtas skaičiuojasi į mėnesio sumą. Nebemoki ar tai ne prenumerata → išjunk.':
+      'Toggle — on counts towards the monthly total. Not sure if it\'s a subscription anymore → turn it off.',
+  'Šiukšlinė — paslėpti visai (jei tai ne pasikartojantis mokėjimas).':
+      'Trash — hide it completely (if it isn\'t a recurring payment).',
+  'Bakstelk pavadinimą — pervadinti arba pakeisti tipą (prenumerata ↔ sąskaita).':
+      'Tap the name — rename it or switch its type (subscription ↔ bill).',
+  'Reguliarios paslaugos — Netflix, sporto salė, programėlės.':
+      'Regular services — Netflix, gym, apps.',
+  'Nuoma, komunaliniai, telefonas, paskolos, draudimas.':
+      'Rent, utilities, phone, loans, insurance.',
   'Asmeninis pervedimas': 'Personal transfer',
   'Atlyginimas': 'Salary',
   // Emitted by dashboard.py's classifier (_classify) as the `cat` on a row —
@@ -393,7 +403,12 @@ const Map<String, String> _en = {
   'Turto kategorija': 'Asset category',
   'Vertė': 'Value',
   'Pavadinimas (pvz. Grynieji, Santaupos)': 'Name (e.g. Cash, Savings)',
-  'Sąskaitos': 'Accounts',
+  // "Sąskaitos" is homonymous in Lithuanian — bank accounts AND recurring
+  // bills. Every remaining tr('Sąskaitos') call site is the bills meaning
+  // (the recurring-payments group header, the subs/bills split card); the
+  // bank-account list header was changed to the distinct, more precise
+  // tr('Banko sąskaitos') below instead of sharing this key.
+  'Sąskaitos': 'Bills',
   'Likutis': 'Balance',
   'Prijungti kitą banką': 'Connect another bank',
   'Pažymėti': 'Starred',
@@ -809,4 +824,81 @@ const Map<String, String> _en = {
       '€1,836 — 32% less than you earned. Mostly housing (€620) and food (€450).',
   'Prenumeratos — 57,94 € per mėnesį, 695 € per metus. Dvi nenaudotos nuo balandžio.':
       'Subscriptions — €57.94 a month, €695 a year. Two unused since April.',
+
+  // ── Onboarding pages 2–7 (onb_features/month/overview/ai_chat/budget/
+  // connect/notifications.dart) — every one of these was tr()-wrapped in code
+  // already but had no _en entry, so an English-locale device fell all the way
+  // through onboarding still reading Lithuanian. Found 2026-08-03 by auditing
+  // every onb_*.dart file against this map, prompted by a reviewer-visibility
+  // concern right before submission — App Review may walk the full first-run
+  // chain, not just sign in with the demo account.
+  'Mėnesio biudžetas': 'Monthly budget',
+  'Nusistatyk ribą, o Vaultie kasdien rodys, kiek dar gali išleisti.':
+      'Set a limit, and Vaultie shows you every day how much you have left to spend.',
+  'PIN kodas ir Face ID': 'PIN code and Face ID',
+  'Uždaryta programėlė lieka užrakinta, net jei telefonas atrakintas.':
+      'A closed app stays locked, even if your phone is unlocked.',
+  'Pranešam prieš nurašymą, kad nė vienas neužkluptų netikėtai.':
+      "We notify you before a charge, so none catches you by surprise.",
+  'Mėnesio santrauka': 'Monthly summary',
+  'Mėnesiui pasibaigus — kur nukeliavo pinigai ir kiek sutaupei.':
+      'When the month ends — where your money went and how much you saved.',
+  'Šviesus ir tamsus': 'Light and dark',
+  'Programėlė prisitaiko prie tavęs, ne atvirkščiai.':
+      'The app adapts to you, not the other way around.',
+
+  'Kiekviena išlaida\nsavo vietoje': 'Every expense\nin its place',
+  'Vaultie automatiškai atpažįsta pirkinius, suskirsto juos į kategorijas ir padeda aiškiai matyti, kur išleidi pinigus.':
+      'Vaultie automatically recognises your purchases, sorts them into categories, and helps you clearly see where your money goes.',
+  'Atpažįsta tūkstančius prekybininkų': 'Recognises thousands of merchants',
+  'Mokosi iš tavo pataisymų': 'Learns from your corrections',
+  'Jokio rankinio vedimo': 'No manual entry',
+
+  'Matyk visą\nfinansų vaizdą': 'See your whole\nfinancial picture',
+  'Balansai, išlaidos, pajamos ir biudžetas vienoje aiškioje vietoje.':
+      'Balances, spending, income and budget in one clear place.',
+  'Visos sąskaitos viename vaizde': 'All accounts in one view',
+  'Kasdien atnaujinami duomenys': 'Data updated every day',
+  'Aiškios įžvalgos be skaičių chaoso': 'Clear insights, no number chaos',
+
+  'Paklausk.\nGauk atsakymą.': 'Ask.\nGet an answer.',
+  'Paklausk apie savo finansus paprastais žodžiais, o Vaultie atsakys pagal tavo tikrus duomenis.':
+      'Ask about your finances in plain words, and Vaultie answers using your real data.',
+  'Atsako pagal tavo operacijas': 'Answers based on your transactions',
+  'Jokie duomenys nenaudojami AI mokymui': 'No data is used to train AI',
+  'Privatumas išlieka tavo rankose': 'Privacy stays in your hands',
+
+  'Nepraleisk nė vienos\nprenumeratos': "Don't miss a single\nsubscription",
+  'Vaultie automatiškai aptinka pasikartojančius mokėjimus ir padeda kontroliuoti jų kainą.':
+      'Vaultie automatically detects recurring payments and helps you keep their cost in check.',
+  'Matyk kitą mokėjimo datą': 'See the next payment date',
+  'Pastebėk kainų pokyčius': 'Notice price changes',
+  'Žinok metinę išlaidų sumą': 'Know your total yearly cost',
+
+  'Pasirink, ką prijungti': 'Choose what to connect',
+  'Prijunk tik tas sąskaitas, kurias nori.': 'Connect only the accounts you want.',
+  'Tik skaitymo prieiga': 'Read-only access',
+  'Vaultie negali atlikti mokėjimų ar pervesti pinigų.':
+      'Vaultie cannot make payments or transfer money.',
+  'Saugus prisijungimas': 'Secure sign-in',
+  'Prisijungimą patvirtini savo banke pagal PSD2 standartą.':
+      'You confirm the connection at your own bank, under the PSD2 standard.',
+  'Tavo duomenys': 'Your data',
+  'Jie niekada neparduodami ir visada lieka tavo kontrolėje.':
+      'They are never sold and always stay under your control.',
+  'Priminsime prieš laiką': "We'll remind you in time",
+  'Pranešime prieš mokėjimą, kai baigsis banko prieiga ir kai bus paruošta mėnesio ataskaita.':
+      "We'll notify you before a payment, when your bank access is about to expire, and when your monthly report is ready.",
+  'Mokėjimas po 2 d.': 'Payment in 2 days',
+  'Banko prieiga baigiasi': 'Bank access expiring',
+  'Po 7 d. reikės prisijungti iš naujo, kad duomenys nesustotų.':
+      "In 7 days you'll need to reconnect, so your data doesn't stop updating.",
+  'vakar': 'yesterday',
+  'Mėnesio ataskaita paruošta': 'Monthly report ready',
+  'Pažiūrėk, kiek išleidai praėjusį mėnesį.': 'See how much you spent last month.',
+  'prieš 3 d.': '3 days ago',
+  'Įjungti priminimus': 'Enable reminders',
+  'Ne dabar': 'Not now',
+
+  'tada': 'then',
 };
