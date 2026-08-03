@@ -230,10 +230,33 @@ def _dates(items):
 
 
 def _avg_gap(dates):
+    """The TYPICAL gap between charges — median, not mean, of consecutive
+    day-differences.
+
+    A mean is wrecked by a single missing observation: one payment that went
+    through a not-yet-connected bank (or was genuinely paid late) doubles ONE
+    gap, and that alone can drag a true ~30-day monthly cadence up to ~37
+    days — just outside the classifier's 25-35-day "monthly" band below —
+    misclassifying the whole stream as "custom" and multiplying its
+    monthly-equivalent by the wrong ratio. Confirmed live 2026-08-04: a real
+    ~399 EUR/mo MOGO payment, with one month's charge sitting on a
+    not-yet-connected second bank, displayed as ~326 EUR.
+
+    The median tolerates that same single outlier: with gaps [29, 29, 30,
+    61], the mean is 37.25 (misclassified as "custom") but the median is 29.5
+    (correctly "monthly") — a late or cross-bank payment has to make up
+    close to HALF the observed gaps before it can throw this off, not just
+    one. For a short history (2-3 gaps) the median and the mean are the same
+    value, so nothing changes there.
+    """
     if len(dates) < 2:
         return None
-    gaps = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)]
-    return sum(gaps) / len(gaps) if gaps else None
+    gaps = sorted((dates[i + 1] - dates[i]).days for i in range(len(dates) - 1))
+    if not gaps:
+        return None
+    n = len(gaps)
+    mid = n // 2
+    return float(gaps[mid]) if n % 2 else (gaps[mid - 1] + gaps[mid]) / 2
 
 
 # ── Payment-stream segmentation (between merchant grouping and feature
