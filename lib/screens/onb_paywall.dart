@@ -317,6 +317,12 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           trialDays: _trialFor(PlanId.yearly),
                           chip: '${_fmt(_p.yearlyPerMonth)} ${tr('/ mėn.')}',
                         ),
+                        // The trial line follows whichever card is actually
+                        // selected, not a fixed slot after both — pinning it after
+                        // the monthly card unconditionally left it looking
+                        // detached from the choice whenever the yearly plan was
+                        // the one selected.
+                        if (_annual) _trialLine(),
                         const SizedBox(height: 10),
                         _planCard(
                           annual: false,
@@ -326,14 +332,18 @@ class _OnbPaywallState extends State<OnbPaywall> {
                           chip: '${_fmt(_p.yearOfMonthly)} ${tr('per metus')}',
                           trialDays: _trialFor(PlanId.monthly),
                         ),
-                        _trialLine(),
+                        if (!_annual) _trialLine(),
+                        const SizedBox(height: 10),
+                        // The buy button sits right after the plans, not below
+                        // the feature icons — it is the decision that follows
+                        // picking a plan, not something to scroll past first.
+                        _bottom(),
                         const SizedBox(height: 14),
                         _features(),
                       ],
                     ),
                   ),
                 ),
-                _bottom(),
               ],
             ),
           ),
@@ -549,55 +559,18 @@ class _OnbPaywallState extends State<OnbPaywall> {
     );
   }
 
-  /// The trial promise, directly under the plans it applies to rather than at
-  /// the foot of the screen — it is part of choosing a plan, not part of the
-  /// button. The green half appears ONLY when the store confirmed this Apple ID
-  /// is still eligible; everyone else gets the cancellation line, which is true
-  /// either way. See PurchaseService._loadTrials for why eligibility is asked
-  /// rather than assumed.
+  /// A plain "cancel anytime" reassurance under the plans — true regardless of
+  /// trial eligibility, so it no longer branches on it. It used to also spell
+  /// out "Išbandyk N d. nemokamai" in green when the store confirmed a trial,
+  /// but the buy button right below says the exact same thing now that it
+  /// moved up next to the plans, so that half became a repeat and was dropped.
   Widget _trialLine() {
-    final trial = _trialFor(_plan);
-    if (trial == null) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: Center(
-          child: Text(tr('Atšaukti gali bet kada.'),
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: _sub)),
-        ),
-      );
-    }
-    // Deliberately NOT a panel. A filled, bordered, full-width block directly
-    // under two filled, bordered, full-width plan cards is read as a third
-    // plan — the same mistake the saving chip already had to be rescued from
-    // above. This is a promise about the plan you picked, so it is set as a
-    // line of type, and the green is spent only on the two words that carry
-    // the offer.
     return Padding(
-      padding: const EdgeInsets.only(top: 14),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.lock_open_rounded, size: 15, color: _green),
-          const SizedBox(width: 7),
-          Flexible(
-            child: Text.rich(
-              TextSpan(
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600, color: _sub),
-                children: [
-                  TextSpan(
-                    text: '${tr('Išbandyk')} $trial ${tr('d. nemokamai')}',
-                    style: const TextStyle(
-                        color: _green, fontWeight: FontWeight.w800),
-                  ),
-                  TextSpan(text: ' · ${tr('atšaukti gali bet kada')}'),
-                ],
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.only(top: 12),
+      child: Center(
+        child: Text(tr('Atšaukti gali bet kada.'),
+            style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600, color: _sub)),
       ),
     );
   }
