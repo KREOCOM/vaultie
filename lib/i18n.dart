@@ -72,7 +72,7 @@ const Map<String, String> _en = {
   'Kiek išleidau šį mėnesį?': 'How much did I spend this month?',
   'Kokia mano brangiausia prenumerata?': 'What’s my most expensive subscription?',
   'Kur galėčiau sutaupyti?': 'Where could I save?',
-  'Į ką daugiausiai išleidžiu?': 'What do I spend the most on?',
+  'Kur daugiausiai išleidžiu?': 'What do I spend the most on?',
 
   // ── Overview / analytics ──
   'Kategorija': 'Category',
@@ -901,4 +901,82 @@ const Map<String, String> _en = {
   'Ne dabar': 'Not now',
 
   'tada': 'then',
+
+  // ── Onboarding scene showcase (lib/screens/preview/showcase.dart) — the
+  // LIVE demo phone replayed inside the onboarding artwork. Its sample bills/
+  // subscriptions/category names and dates are tr()-wrapped in code but had
+  // no _en entries at all, so an English-locale device saw fully Lithuanian
+  // category names and dates ("Rugpjūčio 1") inside an otherwise-English
+  // onboarding screen. Found 2026-08-03 from a device screenshot.
+  'Būstas': 'Housing',
+  'Maistas': 'Food',
+  'Kavinė': 'Café',
+  'Degalai': 'Fuel',
+  'Būsto draudimas': 'Home insurance',
+  'Elektra': 'Electricity',
+  'Internetas': 'Internet',
+  'Mobilusis': 'Mobile',
+  'Vanduo': 'Water',
+  'Sporto klubas': 'Gym',
+  'Automobilio draudimas': 'Car insurance',
+  'Lie': 'Jul',
+  'Rgp': 'Aug',
+  'Rgs': 'Sep',
+  'Spa': 'Oct',
+  'Lap': 'Nov',
+  'Liepos 14': 'July 14',
+  'Liepos 18': 'July 18',
+  'Liepos 21': 'July 21',
+  'Liepos 25': 'July 25',
+  'Rugpjūčio 1': 'August 1',
+  'Rugpjūčio 2': 'August 2',
+  'Rugpjūčio 3': 'August 3',
+  'Rugpjūčio 5': 'August 5',
+  'Rugpjūčio 8': 'August 8',
+  'Rugpjūčio 9': 'August 9',
+  'Rugpjūčio 10': 'August 10',
+  'Rugpjūčio 12': 'August 12',
+  'Rugpjūčio 15': 'August 15',
+  'Rugpjūčio 18': 'August 18',
+  'Rugpjūčio 22': 'August 22',
+
+  // ── bank_how_it_works.dart — the pre-connect explainer + its "Why this is
+  // safe" sheet. Every string here was tr()-wrapped but had no _en entry,
+  // same class of bug as onboarding: found from a device screenshot showing
+  // English chrome (title, Continue button) around fully-Lithuanian body
+  // text. 2026-08-03.
+  'Pasirink savo banką': 'Choose your bank',
+  'Iš 2 500+ Europos bankų sąrašo.': 'From a list of 2,500+ European banks.',
+  'Patvirtink savo banke': 'Confirm at your bank',
+  'Nukreipsim į tavo banko programėlę ar svetainę. Prisijungi ir patvirtini prieigą — taip pat, kaip prisijungdamas prie savo banko. Vaultie tavo prisijungimo duomenų nemato.':
+      "We'll take you to your bank's app or website. You sign in and confirm access — just like signing in to your bank normally. Vaultie never sees your login details.",
+  'Grįžk į Vaultie': 'Back to Vaultie',
+  'Kai patvirtinsi, automatiškai grįši atgal, o tavo operacijos susitvarkys pačios.':
+      "Once you confirm, you'll return automatically, and your transactions will sort themselves out.",
+  'Kodėl tai saugu': 'Why this is safe',
+  'Jungiamės per Enable Banking — licencijuotą ES atvirosios bankininkystės tiekėją (PSD2). Prieiga tik skaitymo. Atšaukti gali bet kada.':
+      'We connect through Enable Banking — a licensed EU open banking provider (PSD2). Read-only access. Cancel anytime.',
+  'Licencijuotas tarpininkas': 'Licensed intermediary',
+  'Jungiamės per Enable Banking — ES reguliuojamą atvirosios bankininkystės tiekėją, veikiantį pagal PSD2 direktyvą.':
+      'We connect through Enable Banking — an EU-regulated open banking provider operating under the PSD2 directive.',
+  'Niekada nematome tavo slaptažodžio': 'We never see your password',
+  'Prisijungi tik savo banke. Vaultie gauna leidimą skaityti operacijas — ne tavo prisijungimo duomenis.':
+      "You sign in only at your own bank. Vaultie gets permission to read transactions — not your login details.",
+  'Tik skaitymas': 'Read-only',
+  'Vaultie negali atlikti mokėjimų, pervesti ar keisti nieko tavo sąskaitoje.':
+      'Vaultie cannot make payments, transfer money, or change anything in your account.',
+  'Duomenys lieka tavo telefone': 'Your data stays on your phone',
+  'Operacijos saugomos tavo telefone, o ne mūsų serveriuose, ir niekada neparduodamos.':
+      'Transactions are stored on your phone, not our servers, and are never sold.',
+  'AI — tik tavo sutikimu': 'AI — only with your consent',
+  'Jei įjungi AI funkcijas, mūsų tiekėjui siunčiame tik apibendrintus skaičius: likučius, išlaidas pagal kategoriją ir pasikartojančių mokėjimų pavadinimus. Ne atskirus sandorius, ne IBAN‑us.':
+      'If you enable AI features, we send our provider only summarised numbers: balances, spending by category, and recurring payment names. Not individual transactions, not IBANs.',
+  'Tu valdai prieigą': 'You control access',
+  'Bet kada gali ją atšaukti — Vaultie nustatymuose arba savo banke.':
+      'You can revoke it anytime — in Vaultie settings or at your bank.',
+  'Sutikimas galioja ribotą laiką ir yra atnaujinamas pagal PSD2. Atšaukti gali bet kada.':
+      'Consent lasts a limited time and is renewed under PSD2. Cancel anytime.',
+
+  'Pervadink, kad geriau atpažintum sąraše.':
+      'Rename it so it\'s easier to recognise in the list.',
 };

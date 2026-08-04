@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../i18n.dart';
 import '../main.dart';
 
+const _flowAccent = Color(0xFF8FB6FF);
+
 /// The connect flow keeps the brand's deep navy in both themes: it is a moment
 /// about trust, and the screens on either side of it (the bank's own page, the
 /// onboarding that led here) are dark. Osvaldas is refining the exact shade.
@@ -34,7 +36,7 @@ class BankHowItWorks extends StatelessWidget {
       ),
       body: SafeArea(
         top: false,
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,7 +72,9 @@ class BankHowItWorks extends StatelessWidget {
                     'operacijos susitvarkys pačios.'),
                 last: true,
               ),
-              const Spacer(),
+              const SizedBox(height: 26),
+              const _ConnectionFlow(),
+              const SizedBox(height: 26),
               // A blue link on deep navy disappeared into the background. This
               // is the answer to the question people actually have before
               // handing over bank access, so it gets a surface of its own.
@@ -332,4 +336,148 @@ class _Point extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// Fills what used to be a bare `Spacer()` — a plain dead gap between the
+/// three steps and the "Kodėl tai saugu" link. Two endpoints (the Vaultie
+/// mark, a bank) with a dashed line each way between them: one line's arrow
+/// travels left→right (step 2, going TO the bank), the other right→left
+/// (step 3, coming back) — both animate continuously and simultaneously,
+/// rather than in sequence, since access flows out and confirmation flows
+/// back at once, not as two separate phases.
+class _ConnectionFlow extends StatefulWidget {
+  const _ConnectionFlow();
+
+  @override
+  State<_ConnectionFlow> createState() => _ConnectionFlowState();
+}
+
+class _ConnectionFlowState extends State<_ConnectionFlow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 96,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Soft glow behind the endpoints, tying this gap to the same brand
+          // blue as the rest of the screen instead of leaving it flat cxBg.
+          Container(
+            width: 240,
+            height: 96,
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                colors: [
+                  _flowAccent.withValues(alpha: 0.16),
+                  _flowAccent.withValues(alpha: 0),
+                ],
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              _endpoint(const Icon(Icons.shield_rounded,
+                  size: 24, color: Colors.white)),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _flowLine(reverse: false),
+                      const SizedBox(height: 16),
+                      _flowLine(reverse: true),
+                    ],
+                  ),
+                ),
+              ),
+              _endpoint(const Icon(Icons.account_balance_rounded,
+                  size: 24, color: Colors.white)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _endpoint(Widget child) => Container(
+        width: 52,
+        height: 52,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: cxCard,
+          shape: BoxShape.circle,
+          border: Border.all(color: _flowAccent.withValues(alpha: 0.4)),
+        ),
+        child: child,
+      );
+
+  Widget _flowLine({required bool reverse}) => LayoutBuilder(
+        builder: (context, constraints) => SizedBox(
+          width: constraints.maxWidth,
+          height: 16,
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (context, _) {
+              final t = reverse ? 1 - _c.value : _c.value;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  CustomPaint(
+                    size: Size(constraints.maxWidth, 16),
+                    painter: _DashedLinePainter(
+                        color: cxSubtle.withValues(alpha: 0.35)),
+                  ),
+                  Align(
+                    alignment: Alignment(2 * t - 1, 0),
+                    child: Icon(
+                      reverse
+                          ? Icons.arrow_back_rounded
+                          : Icons.arrow_forward_rounded,
+                      size: 14,
+                      color: _flowAccent,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+}
+
+class _DashedLinePainter extends CustomPainter {
+  _DashedLinePainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.6;
+    const dash = 4.0, gap = 4.0;
+    double x = 0;
+    final y = size.height / 2;
+    while (x < size.width) {
+      canvas.drawLine(
+          Offset(x, y), Offset((x + dash).clamp(0, size.width), y), paint);
+      x += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedLinePainter oldDelegate) =>
+      oldDelegate.color != color;
 }

@@ -1425,6 +1425,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     AppPrefs.locale.addListener(_onTheme); // ...and when the language changes
+    // ...and when the display currency changes. Nothing was listening to this
+    // notifier at all — every €/kr/$ figure is computed fresh from Money.rate
+    // in each build(), so it was already CORRECT the moment anything rebuilt
+    // that widget for any other reason, and stale otherwise. A tab kept alive
+    // by the bottom nav's IndexedStack (Account, reached straight from
+    // Settings and back) never got that other reason, so it kept showing
+    // whichever currency was selected the last time IT happened to rebuild —
+    // one step behind, not simply "wrong".
+    AppPrefs.currencyCode.addListener(_onTheme);
     // Let any detail/edit screen that mutates `_d['all']` (delete, edit,
     // convert, recategorise) ask the dashboard to recompute + persist.
     // The onboarding demo is decoration: it must not own the global refresh
@@ -1797,6 +1806,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     WidgetsBinding.instance.removeObserver(this);
     _themeVN.removeListener(_onTheme);
     AppPrefs.locale.removeListener(_onTheme);
+    AppPrefs.currencyCode.removeListener(_onTheme);
     _homeScroll.dispose();
     if (_dashRefresh == _refreshFromAll) _dashRefresh = null;
     super.dispose();
@@ -8691,8 +8701,8 @@ class _RecurringScreenState extends State<_RecurringScreen> {
                   child: Row(children: [
                     Flexible(child: Text(_recName(it), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: counted ? _ink : _muted), overflow: TextOverflow.ellipsis)),
                     if (it['sid'] != null) ...[
-                      const SizedBox(width: 5),
-                      Icon(Icons.edit_outlined, size: 13, color: _faint),
+                      const SizedBox(width: 6),
+                      Icon(Icons.edit_outlined, size: 17, color: _muted),
                     ],
                   ]),
                 ),
@@ -10781,7 +10791,23 @@ class _SearchScreenState extends State<_SearchScreen> {
       final hay = _fold('${t['nm']} ${_shortNm(_nmOf(t))} ${t['cat']} ${t['sec'] ?? ''}');
       return hay.contains(q);
     }).toList();
-    r.sort((a, b) => _dOf(b).compareTo(_dOf(a)));
+    // Sorting by date alone put a merchant match ("mogo" → UAB MOGO LT) below
+    // anything more recent that only matched by category/section — typing an
+    // exact merchant name did not bring that merchant to the top, which is the
+    // one thing a search box has to do. Merchant-name matches now rank first
+    // (most recent within that group), category/section-only matches after.
+    if (q.isNotEmpty) {
+      int tier(Map<String, dynamic> t) {
+        final name = _fold('${t['nm']} ${_shortNm(_nmOf(t))}');
+        return name.contains(q) ? 0 : 1;
+      }
+      r.sort((a, b) {
+        final byTier = tier(a).compareTo(tier(b));
+        return byTier != 0 ? byTier : _dOf(b).compareTo(_dOf(a));
+      });
+    } else {
+      r.sort((a, b) => _dOf(b).compareTo(_dOf(a)));
+    }
     return r;
   }
 
@@ -11027,7 +11053,7 @@ class _AiChatTabState extends State<_AiChatTab> {
     'Kiek išleidau šį mėnesį?',
     'Kokia mano brangiausia prenumerata?',
     'Kur galėčiau sutaupyti?',
-    'Į ką daugiausiai išleidžiu?',
+    'Kur daugiausiai išleidžiu?',
   ];
 
   @override
