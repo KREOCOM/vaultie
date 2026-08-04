@@ -259,6 +259,26 @@ def _avg_gap(dates):
     return float(gaps[mid]) if n % 2 else (gaps[mid - 1] + gaps[mid]) / 2
 
 
+def _median(values):
+    """Middle value of a sorted list — robust to one skewed outlier.
+
+    Same rationale as `_avg_gap`, applied to amounts instead of dates. A plain
+    mean of every charge in a stream is wrecked by one anomalous amount (an
+    add-on fee bundled into a single month, or two genuinely distinct
+    obligations sharing one generic payment-processor counterparty name that
+    merchant-name grouping folded together): a real ~35 EUR/mo membership with
+    one unrelated ~46 EUR charge mixed in averaged to a number the user never
+    actually paid. The median resists that — over half the charges have to
+    move together to shift it, not just one. For a tightly-clustered stream
+    (the overwhelming case: same price every time) median and mean coincide,
+    so nothing changes there.
+    """
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    return s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2
+
+
 # ── Payment-stream segmentation (between merchant grouping and feature
 #    extraction). Same merchant identity != same payment stream: one merchant
 #    (APPLE, Google, PayPal, telecom…) can carry several independent repeated
@@ -664,7 +684,7 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
                      needs_review, auto_detected, confident, today=None):
     today = today or dt.date.today()
     amounts = [a for _, a, _ in items]
-    avg = round(sum(amounts) / len(amounts), 2)
+    typical = round(_median(amounts), 2)
     occ = len(items)
     gap = _avg_gap(dates)
     if gap is not None:
@@ -677,7 +697,7 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
     last = dates[-1] if dates else today
     status, days_since = _lifecycle(last, cycle, occ, today, gap)
     # Monthly-equivalent of this stream's typical charge (the projection unit).
-    monthly = round(avg * _per_month(cycle, gap), 2)
+    monthly = round(typical * _per_month(cycle, gap), 2)
     # TWO charges are ONE interval, and one interval is not a cadence. When that
     # lone interval also matches no known cycle, "custom" prices the stream off
     # the measured gap: two MOGO payments of 399 EUR, 74 days apart, became a
@@ -704,7 +724,7 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
         "type": mtype,                      # subscription | bill | transfer
         "autoDetected": auto_detected,      # known merchant vs user-review
         "confident": confident,             # ≥2 sightings → a real pattern
-        "cost": avg,                        # typical per-charge amount
+        "cost": typical,                     # typical per-charge amount (median)
         "monthlyAmount": monthly,           # per-charge normalized to a month
         "currency": "EUR",
         "billingCycle": cycle,
