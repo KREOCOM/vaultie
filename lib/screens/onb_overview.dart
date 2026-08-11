@@ -42,7 +42,8 @@ class OnbOverview extends StatelessWidget {
         badgeIcon: Icons.donut_large_rounded,
         badge: 'Visos sąskaitos kartu',
         headline: 'Matyk visą\nfinansų vaizdą',
-        sub: 'Balansai, išlaidos, pajamos ir biudžetas vienoje aiškioje vietoje.',
+        sub:
+            'Balansai, išlaidos, pajamos ir biudžetas vienoje aiškioje vietoje.',
         bullets: [
           'Visos sąskaitos viename vaizde',
           'Kasdien atnaujinami duomenys',

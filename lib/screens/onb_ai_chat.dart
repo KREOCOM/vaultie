@@ -46,7 +46,8 @@ class OnbAiChat extends StatelessWidget {
         badgeIcon: Icons.auto_awesome_rounded,
         badge: 'Klausk apie savo pinigus',
         headline: 'Paklausk.\nGauk atsakymą.',
-        sub: 'Paklausk apie savo finansus paprastais žodžiais, o Vaultie atsakys pagal tavo tikrus duomenis.',
+        sub:
+            'Paklausk apie savo finansus paprastais žodžiais, o Vaultie atsakys pagal tavo tikrus duomenis.',
         bullets: [
           'Atsako pagal tavo operacijas',
           'Jokie duomenys nenaudojami AI mokymui',

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/auth_service.dart';
 import '../user_session.dart';
@@ -25,14 +27,47 @@ import 'verify_email_screen.dart';
 /// user and never let anyone reach their dashboard — and the only thing standing
 /// between that and the App Store was remembering to flip it on the day.
 ///
-/// `!kReleaseMode` keeps it on for the debug and profile builds used to review
-/// the intro on a device, and makes it unreachable in a release build.
-const bool kPreviewOnboarding = !kReleaseMode;
+/// `kDebugMode` keeps it on for `flutter run` (debug) preview, but OFF for
+/// profile builds — which is how real bank connections actually get tested on
+/// a device (debug builds crash on a home-screen tap; profile is the only
+/// viable on-device test mode). `!kReleaseMode` used to gate this instead,
+/// which also caught profile builds — silently forcing the full onboarding
+/// chain, including a fresh bank connection, on every cold start of every
+/// profile-mode test session, indistinguishable from a real persistence bug.
+const bool kPreviewOnboarding = kDebugMode;
 
 /// TEMP (dev): every onboarding page taps its own "Toliau" after this delay, so
 /// the whole chain can be walked and screenshotted on a rack of simulators
 /// without a finger. Set to null to disable. Remove with [kPreviewOnboarding].
 Duration? kOnbAutoAdvance;
+
+/// System bars fully transparent — no status/nav bar background colour of
+/// their own — so the page's own dark background runs continuously behind
+/// them and only the (white) time/battery/gesture-pill glyphs float on top.
+/// Without `Contrast: false`, Android draws its own translucent scrim behind
+/// those glyphs for legibility on an unknown background; against a page that
+/// is ALREADY dark enough for white icons, that scrim is what showed up as a
+/// visibly different-coloured strip at the very top and bottom instead of one
+/// continuous background.
+const kOnbStatusBarStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.light,
+  statusBarBrightness: Brightness.dark,
+  systemNavigationBarColor: Colors.transparent,
+  systemNavigationBarIconBrightness: Brightness.light,
+  systemStatusBarContrastEnforced: false,
+  systemNavigationBarContrastEnforced: false,
+);
+
+/// Applies [kOnbStatusBarStyle] on Android ONLY. iOS's status bar was never
+/// styled here before — it was already correct on the build already
+/// submitted to App Review — so this must not touch it. Android-only because
+/// the scrim [kOnbStatusBarStyle] fixes is an Android system-bar behaviour;
+/// iOS has no equivalent to fix.
+Widget wrapOnbStatusBar(Widget child) => Platform.isAndroid
+    ? AnnotatedRegion<SystemUiOverlayStyle>(
+        value: kOnbStatusBarStyle, child: child)
+    : child;
 
 /// Branded splash shown for ~2 seconds on launch, then fades into the app.
 ///

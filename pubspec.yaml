@@ -1,7 +1,7 @@
 name: vaultie
 description: "Vaultie — a friendly subscription tracker that keeps your recurring spend in one vault."
 publish_to: 'none'
-version: 2.0.0+12
+version: 2.0.0+35
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -70,6 +70,12 @@ flutter_launcher_icons:
   ios: true
   remove_alpha_ios: true
   image_path: "assets/icon/app_icon.png"
+  # Without these, only the legacy square launcher icon was generated — no
+  # mipmap-anydpi-v26/ic_launcher.xml — and modern Android launchers (Pixel
+  # especially) fell back to a generic icon instead of ours on the home
+  # screen. Background matches app_icon.png's own baked-in blue exactly.
+  adaptive_icon_background: "#0142FB"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
 
 flutter:
   uses-material-design: true

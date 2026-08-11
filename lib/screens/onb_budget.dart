@@ -53,7 +53,8 @@ class OnbBudget extends StatelessWidget {
         badgeIcon: Icons.tune_rounded,
         badge: 'Randa prenumeratas',
         headline: 'Nepraleisk nė vienos\nprenumeratos',
-        sub: 'Vaultie automatiškai aptinka pasikartojančius mokėjimus ir padeda kontroliuoti jų kainą.',
+        sub:
+            'Vaultie automatiškai aptinka pasikartojančius mokėjimus ir padeda kontroliuoti jų kainą.',
         bullets: [
           'Matyk kitą mokėjimo datą',
           'Pastebėk kainų pokyčius',

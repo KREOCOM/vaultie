@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -18,6 +20,14 @@ import 'splash_screen.dart';
 /// Laid out as rows rather than as a grid because the copy earns full sentences,
 /// and unlike every other page in the chain there is no phone to look at — the
 /// render puts its subject in the top quarter and leaves the rest to words.
+///
+/// iOS and Android built from ONE shared shell (colours, gradients, row
+/// widgets) but two different layout strategies below [build]. iOS was
+/// already correct on the build already submitted to App Review — full-width
+/// artwork, a Spacer pushing the copy to the bottom — so it is left exactly
+/// as it was, never touched by anything added for Android. Android needed a
+/// hard guarantee that the copy never rides onto the artwork or falls back
+/// on scrolling to fit, which iOS never needed and must not inherit.
 class OnbFeatures extends StatefulWidget {
   const OnbFeatures({super.key, required this.next});
 
@@ -33,9 +43,30 @@ class _OnbFeaturesState extends State<OnbFeatures> {
   /// same shade as its neighbours with no visible step.
   static const _deep = Color(0xFF030E30);
 
+  /// Android only. Measured height of the copy block, the same way
+  /// [OnbScenePage] measures it. A fixed cap on the artwork's height stopped
+  /// it colliding with the copy, but a fixed cap can still leave less room
+  /// than the feature rows need on a short screen — the page scrolled
+  /// instead of the artwork making way. Shrinking the artwork to whatever is
+  /// left AFTER the copy's own measured height is the same guarantee
+  /// [OnbScenePage] uses: the copy always gets the room it needs first.
+  final GlobalKey _copyKey = GlobalKey();
+  double? _copyH;
+
+  void _measureCopy() {
+    final box = _copyKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final h = box.size.height;
+    if (_copyH != null && (_copyH! - h).abs() < 0.5) return;
+    if (mounted) setState(() => _copyH = h);
+  }
+
   @override
   void initState() {
     super.initState();
+    if (Platform.isAndroid) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _measureCopy());
+    }
     final auto = kOnbAutoAdvance;
     if (auto != null) {
       Future<void>.delayed(auto, () {
@@ -57,7 +88,13 @@ class _OnbFeaturesState extends State<OnbFeatures> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => wrapOnbStatusBar(
+      Platform.isAndroid ? _buildAndroid(context) : _buildIOS(context));
+
+  /// Unchanged from the build already submitted to App Review: full-width
+  /// artwork, a Spacer pushing the copy to the bottom. Do not "improve" this
+  /// to match Android — it was never broken here.
+  Widget _buildIOS(BuildContext context) {
     return Scaffold(
       backgroundColor: _deep,
       body: Stack(
@@ -159,18 +196,6 @@ class _OnbFeaturesState extends State<OnbFeatures> {
                       _row(
                         Icons.public_rounded,
                         'Kitos valiutos',
-                        // The count comes from the catalogue, not from prose. It
-                        // used to name two currencies ("svarais ar doleriais")
-                        // while the app supports every one in kCurrencies —
-                        // understating the product, and a sentence that would
-                        // have gone stale the moment the list changed.
-                        //
-                        // Translated HERE, not by _row: _row runs its body
-                        // through tr(), and an interpolated string can never
-                        // match a translation key, so it would have stayed
-                        // Lithuanian in English. tr() on an already-translated
-                        // string falls through unchanged, so composing it first
-                        // is safe.
                         '${kCurrencies.length} ${tr('valiutos — sąskaitos kitomis valiutomis suvedamos į vieną bendrą sumą.')}',
                       ),
                       _row(
@@ -209,6 +234,216 @@ class _OnbFeaturesState extends State<OnbFeatures> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Android only. See the class doc: the artwork's height is capped and
+  /// then shrunk to whatever room the (measured) copy hasn't claimed, so
+  /// neither can collide with the other on the shorter/narrower screens this
+  /// was built for.
+  Widget _buildAndroid(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    // 185 is the ceiling — comfortably more than the render's real subject
+    // needs on every screen this was measured against. Once the copy below
+    // has been measured, the artwork shrinks to whatever is actually left
+    // over instead of holding that ceiling regardless, which is what let it
+    // outgrow the screen and push the copy into a scroll.
+    final imgH =
+        _copyH == null ? 185.0 : (size.height - _copyH!).clamp(0.0, 185.0);
+    return Scaffold(
+      backgroundColor: _deep,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // The render's subject — the mark, a chart, a card, a bank — sits in
+          // the top quarter and the rest is empty field. Six feature rows is
+          // more copy than any other page, so on a short screen "draw at full
+          // width, copy takes what's left" left no guaranteed room below the
+          // subject — the headline could land right on top of it. Capping
+          // the artwork's height and shrinking it to fit under the copy
+          // reserves the room instead of hoping there's some left over.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: imgH,
+            child: Stack(
+              children: [
+                ClipRect(
+                  child: OverflowBox(
+                    maxHeight: double.infinity,
+                    alignment: Alignment.topCenter,
+                    child: Image.asset(
+                      'assets/onboarding/page_features.png',
+                      width: MediaQuery.of(context).size.width,
+                      fit: BoxFit.fitWidth,
+                      alignment: Alignment.topCenter,
+                    ),
+                  ),
+                ),
+                // The hard-capped box above gives the copy guaranteed room,
+                // but cropping the render at a fixed height leaves a visible
+                // straight edge where the artwork just stops — this fades
+                // the last stretch of it into the page colour instead, so
+                // the box reads as an intentional vignette rather than a cut.
+                const Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x00030E30),
+                            Color(0xFF030E30),
+                          ],
+                          stops: [0.55, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // The render's own field already runs dark enough for white text; this
+          // only closes the last stretch onto _deep so the foot of the page
+          // matches the pages either side of it.
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x00030E30),
+                      Color(0x66030E30),
+                      Color(0xFF030E30),
+                    ],
+                    stops: [0.42, 0.66, 0.88],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Measured the same way [OnbScenePage] measures its copy: the
+          // block bottom-aligns in the full page and reports its own
+          // rendered height, which is what [imgH] above shrinks the
+          // artwork to make room for. No scrolling needed — the artwork
+          // gives way instead.
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                key: _copyKey,
+                padding: const EdgeInsets.fromLTRB(26, 0, 26, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF5B8CFF),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 13),
+                    Text(
+                      tr('Pritaikyk\nVaultie sau'),
+                      style: const TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        height: 1.12,
+                        letterSpacing: -0.9,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      tr('Kelios funkcijos, kurias nusistatai pagal save.'),
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        height: 1.45,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _row(
+                      Icons.savings_outlined,
+                      'Mėnesio biudžetas',
+                      'Nusistatyk ribą, o Vaultie kasdien rodys, kiek dar gali išleisti.',
+                    ),
+                    _row(
+                      Icons.lock_outline_rounded,
+                      'PIN kodas ir Face ID',
+                      'Uždaryta programėlė lieka užrakinta, net jei telefonas atrakintas.',
+                    ),
+                    _row(
+                      Icons.notifications_none_rounded,
+                      'Priminimai apie mokėjimus',
+                      'Pranešam prieš nurašymą, kad nė vienas neužkluptų netikėtai.',
+                    ),
+                    _row(
+                      Icons.calendar_today_rounded,
+                      'Mėnesio santrauka',
+                      'Mėnesiui pasibaigus — kur nukeliavo pinigai ir kiek sutaupei.',
+                    ),
+                    _row(
+                      Icons.public_rounded,
+                      'Kitos valiutos',
+                      // The count comes from the catalogue, not from prose. It
+                      // used to name two currencies ("svarais ar doleriais")
+                      // while the app supports every one in kCurrencies —
+                      // understating the product, and a sentence that would
+                      // have gone stale the moment the list changed.
+                      //
+                      // Translated HERE, not by _row: _row runs its body
+                      // through tr(), and an interpolated string can never
+                      // match a translation key, so it would have stayed
+                      // Lithuanian in English. tr() on an already-translated
+                      // string falls through unchanged, so composing it first
+                      // is safe.
+                      '${kCurrencies.length} ${tr('valiutos — sąskaitos kitomis valiutomis suvedamos į vieną bendrą sumą.')}',
+                    ),
+                    const SizedBox(height: 14),
+                    GestureDetector(
+                      onTap: _next,
+                      child: Container(
+                        height: 54,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                                color: const Color(0xFF001450)
+                                    .withValues(alpha: 0.45),
+                                blurRadius: 22,
+                                offset: const Offset(0, 10)),
+                          ],
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(tr('Toliau'),
+                            style: const TextStyle(
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1846E6))),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Center(child: _dots()),
+                  ],
+                ),
+              ),
             ),
           ),
         ],

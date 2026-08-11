@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 
 import '../i18n.dart';
@@ -27,6 +29,14 @@ class BankHowItWorks extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // This screen packs a title, 3 steps, an animated connection graphic, a
+    // safety card and a disclaimer ABOVE the CTA — on iOS's reference height
+    // it still clears the fold; Android's shorter/narrower common sizes (and
+    // its default text scaling reading a touch larger) pushed "Tęsti" below
+    // it, so the whole thing became "scroll to find the button" on exactly the
+    // screen meant to build trust in one glance. Only the gaps shrink — same
+    // content, same order, nothing removed. iOS keeps its original spacing.
+    final gap = Platform.isAndroid ? 16.0 : 26.0;
     return Scaffold(
       backgroundColor: cxBg,
       appBar: AppBar(
@@ -72,9 +82,9 @@ class BankHowItWorks extends StatelessWidget {
                     'operacijos susitvarkys pačios.'),
                 last: true,
               ),
-              const SizedBox(height: 26),
+              SizedBox(height: gap),
               const _ConnectionFlow(),
-              const SizedBox(height: 26),
+              SizedBox(height: gap),
               // A blue link on deep navy disappeared into the background. This
               // is the answer to the question people actually have before
               // handing over bank access, so it gets a surface of its own.
@@ -314,7 +324,7 @@ class _Point extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Icon(Icons.check_circle_rounded,
-                  size: 17, color: VaultieColors.primary),
+                  size: 17, color: const Color(0xFF2FA34E)),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -367,8 +377,14 @@ class _ConnectionFlowState extends State<_ConnectionFlow>
 
   @override
   Widget build(BuildContext context) {
+    // Same reasoning as the gaps around this widget in BankHowItWorks: only
+    // Android, whose common heights pushed the CTA below the fold, gets a
+    // smaller version — the 52px endpoint circles are still the tallest thing
+    // here, so 76 has as much room as 96 ever needed for them.
+    final height = Platform.isAndroid ? 76.0 : 96.0;
+    final lineGap = Platform.isAndroid ? 8.0 : 16.0;
     return SizedBox(
-      height: 96,
+      height: height,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -376,7 +392,7 @@ class _ConnectionFlowState extends State<_ConnectionFlow>
           // blue as the rest of the screen instead of leaving it flat cxBg.
           Container(
             width: 240,
-            height: 96,
+            height: height,
             decoration: BoxDecoration(
               gradient: RadialGradient(
                 colors: [
@@ -397,7 +413,7 @@ class _ConnectionFlowState extends State<_ConnectionFlow>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _flowLine(reverse: false),
-                      const SizedBox(height: 16),
+                      SizedBox(height: lineGap),
                       _flowLine(reverse: true),
                     ],
                   ),

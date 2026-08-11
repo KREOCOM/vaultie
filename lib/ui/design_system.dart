@@ -34,23 +34,40 @@ class DS {
 
   // ── Spacing: 4-pt scale ────────────────────────────────────────────────────
   static const double s2 = 2, s4 = 4, s6 = 6, s8 = 8, s10 = 10, s12 = 12;
-  static const double s14 = 14, s16 = 16, s20 = 20, s24 = 24, s28 = 28, s32 = 32;
+  static const double s14 = 14,
+      s16 = 16,
+      s20 = 20,
+      s24 = 24,
+      s28 = 28,
+      s32 = 32;
 
   /// Screen horizontal margin — a single source of truth for optical alignment.
   static const double gutter = 20;
 
   // ── Radius scale (visual sizes; squircle multiplies internally) ────────────
-  static const double rIcon = 12, rRow = 16, rCard = 20, rHero = 24, rPill = 100;
+  static const double rIcon = 12,
+      rRow = 16,
+      rCard = 20,
+      rHero = 24,
+      rPill = 100;
 
   // ── Elevation: neutral, two-layer, tuned soft ──────────────────────────────
   static const _sh = Color(0xFF13211A);
   static List<BoxShadow> get e1 => const [
-        BoxShadow(color: Color(0x0A13211A), blurRadius: 3, offset: Offset(0, 1)),
-        BoxShadow(color: Color(0x0F13211A), blurRadius: 14, offset: Offset(0, 6)),
+        BoxShadow(
+            color: Color(0x0A13211A), blurRadius: 3, offset: Offset(0, 1)),
+        BoxShadow(
+            color: Color(0x0F13211A), blurRadius: 14, offset: Offset(0, 6)),
       ];
   static List<BoxShadow> get e2 => [
-        BoxShadow(color: _sh.withValues(alpha: 0.05), blurRadius: 6, offset: const Offset(0, 2)),
-        BoxShadow(color: _sh.withValues(alpha: 0.07), blurRadius: 26, offset: const Offset(0, 12)),
+        BoxShadow(
+            color: _sh.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2)),
+        BoxShadow(
+            color: _sh.withValues(alpha: 0.07),
+            blurRadius: 26,
+            offset: const Offset(0, 12)),
       ];
 }
 
@@ -71,29 +88,57 @@ class AppType {
   static const _tab = [FontFeature.tabularFigures()];
 
   static const displayLg = TextStyle(
-      color: DS.ink, fontSize: 27, fontWeight: FontWeight.w800, height: 1.05, letterSpacing: -0.5);
+      color: DS.ink,
+      fontSize: 27,
+      fontWeight: FontWeight.w800,
+      height: 1.05,
+      letterSpacing: -0.5);
   static const display = TextStyle(
-      color: DS.ink, fontSize: 22, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: -0.4);
+      color: DS.ink,
+      fontSize: 22,
+      fontWeight: FontWeight.w800,
+      height: 1.1,
+      letterSpacing: -0.4);
 
   static const moneyLg = TextStyle(
-      color: DS.ink, fontSize: 22, fontWeight: FontWeight.w800, height: 1.0,
-      letterSpacing: -0.4, fontFeatures: _tab);
+      color: DS.ink,
+      fontSize: 22,
+      fontWeight: FontWeight.w800,
+      height: 1.0,
+      letterSpacing: -0.4,
+      fontFeatures: _tab);
   static const money = TextStyle(
-      color: DS.ink, fontSize: 15.5, fontWeight: FontWeight.w700, height: 1.0,
-      letterSpacing: -0.1, fontFeatures: _tab);
+      color: DS.ink,
+      fontSize: 15.5,
+      fontWeight: FontWeight.w700,
+      height: 1.0,
+      letterSpacing: -0.1,
+      fontFeatures: _tab);
   static const moneySm = TextStyle(
-      color: DS.ink3, fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.0,
-      letterSpacing: 0, fontFeatures: _tab);
+      color: DS.ink3,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w600,
+      height: 1.0,
+      letterSpacing: 0,
+      fontFeatures: _tab);
 
   static const rowTitle = TextStyle(
-      color: DS.ink, fontSize: 15.5, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.2);
+      color: DS.ink,
+      fontSize: 15.5,
+      fontWeight: FontWeight.w700,
+      height: 1.15,
+      letterSpacing: -0.2);
   static const rowSub = TextStyle(
       color: DS.ink2, fontSize: 12.5, fontWeight: FontWeight.w500, height: 1.2);
 
   static const label = TextStyle(
       color: DS.ink2, fontSize: 13, fontWeight: FontWeight.w500, height: 1.2);
   static const overline = TextStyle(
-      color: DS.ink3, fontSize: 11.5, fontWeight: FontWeight.w700, height: 1.2, letterSpacing: 0.6);
+      color: DS.ink3,
+      fontSize: 11.5,
+      fontWeight: FontWeight.w700,
+      height: 1.2,
+      letterSpacing: 0.6);
 }
 
 /// Formats money the Lithuanian way — grouped integer, comma decimals, trailing
@@ -124,7 +169,8 @@ class Money {
 
 /// Money as text with tabular figures baked into the style.
 class MoneyText extends StatelessWidget {
-  const MoneyText(this.amount, {super.key, this.style = AppType.money, this.signed = false});
+  const MoneyText(this.amount,
+      {super.key, this.style = AppType.money, this.signed = false});
   final double amount;
   final TextStyle style;
   final bool signed;
@@ -152,6 +198,7 @@ class CategoryIcon extends StatelessWidget {
     this.size = 38,
     this.circle = true,
     this.merchant,
+    this.domain,
   });
   final IconData icon;
   final Color color;
@@ -161,6 +208,15 @@ class CategoryIcon extends StatelessWidget {
   /// The raw merchant name/key to resolve a logo from (null = no logo, glyph).
   final String? merchant;
 
+  /// The merchant's own domain, as guessed server-side by the backend
+  /// resolver (e.g. "mql5.com") — set only when [merchant] didn't resolve to
+  /// a bundled asset. Used to ask OUR OWN [kMerchantLogoEndpoint], never a
+  /// third party directly: the client never learns of, let alone calls,
+  /// Clearbit or Google — only Vaultie's backend does, with a bare domain
+  /// name that is never tied to a user or a transaction. See merchant_logo
+  /// in functions/main.py.
+  final String? domain;
+
   Widget _glyph() =>
       Center(child: Icon(icon, color: Colors.white, size: size * 0.52));
 
@@ -168,10 +224,8 @@ class CategoryIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final shape = circle ? const CircleBorder() : squircle(size * 0.32);
     final name = merchant;
-    // BUNDLED logos only — resolves on-device, so showing a logo never tells any
-    // third party which merchants the user pays. A brand we don't ship shows its
-    // category tile, never a network fetch: for a finance app that leak isn't
-    // worth a nicer icon.
+    // Bundled logos resolve entirely on-device — tried first, since it costs
+    // nothing and covers the merchants people pay recurring bills to most.
     final asset = name == null ? null : logoAssetForName(name);
 
     Widget onTile(Widget child) => SizedBox(
@@ -185,34 +239,40 @@ class CategoryIcon extends StatelessWidget {
           ),
         );
 
-    if (asset == null) return onTile(_glyph());
-
     // Padding keeps a square brand mark off the tile's edges; white behind it
     // because brand marks are drawn for light backgrounds and many are
     // transparent, so on the category colour they'd smear into it.
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Material(
-        color: Colors.white,
-        shape: shape,
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: EdgeInsets.all(size * 0.16),
-          child: Image.asset(
-            asset,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => onTile(_glyph()),
+    Widget onLogo(ImageProvider image) => SizedBox(
+          width: size,
+          height: size,
+          child: Material(
+            color: Colors.white,
+            shape: shape,
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: EdgeInsets.all(size * 0.16),
+              child: Image(
+                image: image,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => onTile(_glyph()),
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        );
+
+    if (asset != null) return onLogo(AssetImage(asset));
+    if (domain != null && domain!.isNotEmpty) {
+      return onLogo(NetworkImage(
+          '$kMerchantLogoEndpoint?domain=${Uri.encodeQueryComponent(domain!)}'));
+    }
+    return onTile(_glyph());
   }
 }
 
 /// A soft-tint filter/segment pill (calendar range, filter, etc.).
 class FilterPill extends StatelessWidget {
-  const FilterPill({super.key, required this.icon, required this.label, this.onTap});
+  const FilterPill(
+      {super.key, required this.icon, required this.label, this.onTap});
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -233,7 +293,9 @@ class FilterPill extends StatelessWidget {
               const SizedBox(width: DS.s8),
               Text(label,
                   style: const TextStyle(
-                      color: DS.brand, fontSize: 14, fontWeight: FontWeight.w700)),
+                      color: DS.brand,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700)),
             ],
           ),
         ),
@@ -271,7 +333,9 @@ class AppCard extends StatelessWidget {
         color: color,
         clipBehavior: Clip.antiAlias,
         shape: squircle(radius,
-            side: border == null ? BorderSide.none : BorderSide(color: border!, width: 1)),
+            side: border == null
+                ? BorderSide.none
+                : BorderSide(color: border!, width: 1)),
         child: Padding(padding: padding, child: child),
       ),
     );

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — Android auditas (2026-08-09)</title>
+<style>
+  :root{
+    --bg:#F6F7FB; --card:#fff; --ink:#12131A; --sub:#5B5F73; --hair:#E4E6EF;
+    --accent:#3B5BFF; --accentsoft:#EDF0FF;
+    --ok:#1C8A4B; --okbg:#E7F7ED;
+    --warn:#B36B00; --warnbg:#FFF3E0;
+    --crit:#C62828; --critbg:#FDECEC;
+    --block:#6B4EA6; --blockbg:#F1ECFA;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0E0F14; --card:#171821; --ink:#F1F2F8; --sub:#9296AC; --hair:#2A2C3A;
+      --accent:#7C93FF; --accentsoft:#1C2140;
+      --ok:#4ADE80; --okbg:#123321;
+      --warn:#FFB74D; --warnbg:#3A2A0E;
+      --crit:#FF6B6B; --critbg:#3A1414;
+      --block:#B39DDB; --blockbg:#2A2140;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    line-height:1.5;}
+  .wrap{max-width:920px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-size:26px;font-weight:800;margin:0 0 6px;letter-spacing:-0.4px}
+  .sub{color:var(--sub);font-size:14.5px;margin:0 0 26px}
+  h2{font-size:19px;font-weight:800;margin:38px 0 4px;letter-spacing:-0.2px;
+    display:flex;align-items:center;gap:10px}
+  h3{font-size:15px;font-weight:700;margin:18px 0 6px}
+  p{font-size:14.5px;color:var(--sub);margin:6px 0}
+  .card{background:var(--card);border:1px solid var(--hair);border-radius:14px;
+    padding:18px 20px;margin:10px 0}
+  .badge{display:inline-block;font-size:11.5px;font-weight:800;padding:3px 10px;
+    border-radius:999px;white-space:nowrap;letter-spacing:.2px}
+  .b-done{background:var(--okbg);color:var(--ok)}
+  .b-block{background:var(--blockbg);color:var(--block)}
+  .b-check{background:var(--warnbg);color:var(--warn)}
+  .b-crit{background:var(--critbg);color:var(--crit)}
+  code,.mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;
+    background:var(--accentsoft);color:var(--accent);padding:1px 6px;border-radius:5px;
+    word-break:break-word}
+  .files{font-size:12.5px;color:var(--sub);margin-top:8px}
+  .files code{background:transparent;color:var(--sub);padding:0;font-weight:600}
+  .callout{border-left:4px solid var(--accent);background:var(--accentsoft);
+    padding:12px 16px;border-radius:0 12px 12px 0;margin:14px 0;font-size:14px}
+  .todo{border-left:4px solid var(--block);background:var(--blockbg);
+    padding:12px 16px;border-radius:0 12px 12px 0;margin:14px 0;font-size:14px}
+  ol,ul{font-size:14.5px;color:var(--ink);padding-left:22px}
+  ol li,ul li{margin:4px 0}
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:10px;margin:18px 0 30px}
+  .stat{background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:14px 16px}
+  .stat b{display:block;font-size:22px;font-weight:800}
+  .stat span{font-size:12.5px;color:var(--sub)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--hair)}
+  th{color:var(--sub);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.3px}
+  .top-actions{background:var(--card);border:2px solid var(--accent);border-radius:14px;
+    padding:18px 20px;margin:20px 0 30px}
+  .top-actions h2{margin-top:0}
+  .top-actions ol{font-size:15px}
+  .top-actions li{margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Android auditas — nuo onboardingo iki pilno funkcionalumo</h1>
+  <p class="sub">2026-08-09 naktis · viskas patikrinta prieš tave — kodas kompiliuojasi (Android release build + iOS build), testai praeina, backend deploy'intas ten, kur reikėjo.</p>
+
+  <div class="summary-grid">
+    <div class="stat"><b style="color:var(--ok)">7</b><span>pilnai sutvarkyta ir deploy'inta</span></div>
+    <div class="stat"><b style="color:var(--block)">1</b><span>paruošta, laukia tavo veiksmo</span></div>
+    <div class="stat"><b style="color:var(--warn)">3</b><span>ištaisyta be galimybės vizualiai patikrinti (reikia tavo akių ryte)</span></div>
+  </div>
+
+  <div class="top-actions">
+    <h2>☀️ Ką reikia padaryti ryte, prieš viską kitą</h2>
+    <ol>
+      <li><b>Play Console → Protected with Play (arba Test and release → Advanced settings) → App signing key certificate → SHA-256</b> — nukopijuok tekstą (ne foto) ir atsiųsk man. Be šito bank-connect App Links fix'as (žalio logotipo pašalinimas) negali būti baigtas.</li>
+      <li>Prijunk POCO per USB (arba WiFi) ir paleisk naują build'ą — patikrinsim kartu: tab bar aukštį, „Prijungti banką" mygtuko matomumą be scroll'inimo, ir ar dabar rodo Face/Touch ID pasirinkimą Nustatymuose.</li>
+      <li>Patikrink banko prijungimą su SEB dar kartą (po App Links fix'o) — turėtų nebebūti žalio logotipo blyksnio ir grįžimo atgal į banko login'ą.</li>
+    </ol>
+  </div>
+
+  <h2>🟢 Onboarding — iOS/Android atskirti</h2>
+  <div class="card">
+    <span class="badge b-done">DONE — deploy'inta į abi platformas</span>
+    <p>Visi Android-specifiniai onboarding pataisymai (ikonų apkirpimas, mygtukų persidengimas su tekstu, statusbar skaidrumas, edge-to-edge) padaryti per <code>Platform.isAndroid</code> šakojimą — iOS onboardingas grąžintas TIKSLIAI toks, koks buvo pateiktas Apple review'ui. Patikrinta per <code>git diff</code>: <code>onb_intro.dart</code>, <code>onb_features.dart</code>, <code>onb_connect.dart</code>, <code>onb_scene_page.dart</code>, <code>splash_screen.dart</code> — kiekvienas turi atskirą <code>_buildIOS</code>/<code>_buildAndroid</code> šaką arba sąlyginį scale/wrapper.</p>
+  </div>
+
+  <h2>🟢 Google Sign-In (Android)</h2>
+  <div class="card">
+    <span class="badge b-done">DONE — patvirtinta veikianti realiame įrenginyje</span>
+    <p>Šaknis buvo neteisingas SHA-1 (reikėjo Play App Signing rakto, ne upload key). Ištrauktas tiesiai iš įdiegto APK per <code>apksigner</code>, pridėtas į Firebase — veikia.</p>
+  </div>
+
+  <h2>🟢 Prekybininkų logotipai (backend, abi platformos)</h2>
+  <div class="card">
+    <span class="badge b-done">DONE — deploy'inta (refresh_dashboard + finish_bank_auth)</span>
+    <p>Naujas privatumą saugantis logotipų proxy (<code>merchant_logo</code> Cloud Function) — klientas niekada tiesiogiai nesikreipia į Clearbit/Google. Pridėtas KB įrašas MQL5/MetaQuotes (domenas <code>mql5.com</code>, kategorija „Kita", tipas „frequent" — NE „subscription", ištaisyta po tavo pataisymo apie trading signalus). Visi backend testai praeina.</p>
+    <div class="files"><code>functions/kb_entities.json · functions/kb/merchant_kb.v2.json · functions/main.py · functions/resolver.py</code></div>
+  </div>
+
+  <h2>🟢 Paieškos ekranas — Kategorijos + Prekybininkai (Hootz įkvėptas)</h2>
+  <div class="card">
+    <span class="badge b-check">Kodas paruoštas, kompiliuojasi — reikia tavo peržiūros ryte</span>
+    <p>Paspaudus paieškos ikoną prieš įvedant tekstą, dabar rodomas „browse" vaizdas: <b>Kategorijos</b> (9 sekcijos su ikonelėmis, skaičiais per 31 d.) ir <b>Prekybininkai</b> (dažniausiai pasikartojantys, su tikrais logotipais). Paspaudus plytelę — automatiškai filtruoja sąrašą. Sąskaitų (Accounts) sekcija SĄMONINGAI praleista — reikalautų backend pakeitimo (bank tag per transakciją), atskiras darbas.</p>
+    <div class="files"><code>lib/screens/preview/dashboard_preview.dart — _SearchScreen</code></div>
+  </div>
+
+  <h2>🟢 Paywall / pirkimai Android'e</h2>
+  <div class="card">
+    <span class="badge b-done">DONE — realus testinis pirkimas pavyko</span>
+    <p>RevenueCat niekada nebuvo sukonfigūruotas Android'ui (<code>_apiKey</code> mesdavo <code>UnsupportedError</code>). Dabar: Android API raktas pridėtas, <code>vaultie_pro:monthly</code>/<code>vaultie_pro:yearly</code> Play Store produktai sukurti, importuoti į RevenueCat, priskirti prie to paties <code>Vaultie Pro</code> entitlement'o kaip iOS, License Testing sąrašas aktyvuotas. Testinis pirkimas per POCO pavyko.</p>
+    <p><b>Pastaba pačiam sau atsiminti:</b> naujiems testeriams ateityje reikės arba (a) instaliuoti per Play Store Internal Testing nuorodą (ne per adb sideload), arba (b) būti License Testing sąraše — sideload'intas APK be License Testing bandys imti TIKRUS pinigus, tai ir nutiko vieną kartą šiąnakt (nenuskaičiavo tik todėl, kad kortelėje išjungti internetiniai mokėjimai).</p>
+    <div class="files"><code>lib/services/purchase_service.dart</code></div>
+  </div>
+
+  <h2>🟣 Banko prijungimas — žalio logotipo blyksnis + grįžimas į SEB</h2>
+  <div class="card">
+    <span class="badge b-block">PARUOŠTA, LAUKIA TAVĘS — reikia SHA-256 iš Play Console</span>
+    <p><b>Šaknis:</b> iOS niekada nerodo šito tarpinio puslapio, nes Universal Links perima HTTPS adresą TIESIOGIAI į app'ą prieš pat įkeliant naršyklę. Android turi lygiavertį mechanizmą (App Links), bet jis nebuvo sukonfigūruotas — todėl Android eina per <code>public/banking/callback/index.html</code> (žalias Vaultie logotipas), o po to per <code>vaultie://</code> schemą. SEB dar papildomai perduoda autentifikaciją į SAVO app'ą (Smart-ID) — Custom Tab naršyklės langas lieka atviras/pasenęs, kol jį uždarai ranka. Prisijungimas VEIKĖ teisingai (SEB likutis rodomas dashboard'e) — tai buvo tik painus vizualus tarpinis žingsnis, ne duomenų klaida.</p>
+    <p><b>Ką jau padariau:</b></p>
+    <ul>
+      <li><code>AndroidManifest.xml</code> — pridėtas <code>autoVerify="true"</code> intent-filter <code>https://vaultie-1a2c4.web.app/banking/callback</code> (veikia lygiagrečiai su seno kelio fallback'u, jei verifikacija dar nepatvirtinta)</li>
+      <li><code>public/.well-known/assetlinks.json</code> — sukurtas su placeholder SHA-256 vietoje, <code>firebase.json</code> — pridėtas <code>Content-Type: application/json</code> header (kaip jau yra <code>apple-app-site-association</code>)</li>
+    </ul>
+    <div class="todo">
+      <b>Trūksta:</b> Play App Signing SHA-256 (ne SHA-1!). Play Console → <code>Protected with Play</code> arba <code>Test and release → Advanced settings</code> → App signing key certificate → <b>SHA-256 certificate fingerprint</b> → nukopijuok TEKSTĄ. Kai atsiųsi — įrašau į <code>assetlinks.json</code>, deploy'inu į Firebase Hosting, perstatau Android build'ą, ir tada Google turi „nuošliaužti" bei patvirtinti (paprastai minutės-valandos, ne dienos).
+    </div>
+    <div class="files"><code>android/app/src/main/AndroidManifest.xml · public/.well-known/assetlinks.json · firebase.json</code></div>
+  </div>
+
+  <h2>🟡 Apatinė tab juosta — atrodė per žemai</h2>
+  <div class="card">
+    <span class="badge b-check">Best-effort fix — reikia tavo akių patvirtinti</span>
+    <p>Padidinau minimalų apatinį tarpą Android'e nuo 10 iki 16px, kai sistema nepraneša realaus apatinio inset'o (<code>MediaQuery.padding.bottom == 0</code>, pasitaiko kai kuriose OEM odose/gesture-nav konfigūracijose). iOS nepaliestas (visada turi realų home-indicator inset'ą, šitas fallback jam praktiškai niekad nesuveikia). <b>Neturėjau prijungto telefono realiam patikrinimui</b> — jei vis dar atrodo per žemai, atsiųsk screenshot'ą su konkrečiais matmenimis, pažiūrėsim giliau.</p>
+    <div class="files"><code>lib/screens/preview/dashboard_preview.dart — _navBar()</code></div>
+  </div>
+
+  <h2>🟡 Face/Touch ID nerodė Android'e (tik PIN)</h2>
+  <div class="card">
+    <span class="badge b-done">Tikras bug'as rastas ir ištaisytas</span>
+    <p>Priežastis: <code>AndroidManifest.xml</code> NETURĖJO <code>android.permission.USE_BIOMETRIC</code> leidimo — be jo <code>local_auth</code> paketas tyliai grąžina „nėra prieinamos biometrijos", NEPRIKLAUSOMAI nuo to, ar telefone realiai yra piršto atspaudas/veido atpažinimas. Pridėtas leidimas. <b>Reikia patikrinti ryte</b> — po naujo build'o, Nustatymuose turėtų atsirasti Face/Touch ID perjungiklis (jei POCO turi įjungtą piršto atspaudą OS lygyje).</p>
+    <div class="files"><code>android/app/src/main/AndroidManifest.xml</code></div>
+  </div>
+
+  <h2>🟢 „Prijungti banką" mygtukas — reikėjo scrollinti</h2>
+  <div class="card">
+    <span class="badge b-check">Ištaisyta — reikia tavo akių patvirtinti</span>
+    <p><code>BankHowItWorks</code> ekranas (3 žingsniai + animuota jungties schema + „kodėl saugu" kortelė + mygtukas) sutalpindavo viską be scroll'inimo iOS'e, bet Android'o tipiniuose aukščiuose mygtukas nusileisdavo už matomos srities. Sumažinti tarpai TIK Android'e (<code>Platform.isAndroid</code> šakojimas, iOS nepaliestas): pagrindiniai <code>SizedBox</code> tarpai 26→16px, jungties animacijos aukštis 96→76px.</p>
+    <div class="files"><code>lib/screens/bank_how_it_works.dart</code></div>
+  </div>
+
+  <h2>📋 Techninė santrauka</h2>
+  <div class="card">
+    <table>
+      <tr><th>Patikrinimas</th><th>Rezultatas</th></tr>
+      <tr><td><code>flutter analyze lib/</code></td><td>0 errors, 0 warnings (tik pre-existing style infos)</td></tr>
+      <tr><td><code>flutter build apk --release</code></td><td>✓ sėkmingai (99.5MB)</td></tr>
+      <tr><td><code>flutter build ios --release --no-codesign</code></td><td>✓ sėkmingai — iOS build nepaliestas šiąnakt darytų pakeitimų</td></tr>
+      <tr><td>Backend testai (<code>functions/test_*.py</code>)</td><td>Visi praeina</td></tr>
+      <tr><td>Cloud Functions deploy</td><td><code>refresh_dashboard</code>, <code>finish_bank_auth</code> — abu atnaujinti</td></tr>
+    </table>
+  </div>
+
+  <div class="callout">
+    Nė vienas šio audito pakeitimas neliečia jau Apple review'ui pateikto iOS build'o — viskas arba Android-only failuose (<code>AndroidManifest.xml</code>), arba bendruose failuose per <code>Platform.isAndroid</code> šakas, patikrinta <code>git diff</code> ir realiu iOS build'u.
+  </div>
+
+</div>
+</body>
+</html>

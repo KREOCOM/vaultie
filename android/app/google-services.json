@@ -50,6 +50,30 @@
       },
       "oauth_client": [
         {
+          "client_id": "747647617629-0jjhb6bu49avuijijs6ojfh9e6nm94b5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kreocom.vaultie",
+            "certificate_hash": "cea39ede0fd8462e3e75fb05e1549c1e350685b5"
+          }
+        },
+        {
+          "client_id": "747647617629-lvql5l325uh26nlm6gf47fadj4nnkp1g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kreocom.vaultie",
+            "certificate_hash": "e497b82a93ee415d9382f64e5995e7e51088e265"
+          }
+        },
+        {
+          "client_id": "747647617629-nn7vdskdrfvafipgeai812kelm576vln.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kreocom.vaultie",
+            "certificate_hash": "f234dbeec1aa090235af8213a03d57e727bbbe38"
+          }
+        },
+        {
           "client_id": "747647617629-63mu7e6vo5ah7vl3emkbs5tplt34b3b1.apps.googleusercontent.com",
           "client_type": 3
         }

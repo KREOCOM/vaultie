@@ -234,11 +234,16 @@ class RevenueCatPurchaseService implements PurchaseService {
   static const _productIds = {
     'com.kreocom.vaultie.pro.monthly': PlanId.monthly,
     'com.kreocom.vaultie.pro.yearly': PlanId.yearly,
+    // Google Play: one subscription ("vaultie_pro") with two base plans —
+    // RevenueCat reports these as "<subscriptionId>:<basePlanId>", not a flat
+    // SKU like the App Store products above.
+    'vaultie_pro:monthly': PlanId.monthly,
+    'vaultie_pro:yearly': PlanId.yearly,
   };
 
-  /// RevenueCat public SDK keys. iOS is live now; add the Android key when
-  /// Android ships.
+  /// RevenueCat public SDK keys.
   static const _iosApiKey = 'appl_JazDoCzvsSABSIIooMqzkqKorso';
+  static const _androidApiKey = 'goog_YkrIvurDGsLzGWqOWqkcXVXJcFu';
 
   static const _premiumKey = 'premium';
 
@@ -264,8 +269,8 @@ class RevenueCatPurchaseService implements PurchaseService {
 
   String get _apiKey {
     if (defaultTargetPlatform == TargetPlatform.iOS) return _iosApiKey;
-    // Android/other platforms aren't wired up yet.
-    throw UnsupportedError('RevenueCat is only configured for iOS.');
+    if (defaultTargetPlatform == TargetPlatform.android) return _androidApiKey;
+    throw UnsupportedError('RevenueCat is only configured for iOS/Android.');
   }
 
   @override

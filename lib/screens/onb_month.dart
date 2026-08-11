@@ -44,7 +44,8 @@ class OnbMonth extends StatelessWidget {
         badgeIcon: Icons.auto_graph_rounded,
         badge: 'Rūšiuoja už tave',
         headline: 'Kiekviena išlaida\nsavo vietoje',
-        sub: 'Vaultie automatiškai atpažįsta pirkinius, suskirsto juos į kategorijas ir padeda aiškiai matyti, kur išleidi pinigus.',
+        sub:
+            'Vaultie automatiškai atpažįsta pirkinius, suskirsto juos į kategorijas ir padeda aiškiai matyti, kur išleidi pinigus.',
         bullets: [
           'Atpažįsta tūkstančius prekybininkų',
           'Mokosi iš tavo pataisymų',

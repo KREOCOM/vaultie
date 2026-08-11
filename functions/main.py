@@ -22,6 +22,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import firebase_admin
+import requests
 from firebase_functions import https_fn, options
 from firebase_functions.params import SecretParam
 
@@ -1160,3 +1161,54 @@ def seed_merchants(req: https_fn.Request) -> https_fn.Response:
         json.dumps(result), status=200,
         headers={"Content-Type": "application/json"},
     )
+
+
+# A bare domain only — no path, no query, nothing a client could smuggle a
+# request to an arbitrary internal or third-party URL through.
+_DOMAIN_RE = re.compile(
+    r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$"
+)
+
+# Tried in order; first one that actually returns an image wins. Clearbit's
+# logos are the nicer, higher-resolution ones for known brands; Google's
+# favicon service is the long-tail fallback — small, but it has practically
+# every domain that has ever had a website.
+_LOGO_SOURCES = (
+    "https://logo.clearbit.com/{domain}",
+    "https://www.google.com/s2/favicons?domain={domain}&sz=128",
+)
+
+
+@https_fn.on_request(region=_REGION)
+def merchant_logo(req: https_fn.Request) -> https_fn.Response:
+    """Public logo proxy: GET /merchant_logo?domain=mql5.com
+
+    The resolver (dashboard.py / recurring.py) already guesses a merchant's
+    domain from the raw bank descriptor server-side — this is the other half:
+    turning that domain into an actual image without the CLIENT ever calling
+    a third-party logo service directly. Only a bare domain name crosses this
+    boundary, resolved here on the server and never tied to a specific user
+    or transaction; Clearbit/Google only ever see "someone, somewhere, wants
+    mql5.com's logo," the same as they would for any website visitor.
+    Cache-Control lets repeat requests for a domain skip the third-party
+    round trip entirely once the client's own image cache has it.
+    """
+    domain = (req.args.get("domain") or "").strip().lower()
+    if not domain or len(domain) > 253 or not _DOMAIN_RE.match(domain):
+        return https_fn.Response("bad domain", status=400)
+    for source in _LOGO_SOURCES:
+        try:
+            resp = requests.get(source.format(domain=domain), timeout=5)
+            resp.raise_for_status()
+            if len(resp.content) < 100:  # a 1×1 placeholder, not a real logo
+                continue
+        except Exception:
+            continue
+        return https_fn.Response(
+            resp.content, status=200,
+            headers={
+                "Content-Type": resp.headers.get("Content-Type", "image/png"),
+                "Cache-Control": "public, max-age=2592000",
+            },
+        )
+    return https_fn.Response(status=404)

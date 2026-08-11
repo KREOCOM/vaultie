@@ -45,7 +45,7 @@ const _violet = Color(0xFF8B5CF6);
 const _rose = Color(0xFFE05563);
 
 class _PhoneShowcaseState extends State<PhoneShowcase>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1500),

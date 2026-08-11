@@ -70,7 +70,8 @@ const Map<String, String> _en = {
   'Prijunk banką, kad galėčiau atsakyti apie tavo finansus.':
       'Connect a bank so I can answer questions about your finances.',
   'Kiek išleidau šį mėnesį?': 'How much did I spend this month?',
-  'Kokia mano brangiausia prenumerata?': 'What’s my most expensive subscription?',
+  'Kokia mano brangiausia prenumerata?':
+      'What’s my most expensive subscription?',
   'Kur galėčiau sutaupyti?': 'Where could I save?',
   'Kur daugiausiai išleidžiu?': 'What do I spend the most on?',
 
@@ -210,7 +211,8 @@ const Map<String, String> _en = {
   'Atlyginimas (iš NOK)': 'Salary (from NOK)',
 
   // ── Received / net-worth breakdown ──
-  'Visi pinigai, kurie įkrito į tavo sąskaitą.': 'All the money that came into your account.',
+  'Visi pinigai, kurie įkrito į tavo sąskaitą.':
+      'All the money that came into your account.',
   'Atpažintos pajamos': 'Recognised income',
   'atlyginimas, reguliarios įplaukos': 'salary, regular inflows',
   'Kiti pervedimai / įplaukos': 'Other transfers / inflows',
@@ -239,7 +241,8 @@ const Map<String, String> _en = {
   ' — grynuosius, skolą draugui, pervedimą tarp savo sąskaitų.':
       ' — cash, a loan to a friend, a transfer between your own accounts.',
   'Išlaida': 'Expense',
-  'Pinigai, kuriuos išleidai — pvz. sumokėjai grynais.': 'Money you spent — e.g. paid in cash.',
+  'Pinigai, kuriuos išleidai — pvz. sumokėjai grynais.':
+      'Money you spent — e.g. paid in cash.',
   'Didina mėnesio išlaidas': 'Increases monthly spending',
   'Gauti pinigai — atlyginimas grynais, dovana, grąžinta skola.':
       'Money received — salary in cash, a gift, a repaid loan.',
@@ -287,10 +290,12 @@ const Map<String, String> _en = {
   'Pasirinkti kategoriją': 'Choose a category',
   'Ieškoti': 'Search',
   'Ištrinti sandorį?': 'Delete transaction?',
-  'bus pašalintas. Šio veiksmo anuliuoti negalima.': 'will be removed. This action cannot be undone.',
+  'bus pašalintas. Šio veiksmo anuliuoti negalima.':
+      'will be removed. This action cannot be undone.',
   'Pakeitimai išsaugoti': 'Changes saved',
   'Pažymėta kaip vidinis pervedimas': 'Marked as an internal transfer',
-  'Grąžinta į įprastą (kategorija „Kita")': 'Restored to a normal transaction (category "Other")',
+  'Grąžinta į įprastą (kategorija „Kita")':
+      'Restored to a normal transaction (category "Other")',
   'Kategorija pakeista į': 'Category changed to',
 
   // ── Month review ──
@@ -320,14 +325,17 @@ const Map<String, String> _en = {
   'TESTAS': 'TEST',
   'Dar nėra duomenų.': 'No data yet.',
   'Per daug bandymų. Palauk': 'Too many attempts. Wait',
-  'Pirkimas apdorojamas — palauk akimirką.': 'Processing your purchase — one moment.',
-  'Planai kol kas nepasiekiami. Bandyk vėliau.': 'Plans are unavailable right now. Try again later.',
+  'Pirkimas apdorojamas — palauk akimirką.':
+      'Processing your purchase — one moment.',
+  'Planai kol kas nepasiekiami. Bandyk vėliau.':
+      'Plans are unavailable right now. Try again later.',
   'sporto klubą': 'the gym',
   'Prekybininkai': 'Merchants',
   'Didžiausios išlaidos': 'Largest expenses',
   'Sekamose kategorijose išleidai': 'In the tracked categories you spent',
   'iš': 'of',
-  'Viršijai sekamų kategorijų limitą': 'You exceeded the tracked categories limit by',
+  'Viršijai sekamų kategorijų limitą':
+      'You exceeded the tracked categories limit by',
   'biudžetas*': 'budget*',
   '* pavyzdiniai limitai': '* example limits',
   'Kategorijai': 'In category',
@@ -342,12 +350,15 @@ const Map<String, String> _en = {
   'Susikurk biudžetą kategorijai — limitą pasiūlysime pagal tavo realų mėnesių vidurkį.':
       "Create a budget for a category — we'll suggest a limit from your real monthly average.",
   'visas biudžetas': 'total budget',
-  'Tokiu tempu mėnesį baigsi ~': "At this pace you'll finish the month around ~",
+  'Tokiu tempu mėnesį baigsi ~':
+      "At this pace you'll finish the month around ~",
   '— telpi į biudžetą.': '— you fit in the budget.',
-  'Tokiu tempu peršoksi biudžetą ~': "At this pace you'll exceed the budget by ~",
+  'Tokiu tempu peršoksi biudžetą ~':
+      "At this pace you'll exceed the budget by ~",
   '€ — sulėtink.': '€ — ease off.',
   '— sulėtink.': '— slow down.',
-  'Pasiūlyta pagal tavo išlaidas · keisk': 'Suggested from your spending · edit',
+  'Pasiūlyta pagal tavo išlaidas · keisk':
+      'Suggested from your spending · edit',
   'Tavo biudžetas · keisk': 'Your budget · edit',
   'virš pasiūlymo': 'over the suggestion',
   'Šį limitą pasiūlėme pagal tavo ~3 mėn. vidurkį. Gali pakeisti į savo.':
@@ -372,7 +383,8 @@ const Map<String, String> _en = {
   'Išjungta': 'Off',
   'Neįskaičiuota': 'Not counted',
   'Pavadinti prenumeratą': 'Name the subscription',
-  'Bankas nepasako, kas tai. Pavadink, kad atpažintum.': "The bank won't say what this is. Name it so you recognise it.",
+  'Bankas nepasako, kas tai. Pavadink, kad atpažintum.':
+      "The bank won't say what this is. Name it so you recognise it.",
   'pvz. ChatGPT, iCloud, Spotify': 'e.g. ChatGPT, iCloud, Spotify',
   'Palikti kaip': 'Keep as',
   'paskutinį kartą': 'last charged',
@@ -396,7 +408,8 @@ const Map<String, String> _en = {
   'Naujiena: matyk visą savo turtą': 'New: see all your wealth',
   'Pridėk būstą, investicijas, paskolas ir daugiau — visą finansinį vaizdą vienoje vietoje.':
       'Add property, investments, loans and more — your whole financial picture in one place.',
-  'Geresni AI patarimai, kai Vaultie mato visą tavo situaciją.': 'Better AI advice when Vaultie sees your whole picture.',
+  'Geresni AI patarimai, kai Vaultie mato visą tavo situaciją.':
+      'Better AI advice when Vaultie sees your whole picture.',
   'Grynasis turtas': 'Net worth',
   'Banko sąskaitos': 'Bank accounts',
   'Pridėti grynų ar santaupų': 'Add cash or savings',
@@ -473,11 +486,13 @@ const Map<String, String> _en = {
   'Atsijungti?': 'Sign out?',
   'Grįši į prisijungimo ekraną. Tavo duomenys liks išsaugoti šiame telefone ir bus vėl matomi prisijungus.':
       "You'll return to the sign-in screen. Your data stays saved on this phone and reappears when you sign back in.",
-  'Atsijungti galima tik tikroje programoje.': 'You can only sign out in the real app.',
+  'Atsijungti galima tik tikroje programoje.':
+      'You can only sign out in the real app.',
   'Ištrinti paskyrą?': 'Delete account?',
   'Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.':
       'This will PERMANENTLY delete your Vaultie account and all data on this phone — transactions, subscriptions, budgets. The bank connection will be disconnected. This action cannot be undone.',
-  'Ištrinti paskyrą galima tik tikroje programoje.': 'You can only delete your account in the real app.',
+  'Ištrinti paskyrą galima tik tikroje programoje.':
+      'You can only delete your account in the real app.',
   'Patvirtink slaptažodį': 'Confirm your password',
   'Slaptažodis': 'Password',
   'Patvirtinti': 'Confirm',
@@ -495,14 +510,21 @@ const Map<String, String> _en = {
   'Kad atsakytų į klausimus, „Vaultie" siunčia mūsų AI tiekėjui (Anthropic) TAVO finansų SANTRAUKĄ — banko likučius, išlaidas pagal kategoriją ir tavo pasikartojančių mokėjimų pavadinimus (pvz. „Netflix").\n\n• Nesiunčiami atskiri sandoriai, IBAN‑ai ar kortelių numeriai.\n• Duomenys NENAUDOJAMI dirbtinio intelekto treniravimui.\n• Tai nėra finansinė konsultacija.':
       'To answer your questions, the app sends our AI provider (Anthropic) a SUMMARY of YOUR finances — bank balances, spending by category and the names of your recurring payments (e.g. "Netflix").\n\n• Individual transactions, IBANs or card numbers are not sent.\n• The data is NOT used to train AI.\n• This is not financial advice.',
   'Sutinku ir tęsiu': 'I agree and continue',
-  'Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą.': "Sorry, I couldn't answer. Please try again.",
+  'Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą.':
+      "Sorry, I couldn't answer. Please try again.",
   'Nepavyko susisiekti su serveriu. Patikrink ryšį ir bandyk dar kartą.':
       'Could not reach the server. Check your connection and try again.',
+
+  // ── AI categorisation consent (Settings toggle) ──
+  'Kai įjungta, prekybininko pavadinimą, kurio Vaultie pati neatpažįsta, siunčiame mūsų AI tiekėjui (Anthropic), kad padėtų priskirti kategoriją.\n\n• Siunčiamas TIK verslo pavadinimas — niekada suma, IBAN, data ar kito žmogaus vardas.\n• Asmeniniai pervedimai (žmonių vardai) niekada nesiunčiami.\n• Duomenys NENAUDOJAMI dirbtinio intelekto treniravimui.\n\nBet kada gali išjungti čia, Nustatymuose.':
+      "When on, a merchant name Vaultie itself can't recognise is sent to our AI provider (Anthropic) to help assign a category.\n\n• ONLY the business name is sent — never an amount, IBAN, date, or another person's name.\n• Personal transfers (people's names) are never sent.\n• The data is NOT used to train AI.\n\nYou can turn this off anytime here, in Settings.",
+  'Sutinku ir įjungiu': 'I agree and turn it on',
 
   // ══ Onboarding flow ══
   // ── Landing ──
   'Sužinok, kur dingsta\ntavo pinigai': 'See where your\nmoney goes',
-  'Nuoma, prenumeratos, draudimas — viskas vienoje vietoje.': 'Rent, subscriptions, insurance — all in one place.',
+  'Nuoma, prenumeratos, draudimas — viskas vienoje vietoje.':
+      'Rent, subscriptions, insurance — all in one place.',
   'Pradėti': 'Get started',
   'Jau turiu paskyrą': 'I already have an account',
   'KAS MĖNESĮ IŠEINA': 'LEAVES EVERY MONTH',
@@ -510,13 +532,15 @@ const Map<String, String> _en = {
   'nenaudota 3 mėn.': 'unused 3 mo',
 
   // ── Annual bars ──
-  'Net mažos išlaidos per metus\nvirsta didele suma.': 'Even small costs add up\nto a big sum over a year.',
+  'Net mažos išlaidos per metus\nvirsta didele suma.':
+      'Even small costs add up\nto a big sum over a year.',
   'Vaultie automatiškai apskaičiuoja, kiek tavo prenumeratos ir kitos pasikartojančios išlaidos kainuoja per metus.':
       'Vaultie automatically calculates how much your subscriptions and other recurring costs add up to per year.',
 
   // ── Subscription stream ──
   'Toliau': 'Next',
-  'Visos tavo prenumeratos.\nVienoje vietoje.': 'All your subscriptions.\nIn one place.',
+  'Visos tavo prenumeratos.\nVienoje vietoje.':
+      'All your subscriptions.\nIn one place.',
   'Vaultie automatiškai suranda pasikartojančius mokėjimus banko išraše.':
       'Vaultie automatically finds recurring payments in your bank statement.',
   'nenaudota 3 mėn': 'unused 3 mo',
@@ -538,11 +562,13 @@ const Map<String, String> _en = {
   'Rytoj nurašys Netflix — 12,99 €': 'Netflix charges tomorrow — €12.99',
   'Po 2 d. atsinaujins Spotify — 10,99 €': 'Spotify renews in 2 days — €10.99',
   'YouTube Premium po 4 d. — 11,99 €': 'YouTube Premium in 4 days — €11.99',
-  'Disney+ nenaudotas 2 mėn — gal atšaukti?': 'Disney+ unused for 2 mo — cancel?',
+  'Disney+ nenaudotas 2 mėn — gal atšaukti?':
+      'Disney+ unused for 2 mo — cancel?',
   'iCloud+ nurašys rytoj — 2,99 €': 'iCloud+ charges tomorrow — €2.99',
 
   // ── Bank scale ──
-  'Jungiamės prie 2 500+ bankų\nvisoje Europoje.': 'We connect to 2,500+ banks\nacross Europe.',
+  'Jungiamės prie 2 500+ bankų\nvisoje Europoje.':
+      'We connect to 2,500+ banks\nacross Europe.',
   '2 500+ bankų · saugus ryšys': '2,500+ banks · secure connection',
 
   // ── Two paths ──
@@ -571,11 +597,14 @@ const Map<String, String> _en = {
   'Prisijunk': 'Sign in',
 
   // ── Onboarding paywall ──
-  'Leisk Vaultie pasirūpinti tavo prenumeratomis.': 'Let Vaultie take care of your subscriptions.',
+  'Leisk Vaultie pasirūpinti tavo prenumeratomis.':
+      'Let Vaultie take care of your subscriptions.',
   'Automatiškai suranda prenumeratas': 'Automatically finds your subscriptions',
   'Įspėja prieš artėjančius mokėjimus': 'Warns you before upcoming payments',
-  'Parodo, kur iš tikrųjų išleidi pinigus': 'Shows where your money really goes',
-  'Viskas vienoje vietoje – be rankinio darbo': 'Everything in one place – no manual work',
+  'Parodo, kur iš tikrųjų išleidi pinigus':
+      'Shows where your money really goes',
+  'Viskas vienoje vietoje – be rankinio darbo':
+      'Everything in one place – no manual work',
   'Metinis': 'Annual',
   '7 dienos nemokamai': '7 days free',
   'Mėnesinis': 'Monthly',
@@ -591,6 +620,10 @@ const Map<String, String> _en = {
   'Patikrink pasikartojančius': 'Review recurring',
   'Patikrink pasikartojančius mokėjimus': 'Review recurring payments',
   'Pašalinta iš sąrašo': 'Removed from list',
+  'Pridėti prie pasikartojančių': 'Add to recurring',
+  'Ar tai prenumerata, ar sąskaita?': 'Is this a subscription or a bill?',
+  'Pridėta prie prenumeratų': 'Added to subscriptions',
+  'Pridėta prie sąskaitų': 'Added to bills',
   'nauja': 'new',
   'sumokėta': 'paid',
   'laukiama': 'pending',
@@ -615,7 +648,8 @@ const Map<String, String> _en = {
   'Ne, pašalinti': 'No, remove',
   'Viskas patikrinta': 'All reviewed',
   'Nieko tikrinti nereikėjo.': 'Nothing needed reviewing.',
-  'Ačiū — pasikartojantys sutvarkyti.': 'Thanks — your recurring payments are sorted.',
+  'Ačiū — pasikartojantys sutvarkyti.':
+      'Thanks — your recurring payments are sorted.',
   'Matau tik suvestines — jokių atskirų operacijų ar vardų.':
       'I only see summaries — no individual transactions or names.',
   'AI kategorizavimas': 'AI categorisation',
@@ -782,7 +816,8 @@ const Map<String, String> _en = {
   'Kitos valiutos': 'Other currencies',
   'Reikia aktyvios „Vaultie Pro" prenumeratos.':
       'An active Vaultie Pro subscription is required.',
-  'Kažkas nepavyko. Bandyk dar kartą.': 'Something went wrong. Please try again.',
+  'Kažkas nepavyko. Bandyk dar kartą.':
+      'Something went wrong. Please try again.',
   'Kaip prijungsime tavo banką': 'How we\'ll connect your bank',
   'Prisijungti banke': 'Sign in at your bank',
   'Kitos valiutos atsiras, kai sumos bus ir perskaičiuojamos, o ne tik perrašomos kitu ženklu.':
@@ -876,7 +911,8 @@ const Map<String, String> _en = {
   'Žinok metinę išlaidų sumą': 'Know your total yearly cost',
 
   'Pasirink, ką prijungti': 'Choose what to connect',
-  'Prijunk tik tas sąskaitas, kurias nori.': 'Connect only the accounts you want.',
+  'Prijunk tik tas sąskaitas, kurias nori.':
+      'Connect only the accounts you want.',
   'Tik skaitymo prieiga': 'Read-only access',
   'Vaultie negali atlikti mokėjimų ar pervesti pinigų.':
       'Vaultie cannot make payments or transfer money.',
@@ -886,6 +922,19 @@ const Map<String, String> _en = {
   'Tavo duomenys': 'Your data',
   'Jie niekada neparduodami ir visada lieka tavo kontrolėje.':
       'They are never sold and always stay under your control.',
+  'Licencijuota paslauga': 'Licensed service',
+  'Duomenis teikia Enable Banking — licencijuota ES atviro bankininkystės tiekėja.':
+      'Data is provided by Enable Banking — a licensed EU open banking provider.',
+  'Tik skaitymo prieiga, saugus prisijungimas':
+      'Read-only access, secure sign-in',
+  'Vaultie negali atlikti mokėjimų ar pervesti pinigų; prisijungimą patvirtini savo banke pagal PSD2 standartą.':
+      'Vaultie cannot make payments or transfer money; you confirm the connection at your own bank, under the PSD2 standard.',
+  'Tavo duomenys saugūs': 'Your data is safe',
+  'Niekada neparduodami ir visada lieka tavo kontrolėje. Duomenis teikia Enable Banking — licencijuota ES atviro bankininkystės tiekėja.':
+      'Never sold and always stays under your control. Data is provided by Enable Banking — a licensed EU open banking provider.',
+  'Jungiame prie ': 'We connect to ',
+  '2 500+ bankų': '2,500+ banks',
+  ' visoje Europoje': ' across Europe',
   'Priminsime prieš laiką': "We'll remind you in time",
   'Pranešime prieš mokėjimą, kai baigsis banko prieiga ir kai bus paruošta mėnesio ataskaita.':
       "We'll notify you before a payment, when your bank access is about to expire, and when your monthly report is ready.",
@@ -895,7 +944,8 @@ const Map<String, String> _en = {
       "In 7 days you'll need to reconnect, so your data doesn't stop updating.",
   'vakar': 'yesterday',
   'Mėnesio ataskaita paruošta': 'Monthly report ready',
-  'Pažiūrėk, kiek išleidai praėjusį mėnesį.': 'See how much you spent last month.',
+  'Pažiūrėk, kiek išleidai praėjusį mėnesį.':
+      'See how much you spent last month.',
   'prieš 3 d.': '3 days ago',
   'Įjungti priminimus': 'Enable reminders',
   'Ne dabar': 'Not now',

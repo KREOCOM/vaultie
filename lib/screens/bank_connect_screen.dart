@@ -14,10 +14,9 @@ import '../services/dashboard_store.dart';
 import '../services/feature_flags.dart';
 import '../services/fx_rates.dart';
 import '../user_session.dart';
+import 'bank_callback_screen.dart';
 import 'bank_how_it_works.dart';
-import 'bank_import_screen.dart';
 import 'login_screen.dart';
-import 'preview/dashboard_preview.dart';
 
 /// Ensures one authorisation code is exchanged exactly once.
 ///
@@ -147,22 +146,34 @@ Future<BankConnectionResult> completeBankConnection(String code,
 /// wallet and two NOK wallets picks NOK; imperfect for someone who actually
 /// keeps most of their money in the one EUR wallet, but a reasonable guess for
 /// a screen the user can flip in one tap either way.
+///
+/// EUR is counted like any other currency and wins ties: a Revolut connect
+/// that hands back one EUR wallet and one SEK wallet in the SAME response
+/// (Revolut returns every wallet from one consent at once, so there's no
+/// real "connected first") used to switch away from EUR on a 1-1 tie, since
+/// EUR was excluded from the count entirely and so could never win. EUR is
+/// already the screen the user is looking at — a coin-flip switch away from
+/// it is worse than a coin-flip switch into it, so only a STRICT non-EUR
+/// majority moves the base currency.
 @visibleForTesting
 String? detectFirstBankCurrency(List<Map<String, dynamic>> accounts) {
   final counts = <String, int>{};
   for (final a in accounts) {
     final c = (a['currency'] as String? ?? '').toUpperCase();
-    if (c.isNotEmpty && c != 'EUR') counts[c] = (counts[c] ?? 0) + 1;
+    if (c.isNotEmpty) counts[c] = (counts[c] ?? 0) + 1;
   }
   if (counts.isEmpty) return null;
-  final top = (counts.entries.toList()..sort((x, y) => y.value.compareTo(x.value)))
-      .first
-      .key;
+  final eur = counts['EUR'] ?? 0;
+  final nonEur = counts.entries.where((e) => e.key != 'EUR').toList()
+    ..sort((x, y) => y.value.compareTo(x.value));
+  if (nonEur.isEmpty) return null; // all EUR — nothing to switch to
+  final top = nonEur.first;
+  if (top.value <= eur) return null; // EUR wins outright or ties
   // currencyByCode() falls back to the EUR entry for a code the picker
   // doesn't carry (e.g. an exotic wallet currency fx.py still prices for
   // totals) — comparing the resolved code back against `top` is what keeps
   // that silent fallback from being reported as a real match.
-  return currencyByCode(top).code == top ? top : null;
+  return currencyByCode(top.key).code == top.key ? top.key : null;
 }
 
 /// The set of bank names present in a saved dashboard payload (lowercased), read
@@ -195,7 +206,7 @@ class BankConnectScreen extends StatefulWidget {
   State<BankConnectScreen> createState() => _BankConnectScreenState();
 }
 
-enum _Phase { intro, country, loading, list, redirect, connecting, analysing, error }
+enum _Phase { intro, country, loading, list, redirect, connecting, error }
 
 class _BankConnectScreenState extends State<BankConnectScreen> {
   /// Starts on [_Phase.loading], not on the country picker.
@@ -215,41 +226,32 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   String? _connectingBank;
   Bank? _pendingBank; // shown on _Phase.redirect, then connected
 
-  _Country _country = _countries.first; // Lithuania by default
+  // Defaults to the device's own Region when Vaultie recognises it (checked
+  // against the WHOLE locale preference list, same reasoning as
+  // localeForRegion() in app_prefs.dart — a phone's Region often rides along
+  // with a specific language variant a person picked once, e.g. "English
+  // (United Kingdom)"). Falls back to Lithuania when nothing matches.
+  //
+  // Before this, every tester opened straight onto Lithuania regardless of
+  // where they actually bank, and Enable Banking lists a country's OWN
+  // "Swedbank"/"SEB" as a same-named but entirely separate bank from a
+  // neighbouring country's — a Norwegian picking the Lithuanian Swedbank from
+  // the un-switched default authenticated against the wrong bank entirely,
+  // which just fails silently rather than reading as "wrong country".
+  static _Country _defaultCountry() {
+    final locales = WidgetsBinding.instance.platformDispatcher.locales;
+    for (final l in locales) {
+      final cc = l.countryCode;
+      if (cc == null) continue;
+      for (final c in _countries) {
+        if (c.code == cc) return c;
+      }
+    }
+    return _countries.first; // Lithuania
+  }
+
+  late _Country _country = _defaultCountry();
   final _countrySearch = TextEditingController();
-
-  // A cycling "we're working" progress while the scan runs, so a 40–80s scan
-  // never feels frozen. Advances every few seconds and holds on the last stage.
-  Timer? _stageTimer;
-  int _stage = 0;
-  static const _stagesLt = [
-    'Saugiai jungiamės prie banko…',
-    'Traukiame tavo sandorius…',
-    'Analizuojame išlaidas, pajamas ir sąskaitas…',
-    'Beveik baigėm…',
-  ];
-  static const _stagesEn = [
-    'Securely connecting to your bank…',
-    'Fetching your transactions…',
-    'Analysing spending, income and bills…',
-    'Almost done…',
-  ];
-
-  void _startStages() {
-    _stage = 0;
-    _stageTimer?.cancel();
-    _stageTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted) return;
-      setState(() {
-        if (_stage < 3) _stage++;
-      });
-    });
-  }
-
-  void _stopStages() {
-    _stageTimer?.cancel();
-    _stageTimer = null;
-  }
 
   // Enable Banking coverage — Baltics + Nordics first, then the rest of Europe.
   static const _countries = <_Country>[
@@ -287,7 +289,6 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   @override
   void dispose() {
-    _stopStages();
     _countrySearch.dispose();
     super.dispose();
   }
@@ -359,7 +360,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   /// warning is where people abandon — and where a careful person suspects a
   /// scam. This names the bank, shows its real logo and says what will happen.
   void _confirm(Bank bank) {
-    if (_phase == _Phase.connecting || _phase == _Phase.analysing) return;
+    if (_phase == _Phase.connecting) return;
     setState(() {
       _pendingBank = bank;
       _phase = _Phase.redirect;
@@ -505,7 +506,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     // a frame, but two taps inside that frame — or during the await — started
     // two consent flows: two authorisation sessions at the bank, two entries
     // against its daily quota, and a second browser session iOS then refuses.
-    if (_phase == _Phase.connecting || _phase == _Phase.analysing) return;
+    if (_phase == _Phase.connecting) return;
     setState(() {
       _phase = _Phase.connecting;
       _connectingBank = bank.name;
@@ -521,6 +522,17 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       final result = await FlutterWebAuth2.authenticate(
         url: url,
         callbackUrlScheme: kBankingCallbackScheme,
+        // Default Custom Tab launch flags keep the bank's pages in Android's
+        // back history. When the hand-off to Vaultie doesn't resolve as a
+        // clean "close this tab" (observed on Android: Chrome's own "Open
+        // app?" prompt, not a real tap, so it isn't guaranteed to), the tab
+        // falls back to the last history entry instead of dismissing — the
+        // bank's own consent screen reappearing where the app was expected.
+        // ephemeralIntentFlags adds FLAG_ACTIVITY_NO_HISTORY, so there is no
+        // earlier page left to fall back to; the tab has nowhere to go but
+        // closed once the hand-off happens. iOS is unaffected (this option
+        // only has an effect on Android).
+        options: const FlutterWebAuth2Options(intentFlags: ephemeralIntentFlags),
       );
       final code = BankingService.codeFromCallback(Uri.parse(result));
       if (code == null) {
@@ -532,7 +544,6 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       // channels), let it finish — don't exchange the same single-use code
       // twice. Its BankCallbackScreen is on top and will land on the dashboard.
       if (!BankConnectClaim.claim(code)) {
-        _stopStages();
         // Drop back to the list instead of returning mid-phase.
         //
         // The deep-link path got to the code first and its screen is now on top,
@@ -543,23 +554,18 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         return;
       }
       if (!mounted) return;
-      setState(() => _phase = _Phase.analysing);
-      _startStages();
-      // Everything past the code is shared with the deep-link resume path.
-      final r = await completeBankConnection(code, bank: bank.name);
-      _stopStages();
-      if (!mounted) return;
-      // Land straight in the new dashboard. Fall back to the legacy import screen
-      // only if the backend couldn't build the dashboard payload.
+      // From here on, BankCallbackScreen owns everything — the SAME screen the
+      // universal-link resume path uses. This flow used to show its own plain,
+      // logo-less "analysing" spinner instead, so the exact same moment (a bank
+      // just approved) looked completely different depending on which of the
+      // two paths happened to complete it — that mismatch was read as "broken,
+      // random logos/colours" by testers, when both were actually working, just
+      // inconsistently dressed. One path, one screen, only the bank's own logo
+      // changes.
       await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => r.dash != null
-              ? DashboardPreview(data: r.dash!, deeper: r.deeper)
-              : BankImportScreen(result: r.scan),
-        ),
+        MaterialPageRoute(builder: (_) => BankCallbackScreen(code: code)),
       );
     } on PlatformException catch (e) {
-      _stopStages();
       if (!mounted) return;
       if (e.code == 'CANCELED') {
         setState(() => _phase = _Phase.list);
@@ -572,41 +578,23 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         });
       }
     } on BankingException catch (e) {
-      _stopStages();
       if (!mounted) return;
       setState(() {
         _error = e.message;
         _phase = _Phase.error;
       });
-    } catch (e) {
-      // Everything else. Between the bank's approval and the dashboard there is
-      // a Hive write, a jsonEncode and several casts of the bank's payload —
-      // none of them a PlatformException or a BankingException. One of those
-      // throwing left the screen stuck on "analysing" forever, with the stage
-      // ticker still cycling "Almost done…" so it looked alive, under a hint
-      // telling the user not to close the app. The bank was already connected
-      // by then, so their only move — force-quit and retry — burned a second
-      // consent.
-      _stopStages();
-      if (!mounted) return;
-      setState(() {
-        _error = _isLt
-            ? 'Bankas prisijungė, bet duomenų parsisiųsti nepavyko. Bandyk dar kartą.'
-            : "Your bank connected, but we couldn't load the data. Please try again.";
-        _phase = _Phase.error;
-      });
-    } finally {
-      // Belt and braces: no path out of this method leaves the ticker running.
-      _stopStages();
-      // Deliberately does NOT clear the pending-connect marker here. When a bank
-      // hands off to its own app, this session reports CANCELED and lands in the
-      // catch above — but the connection isn't cancelled, it's continuing via
-      // the universal link, and BankCallbackScreen still needs the bank name
-      // this marker holds. Clearing it here set it to null before the deep-link
-      // path read it, so the bank came back labelled "Bankas". It's overwritten
-      // at the start of the next connect and cleared on success, so a stale
-      // marker after a real cancel is harmless.
     }
+    // No generic catch-all here anymore. Everything past a claimed code —
+    // including the "bank approved but the data fetch itself threw" case this
+    // used to guard against — is now BankCallbackScreen's job; it has its own
+    // catch-all and its own visible error/retry state.
+    //
+    // Deliberately does NOT clear the pending-connect marker on any path here.
+    // When a bank hands off to its own app, this session reports CANCELED —
+    // but the connection isn't cancelled, it's continuing via the universal
+    // link, and BankCallbackScreen still needs the bank name this marker
+    // holds. It's overwritten at the start of the next connect and cleared on
+    // success, so a stale marker after a real cancel is harmless.
   }
 
   /// Escape hatch when this screen is the whole stack (onboarding, or a
@@ -700,14 +688,6 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         return _busy(_isLt
             ? 'Atveriamas ${_connectingBank ?? 'banko'} puslapis…\nPatvirtink prisijungimą ir grįžk į programėlę.'
             : 'Opening ${_connectingBank ?? 'the bank'}…\nApprove access, then return to the app.');
-      case _Phase.analysing:
-        final stages = _isLt ? _stagesLt : _stagesEn;
-        return _busy(
-          stages[_stage.clamp(0, stages.length - 1)],
-          hint: _isLt
-              ? 'Tai gali užtrukti iki minutės — analizuojame visus tavo sandorius. Neuždaryk programėlės.'
-              : 'This can take up to a minute — we\'re analysing all your transactions. Keep the app open.',
-        );
       case _Phase.error:
         return _errorView();
       case _Phase.list:

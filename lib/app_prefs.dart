@@ -189,20 +189,34 @@ class AppPrefs {
   // IBANs, identifiers, dates or person/P2P names.
   static const _kAiEnrichment = 'aiEnrichment';
 
-  // Default ON. It is what categorises the long tail — any shop in Europe the
-  // deterministic pipeline (name rules → KB → offline index) can't place, since
-  // banks send no MCC over Enable Banking (measured: 0% on the tested banks). A
-  // merchant is classified once, cached server-side, and the answer is reused
-  // for every user, so "Kita" is the exception, not the rule. Only BUSINESS
-  // merchant names are sent — a person-name guard drops likely P2P names, and
-  // never any amount, IBAN, date, or identifier. Disclosed in the privacy policy
-  // and switchable off in Settings, so it is on-by-default with a real opt-out.
+  // Default OFF (App Store Guideline 5.1.2(i): a third-party AI data share
+  // needs the user's permission BEFORE it happens, not an opt-out after the
+  // fact). It categorises the long tail — any shop in Europe the deterministic
+  // pipeline (name rules → KB → offline index) can't place, since banks send
+  // no MCC over Enable Banking (measured: 0% on the tested banks) — but that
+  // benefit no longer buys defaulting it on. Turned on only via the explicit
+  // consent dialog in Settings (see _toggleAiCat), which names the provider
+  // and states exactly what is sent before the toggle actually flips.
   static bool get aiEnrichment => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _boolOr(_kAiEnrichment, true)
-      : true;
+      ? _boolOr(_kAiEnrichment, false)
+      : false;
 
   static Future<void> setAiEnrichment(bool value) async {
     await _box.put(_kAiEnrichment, value);
+  }
+
+  // Whether the user accepted the one-time AI-categorisation disclosure
+  // (unresolved merchant NAMES only — never amounts, IBANs, dates — are sent to
+  // the AI provider to categorise them). Gates turning [aiEnrichment] on from
+  // Settings, same shape as [aiChatConsent] below.
+  static const _kAiCatConsent = 'aiCatConsent';
+
+  static bool get aiCatConsent => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _boolOr(_kAiCatConsent, false)
+      : false;
+
+  static Future<void> setAiCatConsent(bool value) async {
+    await _box.put(_kAiCatConsent, value);
   }
 
   // Whether the user accepted the one-time AI-chat disclosure (their finance

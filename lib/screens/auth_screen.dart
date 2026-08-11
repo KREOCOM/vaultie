@@ -135,22 +135,34 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     try {
       await _auth.sendPasswordResetEmail(email);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          duration: const Duration(seconds: 6),
-          content: Text(isLt
-              ? 'Nuoroda išsiųsta į $email. Nematai? Patikrink šlamšto (spam) aplanką.'
-              : 'Link sent to $email. Don\'t see it? Check your spam folder.'),
-        ),
-      );
+      // The dialog's own pop transition is still animating right after
+      // `showDialog` returns — a SnackBar fired in the same frame got
+      // shown and torn down by that transition before it ever became
+      // visible (the request itself still went through, so the email
+      // arrived, but the app looked like the button did nothing). One
+      // frame's delay lets the dialog finish closing first.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 6),
+            content: Text(isLt
+                ? 'Nuoroda išsiųsta į $email. Nematai? Patikrink šlamšto (spam) aplanką.'
+                : 'Link sent to $email. Don\'t see it? Check your spam folder.'),
+          ),
+        );
+      });
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authErrorMessage(e, isLithuanian: isLt)),
-          backgroundColor: VaultieColors.danger,
-        ),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authErrorMessage(e, isLithuanian: isLt)),
+            backgroundColor: VaultieColors.danger,
+          ),
+        );
+      });
     }
   }
 
@@ -260,6 +272,13 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: _bg,
+        // The bottom panel's height is fixed (its own fields + both sign-in
+        // buttons), not scrollable — Android's smaller/varied keyboard
+        // heights shrank the body enough to overflow it by a few pixels
+        // (RenderFlex, "BOTTOM OVERFLOWED"). The keyboard already pans the
+        // focused field into view on its own; the body doesn't need to
+        // resize for it too.
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
             // The centre glow. Also came from the green identity (#206B41) and
@@ -330,7 +349,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                                 // product on the very first screen.
                                 isLt
                                     ? 'Visi tavo mokėjimai vienoje vietoje'
-                                    : 'Every recurring payment in one place',
+                                    : 'All your money in one place',
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.55),
                                   fontSize: 15,

@@ -127,6 +127,24 @@
       "brand_relationships": [],
       "popularity_prior": 0.6,
       "recurring_type": "frequent"
+    },
+    {
+      "entity_id": "mql5",
+      "canonical_name": "MetaQuotes",
+      "entity_type": "MERCHANT",
+      "aliases": ["mql5", "metaquotes", "metaquotes mq", "metaquotes software"],
+      "related_aliases": [],
+      "country_coverage": [],
+      "categories": ["other"],
+      "merchant_type": "OTHER",
+      "icon_key": "SOFTWARE",
+      "known_domains": ["mql5.com"],
+      "known_locations": [],
+      "is_processor": false,
+      "is_brand": true,
+      "brand_relationships": [],
+      "popularity_prior": 0.5,
+      "recurring_type": "frequent"
     }
   ]
 }

@@ -279,9 +279,29 @@ class BankingService {
         throw BankingException(tr(
             'Reikia aktyvios „Vaultie Pro" prenumeratos.'));
       }
+      // 'deadline-exceeded'/'unavailable' carry the raw gRPC code as their
+      // `message` (there is no server-side text to show — the request never
+      // got a response to relay), so falling through to `e.message ?? ...`
+      // put the literal string "DEADLINE_EXCEEDED" on screen. A cold Cloud
+      // Function instance plus one weak-signal moment is enough to trip the
+      // 60s client timeout even when the call would have succeeded a few
+      // seconds later — this reads as a connectivity hiccup to the user, not
+      // an error code.
+      if (e.code == 'deadline-exceeded' || e.code == 'unavailable') {
+        throw BankingException(tr(
+            'Ryšys su serveriu užtruko per ilgai. Patikrink interneto ryšį ir bandyk dar kartą.'));
+      }
       throw BankingException(e.message ??
           tr('Kažkas nepavyko. Bandyk dar kartą.'));
-    } catch (_) {
+    } catch (e, s) {
+      // Was a bare `catch (_)` — every genuine cause (DNS failure, App Check
+      // hiccup, a plugin-level exception) got relabelled "check your
+      // connection" with no trace of what it actually was, so a real,
+      // reproducible bug would look identical to a flaky wifi moment forever.
+      try {
+        await FirebaseCrashlytics.instance
+            .recordError(e, s, reason: 'Network failure calling $name');
+      } catch (_) {}
       throw BankingException('Could not reach the server. Check your connection.');
     }
   }

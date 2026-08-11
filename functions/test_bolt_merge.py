@@ -33,7 +33,7 @@ def _tx(name):
 
 
 def _classify(name):
-    return dashboard._classify(_tx(name), lambda t: (None, "other"), set(), set())
+    return dashboard._classify(_tx(name), lambda t: (None, "other", None), set(), set())
 
 
 def main() -> int:

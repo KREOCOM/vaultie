@@ -1,14 +1,38 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Restricts distribution to phones: most tablets have no telephony/SIM
+         hardware, so declaring it required excludes them from the Play Store
+         listing automatically — Vaultie has never been tested or laid out for
+         a tablet screen. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="true" />
     <!-- flutter_local_notifications: post + schedule renewal reminders -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- local_auth: without this, canCheckBiometrics/getAvailableBiometrics
+         silently report nothing usable even on a device with fingerprint or
+         face unlock enrolled — the Face/Touch ID toggle in app_lock.dart hides
+         itself accordingly, which read as "Android has no biometric option"
+         when the real cause was this missing permission, not the hardware. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <!-- android:allowBackup defaults to TRUE when unset, so Android silently
+         included this app in its automatic cloud backup. The Hive boxes that
+         backup restores are AES-encrypted with a key held in the Android
+         Keystore — and Keystore keys are hardware-bound, so they are NEVER
+         included in that backup. A restore (or, on some OEM builds, even an
+         ordinary app-data lifecycle event) can therefore hand the app back
+         its old encrypted boxes with no key able to open them. main.dart's
+         _openBoxSafe treats that exactly like corruption and deletes the box
+         — which is what "closed the app, reopened, everything was gone"
+         actually was. Finance apps with locally-encrypted data are supposed
+         to opt out of this entirely, not just exclude a few files from it. -->
     <application
         android:label="vaultie"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -30,6 +54,34 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- REQUIRED, not optional: flutter_web_auth_2's Android side fails
+                 every pending authenticate() call with CANCELED the instant the
+                 app's lifecycle hits `resumed` (see
+                 _OnAppLifecycleResumeObserver in its own Dart source) — which
+                 happens on ANY app-switch, including a bank's own Smart-ID app
+                 taking over mid-flow. BankingDeepLinks (lib/services/
+                 banking_deep_links.dart, backed by the app_links package) exists
+                 specifically to catch the REAL callback that arrives a moment
+                 after that false CANCELED — but only if Android hands it the
+                 https callback URL as a genuine App Link. Without this
+                 intent-filter there is nothing left to complete a connection
+                 once flutter_web_auth_2 has already (wrongly) given up, which is
+                 the SEB "flash back to bank login" regression from 2026-08-10.
+                 Was removed that day on the mistaken belief it broke every bank
+                 universally; bank_connect_screen.dart's own CANCELED handling
+                 comment ("the connection isn't cancelled, it's continuing via
+                 the universal link") documents that this was always the
+                 intended two-path design. Do not remove again without first
+                 finding the ACTUAL cause of any new regression — this is
+                 load-bearing. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                      android:host="vaultie-1a2c4.web.app"
+                      android:pathPrefix="/banking/callback"/>
+            </intent-filter>
         </activity>
         <!-- flutter_web_auth_2: catches the vaultie:// bank OAuth callback inside
              the Custom Tab session and returns it to the app. -->
@@ -48,6 +100,7 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
 
         <!-- flutter_local_notifications: deliver scheduled notifications and
              re-register them after a device reboot. -->

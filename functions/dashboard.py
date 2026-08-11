@@ -16,7 +16,7 @@ import datetime as dt
 import logging
 import math
 import re
-from collections import OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 
 import mcc as mcc_module
 import resolver
@@ -228,6 +228,30 @@ def _amt(t):
     return _to_eur(v, ta.get("currency"))
 
 
+def _raw_amt_cur(t):
+    """The transaction's OWN signed amount and currency, before any EUR
+    conversion — e.g. (461.50, "NOK"), not the EUR-normalized figure [_amt]
+    returns for aggregation.
+
+    The client re-converts EUR -> the user's chosen display currency using a
+    LIVE rate (fx_rates.dart, ECB via frankfurter.app), while this server
+    converted -> EUR using [fx.py]'s static, approximate table. Those two
+    rates do not agree, so round-tripping a NOK transaction through EUR and
+    back to NOK came out ~6% off the real number — silently, on every single
+    transaction in a non-EUR account. When the client's display currency
+    matches this row's OWN currency, it uses these fields directly and skips
+    both conversions, so what a NOK account holder sees is the exact NOK
+    figure their bank shows, not a double-converted approximation of it.
+    """
+    ta = t.get("transaction_amount") or {}
+    try:
+        v = float(ta.get("amount") or 0)
+    except (TypeError, ValueError):
+        v = 0.0
+    v = abs(v) if t.get("credit_debit_indicator") == "CRDT" else -abs(v)
+    return v, (ta.get("currency") or "EUR").upper()
+
+
 def _name(t):
     if t.get("credit_debit_indicator") == "DBIT":
         n = (t.get("creditor") or {}).get("name")
@@ -364,7 +388,11 @@ def _cp_iban_norm(t):
 
 
 def _classify(t, resolve_cat, salary_refs, own_ibans=None):
-    """Return (canonical, cat_lt, col, icon, section, section_color, pos, is_transfer).
+    """Return (canonical, cat_lt, col, icon, section, section_color, pos, is_transfer,
+    logo_domain). logo_domain is the resolver's guess at the merchant's own domain
+    (e.g. "mql5.com"), for the client to show a real brand logo when it has one —
+    None everywhere except the final merchant-resolver branch, which is the only
+    one with a domain to offer.
 
     Identify the *flow* from the (normalised) transaction code FIRST — currency
     exchange, refund, top-up, cash, fee, or a credit transfer (P2P). Only actual
@@ -387,26 +415,26 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
         cpi = _cp_iban_norm(t)
         if cpi and cpi in own_ibans:
             return (name, "Savas pervedimas", "transfer", "swap",
-                    "Pervedimai", "indigo", amt > 0, True)
+                    "Pervedimai", "indigo", amt > 0, True, None)
 
     # currency exchange is ALWAYS just a conversion of your own money — never
     # income and never spending (moving money between your own currencies).
     # Detected by code OR description ("Exchanged to EUR"), so Revolut-style FX
     # conversions no longer land in "Pervedimai" as if they were real transfers.
     if _is_exchange(t):
-        return (name, "Valiutos keitimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+        return (name, "Valiutos keitimas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True, None)
     # A recurring employer credit is INCOME even when the bank codes it as a
     # TOP-UP (Revolut stamps NOK salary inflows as TOPUP → "Sąskaitos
     # papildymas") or a plain transfer. Check it BEFORE the top-up/refund/cash/
     # transfer branches so the code can't hide the salary.
     if amt > 0 and _norm(name) in salary_refs:
-        return (name, "Atlyginimas", "income", "income", "Pajamos", "amber", True, False)
+        return (name, "Atlyginimas", "income", "income", "Pajamos", "amber", True, False, None)
     if code in _REFUND_CODES:
-        return (name, "Grąžinimas", "income", "swap", "Pajamos", "amber", True, False)
+        return (name, "Grąžinimas", "income", "swap", "Pajamos", "amber", True, False, None)
     if code in _TOPUP_CODES:
-        return (name, "Sąskaitos papildymas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+        return (name, "Sąskaitos papildymas", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True, None)
     if code in _CASH_CODES:
-        return (name, "Grynieji", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True)
+        return (name, "Grynieji", "transfer", "swap", "Pervedimai", "indigo", amt > 0, True, None)
 
     # credit transfers (SEPA / P2P, in or out) — before merchant matching, so a
     # person is never sent to the merchant resolver
@@ -414,7 +442,7 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
         # a recurring, substantial, non-person INCOMING transfer from the same
         # source = your salary (booked on the real payday, in whatever currency).
         if amt > 0 and _norm(name) in salary_refs:
-            return (name, "Atlyginimas", "income", "income", "Pajamos", "amber", True, False)
+            return (name, "Atlyginimas", "income", "income", "Pajamos", "amber", True, False, None)
         # A PERSON IS NEVER A BILL — and this check has to come before the
         # keyword hints, not after them.
         #
@@ -431,11 +459,11 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
         # anything carrying a company marker, and "grupė" is one — so "Artus
         # Grupė" still reaches the housing hint below.
         if _is_person_name(name):
-            return (name, "Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True)
+            return (name, "Asmeninis pervedimas", "transfer", "person", "Pervedimai", "indigo", amt > 0, True, None)
         if any(k in nl for k in _FINANCE_HINTS):
-            return (name, "Paskola, lizingas", "finance", "money", "Finansai", "red", amt > 0, False)
+            return (name, "Paskola, lizingas", "finance", "money", "Finansai", "red", amt > 0, False, None)
         if any(k in nl for k in _HOUSING_HINTS):
-            return (name, "Būstas, nuoma", "housing", "house", "Būstas, sąskaitos", "olive", amt > 0, False)
+            return (name, "Būstas, nuoma", "housing", "house", "Būstas, sąskaitos", "olive", amt > 0, False, None)
         # An OUTGOING transfer to something that is neither a person nor one of
         # the user's own accounts is a PAYMENT — the money is gone.
         #
@@ -455,8 +483,8 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
         # from a bank whose IBAN we were never given, and calling that income
         # would inflate the month from the other end.
         if amt < 0:
-            return (name, "Pervedimas", "other", "swap", "Kita", "indigo", False, False)
-        return (name, "Pervedimas", "transfer", "swap", "Pervedimai", "indigo", True, True)
+            return (name, "Pervedimas", "other", "swap", "Kita", "indigo", False, False, None)
+        return (name, "Pervedimas", "transfer", "swap", "Pervedimai", "indigo", True, True, None)
 
     # known merchant by name (BEFORE the fee check, so an oddly-coded Apple/Google
     # — e.g. MCOP/MDOP — isn't swallowed as a bank fee)
@@ -469,11 +497,11 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
             # different merge key and same-day rides never collapsed. A canonical
             # brand name for those keywords fixes it (Bolt taxi → one "Bolt" row).
             disp = _BRAND_CANON.get(matched, name)
-            return (disp, cat_lt, col, ic, sec, secc, amt > 0, False)
+            return (disp, cat_lt, col, ic, sec, secc, amt > 0, False, None)
 
     # bank fees / charges
     if code in _FEE_CODES or any(k in nl for k in _FEE_HINTS):
-        return (name, "Bankas, komisiniai", "finance", "money", "Finansai", "red", amt > 0, False)
+        return (name, "Bankas, komisiniai", "finance", "money", "Finansai", "red", amt > 0, False, None)
 
     # ── merchant → category ──
     #
@@ -485,10 +513,10 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
     # The name resolver still runs — it supplies the canonical name and logo, and
     # its own category is the fallback when there is no MCC.
     mcc_cat = mcc_module.category_for_mcc(t.get("merchant_category_code"))
-    canonical, category = resolve_cat(t)
+    canonical, category, logo_domain = resolve_cat(t)
     final = (mcc_cat or category or "other").lower()
     cat_lt, col, ic, sec, secc = CAT_MAP.get(final, OTHER)
-    return (canonical or name, cat_lt, col, ic, sec, secc, amt > 0, False)
+    return (canonical or name, cat_lt, col, ic, sec, secc, amt > 0, False, logo_domain)
 
 
 def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=None):
@@ -531,7 +559,7 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
         try:
             _, hit, res = resolver.resolve_hit(t, corpus)
             if hit:
-                result = (hit[0], hit[2])  # canonical_name, category
+                result = (hit[0], hit[2], hit[3])  # canonical_name, category, logo_domain
                 # A low-coverage RESOLVED match may still be WRONG (e.g. a fuzzy
                 # global-index hit that lands Senukai in "electronics"). Flag the
                 # weakest ones so AI can re-check them below.
@@ -556,11 +584,13 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
                     surface, ai_key, cache_key=(res or {}).get("identity_key"),
                     merchant_context=(code in _CARD_CODES))
                 if res_ai:
-                    result = res_ai
+                    # AI enrichment doesn't offer a domain — the resolver is
+                    # the only stage that does.
+                    result = (*res_ai, None)
             except Exception:
                 pass
         if result is None:
-            result = (_name(t), "other")
+            result = (_name(t), "other", None)
         _resolve_memo[tid] = result
         return result
 
@@ -572,15 +602,17 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
         if ymd is None:
             skipped += 1
             continue
-        canonical, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs, own_ibans)
+        canonical, cat, col, ic, sec, secc, pos, _tr, dom = _classify(t, resolve_cat, salary_refs, own_ibans)
         y, m, day = ymd
+        raw_amt, raw_cur = _raw_amt_cur(t)
         all_rows.append({
             "nm": _name(t), "mkey": (canonical or _name(t)).lower()[:24],
             "d": t["booking_date"], "wd": LT_WD[dt.date(y, m, day).weekday()][:3],
             "md": f"{LT_GEN[m]} {day}", "cat": cat, "col": col, "ic": ic,
             "sec": sec, "secc": secc, "a": round(_amt(t), 2),
             "amb": False, "badges": (["res"] if t.get("status") == "PDNG" else []),
-            "pos": pos, "ts": _txn_epoch(t),
+            "pos": pos, "ts": _txn_epoch(t), "dom": dom,
+            "raw": round(raw_amt, 2), "cur": raw_cur,
         })
     if skipped:
         # Dropping a row silently is how a bank's odd date format turns into
@@ -630,6 +662,32 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
     balance = _balance_block(all_rows, accounts)
     recent = [p["v"] for p in balance["series"]][-26:]
 
+    # ── anonymous classification diagnostics (aggregate counts ONLY) ──
+    #
+    # No merchant name, amount, or identity crosses this line — just how many
+    # rows landed where. Added specifically because live testers reported
+    # patterns (a cancelled sub still "active", a real one missing, a bank fee
+    # not read as one) that are impossible to reason about from code alone and
+    # impossible to check per-user without breaking the "your data never
+    # leaves your phone" promise. This is the one place that's still true:
+    # only counts, aggregated across everyone, land in Cloud Logging.
+    try:
+        cat_counts = Counter(r["cat"] for r in all_rows)
+        sub_items = subs.get("items", [])
+        logging.info(
+            "dash_stats txns=%d kita=%d fees=%d subs_active=%d "
+            "subs_needs_review=%d subs_total=%d top_cats=%s",
+            len(all_rows),
+            cat_counts.get("Kita", 0),
+            cat_counts.get("Bankas, komisiniai", 0),
+            sum(1 for i in sub_items if i.get("active")),
+            sum(1 for i in sub_items if i.get("needsReview")),
+            len(sub_items),
+            dict(cat_counts.most_common(8)),
+        )
+    except Exception:
+        pass  # diagnostics must never take the real dashboard down
+
     return {
         "all": all_rows,
         "months": months,
@@ -655,13 +713,22 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
 def _merge_day(day_txns, salary_refs, resolve_cat, own_ibans=None):
     merged = OrderedDict()
     for t in day_txns:
-        _canon, cat, col, ic, sec, secc, pos, _tr = _classify(t, resolve_cat, salary_refs, own_ibans)
+        _canon, cat, col, ic, sec, secc, pos, _tr, dom = _classify(t, resolve_cat, salary_refs, own_ibans)
         key = _norm(_name(t))
+        raw_amt, raw_cur = _raw_amt_cur(t)
         if key not in merged:
             merged[key] = {"nm": _name(t), "cat": cat, "ic": ic, "col": col,
                            "sec": sec, "secc": secc, "a": 0.0, "count": 0,
                            "badges": (["res"] if t.get("status") == "PDNG" else []),
-                           "amb": False, "pos": pos, "ts": _txn_epoch(t)}
+                           "amb": False, "pos": pos, "ts": _txn_epoch(t), "dom": dom,
+                           "raw": 0.0, "cur": raw_cur}
+        # A merged row's "raw" figure is only meaningful when every leg shares
+        # ONE currency — a same-day multi-currency merge (rare, but a Revolut
+        # multi-currency account can do it) falls back to the EUR-derived "a"
+        # on the client rather than silently sum unlike currencies together.
+        if merged[key]["cur"] != raw_cur:
+            merged[key]["cur"] = None
+        merged[key]["raw"] += raw_amt
         merged[key]["a"] += _amt(t)
         merged[key]["count"] += 1
         if merged[key]["count"] > 1:
@@ -693,7 +760,8 @@ def _month_feed(txns, salary_refs, resolve_cat, own_ibans=None):
             "tx": [{"nm": x["nm"], "cat": x["cat"], "ic": x["ic"], "col": x["col"],
                     "a": round(x["a"], 2), "count": x["count"] if x["count"] > 1 else 0,
                     "badges": x["badges"], "amb": x["amb"], "pos": x["pos"],
-                    "ts": x["ts"]}
+                    "ts": x["ts"], "dom": x["dom"],
+                    "raw": round(x["raw"], 2), "cur": x["cur"]}
                    for x in merged.values()]})
         months[mkey]["total"] += daytot
     for mk in months:
@@ -734,7 +802,7 @@ def _week(txns, salary_refs, resolve_cat, today, own_ibans=None):
         # than the empty bar this exists to fix.
         gone = 0.0
         for t in bydate.get(dd.isoformat(), []):
-            _canon, cat, _col, _ic, sec, secc, _pos, is_tr = _classify(t, resolve_cat, salary_refs, own_ibans)
+            _canon, cat, _col, _ic, sec, secc, _pos, is_tr, _dom = _classify(t, resolve_cat, salary_refs, own_ibans)
             if is_tr or sec in ("Pajamos", "Pervedimai"):
                 a = _amt(t)
                 if a < 0 and cat not in ("Savas pervedimas", "Valiutos keitimas"):

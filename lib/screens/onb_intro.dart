@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -75,7 +77,22 @@ class _OnbIntroState extends State<OnbIntro> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // This copy block was measured against a ~393dp-wide reference (a
+    // current iPhone). Below that, the fixed font sizes and spacing take up
+    // a growing fraction of a screen that isn't just narrower but usually
+    // shorter too, which is what pushed the "2 500+ bankų" badge down onto
+    // the photo's subject on a 360dp phone. Scaling text and spacing down
+    // together keeps the block proportionally where it was designed to sit,
+    // on any width; never scales UP, so the reference size is untouched.
+    // Android-only: this page was already correct on iOS (the build already
+    // submitted to App Review), tuned against a ~393dp-wide iPhone reference.
+    // Scaling it on iOS too would touch phones smaller than that reference
+    // (SE, mini) that were never reported as a problem — only Android's
+    // shorter/narrower screens were.
+    final scale = Platform.isAndroid
+        ? (MediaQuery.of(context).size.width / 393).clamp(0.86, 1.0)
+        : 1.0;
+    return wrapOnbStatusBar(Scaffold(
       // The same near-black navy the scene pages settle on (`_deep` in
       // onb_scene_page.dart), so page 1's copy sits on the identical field as
       // every page after it.
@@ -119,6 +136,31 @@ class _OnbIntroState extends State<OnbIntro> {
             ),
           ),
 
+          // ── Top scrim ──
+          // The "sky is already dark" assumption above holds on the render
+          // this was tuned against, but longer translated copy — or just
+          // Android's taller line-height metrics — can push the text block
+          // past that ~38% sky band onto the brighter subject below. This
+          // guarantees contrast regardless of exactly how tall the copy
+          // block ends up; it is invisible where the sky is already dark.
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xCC030E30),
+                      Color(0x00030E30),
+                    ],
+                    stops: [0.0, 0.5],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           // ── Copy block: centred horizontally, near the top, on the clear
           // sky — no side elements, just the words (matches the approved
           // HTML mockup exactly: no floating cards, no numbers). ──
@@ -126,7 +168,7 @@ class _OnbIntroState extends State<OnbIntro> {
             child: Align(
               alignment: Alignment.topCenter,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(28, 40, 28, 0),
+                padding: EdgeInsets.fromLTRB(28, 40 * scale, 28, 0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -139,26 +181,60 @@ class _OnbIntroState extends State<OnbIntro> {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 13),
+                    SizedBox(height: 13 * scale),
                     Text(
                       tr('Suprask savo\nfinansus geriau'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 30,
+                      style: TextStyle(
+                        fontSize: 30 * scale,
                         fontWeight: FontWeight.w800,
                         height: 1.15,
                         letterSpacing: -0.9,
                         color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 11),
+                    SizedBox(height: 11 * scale),
                     Text(
                       tr('Vaultie padeda aiškiau matyti, kur keliauja tavo pinigai, priimti geresnius sprendimus ir viską stebėti vienoje vietoje.'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 14.5,
+                        fontSize: 14.5 * scale,
                         height: 1.5,
                         color: Colors.white.withValues(alpha: 0.92),
+                      ),
+                    ),
+                    SizedBox(height: 18 * scale),
+                    // Outline-only, no fill — sits on the clear sky without
+                    // reading as a UI card on top of the photo. Wraps to a
+                    // second line on its own (no nowrap) instead of ever
+                    // touching the screen edges on a narrower phone.
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 9 * scale),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.55),
+                            width: 1.5),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text.rich(
+                        TextSpan(
+                          style: TextStyle(
+                            fontSize: 12.5 * scale,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.95),
+                          ),
+                          children: [
+                            TextSpan(text: tr('Jungiame prie ')),
+                            TextSpan(
+                              text: tr('2 500+ bankų'),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            TextSpan(text: tr(' visoje Europoje')),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],
@@ -209,7 +285,7 @@ class _OnbIntroState extends State<OnbIntro> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _dots() => Row(

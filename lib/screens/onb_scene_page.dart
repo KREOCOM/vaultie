@@ -233,6 +233,8 @@ class _OnbScenePageState extends State<OnbScenePage> {
     final g = widget.geometry;
     final size = MediaQuery.of(context).size;
     final w = size.width;
+    final aw = w;
+    const ax = 0.0;
     final imgH = w * g.imgH / g.imgW; // scene at full width
     // Slide the artwork so every page's phone sits at the same height. A
     // positive shift crops sky off the top; a negative one lets the page colour
@@ -257,29 +259,55 @@ class _OnbScenePageState extends State<OnbScenePage> {
     final copyTop = _copyH == null
         ? imgH - shift - 8
         : math.min(imgH - shift - 8, size.height - _copyH! - 18);
-    final s0 = (math.min(imgH * g.ringB / g.imgH - shift, copyTop - 120) /
-            size.height)
-        .clamp(0.0, 0.94);
+    final s0 =
+        (math.min(imgH * g.ringB / g.imgH - shift, copyTop - 120) / size.height)
+            .clamp(0.0, 0.94);
     final s1 = (copyTop / size.height).clamp(s0 + 0.03, 1.0);
 
-    return Scaffold(
+    return wrapOnbStatusBar(Scaffold(
       backgroundColor: _deep,
       body: Stack(
         children: [
           Positioned(
             top: -shift,
-            left: 0,
-            width: w,
+            left: ax,
+            width: aw,
             height: imgH,
             child: Image.asset(widget.sceneAsset, fit: BoxFit.cover),
           ),
+          // The fade that carries the artwork into the page colour used to be
+          // drawn AFTER the glass, which meant it dimmed the live dashboard
+          // preview too — the one thing on the page that should always read
+          // as crisp, current data, not as part of a fading photo. Drawing it
+          // here, before the glass, means the glass paints on top and stays
+          // fully bright regardless of how much of the artwork behind it has
+          // faded.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: const [
+                      Color(0x00030E30),
+                      Color(0x00030E30),
+                      Color(0xCC030E30),
+                      _deep,
+                    ],
+                    stops: [0, s0, s0 + (s1 - s0) * 0.62, s1],
+                  ),
+                ),
+              ),
+            ),
+          ),
           Positioned(
-            left: g.glassL / g.imgW * w,
+            left: ax + g.glassL / g.imgW * aw,
             top: g.glassT / g.imgH * imgH - shift,
-            width: g.glassW / g.imgW * w,
+            width: g.glassW / g.imgW * aw,
             height: g.glassH / g.imgH * imgH,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(g.corner / g.imgW * w),
+              borderRadius: BorderRadius.circular(g.corner / g.imgW * aw),
               child: Stack(
                 children: [
                   if (widget.blankUntilLive != null && !_live)
@@ -289,9 +317,7 @@ class _OnbScenePageState extends State<OnbScenePage> {
                     child: AnimatedOpacity(
                       opacity: _live ? 1 : 0,
                       duration: const Duration(milliseconds: 260),
-                      child: _live
-                          ? _phoneScreen(g)
-                          : const SizedBox.shrink(),
+                      child: _live ? _phoneScreen(g) : const SizedBox.shrink(),
                     ),
                   ),
                   Positioned(
@@ -310,25 +336,6 @@ class _OnbScenePageState extends State<OnbScenePage> {
                     ),
                   ),
                 ],
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: const [
-                      Color(0x00030E30),
-                      Color(0x00030E30),
-                      Color(0xCC030E30),
-                      _deep,
-                    ],
-                    stops: [0, s0, s0 + (s1 - s0) * 0.62, s1],
-                  ),
-                ),
               ),
             ),
           ),
@@ -400,8 +407,7 @@ class _OnbScenePageState extends State<OnbScenePage> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     height: 1.3,
-                                    color:
-                                        Colors.white.withValues(alpha: 0.80),
+                                    color: Colors.white.withValues(alpha: 0.80),
                                     shadows: const [
                                       Shadow(
                                           color: Color(0x9900081F),
@@ -448,7 +454,7 @@ class _OnbScenePageState extends State<OnbScenePage> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   /// The phone's screen. This shows [PhoneShowcase] rather than the app's real
