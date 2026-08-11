@@ -1112,6 +1112,14 @@ def _balance_block(all_rows, accounts):
     accounts = [
         {**a,
          "amount": round(_to_eur(float(a.get("amount") or 0), a.get("currency")), 2),
+         # Original native-currency balance, preserved BEFORE "amount" above
+         # overwrites it with the EUR conversion — same "raw" convention the
+         # transaction rows already use, so the client can show this account's
+         # OWN figure directly when its display currency matches, instead of
+         # re-deriving it by reconverting the EUR amount with a live rate that
+         # disagrees with the static one used above (the same ~6% drift
+         # already fixed for transaction rows, never applied to balances).
+         "raw": a.get("amount"),
          "origCurrency": a.get("currency"),
          "currency": "EUR"}
         for a in (accounts or [])

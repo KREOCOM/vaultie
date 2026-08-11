@@ -345,6 +345,46 @@ String _eurTx(Map t, {bool signed = false}) {
   return _eur(_aOf(t).toDouble(), signed: signed);
 }
 
+// Same fix as [_eurTx], for an ACCOUNT balance instead of a transaction.
+// dashboard.py's `_balance_block` now stamps `raw`/`origCurrency` (the
+// account's own pre-conversion balance) alongside the EUR-converted `amount`
+// — this only ever existed on transaction rows before, so a NOK/SEK/etc.
+// account's headline balance was still round-tripping through two
+// disagreeing rates (the ~6% drift already fixed for individual
+// transactions, silently still present on the one figure a non-EUR user
+// checks first).
+String _eurAcct(Map a) {
+  final cur = (a['origCurrency'] as String?)?.toUpperCase();
+  final raw = a['raw'];
+  if (cur != null && raw is num && cur == AppPrefs.currencyCode.value) {
+    return _eur(Money.rate == 0 ? 0 : raw.toDouble() / Money.rate);
+  }
+  return _eur(((a['amount'] ?? 0) as num).toDouble());
+}
+
+// Bank subtotal across possibly several accounts. Only takes the raw-amount
+// shortcut when EVERY account in the group shares one native currency (a
+// mixed EUR+NOK subtotal has no single "raw" figure to show) — otherwise
+// falls back to summing the EUR-converted amounts, same as before.
+String _eurAcctGroup(List<Map<String, dynamic>> accts) {
+  final curs = accts.map((a) => (a['origCurrency'] as String?)?.toUpperCase()).toSet();
+  if (curs.length == 1) {
+    final cur = curs.first;
+    if (cur != null && cur == AppPrefs.currencyCode.value) {
+      final rawSum = accts.fold<double?>(0, (s, a) {
+        final r = a['raw'];
+        return (s == null || r is! num) ? null : s + r.toDouble();
+      });
+      if (rawSum != null) {
+        return _eur(Money.rate == 0 ? 0 : rawSum / Money.rate);
+      }
+    }
+  }
+  final subtotal =
+      accts.fold(0.0, (s, a) => s + ((a['amount'] ?? 0) as num).toDouble());
+  return _eur(subtotal);
+}
+
 // Safe section reads: a row with a missing/odd `sec`/`secc` (a quiet-bank or
 // cached row) must degrade to a neutral bucket, never crash an aggregation with
 // a `null is not a String` TypeError.
@@ -5417,13 +5457,11 @@ class _BalanceSheetState extends State<_BalanceSheet> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                  a['sub'] != null
-                      ? '${a['sub']}'
-                      : _eur(((a['amount'] ?? 0) as num).toDouble()),
+                  a['sub'] != null ? '${a['sub']}' : _eurAcct(a),
                   style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
               if (a['sub'] != null)
-                Text(_eur(((a['amount'] ?? 0) as num).toDouble()),
+                Text(_eurAcct(a),
                     style: TextStyle(fontSize: 12.5, color: _muted)),
             ],
           ),
@@ -12182,8 +12220,6 @@ class _AccountTabState extends State<_AccountTab> {
       // the control that opens them — so it is always shown when the bank has a
       // name, not only when there are several.
       if (bank.isNotEmpty) {
-        final subtotal = accts.fold(
-            0.0, (s, a) => s + ((a['amount'] ?? 0) as num).toDouble());
         final empty = accts
             .where((a) => ((a['amount'] ?? 0) as num).toDouble().abs() < 0.005)
             .length;
@@ -12228,7 +12264,7 @@ class _AccountTabState extends State<_AccountTab> {
                 ),
                 if (isStale) ...[const SizedBox(width: 8), _staleChip()],
                 const SizedBox(width: 10),
-                Text(_eur(subtotal),
+                Text(_eurAcctGroup(accts),
                     style: TextStyle(
                         fontSize: 15.5,
                         fontWeight: FontWeight.w700,
@@ -12276,7 +12312,7 @@ class _AccountTabState extends State<_AccountTab> {
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: _ink)),
-              Text(_eur(((a['amount'] ?? 0) as num).toDouble()),
+              Text(_eurAcct(a),
                   style: TextStyle(
                     fontSize: a['sub'] != null ? 12.5 : 16,
                     fontWeight:
