@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -34,10 +36,43 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
 
+  // A cycling "we're working" progress while the scan runs, so a multi-bank,
+  // 30-60s scan never reads as frozen — a static "we'll open your overview
+  // soon" was all this screen ever showed while completeBankConnection() was
+  // still genuinely working, which is indistinguishable from a hang to
+  // someone watching it. Same stages bank_connect_screen.dart used to cycle
+  // through before both completion paths were unified onto this one screen.
+  Timer? _stageTimer;
+  int _stage = 0;
+  static const _stagesLt = [
+    'Baigiame prijungimą…',
+    'Traukiame tavo sandorius…',
+    'Analizuojame išlaidas, pajamas ir sąskaitas…',
+    'Beveik baigėm…',
+  ];
+  static const _stagesEn = [
+    'Finishing the connection…',
+    'Fetching your transactions…',
+    'Analysing spending, income and bills…',
+    'Almost done…',
+  ];
+
   @override
   void initState() {
     super.initState();
+    _stageTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_stage < 3) _stage++;
+      });
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _finish());
+  }
+
+  @override
+  void dispose() {
+    _stageTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _finish() async {
@@ -233,12 +268,24 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
                   strokeWidth: 2.6, color: Color(0xFF9FB0D8)),
             ),
             const SizedBox(height: 16),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              child: Text(
+                (_isLt ? _stagesLt : _stagesEn)[_stage.clamp(0, 3)],
+                key: ValueKey(_stage),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.45,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF9FB0D8)),
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
-              _isLt
-                  ? 'Netrukus atidarysime tavo apžvalgą. Neuždaryk programėlės.'
-                  : "We'll open your dashboard shortly. Keep the app open.",
+              _isLt ? 'Neuždaryk programėlės.' : 'Keep the app open.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12.5, height: 1.45, color: Color(0xFF7F8DB0)),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF7F8DB0)),
             ),
           ],
         ),

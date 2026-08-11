@@ -12469,6 +12469,31 @@ class _AccountTabState extends State<_AccountTab> {
       ),
     );
     if (ok != true) return;
+    // Revoke every bank's consent at the source BEFORE wiping the local
+    // record of them — this used to skip straight to the local wipe, so
+    // "Atjungti bankus ir pradėti iš naujo" never told Enable Banking
+    // anything. The consent stayed valid at the bank, the server's own
+    // bank_links record was untouched, and the very next scan (a fresh
+    // connect, or just an ordinary refresh) pulled the "disconnected" bank's
+    // data straight back in — indistinguishable from disconnect having done
+    // nothing at all. Mirrors what _disconnectOneBank already does per bank,
+    // just for all of them in one pass. Best-effort per bank, same as the
+    // single-bank path: a revoke failing must not block the local wipe, or a
+    // flaky network turns "start over" into "stuck with what's there".
+    for (final c in DashboardStore.connections()) {
+      final sessionIds = [
+        if ((c['sessionId'] as String?)?.isNotEmpty ?? false)
+          c['sessionId'] as String,
+      ];
+      final accountUids = ((c['accounts'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((a) => (a['uid'] as String?) ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (sessionIds.isEmpty && accountUids.isEmpty) continue;
+      await BankingService.instance
+          .disconnectBank(sessionIds: sessionIds, accountUids: accountUids);
+    }
     await DashboardStore.disconnectAllBanks();
     if (!mounted) return;
     // Straight to the bank flow with a clean slate.
