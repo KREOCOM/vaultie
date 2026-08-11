@@ -12531,6 +12531,20 @@ class _AccountTabState extends State<_AccountTab> {
           .disconnectBank(sessionIds: sessionIds, accountUids: accountUids);
     }
     await DashboardStore.disconnectAllBanks();
+    // The first-bank-connect flow (completeBankConnection in
+    // bank_connect_screen.dart) switches the display currency away from EUR
+    // when that first bank's accounts are majority non-EUR (a Norwegian
+    // user's kroner, say) — but nothing ever switched it BACK. A tester
+    // connected Swedbank+DNB (kroner), disconnected both, reconnected ONLY
+    // Swedbank (a EUR-only Lithuanian bank) — and every figure kept showing
+    // in kroner, because the currency setting has no concept of "empty" to
+    // return to; it just holds whatever the last non-EUR bank set. "Start
+    // over" should mean it, not leave a currency behind with no bank left
+    // to justify it. Only resets away from a NON-default currency — an EUR
+    // user disconnecting everything has nothing to reset.
+    if (AppPrefs.currencyCode.value != 'EUR') {
+      await AppPrefs.setCurrencyCode('EUR');
+    }
     if (!mounted) return;
     // Straight to the bank flow with a clean slate.
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
