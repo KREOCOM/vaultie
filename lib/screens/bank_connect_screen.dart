@@ -519,20 +519,24 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       await DashboardStore.setPendingConnect(bank.name, logo: bank.logo);
       final url = await BankingService.instance.startBankAuth(bank.name,
           country: bank.country.isNotEmpty ? bank.country : _country.code);
+      // REVERTED (2026-08-11): tried ephemeralIntentFlags
+      // (FLAG_ACTIVITY_NO_HISTORY) here to stop the Custom Tab falling back
+      // to the bank's own page on a failed hand-off. On a MIUI device it
+      // produced a WORSE, different symptom instead: `adb logcat` caught
+      // WindowManagerShell entering `PipTransitionState(mState=exiting-pip…)`
+      // for Chrome's CustomTabActivity — the tab shrinks into a small
+      // floating Picture-in-Picture bubble rather than closing, hiding the
+      // ALREADY-correct BankCallbackScreen underneath it. The deep link
+      // hand-off itself was confirmed working the whole time (the app screen
+      // was right, just visually obscured) — this flag change is what
+      // triggered MIUI's PiP transition, not a fix for anything. Back to
+      // flutter_web_auth_2's own default flags. If touching Custom Tab
+      // launch flags again, verify with `adb logcat | grep PipTransitionState`
+      // on a real MIUI device before trusting a screenshot alone — the
+      // failure mode is easy to misread as "button doesn't work".
       final result = await FlutterWebAuth2.authenticate(
         url: url,
         callbackUrlScheme: kBankingCallbackScheme,
-        // Default Custom Tab launch flags keep the bank's pages in Android's
-        // back history. When the hand-off to Vaultie doesn't resolve as a
-        // clean "close this tab" (observed on Android: Chrome's own "Open
-        // app?" prompt, not a real tap, so it isn't guaranteed to), the tab
-        // falls back to the last history entry instead of dismissing — the
-        // bank's own consent screen reappearing where the app was expected.
-        // ephemeralIntentFlags adds FLAG_ACTIVITY_NO_HISTORY, so there is no
-        // earlier page left to fall back to; the tab has nowhere to go but
-        // closed once the hand-off happens. iOS is unaffected (this option
-        // only has an effect on Android).
-        options: const FlutterWebAuth2Options(intentFlags: ephemeralIntentFlags),
       );
       final code = BankingService.codeFromCallback(Uri.parse(result));
       if (code == null) {
