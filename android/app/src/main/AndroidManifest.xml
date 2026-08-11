@@ -33,11 +33,26 @@
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:fullBackupContent="false">
+        <!-- REMOVED android:taskAffinity="" (2026-08-11) — it was Flutter's own
+             template default, present since the very first commit, not
+             something added for banking. Confirmed via `adb logcat`
+             (ActivityTaskManager: START ... cmp=…CallbackActivity … result
+             code=0) that flutter_web_auth_2's CallbackActivity — which has no
+             affinity of its own, so it defaults to the package's affinity
+             (com.kreocom.vaultie) — launches and resolves the deep link
+             SUCCESSFULLY every time. The empty affinity here meant Android
+             could never find MainActivity's task to match it against, so it
+             opened CallbackActivity in a brand new, invisible task instead of
+             reordering MainActivity's existing one to the front. The bank
+             connection was completing correctly the whole time; Chrome's
+             Custom Tab just never yielded the screen back, because nothing
+             ever told Android which task to bring forward. Matching the
+             default affinity lets NEW_TASK-flagged intents find and reorder
+             MainActivity's task instead of spawning a new one. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
