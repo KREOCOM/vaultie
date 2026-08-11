@@ -1742,7 +1742,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
         // missing one (a bank that rate-limited us during the connect burst).
         // It gets the same guard as a manual refresh: never trade complete data
         // for a fuller-but-holed one.
-        if (_refreshLostABank(full)) {
+        if (_refreshHasStaleBank(full) || _refreshLostABank(full)) {
           setState(() => _deepening = false);
           return;
         }
@@ -1814,6 +1814,29 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // A refresh must NEVER make a bank silently vanish. If the fresh result lost a
   // bank the current view shows, keep the last-known data and tell the user
   // instead of overwriting with a bank-less result.
+  // True when [fresh] carries a bank the user is no longer connected to —
+  // this refresh's OWN network request was dispatched with an account list
+  // captured before a disconnect that has since completed, so the request
+  // that just landed is answering a question nobody is asking anymore.
+  //
+  // A tester connected Swedbank+DNB, disconnected DNB, and 37 seconds later
+  // a `refresh_dashboard` call that had ALREADY been in flight before that
+  // disconnect (a slow deep 6-month DNB scan) landed and got applied — DNB's
+  // data reappeared on the dashboard for one refresh cycle, indistinguishable
+  // from disconnect having silently failed. `_refreshLostABank` already
+  // guards the opposite direction (a bank MISSING from a fresh result); nothing
+  // guarded this one. Checked against DashboardStore directly, not `_d` — the
+  // source of truth a disconnect action writes to immediately, not whatever
+  // happens to be on screen.
+  bool _refreshHasStaleBank(Map<String, dynamic>? fresh) {
+    if (fresh == null) return false;
+    final connected = DashboardStore.connections()
+        .map((c) => (c['bank'] as String?)?.toLowerCase().trim())
+        .whereType<String>()
+        .toSet();
+    return _banksIn(fresh).any((b) => !connected.contains(b));
+  }
+
   bool _refreshLostABank(Map<String, dynamic>? fresh,
       [Set<String> ignore = const <String>{}]) {
     if (fresh == null) return false;
@@ -1975,7 +1998,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (!mounted) return;
       final revoked = await _handleRevokedBanks();
       if (!mounted) return;
-      if (_refreshLostABank(fresh, revoked)) {
+      if (_refreshHasStaleBank(fresh) || _refreshLostABank(fresh, revoked)) {
         setState(() => _deepening = false);
         return; // keep the complete last-known data; don't save the partial
       }
@@ -2034,7 +2057,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (!mounted) return;
       final revoked = await _handleRevokedBanks();
       if (!mounted) return;
-      if (_refreshLostABank(fresh, revoked)) {
+      if (_refreshHasStaleBank(fresh) || _refreshLostABank(fresh, revoked)) {
         setState(() => _deepening = false);
         return; // keep the complete last-known data; don't save the partial
       }

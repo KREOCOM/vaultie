@@ -483,6 +483,12 @@ _SPENDING_CATEGORIES = {
     "flights", "ferry",
     "shopping", "retail", "clothing", "apparel", "electronics", "furniture",
     "convenience", "alcohol", "liquor", "tobacco", "pharmacy",
+    # Missing entirely until a one-off bus ticket (mcc.py MCC 4131 -> "transport",
+    # paid via Vipps) got auto-added as a "confirmed" monthly subscription at a
+    # single occurrence: a known merchant hit with occ<2 only diverts to the
+    # one-off "spending" bucket when its category is in this set, and no
+    # transport-family category was ever in it.
+    "transport", "taxi", "parking", "transit",
 }
 
 
