@@ -2820,6 +2820,36 @@ class _DashboardPreviewState extends State<DashboardPreview>
                                     fontSize: 13,
                                     color: _heroInk,
                                     fontWeight: FontWeight.w700)),
+                            // "Bendras likutis" sums every connected account —
+                            // checking AND savings — into one figure. Someone
+                            // with €4,000 everyday + €8,000 tucked away in
+                            // savings saw one €12,000 number with nothing
+                            // telling them a large share of it isn't spending
+                            // money. `sub` (backend: Enable Banking's required
+                            // cash_account_type — SVGS mapped to this label)
+                            // already had a slot on the client that nothing
+                            // ever populated; this is the one place a person
+                            // actually looks to understand what they have.
+                            if (a['sub'] != null) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _darkMode
+                                      ? Colors.white.withValues(alpha: 0.14)
+                                      : const Color(0xFFFBF1DE),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(tr(a['sub'] as String),
+                                    style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: _darkMode
+                                            ? _heroInk
+                                            : const Color(0xFF9C6B0A))),
+                              ),
+                            ],
                             const SizedBox(width: 8),
                             Text(
                                 _hideBal

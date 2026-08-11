@@ -395,14 +395,34 @@ def _consent_valid_until(session: dict, *, now=None) -> str:
 
 def _account_meta(acc: dict, bank: str | None) -> dict:
     """Normalise an Enable Banking account object OR a stored client account ref
-    to the fields the scan core needs: uid, name, currency, iban, bank."""
+    to the fields the scan core needs: uid, name, currency, iban, bank, sub."""
     uid = acc.get("uid") or acc.get("account_uid")
     acct_id = acc.get("account_id") if isinstance(acc.get("account_id"), dict) else {}
     iban = acc.get("iban") or acct_id.get("iban")
     name = acc.get("name") or acc.get("product") or iban or "Sąskaita"
     currency = acc.get("currency") or acct_id.get("currency") or "EUR"
     return {"uid": uid, "name": name, "currency": currency,
-            "iban": iban, "bank": bank}
+            "iban": iban, "bank": bank, "sub": _account_sub(acc)}
+
+
+# Enable Banking's `cash_account_type` (Berlin Group / ISO 20022 external code
+# set — required on every account object). A "Total balance" that quietly sums
+# a checking and a savings account into one figure reads as "money I can
+# spend today" when a large share of it is deliberately locked away — this is
+# the label the client already had a slot for (`sub`, dashboard_preview.dart)
+# but nothing ever populated. Only the types worth calling out explicitly;
+# an ordinary current/checking account gets no label (the common case, and
+# labelling it too would just be noise next to every other account).
+_CASH_ACCOUNT_TYPE_LABEL = {
+    "SVGS": "Taupomoji",
+    "CARD": "Kortelės sąskaita",
+    "LOAN": "Paskolos sąskaita",
+}
+
+
+def _account_sub(acc: dict) -> str | None:
+    t = (acc.get("cash_account_type") or "").upper()
+    return _CASH_ACCOUNT_TYPE_LABEL.get(t)
 
 
 def _psu_available(req) -> dict:
@@ -503,7 +523,7 @@ def _scan_one_account(client: EnableBankingClient, m: dict, *, months_back: int,
         return {
             "ok": True, "bank": bank, "txns": acc_txns, "currency": ccy,
             "summary": {
-                "name": m["name"], "amount": bal, "sub": None,
+                "name": m["name"], "amount": bal, "sub": m.get("sub"),
                 "icon": "R" if is_revolut else "bank",
                 "currency": ccy, "bank": bank, "iban": m.get("iban"),
             },
@@ -989,7 +1009,7 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
         "validUntil": _consent_valid_until(session),
         "accounts": [
             {"uid": m["uid"], "iban": m["iban"], "name": m["name"],
-             "currency": m["currency"]}
+             "currency": m["currency"], "sub": m.get("sub")}
             for m in metas if m.get("uid")
         ],
     }

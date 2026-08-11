@@ -30,6 +30,11 @@ const Map<String, String> _en = {
   'Planavimas': 'Planning',
   'Paskyra': 'Account',
 
+  // ── Account type labels (Enable Banking cash_account_type) ──
+  'Taupomoji': 'Savings',
+  'Kortelės sąskaita': 'Card account',
+  'Paskolos sąskaita': 'Loan account',
+
   // ── Home / balance hero ──
   'Bendras likutis': 'Total balance',
   'gyvai': 'live',
