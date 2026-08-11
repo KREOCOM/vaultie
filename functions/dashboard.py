@@ -228,7 +228,7 @@ def _amt(t):
     return _to_eur(v, ta.get("currency"))
 
 
-def _raw_amt_cur(t):
+def _raw_amt_cur(t, default_cur="EUR"):
     """The transaction's OWN signed amount and currency, before any EUR
     conversion — e.g. (461.50, "NOK"), not the EUR-normalized figure [_amt]
     returns for aggregation.
@@ -242,6 +242,13 @@ def _raw_amt_cur(t):
     matches this row's OWN currency, it uses these fields directly and skips
     both conversions, so what a NOK account holder sees is the exact NOK
     figure their bank shows, not a double-converted approximation of it.
+
+    ``default_cur`` is what to call this transaction's currency when Enable
+    Banking's own amount object carries none — some transaction types (a DNB
+    domestic transfer, seen live) omit it even though card purchases on the
+    same account always have one. The caller passes the account's own
+    currency here; only a genuinely mixed-currency multi-account consent
+    falls back to the hardcoded "EUR" default.
     """
     ta = t.get("transaction_amount") or {}
     try:
@@ -249,7 +256,7 @@ def _raw_amt_cur(t):
     except (TypeError, ValueError):
         v = 0.0
     v = abs(v) if t.get("credit_debit_indicator") == "CRDT" else -abs(v)
-    return v, (ta.get("currency") or "EUR").upper()
+    return v, (ta.get("currency") or default_cur).upper()
 
 
 def _name(t):
@@ -594,6 +601,22 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
         _resolve_memo[tid] = result
         return result
 
+    # Fallback currency for a transaction whose OWN transaction_amount carries
+    # no currency code — caught live: a DNB "Overføring Innland" (domestic
+    # transfer) came back from Enable Banking with no `currency` field on the
+    # amount at all (card purchases always have one; this transfer type
+    # apparently doesn't). _raw_amt_cur used to default that to "EUR"
+    # unconditionally, so a NOK account's own internal transfer got tagged
+    # EUR — the client's raw/display-currency match then failed for exactly
+    # this row, and it fell through to the old double-converted (backend
+    # static rate x client live rate, ~6% off) figure that every OTHER
+    # transaction on the same account had already stopped doing. Default to
+    # the account's own currency instead of a hardcoded one — "EUR" only when
+    # the accounts genuinely disagree with each other (a real mixed-currency
+    # consent), which is the one case with no single right answer anyway.
+    _acct_curs = {(a.get("currency") or "").upper() for a in (accounts or [])} - {""}
+    _fallback_cur = _acct_curs.pop() if len(_acct_curs) == 1 else "EUR"
+
     # ── flat `all` list ──
     all_rows = []
     skipped = 0
@@ -604,7 +627,7 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
             continue
         canonical, cat, col, ic, sec, secc, pos, _tr, dom = _classify(t, resolve_cat, salary_refs, own_ibans)
         y, m, day = ymd
-        raw_amt, raw_cur = _raw_amt_cur(t)
+        raw_amt, raw_cur = _raw_amt_cur(t, default_cur=_fallback_cur)
         all_rows.append({
             "nm": _name(t), "mkey": (canonical or _name(t)).lower()[:24],
             "d": t["booking_date"], "wd": LT_WD[dt.date(y, m, day).weekday()][:3],
@@ -621,7 +644,8 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
                         "booking_date", skipped)
 
     # ── month → day feed (latest 2 months), merging same merchant same day ──
-    months = _month_feed(txns, salary_refs, resolve_cat, own_ibans)
+    months = _month_feed(txns, salary_refs, resolve_cat, own_ibans,
+                          default_cur=_fallback_cur)
 
     # ── this-week category bars ──
     week = _week(txns, salary_refs, resolve_cat, today, own_ibans)
@@ -710,12 +734,12 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
     }
 
 
-def _merge_day(day_txns, salary_refs, resolve_cat, own_ibans=None):
+def _merge_day(day_txns, salary_refs, resolve_cat, own_ibans=None, default_cur="EUR"):
     merged = OrderedDict()
     for t in day_txns:
         _canon, cat, col, ic, sec, secc, pos, _tr, dom = _classify(t, resolve_cat, salary_refs, own_ibans)
         key = _norm(_name(t))
-        raw_amt, raw_cur = _raw_amt_cur(t)
+        raw_amt, raw_cur = _raw_amt_cur(t, default_cur=default_cur)
         if key not in merged:
             merged[key] = {"nm": _name(t), "cat": cat, "ic": ic, "col": col,
                            "sec": sec, "secc": secc, "a": 0.0, "count": 0,
@@ -736,7 +760,7 @@ def _merge_day(day_txns, salary_refs, resolve_cat, own_ibans=None):
     return merged
 
 
-def _month_feed(txns, salary_refs, resolve_cat, own_ibans=None):
+def _month_feed(txns, salary_refs, resolve_cat, own_ibans=None, default_cur="EUR"):
     bydate = defaultdict(list)
     for t in txns:
         bydate[t["booking_date"]].append(t)
@@ -748,7 +772,8 @@ def _month_feed(txns, salary_refs, resolve_cat, own_ibans=None):
         y, m, day = ymd
         mkey = f"{y}-{m:02d}"
         months.setdefault(mkey, {"name": LT_MON[m], "y": y, "m": m, "total": 0.0, "days": []})
-        merged = _merge_day(bydate[dtk], salary_refs, resolve_cat, own_ibans)
+        merged = _merge_day(bydate[dtk], salary_refs, resolve_cat, own_ibans,
+                             default_cur=default_cur)
         # Canonical day "spent" (expenses only, refunds net down; transfers/income
         # excluded) — a positive number, matching the client + month header. Was a
         # raw signed sum that included transfers/income (the old "−2127" trap).

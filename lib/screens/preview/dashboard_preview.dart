@@ -6022,32 +6022,45 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   }
 
   Widget _hero() {
-    return Column(
-      children: [
-        CategoryIcon(
-          icon: _isTransfer ? Icons.swap_horiz_rounded : _catIcon,
-          color: _isTransfer ? const Color(0xFF3E3B54) : _catColor,
-          size: 76,
-          circle: false,
-          // A transfer is a movement, not a merchant — a brand logo on it would
-          // be claiming the money went somewhere it didn't.
-          merchant: _isTransfer ? null : _logoOf(widget.tx),
-          domain: _isTransfer ? null : _domOf(widget.tx),
-        ),
-        const SizedBox(height: 14),
-        Text(merchant,
-            style: TextStyle(
-                fontSize: 27,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-                letterSpacing: -0.4)),
-        const SizedBox(height: 4),
-        Text(_eurTx(tx, signed: true),
-            style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: isPos ? _good : _ink)),
-      ],
+    return Padding(
+      // A short merchant name is one line, so Column's own centering was
+      // enough and this never showed up in testing with real (short) names.
+      // A long one (e.g. "Overføring Innland Bonprix Handelsgesellschaft
+      // Mb") wraps to 2+ lines — each wrapped line is independently
+      // left-aligned by Text's own default TextAlign.start, block-centering
+      // (what Column's crossAxisAlignment does) only centers the block as a
+      // whole, not the text within it. No horizontal padding either, so a
+      // wrapped line could reach the literal screen edge.
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: [
+          CategoryIcon(
+            icon: _isTransfer ? Icons.swap_horiz_rounded : _catIcon,
+            color: _isTransfer ? const Color(0xFF3E3B54) : _catColor,
+            size: 76,
+            circle: false,
+            // A transfer is a movement, not a merchant — a brand logo on it
+            // would be claiming the money went somewhere it didn't.
+            merchant: _isTransfer ? null : _logoOf(widget.tx),
+            domain: _isTransfer ? null : _domOf(widget.tx),
+          ),
+          const SizedBox(height: 14),
+          Text(merchant,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 27,
+                  fontWeight: FontWeight.w800,
+                  color: _ink,
+                  letterSpacing: -0.4)),
+          const SizedBox(height: 4),
+          Text(_eurTx(tx, signed: true),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: isPos ? _good : _ink)),
+        ],
+      ),
     );
   }
 
