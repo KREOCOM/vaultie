@@ -86,8 +86,20 @@ bool designPreviewPalette = false;
 /// Overrides a few tokens on top of the normal light palette _applyTheme just
 /// set, for the white/blue "premium fintech" hero exploration. Called right
 /// after _applyTheme(false) in initState — never touches dark mode.
+// The Home tab's hero/page blue, ONLY — matches the hero gradient's own last
+// stop, for a seamless blend. Deliberately NOT wired into the shared _bg
+// token: _bg is read all over the app (every tab's backdrop, chips, sheets),
+// and pointing it at blue leaked the Home hero's colour into Overview/Agent/
+// Planning/Account too. Kept as its own constant so it can only ever affect
+// the one place that explicitly reads it.
+const _previewPageBlue = Color(0xFF1557E8);
+
 void _applyPreviewPalette() {
-  _bg = const Color(0xFFFFFFFF);
+  // Page = a soft off-white, not pure white — cards ARE pure white, so the
+  // two-step contrast between page and card is what should read as "premium".
+  // Shared by every tab, so it stays off-white, NOT the hero's blue — see
+  // _previewPageBlue above for why that's a separate constant now.
+  _bg = const Color(0xFFF8FAFF);
   _card = const Color(0xFFFFFFFF);
   _soft = const Color(0xFFF3F6FC);
   _hair = const Color(0xFFE7ECF5);
@@ -2249,6 +2261,48 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // airy blue-grey base with three faint colour glows (blue/teal/pink) that
     // blend like a fintech mesh — subtle enough that dark ink stays fully legible.
     // The ListView and banner are transparent so nothing shows a hard block edge.
+    // The stuff below the hero — same widgets either way, just laid out
+    // differently depending on designPreviewPalette (see below).
+    final contentChildren = [
+      _subsCard(),
+      // The filter sits directly above the content it actually scopes — the week
+      // bars and the transaction feed below. It does NOT touch the subscriptions
+      // card above, so placing it there read as "out of place" (it appeared to
+      // belong to Prenumeratos/Sąskaitos while really filtering the feed).
+      _filters(),
+      _weekSection(),
+      // Bilance-style interleaved feed: transactions top→bottom; at each past-month
+      // boundary a purple review card, then that month's transactions continue.
+      for (var i = 0; i < shown.length; i++) ...[
+        _monthHeaderFor(shown[i]),
+        if (i > 0) _reviewCardFor(shown[i]),
+        for (final dd in _monthFeed(shown[i])) _dayGroup(dd),
+      ],
+      if (monthKeys.length > shown.length)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+          child: GestureDetector(
+            onTap: () => setState(() => _shownPast += 2),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                  color: _card,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _hair)),
+              child: Text('Rodyti senesnius (${monthKeys.length - shown.length})',
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700, color: _purple)),
+            ),
+          ),
+        ),
+    ];
+    // REVERTED (2026-08-12): the "one continuous white panel on a blue page,
+    // fading to white" experiment (v4–v9) kept producing new visual bugs on
+    // device each round without ever landing — back to the simple version:
+    // plain backdrop, hero renders its own rounded/shadowed card (see
+    // _topBanner), everything else is individual cards straight in the
+    // ListView, same as the real app.
     return Stack(
       children: [
         Positioned.fill(child: _frostBackdrop()),
@@ -2263,41 +2317,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
               children: [
                 _topBanner(),
                 const SizedBox(height: 12),
-                _subsCard(),
-                // The filter sits directly above the content it actually scopes — the week
-                // bars and the transaction feed below. It does NOT touch the subscriptions
-                // card above, so placing it there read as "out of place" (it appeared to
-                // belong to Prenumeratos/Sąskaitos while really filtering the feed).
-                _filters(),
-                _weekSection(),
-                // Bilance-style interleaved feed: transactions top→bottom; at each past-month
-                // boundary a purple review card, then that month's transactions continue.
-                for (var i = 0; i < shown.length; i++) ...[
-                  _monthHeaderFor(shown[i]),
-                  if (i > 0) _reviewCardFor(shown[i]),
-                  for (final dd in _monthFeed(shown[i])) _dayGroup(dd),
-                ],
-                if (monthKeys.length > shown.length)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _shownPast += 2),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                            color: _card,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: _hair)),
-                        child: Text(
-                            'Rodyti senesnius (${monthKeys.length - shown.length})',
-                            style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: _purple)),
-                      ),
-                    ),
-                  ),
+                ...contentChildren,
                 const SizedBox(height: 16),
               ],
             )),
@@ -2309,13 +2329,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// faint colour glows. Painted behind every tab so the whole app stands on the
   /// same ground — the home tab used to have this while Overview, AI chat,
   /// Planning and Account were flat white.
+  // Shared by EVERY tab (Home, Overview, Agent, Planning, Account) — the
+  // preview palette experiment is scoped to Home only, so this stays exactly
+  // as it always was. (2026-08-12: briefly made this blue too, which leaked
+  // the hero's colour into every other tab — reverted.)
   Widget _frostBackdrop() => Stack(
         children: [
           Positioned.fill(
             child: DecoratedBox(
-              decoration: designPreviewPalette
-                  ? const BoxDecoration(color: Color(0xFFFFFFFF))
-                  : _darkMode
+              decoration: _darkMode
                   ? const BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -2337,7 +2359,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     ),
             ),
           ),
-          if (!_darkMode && !designPreviewPalette) ..._frostMesh,
+          if (!_darkMode) ..._frostMesh,
         ],
       );
 
@@ -2546,9 +2568,23 @@ class _DashboardPreviewState extends State<DashboardPreview>
   Color get _heroInk => (_darkMode || designPreviewPalette)
       ? const Color(0xFFFFFFFF)
       : _ink;
-  Color get _heroDim => (_darkMode || designPreviewPalette)
-      ? const Color(0xFFC7D3F5)
-      : _muted;
+  // PREVIEW-ONLY: brighter than the dark-mode value — "Bendras likutis" and
+  // "gyvai" read as low-contrast against the vivid blue gradient otherwise
+  // (a light-BLUE label on a blue background has much less contrast than the
+  // same label had on dark mode's near-black backdrop).
+  Color get _heroDim => designPreviewPalette
+      ? const Color(0xFFEAF0FF)
+      : _darkMode
+          ? const Color(0xFFC7D3F5)
+          : _muted;
+  // PREVIEW-ONLY: the app's usual _good green reads as muddy on this
+  // gradient — a brighter, slightly more saturated green stays legible
+  // without looking neon.
+  Color get _heroGood =>
+      designPreviewPalette ? const Color(0xFF4ADE80) : _good;
+  Color get _heroBad => designPreviewPalette
+      ? const Color(0xFFFF8A80)
+      : const Color(0xFFE0574F);
   // "gyvai" / sync indicator: cyan glows on the dark theme, a solid green/blue on
   // Frost (a light cyan would vanish on the pale page).
   Color get _liveTint =>
@@ -2632,32 +2668,35 @@ class _DashboardPreviewState extends State<DashboardPreview>
       decoration: !designPreviewPalette
           ? null
           : BoxDecoration(
+              // REVERTED (2026-08-12): back to the hero rounding its OWN
+              // bottom corners + a matching shadow bleeding onto the page —
+              // the "one continuous white panel + flat page blue" experiment
+              // that replaced this got reverted (it kept producing new
+              // artifacts on device without landing right); this was the
+              // last version that actually worked.
               borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(32),
                 bottomRight: Radius.circular(32),
               ),
-              // Full-saturation stops (lifted straight from the reference
-              // deck's own "Pagrindinis mėlynas gradientas" spec) instead of
-              // the darker, greyer navy tried first — a muddy top stop is
-              // most of what read as "faded" next to Revolut's own vivid blue.
               gradient: const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFF1E40AF), Color(0xFF2563EB), Color(0xFF60A5FA)],
+                colors: [Color(0xFF071A52), Color(0xFF0B2E9B), Color(0xFF1557E8)],
               ),
-              // The card "bleeds" light onto the white page below it — without
-              // this the rounded edge just looks like a flat cutout, however
-              // vivid the fill. Two stacked shadows: a tight saturated one for
-              // punch, a wide soft one for the glow itself.
               boxShadow: const [
                 BoxShadow(
-                    color: Color(0x552563EB), blurRadius: 20, spreadRadius: -6, offset: Offset(0, 10)),
+                    color: Color(0x551557E8), blurRadius: 20, spreadRadius: -6, offset: Offset(0, 10)),
                 BoxShadow(
-                    color: Color(0x3360A5FA), blurRadius: 60, spreadRadius: 4, offset: Offset(0, 24)),
+                    color: Color(0x336E9BFF), blurRadius: 60, spreadRadius: 4, offset: Offset(0, 24)),
               ],
             ),
       child: Stack(children: [
-        if (designPreviewPalette) _previewGlow(),
+        // v6 (2026-08-12): glow blobs removed entirely — three rounds of
+        // artifacts (a hard-edged blur block, then still-visible banding on
+        // the plain RadialGradient's own circular edge) and the plain
+        // gradient underneath already reads as rich/premium on its own.
+        // _previewGlow()/_glowBlob() are left defined but unused below, in
+        // case a cleaner glow approach is worth trying later.
         Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2803,7 +2842,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                             ? Icons.arrow_upward_rounded
                             : Icons.arrow_downward_rounded,
                         size: 15,
-                        color: delta >= 0 ? _good : const Color(0xFFE0574F)),
+                        color: delta >= 0 ? _heroGood : _heroBad),
                     const SizedBox(width: 3),
                     Text(
                       '${delta >= 0 ? '+' : '−'}${deltaPct.abs().toStringAsFixed(1).replaceAll('.', ',')} %'
@@ -2811,7 +2850,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                       style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w800,
-                          color: delta >= 0 ? _good : const Color(0xFFE0574F)),
+                          color: delta >= 0 ? _heroGood : _heroBad),
                     ),
                     const SizedBox(width: 6),
                     Text(tr('nuo praėjusio mėn.'),
@@ -2878,11 +2917,21 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 ],
                 if (accounts.isNotEmpty) ...[
                   const SizedBox(height: 12),
+                  // PREVIEW-ONLY: collapsed state is ONE merged chip (bank +
+                  // balance + "+N more" all in the same block, centered,
+                  // smaller) instead of two separate pills side by side.
+                  // Expanded stays the original per-account list below.
+                  if (designPreviewPalette && !_acctsOpen)
+                    Center(child: _mergedAcctChip(accounts, acctTotal))
+                  else
                   // Compact account chips (logo · name · balance · share). Only the
                   // BIGGEST is shown until asked: four accounts — three of them
                   // Revolut currency pockets sitting at 0 € — filled the header
                   // with rows carrying no information. The rest are one tap away.
                   Wrap(
+                    alignment: designPreviewPalette
+                        ? WrapAlignment.center
+                        : WrapAlignment.start,
                     spacing: 8,
                     runSpacing: 8,
                     children: [
@@ -3023,22 +3072,83 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// PREVIEW-ONLY (2026-08-12): two soft radial blobs behind the hero content,
   /// for the layered "glow" depth the reference deck asked for instead of one
   /// flat gradient. Only ever built when designPreviewPalette is true.
+  /// PREVIEW-ONLY: the collapsed account row as ONE merged, centered chip —
+  /// bank + balance + (if there's more than one account) a "+N" count baked
+  /// into the SAME block, instead of two separate pills. Smaller than the
+  /// original chip too (less padding, smaller type). Tapping it expands to
+  /// the original per-account Wrap, same _acctsOpen flag either way.
+  Widget _mergedAcctChip(List<Map> accounts, double acctTotal) {
+    final a = accounts.first;
+    final more = accounts.length - 1;
+    return GestureDetector(
+      onTap: more > 0 ? () => setState(() => _acctsOpen = true) : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: _hair),
+          boxShadow: DS.e1,
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          _acctGlyph(a, diameter: 20, fontSize: 10),
+          const SizedBox(width: 6),
+          Text((a['bank'] ?? a['name'] ?? tr('Sąskaita')).toString(),
+              style: TextStyle(
+                  fontSize: 12, color: _ink, fontWeight: FontWeight.w700)),
+          const SizedBox(width: 6),
+          Text(
+              _hideBal
+                  ? '••••'
+                  : _eur0(((a['amount'] ?? 0) as num).toDouble()),
+              style: TextStyle(
+                  fontSize: 12,
+                  color: _purpleDeep,
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: const [FontFeature.tabularFigures()])),
+          if (!_hideBal && acctTotal > 0) ...[
+            const SizedBox(width: 4),
+            Text(
+                '${(((a['amount'] ?? 0) as num).toDouble() / acctTotal * 100).round()}%',
+                style: TextStyle(
+                    fontSize: 10, color: _muted, fontWeight: FontWeight.w600)),
+          ],
+          if (more > 0) ...[
+            const SizedBox(width: 6),
+            Container(width: 1, height: 14, color: _hair),
+            const SizedBox(width: 6),
+            Text('+$more',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: _purple,
+                    fontWeight: FontWeight.w800)),
+            Icon(Icons.expand_more_rounded, size: 15, color: _purple),
+          ],
+        ]),
+      ),
+    );
+  }
+
   /// Three overlapping, ACTUALLY-blurred blobs — a hard-edged RadialGradient
   /// falloff reads as a flat smudge no matter how saturated its colour is;
   /// real Gaussian blur (ImageFiltered) plus higher alpha is most of what
   /// separates "faded" from the reference deck's own luminous glow.
+  // v5 (2026-08-12): dropped ImageFiltered/blur entirely — even with a large
+  // transparent margin and TileMode.decal it still produced a visible
+  // rounded-rectangle "block" on device (Impeller compositing the blur's own
+  // layer bounds, most visible where it overlapped the chart's end labels).
+  // A plain multi-stop RadialGradient has no layer edge to show at all: it
+  // fades to fully transparent by construction, not by post-processing.
   Widget _previewGlow() => Positioned.fill(
         child: IgnorePointer(
-          child: ClipRect(
-            child: Stack(children: [
-              _glowBlob(top: -110, left: -100, size: 260,
-                  color: const Color(0xFF22D3EE), alpha: 0.55),
-              _glowBlob(top: -130, right: -80, size: 240,
-                  color: const Color(0xFFA855F7), alpha: 0.50),
-              _glowBlob(top: -80, left: 20, size: 200,
-                  color: const Color(0xFF60A5FA), alpha: 0.40),
-            ]),
-          ),
+          child: Stack(children: [
+            _glowBlob(top: -160, left: -80, size: 420,
+                color: const Color(0xFFA9C4FF), alpha: 0.10),
+            _glowBlob(top: -90, left: 80, size: 260,
+                color: const Color(0xFF6E9BFF), alpha: 0.40),
+            _glowBlob(top: -70, right: 10, size: 200,
+                color: const Color(0xFF2F6BFF), alpha: 0.30),
+          ]),
         ),
       );
 
@@ -3050,34 +3160,23 @@ class _DashboardPreviewState extends State<DashboardPreview>
     required Color color,
     required double alpha,
   }) {
-    // The blur box needs generous fully-transparent margin around the
-    // visible core, or ImageFiltered's blur cuts off at the widget's own
-    // bounds and leaves a visible rectangular seam instead of a soft fade —
-    // exactly the block-shaped artifact seen on device.
-    final boxSize = size * 2.2;
     return Positioned(
       top: top,
       left: left,
       right: right,
       child: IgnorePointer(
-        child: SizedBox(
-          width: boxSize,
-          height: boxSize,
-          child: ImageFiltered(
-            imageFilter: ui.ImageFilter.blur(
-                sigmaX: 40, sigmaY: 40, tileMode: TileMode.decal),
-            child: Center(
-              child: Container(
-                width: size,
-                height: size,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    color.withValues(alpha: alpha),
-                    color.withValues(alpha: 0),
-                  ]),
-                ),
-              ),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                color.withValues(alpha: alpha),
+                color.withValues(alpha: alpha * 0.5),
+                color.withValues(alpha: 0),
+              ],
+              stops: const [0.0, 0.5, 1.0],
             ),
           ),
         ),
@@ -3425,7 +3524,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           padding: const EdgeInsets.fromLTRB(10, 16, 10, 10),
           decoration: BoxDecoration(
-            color: _bg,
+            // PREVIEW-ONLY: this card wants to look "recessed" against its
+            // OWN white parent card — _bg used to be a pale grey that did
+            // that; now that _bg is the page's own vivid blue, reusing it
+            // here painted the chart blue instead of leaving it white.
+            color: designPreviewPalette ? _soft : _bg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _hair),
           ),
@@ -4910,10 +5013,16 @@ class _NeonSparkPainter extends CustomPainter {
   // One solid line colour (violet on dark, Frost blue on light) — the app's
   // usual dark-mode accent. A blue variant was tried here and reverted on the
   // device: it read as out of place next to the rest of the dark palette.
-  Color get _line => dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
+  // PREVIEW-ONLY: white reads as "part of the gradient" on the vivid blue
+  // hero; the old fixed violet/blue swatches sat on top of it as a visibly
+  // foreign, flat-coloured patch ("looks cut out") no matter which one ran.
+  Color get _line =>
+      designPreviewPalette
+          ? Colors.white
+          : dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
   Color get _gridColor =>
-      (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A))
-          .withValues(alpha: 0.07);
+      (designPreviewPalette ? Colors.white : dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A))
+          .withValues(alpha: designPreviewPalette ? 0.32 : 0.07);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -4949,22 +5058,27 @@ class _NeonSparkPainter extends CustomPainter {
     }
 
     // Soft area fill under the line — a clean colour tint (no blur haze).
-    final area = Path.from(line)
-      ..lineTo(at(pts.length - 1).dx, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(
-      area,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            _line.withValues(alpha: dark ? 0.26 : 0.16),
-            _line.withValues(alpha: 0.0)
-          ],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
-    );
+    // PREVIEW-ONLY: skipped — with a white _line, this read as a small
+    // "glow" sitting right under the line's highest point (near the
+    // endpoint), which wasn't wanted.
+    if (!designPreviewPalette) {
+      final area = Path.from(line)
+        ..lineTo(at(pts.length - 1).dx, size.height)
+        ..lineTo(0, size.height)
+        ..close();
+      canvas.drawPath(
+        area,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              _line.withValues(alpha: dark ? 0.26 : 0.16),
+              _line.withValues(alpha: 0.0)
+            ],
+          ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+      );
+    }
 
     // Crisp line on top.
     canvas.drawPath(
@@ -4990,21 +5104,33 @@ class _NeonSparkPainter extends CustomPainter {
       final a = at(i), b = at(i + 1);
       end = Offset(w * t, a.dy + (b.dy - a.dy) * (seg - i));
     }
+    // PREVIEW-ONLY: a translucent white halo works on any patch of the blue
+    // gradient it happens to land on; the old fixed grey/dark-violet halo
+    // was a flat swatch that didn't track the gradient underneath it.
     canvas.drawCircle(
         end,
         5,
         Paint()
-          ..color = (dark ? const Color(0xFF201545) : const Color(0xFFEEF1F7)));
+          ..color = designPreviewPalette
+              ? Colors.white.withValues(alpha: 0.28)
+              : (dark ? const Color(0xFF201545) : const Color(0xFFEEF1F7)));
     canvas.drawCircle(end, 3.4, Paint()..color = _line);
 
     if (endLabel != null && endLabel!.isNotEmpty && t >= 0.995) {
+      // PREVIEW-ONLY: the pill needs its OWN colours, not _line (now white
+      // for the stroke/dot) — white text on a white pill is invisible.
+      // Matches the "Revolut EUR" chip elsewhere on this hero: white pill,
+      // dark ink text.
+      final pillBg = designPreviewPalette ? Colors.white : _line;
+      final pillTextColor =
+          designPreviewPalette ? const Color(0xFF0B1533) : Colors.white;
       final tp = TextPainter(
         text: TextSpan(
             text: endLabel,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w800,
-                color: Colors.white)),
+                color: pillTextColor)),
         textDirection: TextDirection.ltr,
       )..layout();
       const padH = 8.0, padV = 4.0;
@@ -5014,7 +5140,7 @@ class _NeonSparkPainter extends CustomPainter {
       final py = (end.dy - pillH / 2).clamp(0.0, size.height - pillH);
       final rr = RRect.fromRectAndRadius(
           Rect.fromLTWH(px, py, pillW, pillH), const Radius.circular(8));
-      canvas.drawRRect(rr, Paint()..color = _line);
+      canvas.drawRRect(rr, Paint()..color = pillBg);
       tp.paint(canvas, Offset(px + padH, py + padV));
     }
   }
