@@ -526,6 +526,10 @@ def _scan_one_account(client: EnableBankingClient, m: dict, *, months_back: int,
                 "name": m["name"], "amount": bal, "sub": m.get("sub"),
                 "icon": "R" if is_revolut else "bank",
                 "currency": ccy, "bank": bank, "iban": m.get("iban"),
+                # This account's own uid — lets _build_result fill in a missing
+                # transaction currency (see there) from the RIGHT account
+                # instead of a dashboard-wide guess.
+                "uid": m.get("uid"),
             },
             "diag": {"account": m["name"], "bank": bank, **diag},
         }
@@ -654,6 +658,24 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     if len(all_txns) != raw:
         logging.info("scan: deduped %d -> %d transactions", raw, len(all_txns))
     summaries = _dedupe_summaries(summaries)
+    # Fill in a transaction's OWN currency when Enable Banking's amount object
+    # carries none at all — seen live on a DNB "Overføring Innland" domestic
+    # transfer, though card purchases on the same account always have one.
+    # detect_recurring AND build_dashboard both convert through fx.py's
+    # to_eur, which treats a missing currency as EUR at rate 1.0 (no
+    # conversion) — so an unfixed NOK transfer was valued as if its number
+    # were already euros, off by ~11x. Fixed once here, before either
+    # downstream stage runs, using the account the transaction actually came
+    # from (every transaction is tagged "_acct" at scan time) rather than one
+    # dashboard-wide guess, which degrades to EUR for anyone with more than
+    # one account currency — a Swedbank EUR account + a DNB NOK account is
+    # exactly that case, live.
+    _acct_cur = {s.get("uid"): (s.get("currency") or "").upper()
+                 for s in summaries if s.get("uid")}
+    for t in all_txns:
+        ta = t.get("transaction_amount")
+        if isinstance(ta, dict) and not ta.get("currency"):
+            ta["currency"] = _acct_cur.get(t.get("_acct")) or "EUR"
     # How much of this scan carried an MCC — the universal category signal. Some
     # banks send it on every card purchase (Revolut), some send none (older
     # banks). Logging it per scan is how we learn, from real usage, which banks
