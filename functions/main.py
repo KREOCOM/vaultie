@@ -904,28 +904,7 @@ def start_bank_auth(req: https_fn.CallableRequest) -> dict:
         # back to the first registered one.
         requested = data.get("redirectUrl")
         redirect_url = requested if requested in redirects else redirects[0]
-        # EXPERIMENTAL (2026-08-12): Swedbank LT's Enable Banking listing offers
-        # a DECOUPLED "SMART_ID" method alongside the normal REDIRECT one — the
-        # user approves in their own Swedbank app via push notification instead
-        # of a browser round trip, which may sidestep the "automatic app
-        # switching is not supported" limitation entirely. Enable Banking marks
-        # it "hidden_method": true and its response/completion shape isn't
-        # documented, so this is opt-in and Swedbank-only: every other bank's
-        # request is byte-for-byte unchanged, and even Swedbank falls back to
-        # the proven REDIRECT path unless the client explicitly supplies both
-        # Smart-ID fields. If it doesn't pan out, delete this block and the
-        # matching client dialog — nothing else depends on it.
-        smart_id_user = data.get("smartIdUserId")
-        smart_id_code = data.get("smartIdPersonalCode")
-        auth_method = None
-        credentials = None
-        if name.strip().lower() == "swedbank" and smart_id_user and smart_id_code:
-            auth_method = "SMART_ID"
-            credentials = {"userId": smart_id_user, "personalCode": smart_id_code}
-        url, state = client.start_auth(
-            name, country, redirect_url,
-            auth_method=auth_method, credentials=credentials,
-        )
+        url, state = client.start_auth(name, country, redirect_url)
     except EnableBankingError as e:
         # The three endpoints where connecting a bank actually breaks
         # used to log NOTHING — the detail went only to the phone, so a

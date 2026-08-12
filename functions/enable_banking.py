@@ -184,17 +184,8 @@ class EnableBankingClient:
                                # dropping that bank's data). 90 is the standard
                                # re-consent window banks accept.
         psu_type: str = "personal",
-        auth_method: str | None = None,
-        credentials: dict | None = None,
     ):
-        """Create a bank authorization URL. Returns ``(url, state)``.
-
-        ``auth_method``/``credentials`` opt into a non-default ASPSP auth
-        method (e.g. Swedbank LT's DECOUPLED "SMART_ID", which needs a
-        ``userId``/``personalCode`` pair instead of the plain redirect).
-        Omitted entirely unless the caller asks — every existing bank keeps
-        getting the exact request it always has.
-        """
+        """Create a bank authorization URL. Returns ``(url, state)``."""
         valid_until = (
             dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=valid_days)
         ).replace(microsecond=0).isoformat()
@@ -206,19 +197,8 @@ class EnableBankingClient:
             "redirect_url": redirect_url,
             "psu_type": psu_type,
         }
-        if auth_method:
-            body["auth_method"] = auth_method
-        if credentials:
-            body["credentials"] = credentials
         auth = self._request("POST", "/auth", body=body)
-        # Undocumented for DECOUPLED (Enable Banking's own API reference has no
-        # worked example) — fail with a clear message rather than a bare
-        # KeyError if a decoupled response ever omits "url".
-        url = auth.get("url")
-        if not url:
-            raise EnableBankingError(
-                200, "/auth", f"no url in response: {json.dumps(auth)[:300]}")
-        return url, state
+        return auth["url"], state
 
     def create_session(self, code: str) -> dict:
         """Exchange the redirect ``code`` for a session (+ its accounts)."""

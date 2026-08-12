@@ -356,25 +356,13 @@ class BankingService {
   }
 
   /// Begins consent for [bankName]; returns the bank's authorization URL to open.
-  ///
-  /// [smartIdUserId]/[smartIdPersonalCode] are EXPERIMENTAL (2026-08-12):
-  /// Swedbank LT only, opt into its DECOUPLED "SMART_ID" method (push
-  /// approval in the Swedbank app, no browser round trip) instead of the
-  /// normal redirect. Omit both and every bank — Swedbank included — gets
-  /// the exact same request as before.
-  Future<String> startBankAuth(String bankName,
-      {String country = 'LT',
-      String? smartIdUserId,
-      String? smartIdPersonalCode}) {
+  Future<String> startBankAuth(String bankName, {String country = 'LT'}) {
     return _call(
         'start_bank_auth',
         {
           'aspspName': bankName,
           'country': country,
           'redirectUrl': kBankingRedirectUrl,
-          if (smartIdUserId != null) 'smartIdUserId': smartIdUserId,
-          if (smartIdPersonalCode != null)
-            'smartIdPersonalCode': smartIdPersonalCode,
         },
         (m) => (m['url'] ?? '') as String);
   }
