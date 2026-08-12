@@ -76,6 +76,26 @@ Color _card = const Color(0xFFFFFFFF); // card / surface background
 Color _hair = const Color(0xFFE3E9F2); // hairline / dividers
 Color _soft = const Color(0xFFEEF2F8); // recessed surface (input / inner boxes)
 
+// PREVIEW-ONLY (2026-08-12): set to true ONLY by lib/main_design_preview.dart,
+// a completely separate entry point the real app never runs. Every real user
+// and every normal `flutter run`/release build gets `false` and therefore the
+// exact palette above, unchanged. Delete this flag, _applyPreviewPalette, and
+// its one call site in initState to remove the experiment entirely.
+bool designPreviewPalette = false;
+
+/// Overrides a few tokens on top of the normal light palette _applyTheme just
+/// set, for the white/blue "premium fintech" hero exploration. Called right
+/// after _applyTheme(false) in initState — never touches dark mode.
+void _applyPreviewPalette() {
+  _bg = const Color(0xFFFFFFFF);
+  _card = const Color(0xFFFFFFFF);
+  _soft = const Color(0xFFF3F6FC);
+  _hair = const Color(0xFFE7ECF5);
+  _ink = const Color(0xFF0B1533);
+  _muted = const Color(0xFF5B6684);
+  _faint = const Color(0xFF8A93AC);
+}
+
 void _applyTheme(bool dark) {
   _darkMode = dark;
   // Light = "Frost". Dark = near-black, back from before e07d9db, but with the
@@ -1705,6 +1725,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // Sync the dashboard's colour tokens to the saved theme on every launch —
     // otherwise they'd sit at their light defaults until the user toggled.
     _applyTheme(AppPrefs.darkMode.value);
+    if (designPreviewPalette) _applyPreviewPalette();
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     AppPrefs.locale.addListener(_onTheme); // ...and when the language changes
@@ -2292,7 +2313,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
         children: [
           Positioned.fill(
             child: DecoratedBox(
-              decoration: _darkMode
+              decoration: designPreviewPalette
+                  ? const BoxDecoration(color: Color(0xFFFFFFFF))
+                  : _darkMode
                   ? const BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -2314,7 +2337,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     ),
             ),
           ),
-          if (!_darkMode) ..._frostMesh,
+          if (!_darkMode && !designPreviewPalette) ..._frostMesh,
         ],
       );
 
@@ -2433,11 +2456,25 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   'mkey': k, 'd': d, 'sec': t['sec'], 'secc': t['secc'],
                   'star': t['star'] == true,
                   'ts': t['ts'],
+                  // raw/cur (the bank's own pre-conversion figure) — dropped here
+                  // before, so every merged row (even a "merge" of one) lost them
+                  // and _eurTx always fell back to the EUR round-trip, ~6% off.
+                  'raw': 0.0, 'cur': t['cur'],
                 });
         if (t['star'] == true) m['star'] = true;
         m['a'] = (m['a'] as double) + _aOf(t).toDouble();
         m['count'] = (m['count'] as int) + 1;
         if ((m['count'] as int) > 1) m['ts'] = null; // merged → no single time
+        // A merged row's raw sum is only meaningful when every leg shares ONE
+        // currency — same rule the server's own day-merge uses. Mixed legs fall
+        // back to the EUR-derived 'a' rather than summing unlike currencies.
+        final legRaw = t['raw'];
+        final legCur = (t['cur'] as String?)?.toUpperCase();
+        if (m['cur'] != null && legCur != null && m['cur'] == legCur && legRaw is num) {
+          m['raw'] = (m['raw'] as double) + legRaw.toDouble();
+        } else {
+          m['cur'] = null;
+        }
       }
       // `pos` drives the GREEN amount, and the group inherited it from whichever
       // row happened to create the entry. Two APPLE.COM/BILL rows on one day —
@@ -2502,12 +2539,22 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // payload, so what shows always matches what the user linked. Tapping opens the
   // full balance sheet. Text colour follows the theme so it stays legible: light
   // "on hero" ink over the dark violet backdrop, dark ink over the Frost page.
-  Color get _heroInk => _darkMode ? const Color(0xFFEDEAF6) : _ink;
-  Color get _heroDim => _darkMode ? const Color(0xFF948DAC) : _muted;
+  // PREVIEW-ONLY (2026-08-12): the hero background got a lot darker/more
+  // saturated (deep blue gradient vs. the old pale #C8D9F6), so it needs the
+  // SAME light-on-dark hero text dark mode already uses, not _ink/_muted —
+  // those stay dark for the now-white page below the hero.
+  Color get _heroInk => (_darkMode || designPreviewPalette)
+      ? const Color(0xFFFFFFFF)
+      : _ink;
+  Color get _heroDim => (_darkMode || designPreviewPalette)
+      ? const Color(0xFFC7D3F5)
+      : _muted;
   // "gyvai" / sync indicator: cyan glows on the dark theme, a solid green/blue on
   // Frost (a light cyan would vanish on the pale page).
-  Color get _liveTint => _darkMode ? const Color(0xFF6EE7FF) : _good;
-  Color get _syncTint => _darkMode ? const Color(0xFF6EE7FF) : _purple;
+  Color get _liveTint =>
+      (_darkMode || designPreviewPalette) ? const Color(0xFF6EE7FF) : _good;
+  Color get _syncTint =>
+      (_darkMode || designPreviewPalette) ? const Color(0xFF6EE7FF) : _purple;
 
   Widget _topBanner() {
     // Plot the FULL balance-over-time series — the same data the tapped balance
@@ -2582,7 +2629,22 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // The tint the app needed turned out to belong to the PAGE, not to a block
       // on it; see _applyTheme.
       padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, 18),
-      child: Column(
+      decoration: !designPreviewPalette
+          ? null
+          : const BoxDecoration(
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(32),
+                bottomRight: Radius.circular(32),
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0B2A9F), Color(0xFF2452EB), Color(0xFF4C7CFF)],
+              ),
+            ),
+      child: Stack(children: [
+        if (designPreviewPalette) _previewGlow(),
+        Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Title row sits on the page backdrop; colour follows the theme.
@@ -2818,7 +2880,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
                                     .toString(),
                                 style: TextStyle(
                                     fontSize: 13,
-                                    color: _heroInk,
+                                    // This chip is its OWN opaque surface
+                                    // (_card/white.10 above), not painted
+                                    // directly on the hero gradient — it needs
+                                    // the chip's own ink, not _heroInk.
+                                    color: _darkMode ? Colors.white : _ink,
                                     fontWeight: FontWeight.w700)),
                             // "Bendras likutis" sums every connected account —
                             // checking AND savings — into one figure. Someone
@@ -2920,8 +2986,49 @@ class _DashboardPreviewState extends State<DashboardPreview>
           ),
         ],
       ),
+      ]),
     );
   }
+
+  /// PREVIEW-ONLY (2026-08-12): two soft radial blobs behind the hero content,
+  /// for the layered "glow" depth the reference deck asked for instead of one
+  /// flat gradient. Only ever built when designPreviewPalette is true.
+  Widget _previewGlow() => Positioned.fill(
+        child: IgnorePointer(
+          child: Stack(children: [
+            Positioned(
+              top: -60,
+              left: -50,
+              child: Container(
+                width: 260,
+                height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    const Color(0xFF22D3EE).withValues(alpha: 0.35),
+                    Colors.transparent,
+                  ]),
+                ),
+              ),
+            ),
+            Positioned(
+              top: -30,
+              right: -60,
+              child: Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    const Color(0xFFA855F7).withValues(alpha: 0.30),
+                    Colors.transparent,
+                  ]),
+                ),
+              ),
+            ),
+          ]),
+        ),
+      );
 
   /// Balance change vs ~a month ago (the last dated point ≥30 days back, else the
   /// series start): returns (absolute €, percent). Nulls when there isn't data.

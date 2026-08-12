@@ -74,6 +74,14 @@
           }
         },
         {
+          "client_id": "747647617629-p2q930b8mm16dkglcqh0nl58pudl91pf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kreocom.vaultie",
+            "certificate_hash": "500e3a3d45ac80ca2d4a490fb8f5229fcfd420a2"
+          }
+        },
+        {
           "client_id": "747647617629-63mu7e6vo5ah7vl3emkbs5tplt34b3b1.apps.googleusercontent.com",
           "client_type": 3
         }
