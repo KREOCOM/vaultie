@@ -2631,16 +2631,30 @@ class _DashboardPreviewState extends State<DashboardPreview>
       padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, 18),
       decoration: !designPreviewPalette
           ? null
-          : const BoxDecoration(
-              borderRadius: BorderRadius.only(
+          : BoxDecoration(
+              borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(32),
                 bottomRight: Radius.circular(32),
               ),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF0B2A9F), Color(0xFF2452EB), Color(0xFF4C7CFF)],
+              // Full-saturation stops (lifted straight from the reference
+              // deck's own "Pagrindinis mėlynas gradientas" spec) instead of
+              // the darker, greyer navy tried first — a muddy top stop is
+              // most of what read as "faded" next to Revolut's own vivid blue.
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF1E40AF), Color(0xFF2563EB), Color(0xFF60A5FA)],
               ),
+              // The card "bleeds" light onto the white page below it — without
+              // this the rounded edge just looks like a flat cutout, however
+              // vivid the fill. Two stacked shadows: a tight saturated one for
+              // punch, a wide soft one for the glow itself.
+              boxShadow: const [
+                BoxShadow(
+                    color: Color(0x552563EB), blurRadius: 20, spreadRadius: -6, offset: Offset(0, 10)),
+                BoxShadow(
+                    color: Color(0x3360A5FA), blurRadius: 60, spreadRadius: 4, offset: Offset(0, 24)),
+              ],
             ),
       child: Stack(children: [
         if (designPreviewPalette) _previewGlow(),
@@ -2697,43 +2711,52 @@ class _DashboardPreviewState extends State<DashboardPreview>
             behavior: HitTestBehavior.opaque,
             onTap: _showBalance,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: designPreviewPalette
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  Text(tr('Bendras likutis'),
+                Builder(builder: (_) {
+                  // Sync status shrunk to a tiny inline indicator (was a big card):
+                  // a small spinner + "Sinchronizuojama" while a scan runs, else a
+                  // quiet "gyvai" dot.
+                  final syncIndicator = _deepening
+                      ? Row(mainAxisSize: MainAxisSize.min, children: [
+                          SizedBox(
+                              width: 11,
+                              height: 11,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 1.6, color: _syncTint)),
+                          const SizedBox(width: 6),
+                          Text(tr('Sinchronizuojama'),
+                              style: TextStyle(fontSize: 11, color: _syncTint)),
+                        ])
+                      : Row(mainAxisSize: MainAxisSize.min, children: [
+                          SizedBox(
+                              width: 6,
+                              height: 6,
+                              child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                      color: _liveTint, shape: BoxShape.circle))),
+                          const SizedBox(width: 5),
+                          Text(tr('gyvai'),
+                              style: TextStyle(fontSize: 11, color: _liveTint)),
+                        ]);
+                  final label = Text(tr('Bendras likutis'),
                       style: TextStyle(
                           fontSize: 12.5,
                           color: _heroDim,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2)),
-                  const Spacer(),
-                  // Sync status shrunk to a tiny inline indicator (was a big card):
-                  // a small spinner + "Sinchronizuojama" while a scan runs, else a
-                  // quiet "gyvai" dot.
-                  if (_deepening)
-                    Row(children: [
-                      SizedBox(
-                          width: 11,
-                          height: 11,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 1.6, color: _syncTint)),
-                      const SizedBox(width: 6),
-                      Text(tr('Sinchronizuojama'),
-                          style: TextStyle(fontSize: 11, color: _syncTint)),
-                    ])
-                  else
-                    Row(children: [
-                      SizedBox(
-                          width: 6,
-                          height: 6,
-                          child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                  color: _liveTint, shape: BoxShape.circle))),
-                      const SizedBox(width: 5),
-                      Text(tr('gyvai'),
-                          style: TextStyle(fontSize: 11, color: _liveTint)),
-                    ]),
-                ]),
+                          letterSpacing: 0.2));
+                  // PREVIEW-ONLY (2026-08-12): centered label + inline sync dot,
+                  // vs. the real app's label-left/status-right row.
+                  return designPreviewPalette
+                      ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          label,
+                          const SizedBox(width: 8),
+                          syncIndicator,
+                        ])
+                      : Row(children: [label, const Spacer(), syncIndicator]);
+                }),
                 const SizedBox(height: 5),
                 _hideBal
                     ? Text('••••••',
@@ -2767,7 +2790,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     deltaPct != null &&
                     delta.abs() >= 1) ...[
                   const SizedBox(height: 6),
-                  Row(children: [
+                  Row(
+                    mainAxisAlignment: designPreviewPalette
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.start,
+                    mainAxisSize: designPreviewPalette
+                        ? MainAxisSize.min
+                        : MainAxisSize.max,
+                    children: [
                     Icon(
                         delta >= 0
                             ? Icons.arrow_upward_rounded
@@ -2993,42 +3023,67 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// PREVIEW-ONLY (2026-08-12): two soft radial blobs behind the hero content,
   /// for the layered "glow" depth the reference deck asked for instead of one
   /// flat gradient. Only ever built when designPreviewPalette is true.
+  /// Three overlapping, ACTUALLY-blurred blobs — a hard-edged RadialGradient
+  /// falloff reads as a flat smudge no matter how saturated its colour is;
+  /// real Gaussian blur (ImageFiltered) plus higher alpha is most of what
+  /// separates "faded" from the reference deck's own luminous glow.
   Widget _previewGlow() => Positioned.fill(
         child: IgnorePointer(
-          child: Stack(children: [
-            Positioned(
-              top: -60,
-              left: -50,
-              child: Container(
-                width: 260,
-                height: 260,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    const Color(0xFF22D3EE).withValues(alpha: 0.35),
-                    Colors.transparent,
-                  ]),
-                ),
-              ),
-            ),
-            Positioned(
-              top: -30,
-              right: -60,
-              child: Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    const Color(0xFFA855F7).withValues(alpha: 0.30),
-                    Colors.transparent,
-                  ]),
-                ),
-              ),
-            ),
-          ]),
+          child: ClipRect(
+            child: Stack(children: [
+              _glowBlob(top: -110, left: -100, size: 260,
+                  color: const Color(0xFF22D3EE), alpha: 0.55),
+              _glowBlob(top: -130, right: -80, size: 240,
+                  color: const Color(0xFFA855F7), alpha: 0.50),
+              _glowBlob(top: -80, left: 20, size: 200,
+                  color: const Color(0xFF60A5FA), alpha: 0.40),
+            ]),
+          ),
         ),
       );
+
+  Widget _glowBlob({
+    double? top,
+    double? left,
+    double? right,
+    required double size,
+    required Color color,
+    required double alpha,
+  }) {
+    // The blur box needs generous fully-transparent margin around the
+    // visible core, or ImageFiltered's blur cuts off at the widget's own
+    // bounds and leaves a visible rectangular seam instead of a soft fade —
+    // exactly the block-shaped artifact seen on device.
+    final boxSize = size * 2.2;
+    return Positioned(
+      top: top,
+      left: left,
+      right: right,
+      child: IgnorePointer(
+        child: SizedBox(
+          width: boxSize,
+          height: boxSize,
+          child: ImageFiltered(
+            imageFilter: ui.ImageFilter.blur(
+                sigmaX: 40, sigmaY: 40, tileMode: TileMode.decal),
+            child: Center(
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    color.withValues(alpha: alpha),
+                    color.withValues(alpha: 0),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   /// Balance change vs ~a month ago (the last dated point ≥30 days back, else the
   /// series start): returns (absolute €, percent). Nulls when there isn't data.
