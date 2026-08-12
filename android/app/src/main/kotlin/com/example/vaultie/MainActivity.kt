@@ -1,7 +1,6 @@
 package com.example.vaultie
 
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import io.flutter.embedding.android.FlutterActivity
 
@@ -16,9 +15,11 @@ class MainActivity : FlutterActivity() {
         // image, meant to sit under the real one) left a visible gap of empty
         // colour above it instead, on every phone below Android 15.
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        // Keep balances, IBANs and transaction history out of the OS app-switcher
-        // snapshot (and out of screenshots / screen recordings). FLAG_SECURE blanks
-        // the recents thumbnail so the last screen isn't captured before the PIN.
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // REMOVED (2026-08-12): FLAG_SECURE used to block screenshots/screen
+        // recording and blank the app-switcher thumbnail here. iOS has no
+        // equivalent API — a screenshot can't be prevented there, only
+        // detected after the fact — so this was Android-only asymmetry, not a
+        // deliberate per-platform choice. Removed for parity: screenshots now
+        // work the same (i.e. are possible) on both platforms.
     }
 }
