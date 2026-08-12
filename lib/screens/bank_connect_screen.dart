@@ -501,12 +501,89 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     );
   }
 
+  /// EXPERIMENTAL (2026-08-12): Swedbank LT also offers a DECOUPLED "SMART_ID"
+  /// auth method — approve in the Swedbank app via push notification, no
+  /// browser round trip at all. That sidesteps the "automatic app switching
+  /// is not supported" limitation this whole file otherwise works around.
+  /// Enable Banking marks it a hidden method and doesn't document its
+  /// completion shape, so this is opt-in only: skip returns null and the
+  /// normal redirect flow runs exactly as it always has. If a live test shows
+  /// this doesn't work, delete this dialog and the two fields threaded through
+  /// startBankAuth — nothing else depends on it.
+  Future<({String userId, String personalCode})?> _promptSmartId(
+      Bank bank) async {
+    if (bank.name.trim().toLowerCase() != 'swedbank') return null;
+    final userCtl = TextEditingController();
+    final codeCtl = TextEditingController();
+    try {
+      return await showDialog<({String userId, String personalCode})?>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: cBg,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text(
+              _isLt ? 'Sparčiam prisijungimui (bandomasis)' : 'Faster connect (experimental)',
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w800, color: cxInk)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                  _isLt
+                      ? 'Įvesk savo Smart-ID duomenis — patvirtinsi prisijungimą tiesiai Swedbank programėlėje, be naršyklės. Arba tiesiog praleisk įprastam būdui.'
+                      : 'Enter your Smart-ID details to approve directly in the Swedbank app, no browser. Or just skip for the usual way.',
+                  style: const TextStyle(fontSize: 13, color: cxSubtle)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: userCtl,
+                decoration: InputDecoration(
+                    labelText: _isLt ? 'Banko vartotojo ID' : 'Bank user ID'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: codeCtl,
+                keyboardType: TextInputType.number,
+                decoration:
+                    InputDecoration(labelText: _isLt ? 'Asmens kodas' : 'Personal ID'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: Text(_isLt ? 'Praleisti' : 'Skip'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: VaultieColors.primary,
+                  foregroundColor: Colors.white),
+              onPressed: () {
+                final u = userCtl.text.trim();
+                final c = codeCtl.text.trim();
+                if (u.isEmpty || c.isEmpty) return;
+                Navigator.of(ctx).pop((userId: u, personalCode: c));
+              },
+              child: Text(_isLt ? 'Prisijungti' : 'Connect'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      userCtl.dispose();
+      codeCtl.dispose();
+    }
+  }
+
   Future<void> _connect(Bank bank) async {
     // Hard re-entrancy guard. The phase change below hides the bank list within
     // a frame, but two taps inside that frame — or during the await — started
     // two consent flows: two authorisation sessions at the bank, two entries
     // against its daily quota, and a second browser session iOS then refuses.
     if (_phase == _Phase.connecting) return;
+    final smartId = await _promptSmartId(bank);
+    if (!mounted) return;
     setState(() {
       _phase = _Phase.connecting;
       _connectingBank = bank.name;
@@ -518,7 +595,9 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       // only a code, and the resume path recovers the label from here.
       await DashboardStore.setPendingConnect(bank.name, logo: bank.logo);
       final url = await BankingService.instance.startBankAuth(bank.name,
-          country: bank.country.isNotEmpty ? bank.country : _country.code);
+          country: bank.country.isNotEmpty ? bank.country : _country.code,
+          smartIdUserId: smartId?.userId,
+          smartIdPersonalCode: smartId?.personalCode);
       // REVERTED (2026-08-11): tried ephemeralIntentFlags
       // (FLAG_ACTIVITY_NO_HISTORY) here to stop the Custom Tab falling back
       // to the bank's own page on a failed hand-off. On a MIUI device it
