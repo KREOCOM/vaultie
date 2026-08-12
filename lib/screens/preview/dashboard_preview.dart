@@ -2635,13 +2635,20 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // a falling balance the low and the pill landed on top of each other and the
     // same "6 808 €" was printed twice, overlapping.
     String? hi, lo;
+    int? hiIdx, loIdx;
     if (spark.length >= 2) {
       final maxV = spark.reduce((a, b) => a > b ? a : b);
       final minV = spark.reduce((a, b) => a < b ? a : b);
       final last = spark.last;
       const eps = 0.5; // both are rendered to the nearest euro
-      if ((maxV - last).abs() > eps) hi = _eur0(maxV);
-      if ((minV - last).abs() > eps) lo = _eur0(minV);
+      if ((maxV - last).abs() > eps) {
+        hi = _eur0(maxV);
+        hiIdx = spark.indexOf(maxV);
+      }
+      if ((minV - last).abs() > eps) {
+        lo = _eur0(minV);
+        loIdx = spark.indexOf(minV);
+      }
     }
     // Dated balance points → month-over-month change + x-axis date labels.
     final seriesRaw =
@@ -2864,39 +2871,104 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 // Chart with a soft fill, the balance pill at the endpoint, and € max/min.
                 SizedBox(
                   height: 78,
-                  child: Stack(clipBehavior: Clip.none, children: [
-                    Positioned.fill(
-                      // Only the chart listens to the demo's draw animation, so a
-                      // 60fps sweep doesn't rebuild the whole dashboard tree.
-                      child: AnimatedBuilder(
-                        animation: _chartDraw ?? kAlwaysCompleteAnimation,
-                        builder: (_, __) => CustomPaint(
-                          painter: _NeonSparkPainter(spark,
-                              dark: _darkMode,
-                              endLabel: _hideBal ? null : balStr,
-                              progress: _chartDraw?.value ?? 1),
+                  child: LayoutBuilder(builder: (context, box) {
+                    // PREVIEW-ONLY: tag the peak/trough AT their point on the
+                    // line (trading-chart read) instead of fixed corners —
+                    // same x/y math as _NeonSparkPainter.at() below.
+                    Widget? peakTag;
+                    Widget? troughTag;
+                    if (designPreviewPalette && spark.length >= 2) {
+                      const rightPad = 66.0;
+                      const h = 78.0;
+                      final w = (box.maxWidth - rightPad).clamp(1.0, box.maxWidth);
+                      final mn = spark.reduce((a, b) => a < b ? a : b);
+                      final mx = spark.reduce((a, b) => a > b ? a : b);
+                      final range = (mx - mn).abs() < 1e-6 ? 1.0 : (mx - mn);
+                      Offset at(int i) => Offset(
+                            i / (spark.length - 1) * w,
+                            (h - 8) - (spark[i] - mn) / range * (h - 16) + 4,
+                          );
+                      Widget tag(String text, int idx, {required bool above}) {
+                        final p = at(idx);
+                        final tp = TextPainter(
+                          text: TextSpan(
+                              text: text,
+                              style: const TextStyle(
+                                  fontSize: 10.5,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700)),
+                          textDirection: TextDirection.ltr,
+                        )..layout();
+                        final tagW = tp.width + 12;
+                        final left = (p.dx - tagW / 2).clamp(0.0, box.maxWidth - tagW);
+                        // Keep the tag INSIDE the chart box — clipBehavior.none
+                        // on the outer Stack means an unclamped bottom tag can
+                        // drift low enough to overlap the date row beneath it.
+                        final top = (above ? p.dy - 20 : p.dy + 8).clamp(0.0, h - 18);
+                        return Positioned(
+                          left: left,
+                          top: top,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.22),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(text,
+                                style: const TextStyle(
+                                    fontSize: 10.5,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                        );
+                      }
+
+                      if (hi != null && hiIdx != null) {
+                        peakTag = tag(hi, hiIdx, above: true);
+                      }
+                      if (lo != null && loIdx != null) {
+                        troughTag = tag(lo, loIdx, above: false);
+                      }
+                    }
+                    return Stack(clipBehavior: Clip.none, children: [
+                      Positioned.fill(
+                        // Only the chart listens to the demo's draw animation, so a
+                        // 60fps sweep doesn't rebuild the whole dashboard tree.
+                        child: AnimatedBuilder(
+                          animation: _chartDraw ?? kAlwaysCompleteAnimation,
+                          builder: (_, __) => CustomPaint(
+                            painter: _NeonSparkPainter(spark,
+                                dark: _darkMode,
+                                endLabel: _hideBal ? null : balStr,
+                                progress: _chartDraw?.value ?? 1),
+                          ),
                         ),
                       ),
-                    ),
-                    if (hi != null)
-                      Positioned(
-                          top: -2,
-                          right: 0,
-                          child: Text(hi,
-                              style: TextStyle(
-                                  fontSize: 10.5,
-                                  color: _heroDim,
-                                  fontWeight: FontWeight.w600))),
-                    if (lo != null)
-                      Positioned(
-                          bottom: -2,
-                          right: 0,
-                          child: Text(lo,
-                              style: TextStyle(
-                                  fontSize: 10.5,
-                                  color: _heroDim,
-                                  fontWeight: FontWeight.w600))),
-                  ]),
+                      if (designPreviewPalette) ...[
+                        if (peakTag != null) peakTag,
+                        if (troughTag != null) troughTag,
+                      ] else ...[
+                        if (hi != null)
+                          Positioned(
+                              top: -2,
+                              right: 0,
+                              child: Text(hi,
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: _heroDim,
+                                      fontWeight: FontWeight.w600))),
+                        if (lo != null)
+                          Positioned(
+                              bottom: -2,
+                              right: 0,
+                              child: Text(lo,
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: _heroDim,
+                                      fontWeight: FontWeight.w600))),
+                      ],
+                    ]);
+                  }),
                 ),
                 if (dateLabels.length >= 2) ...[
                   const SizedBox(height: 6),
@@ -5020,6 +5092,10 @@ class _NeonSparkPainter extends CustomPainter {
       designPreviewPalette
           ? Colors.white
           : dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
+  // PREVIEW-ONLY: trading-chart read — each segment colours by its own
+  // direction instead of one flat line, so a dip is visible at a glance.
+  static const Color _up = Color(0xFF00E676);
+  static const Color _down = Color(0xFFFF5252);
   Color get _gridColor =>
       (designPreviewPalette ? Colors.white : dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A))
           .withValues(alpha: designPreviewPalette ? 0.32 : 0.07);
@@ -5080,16 +5156,37 @@ class _NeonSparkPainter extends CustomPainter {
       );
     }
 
-    // Crisp line on top.
-    canvas.drawPath(
-      line,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = _line,
-    );
+    // PREVIEW-ONLY: candlestick read instead of a line — one bar per step,
+    // spanning the previous point's height to this point's, coloured by
+    // direction (only one value per point, so this is the "body", no wick).
+    if (designPreviewPalette) {
+      final spacing = pts.length > 1 ? w / (pts.length - 1) : w;
+      // Thin capsule/pill bars (fully rounded ends) instead of sharp-edged
+      // trading blocks — softer, more "Vaultie" than a literal candlestick.
+      final barW = (spacing * 0.32).clamp(3.0, 7.0);
+      for (var i = 1; i < pts.length; i++) {
+        final a = at(i - 1), b = at(i);
+        final rising = pts[i] >= pts[i - 1];
+        final top = a.dy < b.dy ? a.dy : b.dy;
+        final bottom = a.dy > b.dy ? a.dy : b.dy;
+        final rect = RRect.fromRectAndRadius(
+          Rect.fromLTRB(b.dx - barW / 2, top, b.dx + barW / 2,
+              (bottom - top).abs() < barW ? top + barW : bottom),
+          Radius.circular(barW / 2),
+        );
+        canvas.drawRRect(rect, Paint()..color = rising ? _up : _down);
+      }
+    } else {
+      canvas.drawPath(
+        line,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = _line,
+      );
+    }
 
     if (t < 1) canvas.restore();
 
@@ -5114,7 +5211,13 @@ class _NeonSparkPainter extends CustomPainter {
           ..color = designPreviewPalette
               ? Colors.white.withValues(alpha: 0.28)
               : (dark ? const Color(0xFF201545) : const Color(0xFFEEF1F7)));
-    canvas.drawCircle(end, 3.4, Paint()..color = _line);
+    canvas.drawCircle(
+        end,
+        3.4,
+        Paint()
+          ..color = designPreviewPalette
+              ? (pts.last >= pts[pts.length - 2] ? _up : _down)
+              : _line);
 
     if (endLabel != null && endLabel!.isNotEmpty && t >= 0.995) {
       // PREVIEW-ONLY: the pill needs its OWN colours, not _line (now white
