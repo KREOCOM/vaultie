@@ -33,6 +33,7 @@ import '../bank_connect_screen.dart';
 import '../legal_screen.dart';
 import '../lock_screen.dart';
 import '../login_screen.dart';
+import 'subs_bills_live.dart' show LiveRecurringScreen;
 
 /// Bilance-style Dashboard preview, on the user's REAL computed Revolut data.
 ///
@@ -726,6 +727,46 @@ String? _hm(Object? ts) {
   return '${two(d.hour)}:${two(d.minute)}';
 }
 
+/// The baked "App Review" sample account's recurring items are privacy-safe
+/// placeholder names (Streamly, CloudDrive, …) with no bundled logo, and no
+/// bill-type items at all — fine for App Review, useless for eyeballing the
+/// Prenumeratos/Sąskaitos redesign (2026-08-13), which needs real recognised
+/// brands to show its logo tier and needs BOTH pools populated to show the
+/// split. Swaps in a small real-brand catalogue instead, subs AND bills,
+/// matching the names used in the standalone subs_sort_demo.dart /
+/// bills_sort_demo.dart demos so this reads as the same picture. Only when
+/// `designPreviewPalette` is on (this build's whole reason to exist) — never
+/// touches a real signed-in user's actual synced data.
+Map<String, dynamic> _maybePatchPreviewRecurring(Map<String, dynamic> d) {
+  if (!designPreviewPalette) return d;
+  Map<String, dynamic> item(String name, double amount, String type, int occ, String sid) => {
+        'name': name,
+        'monthly': amount,
+        'cost': amount,
+        'cycle': 'monthly',
+        'status': 'active',
+        'active': true,
+        'type': type,
+        'occ': occ,
+        'sid': sid,
+      };
+  final subs = (d['subs'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+  subs['items'] = [
+    item('Netflix', 12.99, 'subscription', 5, 'pv_netflix'),
+    item('Spotify', 9.99, 'subscription', 6, 'pv_spotify'),
+    item('Google One', 2.99, 'subscription', 4, 'pv_google_one'),
+    item('Apple Music', 10.99, 'subscription', 5, 'pv_apple_music'),
+    item('Apple Pay', 4.99, 'subscription', 4, 'pv_apple_pay'),
+    item('SEB', 420.00, 'bill', 5, 'pv_seb'),
+    item('Ignitis', 45.20, 'bill', 6, 'pv_ignitis'),
+    item('Telia', 24.99, 'bill', 6, 'pv_telia'),
+    item('Vilniaus vandenys', 18.40, 'bill', 4, 'pv_vandenys'),
+    item('Lietuvos draudimas', 12.50, 'bill', 3, 'pv_ld'),
+  ];
+  d['subs'] = subs;
+  return d;
+}
+
 /// The backend `subs.items` as typed maps
 /// ({name, monthly, cost, cycle, status, active, type, occ, lastCharge}).
 /// Tolerant of the legacy baked-preview shape (a `[name, cost]` pair) so the
@@ -1176,13 +1217,25 @@ class DashboardPreview extends StatefulWidget {
   State<DashboardPreview> createState() => _DashboardPreviewState();
 }
 
+/// One side of `_heroSideGlow` — a flat, constant tone. See that getter for
+/// why no gradient/fade is needed: the strip is positioned from the hero's
+/// own MEASURED height, so it is already the target colour for its entire
+/// extent, including the part hidden behind the hero's rounded corner.
+class _SideGlowStrip extends StatelessWidget {
+  const _SideGlowStrip();
+
+  @override
+  Widget build(BuildContext context) =>
+      DecoratedBox(decoration: BoxDecoration(color: _previewPageBlue.withValues(alpha: 0.20)));
+}
+
 class _DashboardPreviewState extends State<DashboardPreview>
     with WidgetsBindingObserver, TickerProviderStateMixin {
-  late Map<String, dynamic> _d = _normalizeDash(widget.demo
+  late Map<String, dynamic> _d = _maybePatchPreviewRecurring(_normalizeDash(widget.demo
       ? _demoDash()
       : widget.data ??
           jsonDecode(utf8.decode(base64Decode(_dashB64)))
-              as Map<String, dynamic>);
+              as Map<String, dynamic>));
 
   /// The baked sample data with every date rolled forward by whole weeks, so
   /// the demo reads as current: "this week" is anchored to today's Monday, and
@@ -1468,6 +1521,26 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   // Controls the home ListView (used for pull-to-refresh).
   final ScrollController _homeScroll = ScrollController();
+
+  // Measures the hero's ACTUAL rendered height (it varies: balance hidden vs
+  // shown, +N accounts chip, safe-area insets) so `_heroSideGlow` can start
+  // exactly where the hero ends instead of guessing a fraction of the page —
+  // a guessed fraction either left a gap of plain backdrop between the hero
+  // and the glow (when the guess was too low) or cut across the hero's own
+  // rounded corner (when too high). Re-measured after every frame the hero
+  // could have changed size; only triggers a rebuild when the number actually
+  // moved, so this can't loop.
+  final GlobalKey _heroKey = GlobalKey();
+  double? _heroHeight;
+  void _measureHero() {
+    if (!designPreviewPalette) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _heroKey.currentContext?.findRenderObject() as RenderBox?;
+      final h = box?.size.height;
+      if (h != null && h > 0 && h != _heroHeight) setState(() => _heroHeight = h);
+    });
+  }
 
   // ── Onboarding demo (widget.demo only) ────────────────────────────────────
   // A looping, hands-free walkthrough: hide the balance, draw the chart, scroll
@@ -2247,6 +2320,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   // ── DASHBOARD ──────────────────────────────────────────────────────────────
   Widget _dashboard() {
+    _measureHero();
     final all = _feedAll;
     final keys = <String>{};
     for (final t in all) {
@@ -2306,6 +2380,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return Stack(
       children: [
         Positioned.fill(child: _frostBackdrop()),
+        if (designPreviewPalette && !_darkMode) ..._heroSideGlow,
         RefreshIndicator(
             onRefresh: _forceSync,
             color: _purple,
@@ -2323,6 +2398,72 @@ class _DashboardPreviewState extends State<DashboardPreview>
             )),
       ],
     );
+  }
+
+  /// The hero's blue carried down BOTH page margins — the 16dp gutter between
+  /// the screen edge and every card below it — for the whole scrollable
+  /// height, not just the sliver the hero's own drop shadow used to bleed a
+  /// few pixels past its rounded bottom corners. Deliberately only the two
+  /// side strips: full-width bands (behind the hero itself, and in the gaps
+  /// BETWEEN stacked cards) would tint the cards' own background, which is
+  /// exactly what was rejected in the "one continuous panel" experiment
+  /// above. Fixed in the Stack (not inside the ListView), so it doesn't
+  /// scroll away under the cards.
+  ///
+  /// The strip is a plain rectangle, but the hero's own bottom corners are
+  /// ROUNDED (see _topBanner's BorderRadius.only(bottomLeft/bottomRight:
+  /// circular(32))) — a hard-edged strip guessed to start at some FRACTION of
+  /// the page height either left a gap of plain backdrop showing between the
+  /// hero and the strip (the two never touched — not "merged" at all), or cut
+  /// across the curve and looked like the blue folding backward right at the
+  /// seam. Fixed by using the hero's REAL measured height (`_measureHero`)
+  /// instead of a guess: the strip starts 40px above that — inside the
+  /// hero's own rounded corner (radius 32), so the opaque hero itself (drawn
+  /// on top, later in this Stack) fully covers that overlap and hides the
+  /// curve — and is already at full colour there, so the instant the hero's
+  /// paint actually ends, the strip is already the target colour with zero
+  /// gap and zero fade to coordinate at the TOP. Hidden until the first
+  /// measurement lands, so there's no misplaced flash on the very first
+  /// frame.
+  ///
+  /// The bottom is the opposite of the top: solid for a stretch, THEN a
+  /// gradual fade down to nothing, dissolving into the ordinary page backdrop
+  /// rather than either stopping dead or running solid forever down however
+  /// many transactions the feed has.
+  static const double _heroSideGlowWidth = 16;
+  static const double _heroSideGlowOverlap = 40;
+  static const double _heroSideGlowSolidRun = 90;
+  static const double _heroSideGlowFade = 380;
+  List<Widget> get _heroSideGlow {
+    final h = _heroHeight;
+    if (h == null) return const [];
+    final solidTop = h - _heroSideGlowOverlap;
+    Widget side(Alignment edge) => Positioned(
+          top: solidTop,
+          height: _heroSideGlowSolidRun + _heroSideGlowFade,
+          left: edge == Alignment.centerLeft ? 0 : null,
+          right: edge == Alignment.centerRight ? 0 : null,
+          width: _heroSideGlowWidth,
+          child: Column(children: [
+            SizedBox(height: _heroSideGlowSolidRun, child: const _SideGlowStrip()),
+            SizedBox(
+              height: _heroSideGlowFade,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      _previewPageBlue.withValues(alpha: 0.20),
+                      _previewPageBlue.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ]),
+        );
+    return [side(Alignment.centerLeft), side(Alignment.centerRight)];
   }
 
   /// The app's shared backdrop: a soft gradient, plus (in light "Frost") three
@@ -2659,6 +2800,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final dateLabels = _sparkDateLabels(seriesRaw);
     final topInset = MediaQuery.of(context).padding.top;
     return Container(
+      key: designPreviewPalette ? _heroKey : null,
       // Dark mode: transparent, so the header melts into the page's violet
       // gradient with no card edge. Light mode: a blue header that runs to the
       // screen edges and under the status bar, carrying the onboarding's colour
@@ -3314,21 +3456,21 @@ class _DashboardPreviewState extends State<DashboardPreview>
     );
   }
 
-  // Dashboard recurring block (Bilance-style, calm): ONE card. The top half
-  // splits the monthly commitment into Subscriptions | Bills and opens the
-  // manager (see & toggle every stream in/out). Below it, a PERMANENT "review
+  // Dashboard recurring block (Bilance-style, calm): ONE card, but the top
+  // row is two INDEPENDENT tap targets — Prenumeratos opens the manager
+  // filtered to subscriptions, Sąskaitos opens it filtered to bills, so one
+  // tap never lands you on the other pool. Below it, a PERMANENT "review
   // recurring payments" row opens the ＋/✗ sheet — amber with a count when the
   // engine is unsure, calm otherwise. No outer title: the halves label it.
   Widget _subsCard() {
     final subs = _d['subs'] as Map<String, dynamic>;
     final hidden = DashboardStore.recurringHidden();
     // allItems (incl. hidden + manual) go to the manager so it can restore hidden
-    // ones; items (hidden dropped) drive the totals/split/review count.
+    // ones; items (hidden dropped) drive the totals/split.
     final allItems = _recItemsFull(subs);
     final items = allItems.where((it) => !_recHasVerdict(hidden, it)).toList();
     final excl = DashboardStore.recurringExcluded();
     final incl = DashboardStore.recurringIncluded();
-    final reviewed = DashboardStore.recurringReviewed();
     final counted = items.where((it) => _recCounted(it, excl, incl)).toList();
     double subsSum = 0, billsSum = 0;
     int subsN = 0, billsN = 0;
@@ -3342,135 +3484,69 @@ class _DashboardPreviewState extends State<DashboardPreview>
         billsN++;
       }
     }
-    final pending = items
-        .where((it) =>
-            it['needsReview'] == true &&
-            !_recHasVerdict(reviewed, it) &&
-            !excl
-                .contains(((it['name'] as String?) ?? '').trim().toLowerCase()))
-        .toList()
-      ..sort((a, b) =>
-          ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
-    final n = pending.length;
 
-    Future<void> openManager() async {
-      await Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => _RecurringScreen(items: allItems)));
-      // Same reason as openReview: toggling a payment off in the manager has to
-      // reach Planning's copy of the list too.
+    // Each card is its own destination — 'subscription'/'bill' — using the
+    // 2026-08-13 redesign (hero + ranked candidate sort, real logos) instead
+    // of the old toggle-switch manager, so a tap on "Prenumeratos" can never
+    // land the user on a Sąskaitos row (and vice versa). The candidate review
+    // this used to need a SEPARATE "Patikrink pasikartojančius mokėjimus" row
+    // for now lives inside each card's own hero ("Peržiūrėti mokėjimus") —
+    // that row would only have duplicated it.
+    Future<void> openManager(String typeFilter) async {
+      await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => LiveRecurringScreen(
+                wantType: typeFilter,
+                title: typeFilter == 'subscription' ? tr('Prenumeratos') : tr('Sąskaitos'),
+                itemsOverride: allItems,
+              )));
+      // Toggling a payment off in the manager has to reach Planning's copy of
+      // the list too — it lives in the CACHED tab list, not this tab's state.
       if (mounted) setState(() => _otherTabs = null);
     }
 
     // The demo taps this card by calling the very handler the card's own
     // GestureDetector uses, so it can never drift from what a real tap does.
-    if (widget.demo) _demoOpenManager = openManager;
+    if (widget.demo) _demoOpenManager = () => openManager('subscription');
 
-    Future<void> openReview() async {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => _RecurringReviewSheet(items: pending),
-      );
-      // Planning lives in the CACHED tab list and reads the same verdicts. A
-      // plain setState only repaints this tab, so answering here made the
-      // questions vanish from Home while Planning went on offering the very
-      // same two — the user answers, and is asked again one tab away.
-      if (mounted) setState(() => _otherTabs = null);
-    }
+    Widget card(GlobalKey? key, String label, double sum, int n, Color dot,
+            String typeFilter) =>
+        Expanded(
+          child: GestureDetector(
+            key: key,
+            onTap: () => openManager(typeFilter),
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              decoration: BoxDecoration(
+                color: _card,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.black, width: 1.5),
+                boxShadow: _darkMode
+                    ? null
+                    : [
+                        BoxShadow(
+                            color: const Color(0xFF1E284A).withValues(alpha: 0.05),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6))
+                      ],
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
+              child: Row(children: [
+                Expanded(child: _recHalf(label, sum, n, dot)),
+                Icon(Icons.chevron_right_rounded, size: 18, color: _faint),
+              ]),
+            ),
+          ),
+        );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _hair),
-          boxShadow: _darkMode
-              ? null
-              : [
-                  BoxShadow(
-                      color: const Color(0xFF1E284A).withValues(alpha: 0.05),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6))
-                ],
-        ),
-        child: Column(children: [
-          GestureDetector(
-            key: _kRec,
-            onTap: openManager,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 15, 12, 15),
-              child: Row(children: [
-                Expanded(
-                    child: _recHalf(tr('Prenumeratos'), subsSum, subsN,
-                        _catColors['entertainment']!)),
-                Container(width: 1, height: 46, color: _hair),
-                const SizedBox(width: 16),
-                Expanded(
-                    child: _recHalf(tr('Sąskaitos'), billsSum, billsN,
-                        _catColors['housing']!)),
-                const SizedBox(width: 4),
-                Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
-              ]),
-            ),
-          ),
-          Container(height: 1, color: _hair),
-          GestureDetector(
-            onTap: openReview,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-              child: Row(children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: _purple.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child:
-                      Icon(Icons.fact_check_outlined, color: _purple, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(tr('Patikrink pasikartojančius mokėjimus'),
-                            style: TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w800,
-                                color: _ink)),
-                        const SizedBox(height: 1),
-                        Text(
-                            n > 0
-                                ? tr('Ar tikrai juos seki?')
-                                : tr('Viskas patikrinta'),
-                            style: TextStyle(fontSize: 12, color: _muted)),
-                      ]),
-                ),
-                if (n > 0)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                    decoration: BoxDecoration(
-                        color: _reviewAmber,
-                        borderRadius: BorderRadius.circular(9)),
-                    child: Text('$n',
-                        style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
-                  ),
-                const SizedBox(width: 4),
-                Icon(Icons.chevron_right_rounded, color: _purple),
-              ]),
-            ),
-          ),
-        ]),
-      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        card(_kRec, tr('Prenumeratos'), subsSum, subsN,
+            _catColors['entertainment']!, 'subscription'),
+        const SizedBox(width: 12),
+        card(null, tr('Sąskaitos'), billsSum, billsN, _catColors['housing']!,
+            'bill'),
+      ]),
     );
   }
 
@@ -3487,10 +3563,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
             child: Text(label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: _muted)),
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black)),
           ),
         ]),
         const SizedBox(height: 7),
@@ -11174,8 +11250,10 @@ class _PlanningTabState extends State<_PlanningTab> {
 // ("I stopped paying" / "not recurring"). Overrides persist in DashboardStore
 // and re-apply after every re-sync (keyed by name), so a correction sticks.
 class _RecurringScreen extends StatefulWidget {
-  const _RecurringScreen({required this.items});
+  const _RecurringScreen({required this.items, this.typeFilter});
   final List<Map<String, dynamic>> items;
+  // 'subscription' | 'bill' | null (both — the old combined manager).
+  final String? typeFilter;
   @override
   State<_RecurringScreen> createState() => _RecurringScreenState();
 }
@@ -11192,9 +11270,16 @@ class _RecurringScreenState extends State<_RecurringScreen> {
   bool _hiddenExpanded = false;
   // A STABLE order fixed on entry — counted first, then by amount. Toggling never
   // re-sorts (that made rows jump around and feel like the switch "sprang back").
+  bool _matchesFilter(Map it) {
+    final f = widget.typeFilter;
+    if (f == null) return true;
+    final isSub = _recType(it) == 'subscription';
+    return f == 'subscription' ? isSub : !isSub;
+  }
+
   late final List<Map<String, dynamic>> _ordered = [
     for (final it in widget.items)
-      if (!_recHasVerdict(_hiddenSids, it)) it
+      if (!_recHasVerdict(_hiddenSids, it) && _matchesFilter(it)) it
   ]..sort(_byCountedThenAmount);
 
   int _byCountedThenAmount(Map a, Map b) {
@@ -11204,8 +11289,9 @@ class _RecurringScreenState extends State<_RecurringScreen> {
   }
 
   // Currently-deleted items (to offer restore). Derived from the full input.
-  List<Map<String, dynamic>> get _hiddenItems =>
-      widget.items.where((it) => _recHasVerdict(_hiddenSids, it)).toList();
+  List<Map<String, dynamic>> get _hiddenItems => widget.items
+      .where((it) => _recHasVerdict(_hiddenSids, it) && _matchesFilter(it))
+      .toList();
 
   // Captured so a lingering floating snackbar (app-level messenger) is cleared
   // when we leave this screen.
@@ -11499,7 +11585,12 @@ class _RecurringScreenState extends State<_RecurringScreen> {
         backgroundColor: _bg,
         elevation: 0,
         foregroundColor: _ink,
-        title: Text(tr('Pasikartojantys'),
+        title: Text(
+            tr(switch (widget.typeFilter) {
+              'subscription' => 'Prenumeratos',
+              'bill' => 'Sąskaitos',
+              _ => 'Pasikartojantys',
+            }),
             style: TextStyle(color: _ink, fontWeight: FontWeight.w800)),
       ),
       body: ListView(
@@ -11595,14 +11686,23 @@ class _RecurringScreenState extends State<_RecurringScreen> {
     final bills =
         _ordered.where((it) => _recType(it) != 'subscription').toList();
     final hidden = _hiddenItems;
+    // Filtered screens (opened from one half of the dashboard card) already
+    // say what they are via the title — no need for a second in-body header.
+    final f = widget.typeFilter;
     return [
-      if (subs.isNotEmpty)
-        _groupHeader('Prenumeratos',
-            'Reguliarios paslaugos — Netflix, sporto salė, programėlės.'),
+      if (subs.isNotEmpty && f != 'bill')
+        if (f == 'subscription')
+          const SizedBox.shrink()
+        else
+          _groupHeader('Prenumeratos',
+              'Reguliarios paslaugos — Netflix, sporto salė, programėlės.'),
       for (final it in subs) _row(it),
-      if (bills.isNotEmpty)
-        _groupHeader('Sąskaitos',
-            'Nuoma, komunaliniai, telefonas, paskolos, draudimas.'),
+      if (bills.isNotEmpty && f != 'subscription')
+        if (f == 'bill')
+          const SizedBox.shrink()
+        else
+          _groupHeader('Sąskaitos',
+              'Nuoma, komunaliniai, telefonas, paskolos, draudimas.'),
       for (final it in bills) _row(it),
       if (hidden.isNotEmpty) ...[
         const SizedBox(height: 6),
