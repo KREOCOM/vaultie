@@ -1229,6 +1229,40 @@ class _SideGlowStrip extends StatelessWidget {
       DecoratedBox(decoration: BoxDecoration(color: _previewPageBlue.withValues(alpha: 0.20)));
 }
 
+/// Two slow, translucent sine bands drifting near a hero's top edge — plain
+/// Path fills (no ImageFilter.blur, which produced artifacts in earlier
+/// passes). Used on the Finansų Agentas banner so its gradient doesn't read
+/// as flat/static.
+class _WavePainter extends CustomPainter {
+  _WavePainter(this.t);
+  final double t;
+
+  void _band(Canvas canvas, Size size, double phase, double baseY, double amp,
+      double wavelengths, Color color) {
+    final path = Path()..moveTo(0, 0);
+    path.lineTo(0, baseY);
+    for (double x = 0; x <= size.width; x += 6) {
+      final y = baseY + amp * math.sin((x / size.width * wavelengths * 2 * math.pi) + phase);
+      path.lineTo(x, y);
+    }
+    path.lineTo(size.width, 0);
+    path.close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final phase = t * 2 * math.pi;
+    _band(canvas, size, phase, size.height * 0.18, size.height * 0.22, 1.4,
+        Colors.white.withValues(alpha: 0.08));
+    _band(canvas, size, -phase * 1.3 + math.pi / 3, size.height * 0.12,
+        size.height * 0.16, 1.8, Colors.white.withValues(alpha: 0.06));
+  }
+
+  @override
+  bool shouldRepaint(covariant _WavePainter old) => old.t != t;
+}
+
 class _DashboardPreviewState extends State<DashboardPreview>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   late Map<String, dynamic> _d = _maybePatchPreviewRecurring(_normalizeDash(widget.demo
@@ -1506,6 +1540,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
               balance: _d['balance'] as Map<String, dynamic>,
               allTransactions:
                   (_d['all'] as List?)?.cast<Map<String, dynamic>>()),
+        // index 4 — "Transakcijos" (2026-08-14): appended rather than
+        // replacing index 1 (_AiChatTab), so the demo-tour's _demoTabs/
+        // _tabNeeded indices for the existing four tabs stay exactly as they
+        // were. Not gated by _tabNeeded — the auto-demo tour never selects
+        // it, so it has nothing to hide during a script run.
+        _transactionsTab(),
       ];
 
   // A theme flip OR a language change must rebuild the cached tabs.
@@ -1541,6 +1581,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (h != null && h > 0 && h != _heroHeight) setState(() => _heroHeight = h);
     });
   }
+
+  // Slow ambient wave animation behind the Finansų Agentas banner — a flat
+  // solid gradient read as "something missing" on its own; the same slow
+  // sine-band treatment used on the onboarding-style heroes elsewhere in
+  // this design pass.
+  late final AnimationController _agentWaveCtl =
+      AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat();
 
   // ── Onboarding demo (widget.demo only) ────────────────────────────────────
   // A looping, hands-free walkthrough: hide the balance, draw the chart, scroll
@@ -2222,6 +2269,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       }
     }
     _chartDraw?.dispose();
+    _agentWaveCtl.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _themeVN.removeListener(_onTheme);
     AppPrefs.locale.removeListener(_onTheme);
@@ -2321,15 +2369,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // ── DASHBOARD ──────────────────────────────────────────────────────────────
   Widget _dashboard() {
     _measureHero();
-    final all = _feedAll;
-    final keys = <String>{};
-    for (final t in all) {
-      keys.add(_ymOf(t));
-    }
-    final monthKeys = keys.toList()..sort((a, b) => b.compareTo(a));
-    final shown =
-        monthKeys.take(1 + _shownPast).toList(); // current + N past months
-
     // A soft backdrop behind the whole feed. Dark = one smooth violet gradient
     // (top darker for the status bar/header, lighter lower). Light ("Frost") = an
     // airy blue-grey base with three faint colour glows (blue/teal/pink) that
@@ -2337,39 +2376,21 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // The ListView and banner are transparent so nothing shows a hard block edge.
     // The stuff below the hero — same widgets either way, just laid out
     // differently depending on designPreviewPalette (see below).
+    // 2026-08-14: the transaction feed (month headers, review cards, day
+    // groups) moved out to its own "Transakcijos" tab — see _transactionsTab
+    // — now that the bottom nav's old "Agentas" slot is free (the agent is
+    // still one tap away via _financeAgentBanner, just not its own tab
+    // anymore). Home stays the "at a glance" summary.
     final contentChildren = [
       _subsCard(),
-      // The filter sits directly above the content it actually scopes — the week
-      // bars and the transaction feed below. It does NOT touch the subscriptions
-      // card above, so placing it there read as "out of place" (it appeared to
-      // belong to Prenumeratos/Sąskaitos while really filtering the feed).
+      // Scopes the week chart right below it (and, now, the Transakcijos
+      // tab's feed too — same _txFilter state, just reachable from both
+      // places). Doesn't touch the subscriptions card above, so placing it
+      // there read as "out of place" (it appeared to belong to
+      // Prenumeratos/Sąskaitos while really filtering spend).
       _filters(),
       _weekSection(),
-      // Bilance-style interleaved feed: transactions top→bottom; at each past-month
-      // boundary a purple review card, then that month's transactions continue.
-      for (var i = 0; i < shown.length; i++) ...[
-        _monthHeaderFor(shown[i]),
-        if (i > 0) _reviewCardFor(shown[i]),
-        for (final dd in _monthFeed(shown[i])) _dayGroup(dd),
-      ],
-      if (monthKeys.length > shown.length)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-          child: GestureDetector(
-            onTap: () => setState(() => _shownPast += 2),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                  color: _card,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _hair)),
-              child: Text('Rodyti senesnius (${monthKeys.length - shown.length})',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700, color: _purple)),
-            ),
-          ),
-        ),
+      _financeAgentBanner(),
     ];
     // REVERTED (2026-08-12): the "one continuous white panel on a blue page,
     // fading to white" experiment (v4–v9) kept producing new visual bugs on
@@ -2400,6 +2421,59 @@ class _DashboardPreviewState extends State<DashboardPreview>
     );
   }
 
+  // ── TRANSAKCIJOS tab (2026-08-14) ────────────────────────────────────────
+  // The month-header/review-card/day-group feed that used to live at the
+  // bottom of Home, now its own tab — reuses the exact same helper methods
+  // (_monthHeaderFor, _reviewCardFor, _monthFeed, _dayGroup), just no longer
+  // interleaved with the summary cards above it.
+  Widget _transactionsTab() {
+    final all = _feedAll;
+    final keys = <String>{};
+    for (final t in all) {
+      keys.add(_ymOf(t));
+    }
+    final monthKeys = keys.toList()..sort((a, b) => b.compareTo(a));
+    final shown = monthKeys.take(1 + _shownPast).toList();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
+          child: Text(tr('Transakcijos'),
+              style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: _ink,
+                  letterSpacing: -0.4)),
+        ),
+        _filters(),
+        for (var i = 0; i < shown.length; i++) ...[
+          _monthHeaderFor(shown[i]),
+          if (i > 0) _reviewCardFor(shown[i]),
+          for (final dd in _monthFeed(shown[i])) _dayGroup(dd),
+        ],
+        if (monthKeys.length > shown.length)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: GestureDetector(
+              onTap: () => setState(() => _shownPast += 2),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                    color: _card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _hair)),
+                child: Text('Rodyti senesnius (${monthKeys.length - shown.length})',
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700, color: _purple)),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   /// The hero's blue carried down BOTH page margins — the 16dp gutter between
   /// the screen edge and every card below it — for the whole scrollable
   /// height, not just the sliver the hero's own drop shadow used to bleed a
@@ -2410,60 +2484,64 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// above. Fixed in the Stack (not inside the ListView), so it doesn't
   /// scroll away under the cards.
   ///
-  /// The strip is a plain rectangle, but the hero's own bottom corners are
-  /// ROUNDED (see _topBanner's BorderRadius.only(bottomLeft/bottomRight:
-  /// circular(32))) — a hard-edged strip guessed to start at some FRACTION of
-  /// the page height either left a gap of plain backdrop showing between the
-  /// hero and the strip (the two never touched — not "merged" at all), or cut
-  /// across the curve and looked like the blue folding backward right at the
-  /// seam. Fixed by using the hero's REAL measured height (`_measureHero`)
-  /// instead of a guess: the strip starts 40px above that — inside the
-  /// hero's own rounded corner (radius 32), so the opaque hero itself (drawn
-  /// on top, later in this Stack) fully covers that overlap and hides the
-  /// curve — and is already at full colour there, so the instant the hero's
-  /// paint actually ends, the strip is already the target colour with zero
-  /// gap and zero fade to coordinate at the TOP. Hidden until the first
-  /// measurement lands, so there's no misplaced flash on the very first
-  /// frame.
+  /// A FULL-WIDTH continuation of the hero's own blue, sitting behind the
+  /// ListView in this Stack. Not narrow side strips — those had their own
+  /// width (however wide) and the hero had its full width, so at the exact
+  /// row where the hero ended, the blue visibly stepped from "the whole
+  /// screen" down to "a thin strip" in one hard horizontal line: still a cut,
+  /// no matter how well the colour lined up. A full-width rectangle has
+  /// nothing to step FROM — the hero is the same width as this the whole
+  /// way, so there's no edge to see. The white cards below (each own its
+  /// opaque, on top of this in z-order) are what carve the "sides only" look
+  /// out of it, simply by covering the middle; the margins and the gaps
+  /// between cards show through everywhere they don't.
   ///
-  /// The bottom is the opposite of the top: solid for a stretch, THEN a
-  /// gradual fade down to nothing, dissolving into the ordinary page backdrop
-  /// rather than either stopping dead or running solid forever down however
-  /// many transactions the feed has.
-  static const double _heroSideGlowWidth = 16;
+  /// Starts ABOVE the hero's REAL measured bottom by more than its rounded
+  /// corner's own radius (32 — see _topBanner) — this layer is what shows
+  /// through that rounded corner, so it has to already be back there,
+  /// solid, for the corner's entire curve, or the corner reveals a sliver of
+  /// plain backdrop instead of blue (the original "gap in the corner" bug).
+  /// Solid for a stretch after that, then fades to nothing well clear of the
+  /// Prenumeratos/Sąskaitos cards rather than ending in a visible line right
+  /// above them.
   static const double _heroSideGlowOverlap = 40;
-  static const double _heroSideGlowSolidRun = 90;
-  static const double _heroSideGlowFade = 380;
+  // solidRun covers the 40px overlap PLUS ~20px genuinely below the hero's
+  // true bottom, so the fade's own top stop can't land inside the rounded
+  // corner's arc (which would show as the corner fading instead of solid).
+  // Fade then runs long enough to reach white by around "Šią savaitę
+  // išėjo", well short of the weekly bar chart.
+  static const double _heroSideGlowSolidRun = 60;
+  static const double _heroSideGlowFade = 170;
   List<Widget> get _heroSideGlow {
     final h = _heroHeight;
     if (h == null) return const [];
-    final solidTop = h - _heroSideGlowOverlap;
-    Widget side(Alignment edge) => Positioned(
-          top: solidTop,
-          height: _heroSideGlowSolidRun + _heroSideGlowFade,
-          left: edge == Alignment.centerLeft ? 0 : null,
-          right: edge == Alignment.centerRight ? 0 : null,
-          width: _heroSideGlowWidth,
-          child: Column(children: [
-            SizedBox(height: _heroSideGlowSolidRun, child: const _SideGlowStrip()),
-            SizedBox(
-              height: _heroSideGlowFade,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      _previewPageBlue.withValues(alpha: 0.20),
-                      _previewPageBlue.withValues(alpha: 0),
-                    ],
-                  ),
+    final top = h - _heroSideGlowOverlap;
+    return [
+      Positioned(
+        top: top,
+        left: 0,
+        right: 0,
+        height: _heroSideGlowSolidRun + _heroSideGlowFade,
+        child: Column(children: [
+          SizedBox(height: _heroSideGlowSolidRun, child: const _SideGlowStrip()),
+          SizedBox(
+            height: _heroSideGlowFade,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    _previewPageBlue.withValues(alpha: 0.20),
+                    _previewPageBlue.withValues(alpha: 0),
+                  ],
                 ),
               ),
             ),
-          ]),
-        );
-    return [side(Alignment.centerLeft), side(Alignment.centerRight)];
+          ),
+        ]),
+      ),
+    ];
   }
 
   /// The app's shared backdrop: a soft gradient, plus (in light "Frost") three
@@ -2816,28 +2894,24 @@ class _DashboardPreviewState extends State<DashboardPreview>
       padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, 18),
       decoration: !designPreviewPalette
           ? null
-          : BoxDecoration(
-              // REVERTED (2026-08-12): back to the hero rounding its OWN
-              // bottom corners + a matching shadow bleeding onto the page —
-              // the "one continuous white panel + flat page blue" experiment
-              // that replaced this got reverted (it kept producing new
-              // artifacts on device without landing right); this was the
-              // last version that actually worked.
-              borderRadius: const BorderRadius.only(
+          : const BoxDecoration(
+              // 2026-08-14: rounded bottom corners again — a plain rectangle
+              // read as a hard right-angle cut, not a smooth continuation
+              // into the side glow. Safe to round again now: `_heroSideGlow`
+              // is a FULL-WIDTH layer behind this one (not a narrow strip
+              // matching just the card margin), overlapping far enough up
+              // (`_heroSideGlowOverlap`) to sit behind the ENTIRE curve, so
+              // whatever the corner reveals is that same solid colour —
+              // no gap possible, whatever the radius.
+              borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(32),
                 bottomRight: Radius.circular(32),
               ),
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [Color(0xFF071A52), Color(0xFF0B2E9B), Color(0xFF1557E8)],
               ),
-              boxShadow: const [
-                BoxShadow(
-                    color: Color(0x551557E8), blurRadius: 20, spreadRadius: -6, offset: Offset(0, 10)),
-                BoxShadow(
-                    color: Color(0x336E9BFF), blurRadius: 60, spreadRadius: 4, offset: Offset(0, 24)),
-              ],
             ),
       child: Stack(children: [
         // v6 (2026-08-12): glow blobs removed entirely — three rounds of
@@ -3519,7 +3593,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
               decoration: BoxDecoration(
                 color: _card,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.black, width: 1.5),
+                border: Border.all(color: _hair),
                 boxShadow: _darkMode
                     ? null
                     : [
@@ -3549,6 +3623,106 @@ class _DashboardPreviewState extends State<DashboardPreview>
       ]),
     );
   }
+
+  // 2026-08-14: a Bilance-style "Finance Agent" promo card — sits right below
+  // the weekly spend chart. 2026-08-14: the AI chat no longer has its own
+  // bottom-nav row (that slot now opens Transakcijos — see _navBar) — this
+  // banner is the one remaining doorway to it, so it PUSHES the chat as its
+  // own screen rather than switching tabs (there's no nav row left that
+  // would highlight for it). The robot art is a true transparent cutout
+  // (see assets/images/finance_agent_robot.png) so it blends straight into
+  // this gradient with no background rectangle of its own.
+  Widget _financeAgentBanner() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: GestureDetector(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => Scaffold(
+                    backgroundColor: _bg,
+                    appBar: AppBar(backgroundColor: _bg, elevation: 0, foregroundColor: _ink),
+                    // _AiChatTab expects the chrome an IndexedStack tab
+                    // normally gets for free (see _buildOtherTabs) — pushed
+                    // standalone here, it has to bring its own.
+                    body: Stack(children: [
+                      Positioned.fill(child: _frostBackdrop()),
+                      SafeArea(child: _AiChatTab(data: _d, demo: widget.demo)),
+                    ]),
+                  ))),
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            height: 120,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_purpleDeep, _purple],
+              ),
+              boxShadow: [
+                BoxShadow(
+                    color: _purple.withValues(alpha: 0.28),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8)),
+              ],
+            ),
+            child: Stack(children: [
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _agentWaveCtl,
+                  builder: (_, __) => CustomPaint(painter: _WavePainter(_agentWaveCtl.value)),
+                ),
+              ),
+              // assets/images/finance_agent_robot.png (427×430) is a TRUE
+              // cutout — transparent background, not a fade baked into a
+              // rectangular photo. A faded rectangle kept showing its own
+              // edge as a visible band/seam no matter how the fade was
+              // tuned; a real cutout has no edge to see at all. Sized by
+              // height only so it scales undistorted.
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Image.asset('assets/images/finance_agent_robot.png',
+                    fit: BoxFit.fitHeight, alignment: Alignment.centerLeft),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(120, 16, 16, 16),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Finansų Agentas',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        const Text('Klausk manęs visko apie savo pinigus. Aš čia, kad padėčiau!',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12.5,
+                                height: 1.3,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        shape: BoxShape.circle),
+                    child: const Icon(Icons.arrow_forward_rounded,
+                        color: Colors.white, size: 18),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      );
 
   Widget _recHalf(String label, double sum, int n, Color dot) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -4215,10 +4389,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
     const items = [
       ['Pradžia', Icons.dashboard_rounded],
       ['Apžvalga', Icons.donut_large_rounded],
-      ['Agentas', Icons.auto_awesome_rounded],
+      ['Transakcijos', Icons.receipt_long_rounded],
       ['Planavimas', Icons.event_note_rounded],
       ['Paskyra', Icons.person_outline_rounded],
     ];
+    // Row position 2 used to be "Agentas" (AI chat, IndexedStack index 2).
+    // 2026-08-14: the agent is reachable from _financeAgentBanner on Home
+    // instead (so it's not lost), freeing this row for the transaction feed
+    // that moved out of Home — the feed lives at IndexedStack index 5
+    // (appended, not swapped in — see _buildOtherTabs), so this row's real
+    // target differs from its on-screen position; every other row still
+    // targets its own index.
+    int navTarget(int i) => i == 2 ? 5 : i;
     final bottomPad = MediaQuery.of(context).padding.bottom;
     // The 10 fallback (no system inset reported — gesture-nav devices that
     // return 0, or a handful of OEM skins) reads fine against iOS's ~34pt home
@@ -4250,21 +4432,22 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 // Re-tapping the ALREADY-active tab scrolls it back to the top
                 // (the iOS convention), so you don't have to scroll up by hand.
                 onTap: () {
-                  if (_tab == i) {
+                  final target = navTarget(i);
+                  if (_tab == target) {
                     if (i == 0 && _homeScroll.hasClients) {
                       _homeScroll.animateTo(0,
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeOut);
                     }
                   } else {
-                    setState(() => _tab = i);
+                    setState(() => _tab = target);
                   }
                 },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(items[i][1] as IconData,
-                        size: 24, color: _tab == i ? _purple : _navOff),
+                        size: 24, color: _tab == navTarget(i) ? _purple : _navOff),
                     const SizedBox(height: 4),
                     // Five labels share the width, and the longest of them
                     // ("AI pokalbis", "Planavimas") runs out of room as soon as
@@ -4278,7 +4461,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                           style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: _tab == i ? _purple : _navOff)),
+                              color: _tab == navTarget(i) ? _purple : _navOff)),
                     ),
                   ],
                 ),
