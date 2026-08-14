@@ -181,6 +181,13 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   List<_LiveItem> get _pending =>
       _all.where((it) => it.type == widget.wantType && !it.reviewed).toList();
 
+  // The sort screen is worth opening whenever there's EITHER a backend
+  // candidate left to review OR real transactions to manually search — not
+  // just the former. A user with nothing auto-detected is exactly the one
+  // who needs the manual search most; disabling the only door to it there
+  // locked them out of the feature entirely.
+  bool get _canOpenSort => _pending.isNotEmpty || (widget.allTransactions?.isNotEmpty ?? false);
+
   double get _monthlyTotal => _confirmed.fold(0.0, (s, it) => s + it.monthly);
   double get _yearlyTotal => _monthlyTotal * 12;
 
@@ -293,7 +300,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _pending.isEmpty ? null : _openSort,
+                    onPressed: _canOpenSort ? _openSort : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: _blueDeep,
@@ -321,9 +328,9 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                 ),
                 const SizedBox(height: 12),
                 Text(
-                    _pending.isEmpty
-                        ? 'Nieko naujo nerasta'
-                        : '${_pending.length} galimi mokėjimai',
+                    _pending.isNotEmpty
+                        ? '${_pending.length} galimi mokėjimai'
+                        : (_canOpenSort ? 'Ieškok pats savo tranzakcijose' : 'Nieko naujo nerasta'),
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.88),
                         fontSize: 12.5,
@@ -382,16 +389,16 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
       );
 
   Widget _addMoreRow() => InkWell(
-        onTap: _pending.isEmpty ? null : _openSort,
+        onTap: _canOpenSort ? _openSort : null,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(children: [
-            Icon(Icons.add_circle_outline_rounded, color: _pending.isEmpty ? _faint : _blue, size: 20),
+            Icon(Icons.add_circle_outline_rounded, color: _canOpenSort ? _blue : _faint, size: 20),
             const SizedBox(width: 10),
             Text(_isSubs ? 'Rasti naują prenumeratą' : 'Rasti naują sąskaitą',
                 style: TextStyle(
-                    color: _pending.isEmpty ? _faint : _blue, fontWeight: FontWeight.w700, fontSize: 14.5)),
+                    color: _canOpenSort ? _blue : _faint, fontWeight: FontWeight.w700, fontSize: 14.5)),
             if (_pending.isNotEmpty) ...[
               const SizedBox(width: 8),
               Container(
