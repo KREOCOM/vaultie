@@ -62,6 +62,11 @@ Future<void> main() async {
   } catch (_) {}
 
   designPreviewPalette = true;
+  // This sandbox has no real synced bank data of its own (no bank sync, see
+  // header comment) — only it should get the canned demo recurring
+  // catalogue; main.dart must never set this. See the flag's own doc
+  // comment in dashboard_preview.dart.
+  designPreviewFakeRecurring = true;
   runApp(const _PreviewApp());
 }
 

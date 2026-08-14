@@ -84,6 +84,15 @@ Color _soft = const Color(0xFFEEF2F8); // recessed surface (input / inner boxes)
 // its one call site in initState to remove the experiment entirely.
 bool designPreviewPalette = false;
 
+/// Separate from [designPreviewPalette] ON PURPOSE. Both used to be the same
+/// flag — main.dart flipping designPreviewPalette on (to show the blue hero
+/// on Osvaldas's own real device) also silently swapped his REAL bank-
+/// derived Prenumeratos/Sąskaitos candidates for the canned demo catalogue
+/// (Netflix, Ignitis, …) meant only for main_design_preview.dart's sandbox,
+/// which has no real synced data of its own. Only main_design_preview.dart
+/// sets this one; main.dart must never set it.
+bool designPreviewFakeRecurring = false;
+
 /// Overrides a few tokens on top of the normal light palette _applyTheme just
 /// set, for the white/blue "premium fintech" hero exploration. Called right
 /// after _applyTheme(false) in initState — never touches dark mode.
@@ -734,11 +743,12 @@ String? _hm(Object? ts) {
 /// brands to show its logo tier and needs BOTH pools populated to show the
 /// split. Swaps in a small real-brand catalogue instead, subs AND bills,
 /// matching the names used in the standalone subs_sort_demo.dart /
-/// bills_sort_demo.dart demos so this reads as the same picture. Only when
-/// `designPreviewPalette` is on (this build's whole reason to exist) — never
-/// touches a real signed-in user's actual synced data.
+/// bills_sort_demo.dart demos so this reads as the same picture. Gated on
+/// `designPreviewFakeRecurring`, NOT `designPreviewPalette` — see that
+/// flag's own doc comment for why they must stay separate. Never touches a
+/// real signed-in user's actual synced data.
 Map<String, dynamic> _maybePatchPreviewRecurring(Map<String, dynamic> d) {
-  if (!designPreviewPalette) return d;
+  if (!designPreviewFakeRecurring) return d;
   Map<String, dynamic> item(String name, double amount, String type, int occ, String sid) => {
         'name': name,
         'monthly': amount,
@@ -1229,6 +1239,50 @@ class _SideGlowStrip extends StatelessWidget {
       DecoratedBox(decoration: BoxDecoration(color: _previewPageBlue.withValues(alpha: 0.20)));
 }
 
+/// 2026-08-14: the hero's bottom edge — rounded top corners as normal, but
+/// the bottom is NOT a plain rounded rectangle. The flat "shelf" (where the
+/// grabber-style indicator sits) runs across the CENTER, at the height the
+/// content naturally ends; the two outer corners keep descending PAST that,
+/// all the way down to this widget's full height at x=0 and x=width, then
+/// curve back up and inward to meet the shelf. That's the opposite of a
+/// normal card corner (which curves up/in as it nears the edge) — here it
+/// curves down/out. `legDepth` (the extra height reserved below the
+/// content, via the caller's own bottom padding) is how far the corners
+/// hang past the shelf; `shelfInset` is how far each end of the flat shelf
+/// sits in from the edge.
+class _HeroShapeClipper extends CustomClipper<Path> {
+  const _HeroShapeClipper({
+    required this.legDepth,
+    required this.shelfInset,
+    this.topRadius = 24,
+  });
+  final double legDepth;
+  final double shelfInset;
+  final double topRadius;
+
+  @override
+  Path getClip(Size size) {
+    final w = size.width;
+    final h = size.height;
+    final shelfY = h - legDepth;
+    return Path()
+      ..moveTo(topRadius, 0)
+      ..lineTo(w - topRadius, 0)
+      ..quadraticBezierTo(w, 0, w, topRadius)
+      ..lineTo(w, h)
+      ..quadraticBezierTo(w, shelfY, w - shelfInset, shelfY)
+      ..lineTo(shelfInset, shelfY)
+      ..quadraticBezierTo(0, shelfY, 0, h)
+      ..lineTo(0, topRadius)
+      ..quadraticBezierTo(0, 0, topRadius, 0)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(covariant _HeroShapeClipper old) =>
+      old.legDepth != legDepth || old.shelfInset != shelfInset || old.topRadius != topRadius;
+}
+
 /// Two slow, translucent sine bands drifting near a hero's top edge — plain
 /// Path fills (no ImageFilter.blur, which produced artifacts in earlier
 /// passes). Used on the Finansų Agentas banner so its gradient doesn't read
@@ -1588,6 +1642,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // this design pass.
   late final AnimationController _agentWaveCtl =
       AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat();
+
+  // 2026-08-14: the hero collapses like a bottom sheet — drag the grabber up
+  // to hide the balance/chart block and let Prenumeratos/Sąskaitos and the
+  // rest of Home slide up into its place; drag down to bring it back. 0 =
+  // fully open, 1 = fully collapsed. Distance-based drag (not velocity-based
+  // fling) for a first pass — every 160px of upward drag is one full
+  // collapse, matching a typical bottom-sheet drag feel closely enough
+  // without needing a physics simulation yet.
+  late final AnimationController _heroCollapseCtl =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
 
   // ── Onboarding demo (widget.demo only) ────────────────────────────────────
   // A looping, hands-free walkthrough: hide the balance, draw the chart, scroll
@@ -2270,6 +2334,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
     _chartDraw?.dispose();
     _agentWaveCtl.dispose();
+    _heroCollapseCtl.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _themeVN.removeListener(_onTheme);
     AppPrefs.locale.removeListener(_onTheme);
@@ -2401,7 +2466,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return Stack(
       children: [
         Positioned.fill(child: _frostBackdrop()),
-        if (designPreviewPalette && !_darkMode) ..._heroSideGlow,
+        // 2026-08-14: dark/glow backdrop tried and reverted — back to the
+        // plain light backdrop above. _homeDarkBackdrop is left defined,
+        // unused, in case it's worth revisiting.
         RefreshIndicator(
             onRefresh: _forceSync,
             color: _purple,
@@ -2411,6 +2478,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 28),
               children: [
+                // 2026-08-14: drag-to-collapse hero + grabber tried and
+                // reverted — the grabber's own row read as an unwanted gap/
+                // missing block between the hero and the cards. Back to the
+                // plain hero. _collapsibleHero/_heroGrabber left defined,
+                // unused, in case it's worth a different treatment later.
                 _topBanner(),
                 const SizedBox(height: 12),
                 ...contentChildren,
@@ -2505,6 +2577,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// Prenumeratos/Sąskaitos cards rather than ending in a visible line right
   /// above them.
   static const double _heroSideGlowOverlap = 40;
+
+  // How far the hero's outer bottom corners hang below its flat center
+  // "shelf" — see _HeroShapeClipper and _topBanner.
+  static const double _heroLegDepth = 28;
   // solidRun covers the 40px overlap PLUS ~20px genuinely below the hero's
   // true bottom, so the fade's own top stop can't land inside the rounded
   // corner's arc (which would show as the corner fading instead of solid).
@@ -2542,6 +2618,56 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ]),
       ),
     ];
+  }
+
+  /// 2026-08-14: a near-black, Revolut-style ambient backdrop for the rest of
+  /// Home, below the (still blue) hero — replaces `_heroSideGlow`'s blue
+  /// continuation for now. Starts _heroSideGlowOverlap px above the hero's
+  /// REAL measured bottom for the same reason that constant exists: the
+  /// hero's own bottom corners are rounded (see _topBanner), so this has to
+  /// already be painted back there, or the corner's curve reveals a sliver
+  /// of the plain light backdrop instead.
+  ///
+  /// Deliberately does NOT try to avoid the Prenumeratos/Sąskaitos cards, the
+  /// weekly chart, or the Finansų Agentas banner — it doesn't need to. Those
+  /// are opaque cards drawn ON TOP of this in the Stack (same pattern as the
+  /// hero's own side glow), so they simply cover whatever's behind them;
+  /// this shows through only in the margins and the gaps between cards,
+  /// which is the same as "not behind the cards" from the user's side.
+  Widget _homeDarkBackdrop() {
+    final h = _heroHeight;
+    if (h == null) return const SizedBox.shrink();
+    return Positioned(
+      top: h - _heroSideGlowOverlap,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Stack(children: [
+        const Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(color: Color(0xFF0A0A10)))),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(-0.7, -0.25),
+                radius: 0.9,
+                colors: [const Color(0xFF2F6BFF).withValues(alpha: 0.20), const Color(0xFF2F6BFF).withValues(alpha: 0)],
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0.9, 0.55),
+                radius: 0.9,
+                colors: [const Color(0xFF7C5CD6).withValues(alpha: 0.16), const Color(0xFF7C5CD6).withValues(alpha: 0)],
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
   }
 
   /// The app's shared backdrop: a soft gradient, plus (in light "Frost") three
@@ -2811,6 +2937,85 @@ class _DashboardPreviewState extends State<DashboardPreview>
   Color get _syncTint =>
       (_darkMode || designPreviewPalette) ? const Color(0xFF6EE7FF) : _purple;
 
+  // The hero (_topBanner) shrunk to nothing via Align's heightFactor, plus a
+  // grabber row that survives the collapse (so there's always something to
+  // pull back down). Align — not a raw height number — because the hero's
+  // real height varies (balance hidden/shown, +N accounts chip, safe-area
+  // insets) and this doesn't need to know it: heightFactor scales whatever
+  // height the child would naturally take.
+  List<Widget> _collapsibleHero() => [
+        AnimatedBuilder(
+          animation: _heroCollapseCtl,
+          builder: (_, child) => ClipRect(
+            child: Align(
+              alignment: Alignment.topCenter,
+              heightFactor: 1 - _heroCollapseCtl.value,
+              child: child,
+            ),
+          ),
+          child: _topBanner(),
+        ),
+        _heroGrabber(),
+      ];
+
+  // Listener + raw pointer events, NOT GestureDetector's onVerticalDragUpdate
+  // — the grabber lives inside the Home ListView, which is itself a vertical
+  // Scrollable competing for the exact same drag axis. In the gesture arena
+  // the ancestor Scrollable kept winning (or at least eating enough of the
+  // drag) that onVerticalDragUpdate barely fired. Listener's pointer
+  // callbacks are delivered on every matching hit-test target regardless of
+  // which recognizer wins the arena, so this can't lose the gesture to the
+  // list's own scrolling.
+  Widget _heroGrabber() {
+    double startY = 0;
+    double startValue = 0;
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (e) {
+        startY = e.position.dy;
+        startValue = _heroCollapseCtl.value;
+      },
+      onPointerMove: (e) {
+        final dy = e.position.dy - startY;
+        // Dragging UP (negative dy) increases the collapse value.
+        _heroCollapseCtl.value = (startValue - dy / 160).clamp(0.0, 1.0);
+      },
+      onPointerUp: (e) {
+        // Barely moved → treat as a tap: flip fully open/closed rather than
+        // snapping back to whatever startValue was (which would feel like
+        // the tap did nothing).
+        final moved = (e.position.dy - startY).abs();
+        final target = moved < 8
+            ? (startValue > 0.5 ? 0.0 : 1.0)
+            : (_heroCollapseCtl.value > 0.5 ? 1.0 : 0.0);
+        _heroCollapseCtl.animateTo(target, curve: Curves.easeOut);
+      },
+      child: Builder(builder: (context) {
+        return Container(
+          color: Colors.transparent,
+          // The hero normally pushes everything below the status bar/notch
+          // via its OWN top padding (topInset+8 — see _topBanner) — but that
+          // padding collapses away WITH the hero. Fully collapsed, this row
+          // would otherwise land partly under the status bar: barely
+          // visible, and an unreliable tap target. Its own top inset keeps
+          // it clear of the notch no matter how collapsed the hero is.
+          padding: EdgeInsets.fromLTRB(
+              0, MediaQuery.of(context).padding.top + 6, 0, 9),
+          child: Center(
+            child: Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: _muted.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
   Widget _topBanner() {
     // Plot the FULL balance-over-time series — the same data the tapped balance
     // detail shows — sub-sampled to a clean small line. (The backend `spark` was
@@ -2877,7 +3082,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final (delta, deltaPct) = _balanceDelta(seriesRaw, curVal);
     final dateLabels = _sparkDateLabels(seriesRaw);
     final topInset = MediaQuery.of(context).padding.top;
-    return Container(
+    final hero = Container(
       key: designPreviewPalette ? _heroKey : null,
       // Dark mode: transparent, so the header melts into the page's violet
       // gradient with no card edge. Light mode: a blue header that runs to the
@@ -2891,22 +3096,20 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // the onboarding's colour into the app, but it also cut the screen in two.
       // The tint the app needed turned out to belong to the PAGE, not to a block
       // on it; see _applyTheme.
-      padding: EdgeInsets.fromLTRB(18, topInset + 8, 18, 18),
+      //
+      // Bottom padding grows by _heroLegDepth in the preview build — extra
+      // blank room below the real content for _HeroShapeClipper's corners to
+      // hang down into (see that class). Plain rect in production: no
+      // clipper is applied there, so the extra space would just be dead air.
+      padding: EdgeInsets.fromLTRB(
+          18, topInset + 8, 18, 18 + (designPreviewPalette ? _heroLegDepth : 0)),
       decoration: !designPreviewPalette
           ? null
           : const BoxDecoration(
-              // 2026-08-14: rounded bottom corners again — a plain rectangle
-              // read as a hard right-angle cut, not a smooth continuation
-              // into the side glow. Safe to round again now: `_heroSideGlow`
-              // is a FULL-WIDTH layer behind this one (not a narrow strip
-              // matching just the card margin), overlapping far enough up
-              // (`_heroSideGlowOverlap`) to sit behind the ENTIRE curve, so
-              // whatever the corner reveals is that same solid colour —
-              // no gap possible, whatever the radius.
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(32),
-                bottomRight: Radius.circular(32),
-              ),
+              // 2026-08-14: shape now comes entirely from _HeroShapeClipper
+              // (spiked corners, flat center shelf) — no borderRadius here
+              // any more, a plain rounded rectangle was never going to
+              // produce that shape no matter the radius.
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -2914,6 +3117,22 @@ class _DashboardPreviewState extends State<DashboardPreview>
               ),
             ),
       child: Stack(children: [
+        if (designPreviewPalette)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: _heroLegDepth + 7,
+            child: Center(
+              child: Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+          ),
         // v6 (2026-08-12): glow blobs removed entirely — three rounds of
         // artifacts (a hard-edged blur block, then still-visible banding on
         // the plain RadialGradient's own circular edge) and the plain
@@ -3354,6 +3573,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ],
       ),
       ]),
+    );
+    if (!designPreviewPalette) return hero;
+    return ClipPath(
+      clipper: _HeroShapeClipper(
+        legDepth: _heroLegDepth,
+        shelfInset: MediaQuery.of(context).size.width * 0.15,
+      ),
+      child: hero,
     );
   }
 

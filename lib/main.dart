@@ -11,6 +11,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_prefs.dart';
 import 'content_theme.dart';
+import 'screens/preview/dashboard_preview.dart' show designPreviewPalette;
 import 'services/app_lock.dart';
 import 'services/auth_service.dart';
 import 'screens/lock_screen.dart';
@@ -314,6 +315,13 @@ Future<void> main() async {
   // and always reflect the latest scan (next due from the real last charge).
   // Same language rule as the UI: manual choice, else device Region.
   final isLithuanian = effectiveLocale().languageCode == 'lt';
+
+  // TEMPORARY (2026-08-14): the in-progress Home redesign, on Osvaldas's own
+  // real device with his real bank data, at his explicit request — normally
+  // only main_design_preview.dart's sandbox sets this. Flip back to false
+  // (or delete these two lines) once the redesign is done, and before any
+  // App Store build.
+  designPreviewPalette = true;
 
   runApp(VaultieApp(hasOnboarded: AppPrefs.onboarded));
 
