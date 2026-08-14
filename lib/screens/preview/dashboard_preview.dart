@@ -112,7 +112,14 @@ void _applyPreviewPalette() {
   _bg = const Color(0xFFF8FAFF);
   _card = const Color(0xFFFFFFFF);
   _soft = const Color(0xFFF3F6FC);
-  _hair = const Color(0xFFE7ECF5);
+  // 2026-08-14: every white card's border, everywhere — Prenumeratos/
+  // Sąskaitos, the weekly chart, Apžvalga's category rows, all of it —
+  // switched from the barely-visible pale blue-grey to a thin, low-alpha
+  // black. _hair is the ONE shared token every card border and row divider
+  // in the app already reads off (see _applyTheme's own note on this same
+  // line), so changing just this one value is enough to reach all of them
+  // without touching each card individually.
+  _hair = Colors.black.withValues(alpha: 0.16);
   _ink = const Color(0xFF0B1533);
   _muted = const Color(0xFF5B6684);
   _faint = const Color(0xFF8A93AC);
@@ -508,6 +515,15 @@ double _spendOf(Map t) {
 
 double _sumExpenses(Iterable rows) =>
     rows.fold(0.0, (s, t) => s + _spendOf(t as Map));
+
+// 2026-08-15: the week bar chart's height scale. A LINEAR v/maxV made one
+// big one-off day (rent, insurance) flatten every ordinary day into an
+// invisible sliver next to it — real accounts hit this constantly, not just
+// as an edge case. Square root compresses that outlier while still giving
+// small days a real, comparable height. _WeekAvgPainter's gridlines and
+// average line use this SAME mapping so they stay aligned with the bars.
+double _weekBarFrac(double v, double maxV) =>
+    maxV <= 0 ? 0 : math.sqrt(v.clamp(0, double.infinity)) / math.sqrt(maxV);
 
 /// Money that LEFT the account without being spending — a transfer to a person,
 /// cash withdrawn. Drawn on the week bars so a day whose balance clearly moved
@@ -1547,6 +1563,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// largest one plus a "+N" chip.
   bool _acctsOpen = false;
   int? _weekSel; // tapped weekday bar
+  // 2026-08-15: which week _weekSection shows — 0 = this week, -1 = last
+  // week, etc. Never positive: you can't browse into the future.
+  int _weekOffset = 0;
   int _shownPast = 2; // how many past months are shown below the current one
   final _txFilter = _TxFilter(); // feed filter (type + sections)
 
@@ -2478,14 +2497,19 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // still one tap away via _financeAgentBanner, just not its own tab
     // anymore). Home stays the "at a glance" summary.
     final contentChildren = [
+      // 2026-08-15: moved above Prenumeratos/Sąskaitos per request — the
+      // weekly spend chart now leads Home.
+      _weekSection(),
       _subsCard(),
       // 2026-08-14: the Filtras chip itself moved to the Transakcijos tab —
       // transactions aren't on Home any more, so a filter control here had
       // nothing of its own left to scope. It still shares the SAME
-      // _txFilter state as the week chart below, so setting it from
+      // _txFilter state as the week chart above, so setting it from
       // Transakcijos still narrows this chart too; there just isn't a
       // second copy of the control sitting on Home.
-      _weekSection(),
+      if (designPreviewPalette) _savingsRateCard(),
+      // 2026-08-14: moved up, right after the summary cards — it had sunk
+      // below the weekly chart and read as buried down there.
       _financeAgentBanner(),
     ];
     // REVERTED (2026-08-12): the "one continuous white panel on a blue page,
@@ -3907,6 +3931,148 @@ class _DashboardPreviewState extends State<DashboardPreview>
     );
   }
 
+  // 2026-08-14: a "Santaupų norma" (savings rate) card for Home, matching
+  // the reference — right below Prenumeratos/Sąskaitos. Overview already has
+  // a fuller version of this same card (_savingsCard in _OverviewTabState),
+  // but that class computes it from ITS OWN filtered-rows/month-key state,
+  // which Home doesn't share — this is a lighter, Home-scoped version off
+  // the SAME _monthIncome/_monthExpenses this class already uses for the
+  // month headers in _transactionsTab, tapping through to Apžvalga (index 1)
+  // for the full breakdown rather than duplicating it here.
+  // Savings % for a month, or null if it had no income to divide by (the
+  // same "no income → undefined, not 0%" rule _OverviewTabState's _savingsOf
+  // uses).
+  // 2026-08-14: was `.clamp(0, 100)` — a month where you spent more than you
+  // earned rounded to a flat "0%", indistinguishable from a month you broke
+  // even on. The gauge below exists specifically to show that difference
+  // (red, below the zero tick), so the number behind it has to be honest too.
+  int? _savingsPctFor(String mk) {
+    final earned = _monthIncome(mk);
+    if (earned <= 0) return null;
+    final spent = _monthExpenses(mk);
+    return (((earned - spent) / earned) * 100).round();
+  }
+
+  // 2026-08-14: a "Santaupų norma" (savings rate) card for Home, matching
+  // the reference — right below Prenumeratos/Sąskaitos. Overview already has
+  // a fuller version of this same card (_savingsCard in _OverviewTabState),
+  // but that class computes it from ITS OWN filtered-rows/month-key state,
+  // which Home doesn't share — this is a lighter, Home-scoped version off
+  // the SAME _monthIncome/_monthExpenses this class already uses for the
+  // month headers in _transactionsTab, tapping through to the real detail
+  // screen (_SavingsRateScreen — see 2026-08-15 note there) rather than
+  // duplicating it here. 2026-08-15: the bigger unboxed half-donut gauge
+  // tried here didn't read well sitting on Home among the other boxed
+  // cards — that treatment moved into the detail screen itself instead;
+  // this stayed the small boxed ring, just with the clamp removed so a
+  // month you overspent shows its real negative number, not a flat "0%".
+  Widget _savingsRateCard() {
+    final keys = (_feedAll.map((t) => _ymOf(t)).toSet().toList()..sort()); // ascending
+    final now = DateTime.now();
+    final curMk = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+    // Most of any given month has no salary landed yet — showing a blank
+    // "šį mėn. dar nėra" for most of the month made the card read as
+    // permanently empty on Home (a glance-y summary, unlike the Overview
+    // detail screen where drilling into an empty month is expected). Falls
+    // back to the most recent month that DID have income, labelled as such,
+    // so the card almost always has a real number on it.
+    var shownMk = curMk;
+    var pct = _savingsPctFor(curMk);
+    var isCurrent = true;
+    if (pct == null) {
+      for (final mk in keys.reversed) {
+        if (mk == curMk) continue;
+        final p = _savingsPctFor(mk);
+        if (p != null) {
+          shownMk = mk;
+          pct = p;
+          isCurrent = false;
+          break;
+        }
+      }
+    }
+    final net = _monthIncome(curMk) - _monthExpenses(curMk);
+
+    return GestureDetector(
+      // The real detail screen (_SavingsRateScreen) — same one Overview's
+      // own savings card opens (see _openSavings) — not a stand-in. Built
+      // from Home's OWN data (_feedAll/_monthIncome/_monthExpenses) since
+      // this class doesn't share _OverviewTabState's filtered-rows state.
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => _SavingsRateScreen(
+                monthKeys: keys,
+                savingsOf: (rows) {
+                  final e = _sumIncome(rows);
+                  if (e <= 0) return 0;
+                  final s = _sumExpenses(rows);
+                  return (((e - s) / e) * 100).round();
+                },
+                earnedOf: _sumIncome,
+                rowsOf: (mk) => _rowsForMonth(mk).toList(),
+                initialKey: shownMk,
+              ))),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _hair),
+          boxShadow: _darkMode
+              ? null
+              : [
+                  BoxShadow(
+                      color: const Color(0xFF1E284A).withValues(alpha: 0.05),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6))
+                ],
+        ),
+        child: Row(children: [
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: Stack(alignment: Alignment.center, children: [
+              CircularProgressIndicator(
+                value: pct == null ? 0 : (pct / 100).clamp(0.0, 1.0),
+                backgroundColor: _hair,
+                color: pct != null && pct < 0 ? DS.danger : _purple,
+                strokeWidth: 4,
+              ),
+              if (pct != null)
+                Text('$pct%',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _ink)),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(tr('Santaupų norma'),
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
+                const SizedBox(height: 2),
+                Text(
+                    pct == null
+                        ? tr('Dar nėra pajamų duomenų')
+                        : (isCurrent
+                            ? (net >= 0
+                                ? '${tr('Sutaupei')} ${_eur0(net)}'
+                                : '${tr('Viršyta')} ${_eur0(-net)}')
+                            : '$pct% · ${tr('praėjusio mėn.')}'),
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        color: (pct != null && pct < 0) ? DS.danger : _muted)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
+        ]),
+      ),
+    );
+  }
+
   // 2026-08-14: a Bilance-style "Finance Agent" promo card — sits right below
   // the weekly spend chart. 2026-08-14: the AI chat no longer has its own
   // bottom-nav row (that slot now opens Transakcijos — see _navBar) — this
@@ -3920,14 +4086,41 @@ class _DashboardPreviewState extends State<DashboardPreview>
         child: GestureDetector(
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => Scaffold(
-                    backgroundColor: _bg,
-                    appBar: AppBar(backgroundColor: _bg, elevation: 0, foregroundColor: _ink),
+                    // Giving the AppBar the SAME flat colour as
+                    // _frostBackdrop's top stop (tried first) still left a
+                    // step: frostBackdrop also carries _frostMesh's glow
+                    // blobs, which the AppBar — a separate surface, painted
+                    // outside the body's Stack — could never pick up, so the
+                    // body always read very slightly bluer right where it
+                    // met the AppBar. extendBodyBehindAppBar + a fully
+                    // transparent AppBar instead let the SAME gradient+mesh
+                    // paint continuously behind both, so there is no second
+                    // surface to mismatch at all.
+                    extendBodyBehindAppBar: true,
+                    backgroundColor: Colors.transparent,
+                    appBar: AppBar(
+                      backgroundColor: Colors.transparent,
+                      surfaceTintColor: Colors.transparent,
+                      elevation: 0,
+                      foregroundColor: _ink,
+                    ),
                     // _AiChatTab expects the chrome an IndexedStack tab
                     // normally gets for free (see _buildOtherTabs) — pushed
-                    // standalone here, it has to bring its own.
+                    // standalone here, it has to bring its own. Some top
+                    // offset replaces what extendBodyBehindAppBar's OWN body
+                    // inset would have been if it were false (SafeArea alone
+                    // only clears the status bar/notch, not the AppBar's own
+                    // height) — trimmed below the full kToolbarHeight since
+                    // the back chevron sits top-left and doesn't need the
+                    // header row pushed a full toolbar's height below it.
                     body: Stack(children: [
                       Positioned.fill(child: _frostBackdrop()),
-                      SafeArea(child: _AiChatTab(data: _d, demo: widget.demo)),
+                      SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: kToolbarHeight - 20),
+                          child: _AiChatTab(data: _d, demo: widget.demo),
+                        ),
+                      ),
                     ]),
                   ))),
           behavior: HitTestBehavior.opaque,
@@ -4053,24 +4246,22 @@ class _DashboardPreviewState extends State<DashboardPreview>
       ]);
 
   Widget _weekSection() {
-    // When a filter is active, recompute the week chart from the filtered rows
-    // so it stays consistent with the filtered feed and headers.
-    // `_d['week']` is null when the account has no transactions in the window —
-    // fall back to computing an (empty) week so the home never crashes.
-    final week = _txFilter.active
-        ? _computeWeek(_feedAll.toList())
+    // When a filter is active, or a past week is being browsed, recompute
+    // the chart instead of using the cached current-week map — the cache
+    // only ever holds THIS week. `_d['week']` is null when the account has
+    // no transactions in the window — fall back to computing an (empty)
+    // week so the home never crashes.
+    final week = (_txFilter.active || _weekOffset != 0)
+        ? _computeWeek(_feedAll.toList(), weekOffset: _weekOffset)
         : (_d['week'] as Map<String, dynamic>?) ??
             _computeWeek(_feedAll.toList());
     final days = (week['days'] as List).cast<Map<String, dynamic>>();
-    // The chart answers "where did the balance go", so it is scaled and totalled
-    // on money OUT — spending plus what left without being spending (a transfer
-    // to a person, cash). Every other figure in the app stays on spending
-    // alone; nothing here feeds them. `gone` is absent on a week persisted by
-    // an older build, hence the ?? 0.
-    double outOf(Map<String, dynamic> d) =>
-        (d['total'] as num).toDouble() + ((d['gone'] as num?)?.toDouble() ?? 0);
-    final total = (week['total'] as num).toDouble() +
-        ((week['gone'] as num?)?.toDouble() ?? 0);
+    // 2026-08-15: was spending + "gone" money (transfers to people, cash
+    // withdrawals) — a big transfer inflated this into looking like a huge
+    // spending week. Pure spending now, same figure as everywhere else in
+    // the app (_sumExpenses).
+    double outOf(Map<String, dynamic> d) => (d['total'] as num).toDouble();
+    final total = (week['total'] as num).toDouble();
     double maxV = 1;
     for (final d in days) {
       final t = outOf(d);
@@ -4096,17 +4287,41 @@ class _DashboardPreviewState extends State<DashboardPreview>
             ? 1
             : today.difference(monday).inDays + 1;
     final avg = total / elapsed;
+    // 2026-08-15: browsable, same idea as the savings-rate month switcher —
+    // 0 = this week, -1 = last week, older weeks get a "4–10 rugp." range
+    // label since "praėjusią" only reads right one week back.
+    final weekTitle = _weekOffset == 0
+        ? tr('Šią savaitę išleista')
+        : _weekOffset == -1
+            ? tr('Praėjusią savaitę išleista')
+            : '${monday.day}–${sunday.day} ${_monGen[monday.month - 1]} ${tr('išleista')}';
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(tr('Šią savaitę išėjo'),
-                  style: TextStyle(
-                      fontSize: 14.5,
-                      color: _muted,
-                      fontWeight: FontWeight.w500)),
+              Row(children: [
+                Text(weekTitle,
+                    style: TextStyle(
+                        fontSize: 14.5,
+                        color: _muted,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(width: 4),
+                _weekNavBtn(
+                    icon: Icons.chevron_left_rounded,
+                    onTap: () => setState(() {
+                          _weekOffset--;
+                          _weekSel = null;
+                        })),
+                _weekNavBtn(
+                    icon: Icons.chevron_right_rounded,
+                    enabled: _weekOffset < 0,
+                    onTap: () => setState(() {
+                          _weekOffset++;
+                          _weekSel = null;
+                        })),
+              ]),
               // Average lives in the header (never on top of a bar or its number).
               if (avg > 0)
                 Padding(
@@ -4184,15 +4399,25 @@ class _DashboardPreviewState extends State<DashboardPreview>
     );
   }
 
+  Widget _weekNavBtn(
+          {required IconData icon,
+          bool enabled = true,
+          required VoidCallback onTap}) =>
+      GestureDetector(
+        onTap: enabled ? onTap : null,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          child: Icon(icon, size: 19, color: enabled ? _muted : _hair),
+        ),
+      );
+
   Widget _bar(Map<String, dynamic> d, double maxV, int i) {
     final cats = (d['cats'] as List).cast<Map<String, dynamic>>();
-    final spend = (d['total'] as num).toDouble();
-    final gone = (d['gone'] as num?)?.toDouble() ?? 0;
-    // Bar height and the number above it are money OUT. The coloured segments
-    // are spending by category; the muted one on top is what left without being
-    // spending, and it is in no total anywhere.
-    final tot = spend + gone;
-    final h = tot > 0 ? (tot / maxV * 118).clamp(3.0, 118.0) : 2.0;
+    // Bar height and the number above it are pure spending — the coloured
+    // segments are spending by category and always add up to the total.
+    final tot = (d['total'] as num).toDouble();
+    final h = tot > 0 ? (_weekBarFrac(tot, maxV) * 118).clamp(3.0, 118.0) : 2.0;
     final selected = _weekSel == i;
     return Expanded(
       child: GestureDetector(
@@ -4224,10 +4449,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
                                       tot *
                                       h,
                                   color: _secColor[ct['color']] ?? _muted),
-                            if (gone > 0)
-                              Container(
-                                  height: gone / tot * h,
-                                  color: _faint.withValues(alpha: 0.45)),
                           ],
                         )
                       : Container(color: const Color(0xFFDDE0DD)),
@@ -4248,8 +4469,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   Widget _weekTip(Map<String, dynamic> d) {
     final cats = (d['cats'] as List).cast<Map<String, dynamic>>();
-    final gone = (d['gone'] as num?)?.toDouble() ?? 0;
-    final tot = (d['total'] as num).toDouble() + gone;
+    final tot = (d['total'] as num).toDouble();
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -4283,7 +4503,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                       fontWeight: FontWeight.w800,
                       color: _ink)),
             ]),
-            if (cats.isEmpty && gone <= 0)
+            if (cats.isEmpty)
               Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(tr('Nėra išlaidų'),
@@ -4312,35 +4532,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: _ink,
-                        fontFeatures: const [FontFeature.tabularFigures()])),
-              ]),
-            ],
-            // The muted part of the bar, named. Without a line for it the day's
-            // total would not add up from what the tooltip lists, which is the
-            // one property that makes these numbers checkable.
-            if (gone > 0) ...[
-              const SizedBox(height: 9),
-              Row(children: [
-                Container(
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                      color: _faint.withValues(alpha: 0.45),
-                      shape: BoxShape.circle),
-                  child: Icon(Icons.swap_horiz_rounded, size: 12, color: _card),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: Text(tr('Išėjo, ne išlaidos'),
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: _muted,
-                            fontWeight: FontWeight.w600))),
-                Text('−${_eur(gone)}',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _muted,
                         fontFeatures: const [FontFeature.tabularFigures()])),
               ]),
             ],
@@ -4771,13 +4962,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // Rebuild the "this week" bar chart from `all` (Mon..Sun of the latest date)
   // so a manual entry in the current week shows up there too — same expenses-
   // only rule as the day/month headers.
-  Map<String, dynamic> _computeWeek(List<Map<String, dynamic>> all) {
+  Map<String, dynamic> _computeWeek(List<Map<String, dynamic>> all,
+      {int weekOffset = 0}) {
     // Anchor to the CURRENT calendar week (today's Monday) so "Šios savaitės
     // išlaidos" is genuinely this week — even if there's been no spending yet —
-    // rather than the week of the most recent transaction.
+    // rather than the week of the most recent transaction. weekOffset shifts
+    // that anchor back N weeks so the same chart can browse history.
     final now = DateTime.now();
     final monday = DateTime(now.year, now.month, now.day)
-        .subtract(Duration(days: now.weekday - 1));
+        .subtract(Duration(days: now.weekday - 1))
+        .add(Duration(days: 7 * weekOffset));
     final wdShort = _wdShort;
     final days = <Map<String, dynamic>>[];
     var weekTotal = 0.0;
@@ -4925,6 +5119,11 @@ _ManualCat? _catMetaFor(String cat) {
 String? prevMonthKey(List<String> monthKeys, String key) {
   final i = monthKeys.indexOf(key);
   return i > 0 ? monthKeys[i - 1] : null;
+}
+
+String? nextMonthKey(List<String> monthKeys, String key) {
+  final i = monthKeys.indexOf(key);
+  return (i >= 0 && i < monthKeys.length - 1) ? monthKeys[i + 1] : null;
 }
 
 // Saving streak: consecutive COMPLETED months (excluding the latest/current,
@@ -5825,7 +6024,7 @@ class _WeekAvgPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (maxV <= 0) return;
     final baseY = size.height - _bottomInset;
-    double yFor(double v) => baseY - (v / maxV * barMax);
+    double yFor(double v) => baseY - (_weekBarFrac(v, maxV) * barMax);
 
     final gridPaint = Paint()
       ..color = (dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A))
@@ -9149,6 +9348,95 @@ class _RingProgressPainter extends CustomPainter {
   bool shouldRepaint(_RingProgressPainter old) => old.ratio != ratio;
 }
 
+// Small half-donut gauge for the Home "Santaupų norma" row. Domain is a
+// fixed -50%..100% (not the data's actual min/max) so the zero tick always
+// sits at the same spot and one bad month doesn't rescale the whole gauge —
+// the arc position is clamped to that range for drawing, but the row's own
+// text next to it always shows the real, unclamped number.
+class _SavingsGaugePainter extends CustomPainter {
+  _SavingsGaugePainter(this.pct);
+  final int? pct;
+
+  static const _domainLo = -50.0, _domainHi = 100.0;
+
+  double _angleOf(double v) {
+    final t = ((v - _domainLo) / (_domainHi - _domainLo)).clamp(0.0, 1.0);
+    return math.pi + t * math.pi; // π (west) .. 2π (east), through north
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = math.min(size.width / 2, size.height) - 11;
+    final center = Offset(size.width / 2, size.height - 2);
+    final rect = Rect.fromCircle(center: center, radius: r);
+    final zeroAngle = _angleOf(0);
+    const strokeW = 11.0;
+
+    // faint background zones (below/above zero) behind the track, so the
+    // whole dial reads red-leaning vs green-leaning at a glance even before
+    // the value arc is looked at.
+    canvas.drawArc(
+        rect,
+        math.pi,
+        zeroAngle - math.pi,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeW
+          ..color = DS.danger.withValues(alpha: 0.10));
+    canvas.drawArc(
+        rect,
+        zeroAngle,
+        2 * math.pi - zeroAngle,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeW
+          ..color = _good.withValues(alpha: 0.10));
+
+    if (pct != null) {
+      final valueAngle = _angleOf(pct!.toDouble());
+      final color = pct! < 0 ? DS.danger : _good;
+      final fill = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeW
+        ..strokeCap = StrokeCap.round
+        ..color = color;
+      final from = pct! < 0 ? valueAngle : zeroAngle;
+      final sweep = (pct! < 0 ? zeroAngle : valueAngle) - from;
+      if (sweep.abs() > 0.02) canvas.drawArc(rect, from, sweep, false, fill);
+
+      final tip = Offset(center.dx + r * math.cos(valueAngle),
+          center.dy + r * math.sin(valueAngle));
+      canvas.drawCircle(tip, 7, Paint()..color = color);
+      canvas.drawCircle(
+          tip,
+          7,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.5
+            ..color = _card);
+    }
+
+    // zero tick — a short radial mark so "below zero" has a fixed reference.
+    final tickInner = Offset(
+        center.dx + (r - strokeW / 2 - 1) * math.cos(zeroAngle),
+        center.dy + (r - strokeW / 2 - 1) * math.sin(zeroAngle));
+    final tickOuter = Offset(
+        center.dx + (r + strokeW / 2 + 4) * math.cos(zeroAngle),
+        center.dy + (r + strokeW / 2 + 4) * math.sin(zeroAngle));
+    canvas.drawLine(
+        tickInner,
+        tickOuter,
+        Paint()
+          ..strokeWidth = 2.2
+          ..color = _faint);
+  }
+
+  @override
+  bool shouldRepaint(_SavingsGaugePainter old) => old.pct != pct;
+}
+
 class _DonutPainter extends CustomPainter {
   _DonutPainter(this.segments);
   final List<List<dynamic>> segments; // [value(double), color(Color)]
@@ -9529,12 +9817,13 @@ class _OverviewTabState extends State<_OverviewTab> {
             initialKey: _curKey),
       ));
 
+  // 2026-08-15: was `.clamp(0, 100)` — a month you overspent rounded to a
+  // flat "0%", indistinguishable from breaking even. See _savingsPctFor's
+  // own note (Home's equivalent) for why that got dropped.
   int _savingsOf(List<Map<String, dynamic>> rows) {
     final earned = _earnedOf(rows);
     final spent = _spentOf(rows);
-    return earned > 0
-        ? ((earned - spent) / earned * 100).round().clamp(0, 100)
-        : 0;
+    return earned > 0 ? ((earned - spent) / earned * 100).round() : 0;
   }
 
   // Consecutive COMPLETED months (excluding the current, possibly-partial one)
@@ -10287,7 +10576,7 @@ class _OverviewTabState extends State<_OverviewTab> {
 // ══════════════════════════════════════════════════════════════════════════════
 // SAVINGS RATE — detail screen
 // ══════════════════════════════════════════════════════════════════════════════
-class _SavingsRateScreen extends StatelessWidget {
+class _SavingsRateScreen extends StatefulWidget {
   const _SavingsRateScreen(
       {required this.monthKeys,
       required this.savingsOf,
@@ -10306,7 +10595,36 @@ class _SavingsRateScreen extends StatelessWidget {
   final String initialKey;
 
   @override
+  State<_SavingsRateScreen> createState() => _SavingsRateScreenState();
+}
+
+class _SavingsRateScreenState extends State<_SavingsRateScreen> {
+  // 2026-08-15: browsable — a left/right month switcher so "what was my
+  // savings rate two months ago" doesn't require re-tapping in from a
+  // different screen. Starts on the key the caller opened us with; moving
+  // from there is purely local state, same pattern as the 6-month trend
+  // chart below it.
+  late String _curKey;
+
+  @override
+  void initState() {
+    super.initState();
+    // Falls back to the latest month only if the tapped-from key somehow
+    // isn't in this list (stale data mid-refresh) — never silently defaults
+    // to it otherwise, which is the bug this field exists to fix.
+    _curKey = widget.monthKeys.contains(widget.initialKey)
+        ? widget.initialKey
+        : (widget.monthKeys.isNotEmpty
+            ? widget.monthKeys.last
+            : widget.initialKey);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final monthKeys = widget.monthKeys;
+    final savingsOf = widget.savingsOf;
+    final earnedOf = widget.earnedOf;
+    final rowsOf = widget.rowsOf;
     if (monthKeys.isEmpty) {
       // A freshly-connected / empty account has no months yet — don't `.last` on
       // an empty list (StateError → red screen); show a neutral empty state.
@@ -10323,15 +10641,11 @@ class _SavingsRateScreen extends StatelessWidget {
         ),
       );
     }
-    // Falls back to the latest month only if the tapped-from key somehow
-    // isn't in this list (stale data mid-refresh) — never silently defaults
-    // to it otherwise, which is the bug this whole parameter exists to fix.
-    final curKey = monthKeys.contains(initialKey) ? initialKey : monthKeys.last;
+    final curKey = _curKey;
     final curMon = _moInt(curKey);
     final rows = rowsOf(curKey);
     final earned = earnedOf(rows); // canonical income (matches Overview)
     final savings = savingsOf(rows);
-    final savStr = earned > 0 ? '$savings %' : '—';
     final prevKey = prevMonthKey(monthKeys, curKey);
     final prevMon = prevKey != null ? _moInt(prevKey) : 0;
     final prevRows =
@@ -10367,6 +10681,35 @@ class _SavingsRateScreen extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                           color: _ink))),
             ]),
+          ),
+          // Month switcher — browses monthKeys without leaving the screen.
+          // "prev" in list-index terms is the OLDER month (arrow points
+          // left/back in time); "next" is the newer one.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _monthArrow(
+                    icon: Icons.chevron_left_rounded,
+                    enabled: prevMonthKey(monthKeys, curKey) != null,
+                    onTap: () => setState(
+                        () => _curKey = prevMonthKey(monthKeys, curKey)!)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Text('${_monNom[curMon - 1]} ${curKey.substring(0, 4)}',
+                      style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: _ink)),
+                ),
+                _monthArrow(
+                    icon: Icons.chevron_right_rounded,
+                    enabled: nextMonthKey(monthKeys, curKey) != null,
+                    onTap: () => setState(
+                        () => _curKey = nextMonthKey(monthKeys, curKey)!)),
+              ],
+            ),
           ),
           Expanded(
             child: ListView(
@@ -10440,78 +10783,122 @@ class _SavingsRateScreen extends StatelessWidget {
                       ]),
                 ),
                 Container(
-                  padding: const EdgeInsets.all(18),
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
                   decoration: BoxDecoration(
                       color: _card,
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: _hair)),
-                  child: Row(children: [
-                    Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('${_monNom[curMon - 1]} ${tr('pajamos')}',
-                                style: TextStyle(fontSize: 13, color: _muted)),
-                            const SizedBox(height: 6),
-                            Row(children: [
-                              Container(
-                                  width: 26,
-                                  height: 26,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                      color: _purple, shape: BoxShape.circle),
-                                  child: const Icon(Icons.add_rounded,
-                                      size: 16, color: Colors.white)),
-                              const SizedBox(width: 8),
-                              Text(_eur0(earned),
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                      color: _ink)),
-                            ]),
-                            const SizedBox(height: 16),
-                            Text('${_monNom[curMon - 1]} ${tr('santaupos')}',
-                                style: TextStyle(fontSize: 13, color: _muted)),
-                            const SizedBox(height: 6),
-                            Row(children: [
-                              Container(
-                                  width: 26,
-                                  height: 26,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                      color: _purple, shape: BoxShape.circle),
-                                  child: const Icon(Icons.savings_outlined,
-                                      size: 15, color: Colors.white)),
-                              const SizedBox(width: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 2026-08-15: was a plain "52%" text block on the
+                      // right of the amounts — replaced with the same
+                      // half-donut gauge Home's own savings row uses (see
+                      // _SavingsGaugePainter), now the hero of this card
+                      // instead of a smaller echo of it. earned<=0 passes
+                      // null so a dataless month shows the empty track
+                      // rather than a misleading "0%" arc.
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
                                   earned > 0
-                                      ? _eur0(earned * savings / 100)
+                                      ? '${savings >= 0 ? '+' : ''}$savings%'
                                       : '—',
                                   style: TextStyle(
-                                      fontSize: 16,
+                                      fontSize: 38,
                                       fontWeight: FontWeight.w800,
-                                      color: _ink)),
-                            ]),
+                                      letterSpacing: -0.6,
+                                      color: earned <= 0
+                                          ? _ink
+                                          : (savings < 0 ? DS.danger : _good))),
+                              const SizedBox(height: 2),
+                              Text(tr('Santaupų norma'),
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: _muted)),
+                            ],
+                          ),
+                        ),
+                        Text(tr('santaupos / pajamos'),
+                            style: TextStyle(fontSize: 11.5, color: _muted)),
+                      ]),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 104,
+                        child: CustomPaint(
+                            painter:
+                                _SavingsGaugePainter(earned > 0 ? savings : null)),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(children: [
+                        Expanded(
+                          child: Row(children: [
+                            Container(
+                                width: 26,
+                                height: 26,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                    color: _purple, shape: BoxShape.circle),
+                                child: const Icon(Icons.add_rounded,
+                                    size: 16, color: Colors.white)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_eur0(earned),
+                                      style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                          color: _ink)),
+                                  Text('${_monNom[curMon - 1]} ${tr('pajamos')}',
+                                      style:
+                                          TextStyle(fontSize: 11.5, color: _muted)),
+                                ],
+                              ),
+                            ),
                           ]),
-                    ),
-                    Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(tr('Santaupų norma'),
-                              style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: _ink)),
-                          Text(savStr,
-                              style: TextStyle(
-                                  fontSize: 52,
-                                  fontWeight: FontWeight.w800,
-                                  color: _ink,
-                                  height: 1.1)),
-                          Text(tr('santaupos / pajamos'),
-                              style: TextStyle(fontSize: 11.5, color: _muted)),
-                        ]),
-                  ]),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Row(children: [
+                            Container(
+                                width: 26,
+                                height: 26,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                    color: _purple, shape: BoxShape.circle),
+                                child: const Icon(Icons.savings_outlined,
+                                    size: 15, color: Colors.white)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                      earned > 0
+                                          ? _eur0(earned * savings / 100)
+                                          : '—',
+                                      style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                          color: _ink)),
+                                  Text('${_monNom[curMon - 1]} ${tr('santaupos')}',
+                                      style:
+                                          TextStyle(fontSize: 11.5, color: _muted)),
+                                ],
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ]),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 14),
                 if (prevKey != null) ...[
@@ -10636,6 +11023,24 @@ class _SavingsRateScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _monthArrow(
+          {required IconData icon,
+          required bool enabled,
+          required VoidCallback onTap}) =>
+      GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+              color: _card,
+              shape: BoxShape.circle,
+              border: Border.all(color: _hair)),
+          child: Icon(icon, size: 20, color: enabled ? _ink : _faint),
+        ),
+      );
 }
 
 /// Six months of savings rate as a line with an area under it.
@@ -10776,6 +11181,11 @@ class _Budget {
   double limit;
   bool? auto; // true = we suggested the limit from history; false = user-set
   bool get isAuto => auto ?? true; // null (hot-reload) → treat as suggested
+  // When set, spend is only counted from this date forward — but only within
+  // the calendar month it falls in (a mid-month budget shouldn't blame the
+  // user for days before it existed). Any other viewed month (past or
+  // future) counts in full, same as a budget with no start date at all.
+  DateTime? startDate;
 }
 
 /// Set by the planning tab while the demo runs, so the walkthrough opens the
@@ -10854,6 +11264,22 @@ class _PlanningTabState extends State<_PlanningTab> {
       .where((t) => t['sec'] == sec && _aOf(t) < 0)
       .fold(0.0, (s, t) => s - _aOf(t).toDouble());
 
+  // Whether a transaction dated `dateStr` (yyyy-MM-dd) counts toward budget
+  // `b`, respecting its optional start date (see _Budget.startDate).
+  bool _budgetCountsOn(_Budget b, String dateStr) {
+    final sd = b.startDate;
+    if (sd == null) return true;
+    final sdYmd = _DashboardPreviewState._ymd(sd);
+    if (sdYmd.substring(0, 7) != _curKey) return true;
+    return dateStr.compareTo(sdYmd) >= 0;
+  }
+
+  // `_rows`, clipped to a budget's start date when it falls in the viewed month.
+  Iterable<Map<String, dynamic>> _rowsForBudget(_Budget b) {
+    if (b.startDate == null) return _rows;
+    return _rows.where((t) => _budgetCountsOn(b, _dOf(t)));
+  }
+
   // data-suggested monthly limit = a TYPICAL month + a little headroom.
   // Uses the median of complete months (robust to one-off spikes); if the section
   // only appears in the current partial month, extrapolates it to full-month pace.
@@ -10905,7 +11331,10 @@ class _PlanningTabState extends State<_PlanningTab> {
       for (final b in DashboardStore.budgets())
         if (b['sec'] is String && b['limit'] is num)
           (_Budget(b['sec'] as String, (b['limit'] as num).toDouble())
-            ..auto = b['auto'] as bool?),
+            ..auto = b['auto'] as bool?
+            ..startDate = b['startDate'] is String
+                ? DateTime.tryParse(b['startDate'] as String)
+                : null),
     ];
   }
 
@@ -10914,7 +11343,12 @@ class _PlanningTabState extends State<_PlanningTab> {
   void _saveBudgets() {
     DashboardStore.setBudgets([
       for (final b in _budgets)
-        {'sec': b.sec, 'limit': b.limit, 'auto': b.auto},
+        {
+          'sec': b.sec,
+          'limit': b.limit,
+          'auto': b.auto,
+          'startDate': b.startDate?.toIso8601String(),
+        },
     ]);
   }
 
@@ -10929,8 +11363,8 @@ class _PlanningTabState extends State<_PlanningTab> {
 
   @override
   Widget build(BuildContext context) {
-    final spentSoFar =
-        _budgets.fold(0.0, (s, b) => s + _spentInSec(_rows, b.sec));
+    final spentSoFar = _budgets.fold(
+        0.0, (s, b) => s + _spentInSec(_rowsForBudget(b), b.sec));
     final totalLimit = _budgets.fold(0.0, (s, b) => s + b.limit);
 
     return SafeArea(
@@ -10950,9 +11384,6 @@ class _PlanningTabState extends State<_PlanningTab> {
             for (final b in _budgets) _budgetRow(b),
             _addButton(),
           ],
-          const SizedBox(height: 10),
-          _sectionTitle('Pasikartojantys'),
-          _recurringCard(),
           const SizedBox(height: 12),
         ],
       ),
@@ -11111,15 +11542,21 @@ class _PlanningTabState extends State<_PlanningTab> {
   // ── summary card: spent-so-far / total + projection area chart ───────────────
   Widget _summaryCard(double spent, double limit) {
     final pct = limit > 0 ? (spent / limit * 100).round() : 0;
-    final budgetedSecs = _budgets.map((b) => b.sec).toSet();
-    // cumulative daily spend across all budgeted sections, day 1..today
+    final secToBudget = {for (final b in _budgets) b.sec: b};
+    // cumulative daily spend across all budgeted sections, day 1..today —
+    // a section only starts counting once its own budget's start date hits.
     final cum = <double>[];
     var run = 0.0;
     for (var day = 1; day <= _elapsedDays; day++) {
       final ds = '$_curKey-${day.toString().padLeft(2, '0')}';
       run += _rows
-          .where((t) =>
-              t['d'] == ds && budgetedSecs.contains(t['sec']) && _aOf(t) < 0)
+          .where((t) {
+            final b = secToBudget[t['sec']];
+            return ds == t['d'] &&
+                b != null &&
+                _aOf(t) < 0 &&
+                _budgetCountsOn(b, ds);
+          })
           .fold(0.0, (s, t) => s - _aOf(t).toDouble());
       cum.add(run);
     }
@@ -11217,7 +11654,7 @@ class _PlanningTabState extends State<_PlanningTab> {
 
   // ── one budget row: name + limit, spent/left, paced progress bar ─────────────
   Widget _budgetRow(_Budget b) {
-    final spent = _spentInSec(_rows, b.sec);
+    final spent = _spentInSec(_rowsForBudget(b), b.sec);
     final left = b.limit - spent;
     final frac = b.limit > 0 ? (spent / b.limit).clamp(0.0, 1.0) : 0.0;
     final col = _pace(spent, b.limit);
@@ -11245,9 +11682,14 @@ class _PlanningTabState extends State<_PlanningTab> {
                             fontWeight: FontWeight.w700,
                             color: _ink)),
                     Text(
-                        b.isAuto
-                            ? tr('Pasiūlyta pagal tavo išlaidas · keisk')
-                            : tr('Tavo biudžetas · keisk'),
+                        b.startDate != null &&
+                                _DashboardPreviewState._ymd(b.startDate!)
+                                        .substring(0, 7) ==
+                                    _curKey
+                            ? '${tr('Nuo')} ${b.startDate!.day.toString().padLeft(2, '0')}.${b.startDate!.month.toString().padLeft(2, '0')} · ${tr('keisk')}'
+                            : (b.isAuto
+                                ? tr('Pasiūlyta pagal tavo išlaidas · keisk')
+                                : tr('Tavo biudžetas · keisk')),
                         style: TextStyle(fontSize: 11.5, color: _muted)),
                   ]),
             ),
@@ -11556,933 +11998,14 @@ class _PlanningTabState extends State<_PlanningTab> {
         colorOf: _colorOfSec,
         iconOf: _iconOfSec,
         suggestOf: _suggestLimit,
-        onSave: (sec, limit) {
-          setState(() => _budgets.add(_Budget(sec, limit)));
+        onSave: (sec, limit, startDate) {
+          setState(
+              () => _budgets.add(_Budget(sec, limit)..startDate = startDate));
           _saveBudgets();
         },
       ),
     );
   }
-
-  // ── recurring block (reuses detected subscriptions) ──────────────────────────
-  // The Planning recurring section, inbox-first (Bilance-style): a review card
-  // for the streams the engine wasn't sure about (only those — never every
-  // transaction), then a calm one-line summary of the confirmed commitment.
-  Widget _recurringCard() {
-    final hidden = DashboardStore.recurringHidden();
-    final allItems = _recItemsFull(widget.subs);
-    final items = allItems.where((it) => !_recHasVerdict(hidden, it)).toList();
-    final excl = DashboardStore.recurringExcluded();
-    final incl = DashboardStore.recurringIncluded();
-    final reviewed = DashboardStore.recurringReviewed();
-    final counted = items.where((it) => _recCounted(it, excl, incl)).toList();
-    final total = _recMonthlyTotal(items, excl, incl);
-    // Pending review: flagged uncertain, not yet confirmed OR removed by the user.
-    final pending = items
-        .where((it) =>
-            it['needsReview'] == true &&
-            !_recHasVerdict(reviewed, it) &&
-            !excl
-                .contains(((it['name'] as String?) ?? '').trim().toLowerCase()))
-        .toList()
-      ..sort((a, b) =>
-          ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num));
-    return Column(children: [
-      if (pending.isNotEmpty) _reviewInbox(pending),
-      _recSummary(total, counted, allItems),
-    ]);
-  }
-
-  Widget _reviewInbox(List<Map<String, dynamic>> pending) => GestureDetector(
-        onTap: () => _openReview(pending),
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          padding: const EdgeInsets.fromLTRB(15, 14, 14, 14),
-          decoration: BoxDecoration(
-            color: _card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-                color: _reviewAmber.withValues(alpha: 0.55), width: 1.3),
-          ),
-          child: Row(children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                  color: _reviewAmber.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.fact_check_outlined,
-                  color: _reviewAmberInk, size: 22),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Text(tr('Patikrink pasikartojančius'),
-                          style: TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w800,
-                              color: _ink)),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 1),
-                        decoration: BoxDecoration(
-                            color: _reviewAmber,
-                            borderRadius: BorderRadius.circular(9)),
-                        child: Text('${pending.length}',
-                            style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white)),
-                      ),
-                    ]),
-                    const SizedBox(height: 2),
-                    Text(tr('Šių tiksliai neatpažinome — ar tikrai juos seki?'),
-                        style: TextStyle(
-                            fontSize: 12.5, color: _muted, height: 1.3)),
-                  ]),
-            ),
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right_rounded, color: _reviewAmberInk),
-          ]),
-        ),
-      );
-
-  Widget _recSummary(double total, List<Map<String, dynamic>> counted,
-          List<Map<String, dynamic>> items) =>
-      GestureDetector(
-        onTap: () async {
-          await Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => _RecurringScreen(items: items)));
-          if (mounted) setState(() {});
-        },
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: _card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _hair),
-          ),
-          child: Row(children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                  color: _purple.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12)),
-              child: Icon(Icons.event_repeat_rounded, color: _purple, size: 22),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${_eur(total)} ${tr('/ mėn')}',
-                        style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: _ink,
-                            letterSpacing: -0.3)),
-                    const SizedBox(height: 2),
-                    Text(
-                        '${counted.length} ${tr('aktyvūs mokėjimai — bakstelėk tvarkyti')}',
-                        style: TextStyle(fontSize: 12.5, color: _muted)),
-                  ]),
-            ),
-            Icon(Icons.chevron_right_rounded, color: _faint),
-          ]),
-        ),
-      );
-
-  Future<void> _openReview(List<Map<String, dynamic>> pending) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _RecurringReviewSheet(items: pending),
-    );
-    if (mounted) setState(() {});
-    widget.onVerdictChanged?.call();
-  }
-}
-
-// ── Recurring manager (Monarch/Copilot-style) ───────────────────────────────
-// Lists every detected recurring stream with its lifecycle status, and lets the
-// user confirm the heuristic: keep a stream in the monthly commitment or drop it
-// ("I stopped paying" / "not recurring"). Overrides persist in DashboardStore
-// and re-apply after every re-sync (keyed by name), so a correction sticks.
-class _RecurringScreen extends StatefulWidget {
-  const _RecurringScreen({required this.items, this.typeFilter});
-  final List<Map<String, dynamic>> items;
-  // 'subscription' | 'bill' | null (both — the old combined manager).
-  final String? typeFilter;
-  @override
-  State<_RecurringScreen> createState() => _RecurringScreenState();
-}
-
-class _RecurringScreenState extends State<_RecurringScreen> {
-  late Set<String> _excl = DashboardStore.recurringExcluded();
-  late Set<String> _incl = DashboardStore.recurringIncluded();
-  // Sids the user deleted from the list. Live in state so delete AND restore both
-  // re-render instantly; persisted to DashboardStore so they survive re-sync.
-  late final Set<String> _hiddenSids = {...DashboardStore.recurringHidden()};
-  // The "Paslėpti" list stays collapsed so deleted rows don't pile up as visible
-  // clutter — the sids are still remembered (so they never re-appear as active),
-  // just tucked away behind a count the user can open to restore.
-  bool _hiddenExpanded = false;
-  // A STABLE order fixed on entry — counted first, then by amount. Toggling never
-  // re-sorts (that made rows jump around and feel like the switch "sprang back").
-  bool _matchesFilter(Map it) {
-    final f = widget.typeFilter;
-    if (f == null) return true;
-    final isSub = _recType(it) == 'subscription';
-    return f == 'subscription' ? isSub : !isSub;
-  }
-
-  late final List<Map<String, dynamic>> _ordered = [
-    for (final it in widget.items)
-      if (!_recHasVerdict(_hiddenSids, it) && _matchesFilter(it)) it
-  ]..sort(_byCountedThenAmount);
-
-  int _byCountedThenAmount(Map a, Map b) {
-    final ca = _recCounted(a, _excl, _incl), cb = _recCounted(b, _excl, _incl);
-    if (ca != cb) return ca ? -1 : 1;
-    return ((b['monthly'] ?? 0) as num).compareTo((a['monthly'] ?? 0) as num);
-  }
-
-  // Currently-deleted items (to offer restore). Derived from the full input.
-  List<Map<String, dynamic>> get _hiddenItems => widget.items
-      .where((it) => _recHasVerdict(_hiddenSids, it) && _matchesFilter(it))
-      .toList();
-
-  // Captured so a lingering floating snackbar (app-level messenger) is cleared
-  // when we leave this screen.
-  ScaffoldMessengerState? _msgr;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _msgr = ScaffoldMessenger.of(context);
-  }
-
-  @override
-  void dispose() {
-    _msgr?.clearSnackBars();
-    super.dispose();
-  }
-
-  Future<void> _delete(Map<String, dynamic> it) async {
-    final key = _recKey(it);
-    if (key.isEmpty) return;
-    await DashboardStore.setRecurringHidden(key, true);
-    if (!mounted) return;
-    setState(() {
-      _hiddenSids.add(key);
-      _ordered.remove(it);
-    });
-    // Immediate one-tap undo (in case it was a mis-tap); the item also stays
-    // restorable later under the collapsed "Paslėpti" list.
-    //
-    // removeCurrentSnackBar() (not clearSnackBars() + a postFrame delay, which
-    // still left the toast stuck on screen indefinitely after a second delete)
-    // drops any bar still showing WITHOUT its exit animation, so the new one
-    // becomes the only active bar and its own 4s auto-dismiss timer actually
-    // starts.
-    final messenger = _msgr ?? ScaffoldMessenger.of(context);
-    messenger.removeCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(
-      content: Text(tr('Pašalinta iš sąrašo')),
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 4),
-      action: SnackBarAction(
-          label: tr('Grąžinti'),
-          textColor: _purple,
-          onPressed: () => _restore(it)),
-    ));
-  }
-
-  Future<void> _restore(Map<String, dynamic> it) async {
-    final key = _recKey(it);
-    if (key.isEmpty) return;
-    await DashboardStore.setRecurringHidden(key, false);
-    // A row hidden by an older build is still stored under its sid; clear that
-    // too, or "restore" leaves it hidden and the tap looks like it did nothing.
-    final sid = ((it['sid'] as String?) ?? '').trim();
-    if (sid.isNotEmpty) await DashboardStore.setRecurringHidden(sid, false);
-    if (!mounted) return;
-    setState(() {
-      _hiddenSids
-        ..remove(key)
-        ..remove(sid);
-      _ordered.add(it);
-      _ordered.sort(_byCountedThenAmount);
-    });
-  }
-
-  Widget _groupHeader(String label, [String? subtitle]) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 10, 4, 8),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(tr(label),
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: _muted,
-                  letterSpacing: 0.2)),
-          if (subtitle != null) ...[
-            const SizedBox(height: 2),
-            Text(tr(subtitle),
-                style: TextStyle(fontSize: 11.5, color: _faint, height: 1.25)),
-          ],
-        ]),
-      );
-
-  // Collapsed by default: "Paslėpti (N) ▾" — tap to reveal/restore. Keeps deleted
-  // rows out of sight (the sids are still remembered) instead of piling up.
-  Widget _hiddenHeader(int n) => GestureDetector(
-        onTap: () => setState(() => _hiddenExpanded = !_hiddenExpanded),
-        behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 10, 4, 8),
-          child: Row(children: [
-            Text('${tr('Paslėpti')} ($n)',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: _muted,
-                    letterSpacing: 0.2)),
-            const SizedBox(width: 4),
-            Icon(
-                _hiddenExpanded
-                    ? Icons.keyboard_arrow_up_rounded
-                    : Icons.keyboard_arrow_down_rounded,
-                size: 20,
-                color: _muted),
-          ]),
-        ),
-      );
-
-  Widget _howToRow(IconData icon, String text) => Padding(
-        padding: const EdgeInsets.only(top: 7),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 15, color: _purple),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Text(tr(text),
-                  style: TextStyle(fontSize: 12, color: _muted, height: 1.3))),
-        ]),
-      );
-
-  // A deleted row: dimmed, with a ＋ to bring it back into the list.
-  Widget _hiddenRow(Map<String, dynamic> it) {
-    final monthly = ((it['monthly'] ?? 0) as num).round();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-      decoration: BoxDecoration(
-          color: _card.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _hair)),
-      child: Row(children: [
-        Expanded(
-          child: Text('${_recName(it)} · ${_eur0(monthly)} ${tr('/ mėn')}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 14.5, fontWeight: FontWeight.w600, color: _faint)),
-        ),
-        GestureDetector(
-          onTap: () => _restore(it),
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-                color: _purple.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.add_rounded, size: 17, color: _purple),
-              const SizedBox(width: 4),
-              Text(tr('Grąžinti'),
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _purple)),
-            ]),
-          ),
-        ),
-      ]),
-    );
-  }
-
-  Future<void> _toggle(Map it, bool counted) async {
-    final backendActive = it['active'] == true && it['type'] != 'transfer';
-    // Match the heuristic → clear the override; differ → store the user's choice.
-    final bool? override = (counted == backendActive) ? null : counted;
-    await DashboardStore.setRecurringOverride(_recKey(it), override,
-        alsoClear: _recAliases(it));
-    if (!mounted) return;
-    setState(() {
-      _excl = DashboardStore.recurringExcluded();
-      _incl = DashboardStore.recurringIncluded();
-    });
-  }
-
-  Widget _typeChoice(String label, bool active, VoidCallback onTap) => Expanded(
-        child: GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: active ? _purpleSoft : _card,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: active ? _purple : _hair, width: active ? 1.5 : 1),
-            ),
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: active ? _purple : _muted)),
-          ),
-        ),
-      );
-
-  // Edit a stream: rename the series (an "APPLE.COM/BILL" charge → "ChatGPT") AND
-  // reclassify subscription <-> bill (e.g. a gym billed via a processor). Both are
-  // stored against the sid so they only affect THIS stream and survive re-sync.
-  Future<void> _rename(Map<String, dynamic> it) async {
-    final sid = it['sid'] as String?;
-    if (sid == null) return; // legacy/preview item without a series id
-    final merchant = _shortNm((it['name'] as String?) ?? '—');
-    final monthly = ((it['monthly'] ?? 0) as num).round();
-    final backendType = (it['type'] as String?) ?? 'subscription';
-    final ctl = TextEditingController(
-        text: DashboardStore.subscriptionAliases()[sid] ?? '');
-    String selType = _recType(it) == 'subscription' ? 'subscription' : 'bill';
-    final action = await showDialog<String>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          backgroundColor: _card,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Text(tr('Redaguoti'),
-              style: TextStyle(
-                  color: _ink, fontWeight: FontWeight.w700, fontSize: 18)),
-          content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$merchant · ${_eur0(monthly)} ${tr('/ mėn')}',
-                    style: TextStyle(color: _muted, fontSize: 13)),
-                const SizedBox(height: 4),
-                // Shown for EVERY stream, whether the name above is a well-known
-                // merchant ("GymPlius") or a raw bank string — the client has no
-                // signal telling the two apart (the resolver's confidence never
-                // reaches this screen), and claiming "the bank didn't say what
-                // this is" next to a name that's clearly already correct read as
-                // the app not knowing its own data.
-                Text(tr('Pervadink, kad geriau atpažintum sąraše.'),
-                    style: TextStyle(color: _faint, fontSize: 12)),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: ctl,
-                  autofocus: true,
-                  textCapitalization: TextCapitalization.sentences,
-                  style: TextStyle(
-                      color: _ink, fontSize: 16, fontWeight: FontWeight.w600),
-                  decoration: InputDecoration(
-                    hintText: tr('pvz. ChatGPT, iCloud, Spotify'),
-                    hintStyle: TextStyle(color: _faint),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(tr('Tipas'),
-                    style: TextStyle(
-                        color: _muted,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                Row(children: [
-                  _typeChoice(tr('Prenumerata'), selType == 'subscription',
-                      () => setLocal(() => selType = 'subscription')),
-                  const SizedBox(width: 8),
-                  _typeChoice(tr('Sąskaita'), selType == 'bill',
-                      () => setLocal(() => selType = 'bill')),
-                ]),
-              ]),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, 'clear'),
-                child: Text('${tr('Palikti kaip')} $merchant',
-                    style: TextStyle(color: _muted, fontSize: 13))),
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, 'save'),
-                child: Text(tr('Išsaugoti'),
-                    style: TextStyle(
-                        color: _purple, fontWeight: FontWeight.w700))),
-          ],
-        ),
-      ),
-    );
-    if (action == null) return;
-    await DashboardStore.setSubscriptionAlias(
-        sid, action == 'clear' ? null : ctl.text);
-    // Clear the type override when it matches the engine's guess again.
-    await DashboardStore.setRecurringType(
-        sid, selType == backendType ? null : selType);
-    _reloadSubAliases();
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final total = _recMonthlyTotal(_ordered, _excl, _incl);
-    final countedN =
-        _ordered.where((it) => _recCounted(it, _excl, _incl)).length;
-    return Scaffold(
-      backgroundColor: _bg,
-      appBar: AppBar(
-        backgroundColor: _bg,
-        elevation: 0,
-        foregroundColor: _ink,
-        title: Text(
-            tr(switch (widget.typeFilter) {
-              'subscription' => 'Prenumeratos',
-              'bill' => 'Sąskaitos',
-              _ => 'Pasikartojantys',
-            }),
-            style: TextStyle(color: _ink, fontWeight: FontWeight.w800)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 30),
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              // Was a hardcoded blue gradient, always — the one hero panel in
-              // the app that ignored the theme entirely, so it stayed blue in
-              // dark mode while everything around it (the "Kaip naudotis"
-              // block right below, its own icon and heading) is the app's
-              // purple family. Now follows the same [_purpleDeep, _purple]
-              // pair the other hero panels use: violet in dark mode, the same
-              // blue as before in light mode.
-              gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [_purpleDeep, _purple]),
-            ),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${_eur(total)} ${tr('/ mėn')}',
-                  style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white)),
-              const SizedBox(height: 2),
-              Text(
-                  '= ${_eur(total * 12)} ${tr('per metus')} · $countedN ${tr('įskaičiuota')}',
-                  style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.white.withValues(alpha: 0.9))),
-            ]),
-          ),
-          Container(
-            margin: const EdgeInsets.fromLTRB(2, 12, 2, 8),
-            padding: const EdgeInsets.all(14),
-            // A neutral card, not the purple-tinted `_purpleSoft` this used to
-            // sit on — now that the hero card above is a solid purple
-            // gradient, a purple-on-purple-tinted block directly under it
-            // had no edge between them. The purple accent stays on the icon,
-            // heading and row glyphs below, so this still reads as the same
-            // "tip" block; only the background moved to the plain surface the
-            // rest of this screen's cards already use.
-            decoration: BoxDecoration(
-                color: _card,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _hair)),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Icon(Icons.lightbulb_outline_rounded, size: 18, color: _purple),
-                const SizedBox(width: 8),
-                Text(tr('Kaip naudotis'),
-                    style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: _purple)),
-              ]),
-              const SizedBox(height: 8),
-              Text(tr('Sistema pati atrinko galimus pasikartojančius mokėjimus — tavo darbas patvirtinti, kurie tikri:'),
-                  style: TextStyle(
-                      fontSize: 12.5,
-                      color: _ink,
-                      height: 1.35,
-                      fontWeight: FontWeight.w600)),
-              _howToRow(Icons.toggle_on_rounded,
-                  'Jungiklis — įjungtas skaičiuojasi į mėnesio sumą. Nebemoki ar tai ne prenumerata → išjunk.'),
-              _howToRow(Icons.delete_outline_rounded,
-                  'Šiukšlinė — paslėpti visai (jei tai ne pasikartojantis mokėjimas).'),
-              _howToRow(Icons.edit_outlined,
-                  'Bakstelk pavadinimą — pervadinti arba pakeisti tipą (prenumerata ↔ sąskaita).'),
-            ]),
-          ),
-          if (_ordered.isEmpty)
-            Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(tr('Pasikartojančių mokėjimų nerasta.'),
-                    style: TextStyle(color: _muted))),
-          ..._groupedRows(),
-        ],
-      ),
-    );
-  }
-
-  // Split the (stably ordered) list into Subscriptions vs Bills so the manager
-  // makes clear which is which — each with its own header.
-  List<Widget> _groupedRows() {
-    final subs =
-        _ordered.where((it) => _recType(it) == 'subscription').toList();
-    final bills =
-        _ordered.where((it) => _recType(it) != 'subscription').toList();
-    final hidden = _hiddenItems;
-    // Filtered screens (opened from one half of the dashboard card) already
-    // say what they are via the title — no need for a second in-body header.
-    final f = widget.typeFilter;
-    return [
-      if (subs.isNotEmpty && f != 'bill')
-        if (f == 'subscription')
-          const SizedBox.shrink()
-        else
-          _groupHeader('Prenumeratos',
-              'Reguliarios paslaugos — Netflix, sporto salė, programėlės.'),
-      for (final it in subs) _row(it),
-      if (bills.isNotEmpty && f != 'subscription')
-        if (f == 'bill')
-          const SizedBox.shrink()
-        else
-          _groupHeader('Sąskaitos',
-              'Nuoma, komunaliniai, telefonas, paskolos, draudimas.'),
-      for (final it in bills) _row(it),
-      if (hidden.isNotEmpty) ...[
-        const SizedBox(height: 6),
-        _hiddenHeader(hidden.length),
-        if (_hiddenExpanded)
-          for (final it in hidden) _hiddenRow(it),
-      ],
-    ];
-  }
-
-  Widget _row(Map<String, dynamic> it) {
-    final counted = _recCounted(it, _excl, _incl);
-    final backendActive = it['active'] == true && it['type'] != 'transfer';
-    final monthly = ((it['monthly'] ?? 0) as num).round();
-    // The chip shows the EFFECTIVE state, so it can never contradict the switch:
-    //  on  → "Įskaičiuota"; off → why it's out (detected status, or "Išjungta"
-    //  when the user turned off a stream the app thought was active).
-    final String chip;
-    final bool live;
-    if (counted) {
-      chip = tr('Įskaičiuota');
-      live = true;
-    } else {
-      live = false;
-      if (backendActive) {
-        chip = tr('Išjungta');
-      } else {
-        final m = _recStatusMeta(it['status'] as String?);
-        chip = m[0].isNotEmpty ? tr(m[0]) : tr('Neįskaičiuota');
-      }
-    }
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-      decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _hair)),
-      child: Row(children: [
-        Expanded(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _rename(it),
-                  behavior: HitTestBehavior.opaque,
-                  child: Row(children: [
-                    Flexible(
-                        child: Text(_recName(it),
-                            style: TextStyle(
-                                fontSize: 15.5,
-                                fontWeight: FontWeight.w700,
-                                color: counted ? _ink : _muted),
-                            overflow: TextOverflow.ellipsis)),
-                    if (it['sid'] != null) ...[
-                      const SizedBox(width: 6),
-                      Icon(Icons.edit_outlined, size: 17, color: _muted),
-                    ],
-                  ]),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text('${_eur0(monthly)} ${tr('/ mėn')}',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: counted ? _ink : _muted)),
-            ]),
-            const SizedBox(height: 4),
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                    color: (live ? _good : _muted).withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Text(chip,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: live ? _good : _muted)),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: Text(_recDetail(it),
-                      style: TextStyle(fontSize: 11.5, color: _faint),
-                      overflow: TextOverflow.ellipsis)),
-            ]),
-          ]),
-        ),
-        GestureDetector(
-          onTap: () => _delete(it),
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            child: Icon(Icons.delete_outline_rounded, size: 21, color: _faint),
-          ),
-        ),
-        Switch.adaptive(
-            value: counted,
-            activeThumbColor: _purple,
-            onChanged: (v) => _toggle(it, v)),
-      ]),
-    );
-  }
-}
-
-// ── Recurring review sheet (Bilance-style "Add recurrings") ──────────────────
-// A bottom sheet listing ONLY the streams the engine flagged uncertain (unknown
-// merchant / KB 'possible') — never every transaction. Each row mirrors Bilance:
-// a coloured category tile, the merchant + cadence, the amount, and two circular
-// actions — green ＋ to keep it tracked, red ✗ to drop it from the monthly total.
-// Acting marks the sid reviewed so it never returns to the Planning inbox.
-class _RecurringReviewSheet extends StatefulWidget {
-  const _RecurringReviewSheet({required this.items});
-  final List<Map<String, dynamic>> items;
-  @override
-  State<_RecurringReviewSheet> createState() => _RecurringReviewSheetState();
-}
-
-class _RecurringReviewSheetState extends State<_RecurringReviewSheet> {
-  late final List<Map<String, dynamic>> _queue = [...widget.items];
-  int _done = 0;
-
-  Future<void> _decide(Map<String, dynamic> it, bool keep) async {
-    // Green ＋ = "yes, I track it" → force-INCLUDE so it actually lands in the
-    // counted subscriptions (before, keep only marked it reviewed, so a stream
-    // the engine hadn't counted just vanished). Red ✗ = force-EXCLUDE. Either way
-    // it leaves the review queue. Keyed by name+amount so the verdict survives the
-    // deeper scan re-splitting the streams — see _recKey.
-    await DashboardStore.setRecurringOverride(_recKey(it), keep,
-        alsoClear: _recAliases(it));
-    await DashboardStore.markRecurringReviewed(_recKey(it));
-    if (!mounted) return;
-    setState(() {
-      _queue.remove(it);
-      _done++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final h = MediaQuery.of(context).size.height;
-    return Container(
-      height: h * 0.86,
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-        ),
-        child: Column(children: [
-          const SizedBox(height: 10),
-          Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: _faint, borderRadius: BorderRadius.circular(3))),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 18, 12),
-            child: Row(children: [
-              GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: SizedBox(
-                  width: 42,
-                  height: 42,
-                  child: Icon(Icons.close_rounded, color: _ink, size: 25),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(tr('PASIKARTOJANTYS'),
-                          style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: _muted,
-                              letterSpacing: 0.5)),
-                      const SizedBox(height: 1),
-                      Text(tr('Patikrink pasikartojančius'),
-                          style: TextStyle(
-                              fontSize: 25,
-                              fontWeight: FontWeight.w800,
-                              color: _ink,
-                              letterSpacing: -0.6)),
-                    ]),
-              ),
-            ]),
-          ),
-          Container(height: 1, color: _hair),
-          Expanded(
-            child: _queue.isEmpty
-                ? _doneState()
-                : ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 26),
-                    itemCount: _queue.length,
-                    separatorBuilder: (_, __) => Padding(
-                      padding: const EdgeInsets.only(left: 77),
-                      child: Container(height: 1, color: _hair),
-                    ),
-                    itemBuilder: (_, i) => _row(_queue[i]),
-                  ),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _row(Map<String, dynamic> it) {
-    final cat = it['category'] as String?;
-    final amount = ((it['monthly'] ?? 0) as num).round();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 13, 14, 13),
-      child: Row(children: [
-        CategoryIcon(
-            icon: _reviewCatIcon(cat),
-            color: _colOf(cat),
-            size: 48,
-            circle: false,
-            merchant: it['name'] as String?),
-        const SizedBox(width: 13),
-        Expanded(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_recName(it),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
-            const SizedBox(height: 2),
-            Text(tr(_recCycleLabel(it['cycle'] as String?)),
-                style: TextStyle(fontSize: 13, color: _muted)),
-          ]),
-        ),
-        const SizedBox(width: 6),
-        Text('-${_eur0(amount)}',
-            style: TextStyle(
-                fontSize: 15.5, fontWeight: FontWeight.w800, color: _ink)),
-        const SizedBox(width: 10),
-        _actionCircle(
-            bg: const Color(0xFFFBE6E6),
-            fg: const Color(0xFFE0574F),
-            icon: Icons.close_rounded,
-            onTap: () => _decide(it, false)),
-        const SizedBox(width: 10),
-        _actionCircle(
-            bg: const Color(0xFFE4F5E9),
-            fg: _good,
-            icon: Icons.add_rounded,
-            onTap: () => _decide(it, true)),
-      ]),
-    );
-  }
-
-  Widget _actionCircle({
-    required Color bg,
-    required Color fg,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) =>
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-          child: Icon(icon, color: fg, size: 24),
-        ),
-      );
-
-  Widget _doneState() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                  color: _good.withValues(alpha: 0.14), shape: BoxShape.circle),
-              child: const Icon(Icons.check_rounded, color: _good, size: 34),
-            ),
-            const SizedBox(height: 16),
-            Text(tr('Viskas patikrinta'),
-                style: TextStyle(
-                    fontSize: 19, fontWeight: FontWeight.w800, color: _ink)),
-            const SizedBox(height: 6),
-            Text(
-                _done == 0
-                    ? tr('Nieko tikrinti nereikėjo.')
-                    : tr('Ačiū — pasikartojantys sutvarkyti.'),
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13.5, color: _muted, height: 1.4)),
-            const SizedBox(height: 22),
-            GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
-                decoration: BoxDecoration(
-                    color: _purple, borderRadius: BorderRadius.circular(12)),
-                child: Text(tr('Gerai'),
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
-              ),
-            ),
-          ]),
-        ),
-      );
 }
 
 // add-budget sheet: pick a section, edit the data-suggested limit, save
@@ -12497,13 +12020,16 @@ class _AddBudgetSheet extends StatefulWidget {
   final Color Function(String) colorOf;
   final IconData Function(String) iconOf;
   final double Function(String) suggestOf;
-  final void Function(String sec, double limit) onSave;
+  final void Function(String sec, double limit, DateTime? startDate) onSave;
   @override
   State<_AddBudgetSheet> createState() => _AddBudgetSheetState();
 }
 
 class _AddBudgetSheetState extends State<_AddBudgetSheet> {
   String? _sec;
+  // false = whole calendar month (default, matches how budgets always
+  // worked); true = only count spend from today onward this first month.
+  bool _fromToday = false;
   late final TextEditingController _limitCtl = TextEditingController();
 
   @override
@@ -12628,6 +12154,58 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                             color: _muted)),
                   ]),
                 ),
+                const SizedBox(height: 20),
+                Text(tr('Nuo kada sekti?'),
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        color: _muted,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _fromToday = false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: !_fromToday ? _purpleSoft : _card,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: !_fromToday ? _purple : _hair,
+                              width: !_fromToday ? 1.5 : 1),
+                        ),
+                        child: Text(tr('Nuo mėnesio pradžios'),
+                            style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: !_fromToday ? _purple : _ink)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _fromToday = true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _fromToday ? _purpleSoft : _card,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: _fromToday ? _purple : _hair,
+                              width: _fromToday ? 1.5 : 1),
+                        ),
+                        child: Text(tr('Nuo šiandien'),
+                            style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: _fromToday ? _purple : _ink)),
+                      ),
+                    ),
+                  ),
+                ]),
               ],
               const SizedBox(height: 22),
               GestureDetector(
@@ -12636,7 +12214,8 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                       double.tryParse(_limitCtl.text.replaceAll(',', '.')) ?? 0;
                   if (_sec == null || v <= 0) return;
                   // Input is in the display currency; budgets are stored in EUR.
-                  widget.onSave(_sec!, v / Money.rate);
+                  widget.onSave(
+                      _sec!, v / Money.rate, _fromToday ? DateTime.now() : null);
                   Navigator.pop(context);
                 },
                 child: Container(
@@ -15415,6 +14994,7 @@ class _AiChatTabState extends State<_AiChatTab> {
     'Kokia mano brangiausia prenumerata?',
     'Kur galėčiau sutaupyti?',
     'Kur daugiausiai išleidžiu?',
+    'Kokia mano santaupų norma?',
   ];
 
   @override
@@ -15557,7 +15137,7 @@ class _AiChatTabState extends State<_AiChatTab> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          padding: const EdgeInsets.fromLTRB(20, 2, 20, 4),
           child: Row(children: [
             Container(
               width: 40,
@@ -15617,79 +15197,101 @@ class _AiChatTabState extends State<_AiChatTab> {
         ),
       );
     }
-    // A warm, conversational opening rather than a bare list of buttons — a
-    // finance chat should feel like it's ready to talk, not like a menu. First
-    // chip is filled (the obvious starter), the rest sit quietly under it.
+    // 2026-08-15: the opening greeting is now the agent's own first chat
+    // bubble (avatar + message) instead of a static headline repeating what
+    // the header row above already says, with the starters as quick-reply
+    // buttons hanging off it — reads as the start of a conversation, not a
+    // landing page.
     return ListView(
-      padding: const EdgeInsets.fromLTRB(22, 40, 22, 12),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
       children: [
-        Text(tr('Sveiki 👋'),
-            style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w600, color: _muted)),
-        const SizedBox(height: 6),
-        Text(tr('Kuo galiu padėti?'),
-            style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-                height: 1.15,
-                letterSpacing: -0.6)),
-        const SizedBox(height: 24),
-        for (var i = 0; i < _starters.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _starterChip(_starters[i], primary: i == 0),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                  color: _purpleSoft, borderRadius: BorderRadius.circular(11)),
+              child: Icon(Icons.auto_awesome_rounded, color: _purple, size: 17),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                decoration: BoxDecoration(
+                  color: _card,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                    topRight: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
+                  ),
+                  border: Border.all(color: _hair),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4))
+                  ],
+                ),
+                child: Text(
+                    tr('Labas 👋 Galiu padėti suprasti, kur keliauja tavo pinigai. Ko norėtum paklausti?'),
+                    style: TextStyle(fontSize: 15.5, height: 1.5, color: _ink)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.only(left: 42),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final s in _starters)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _quickReply(s),
+                ),
+            ],
           ),
-        const SizedBox(height: 8),
-        Row(children: [
-          Icon(Icons.lock_outline_rounded, size: 14, color: _faint),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Text(
-                tr('Matau tik suvestines — jokių atskirų operacijų ar vardų.'),
-                style: TextStyle(fontSize: 12.5, color: _faint, height: 1.4)),
-          ),
-        ]),
+        ),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.only(left: 42),
+          child: Row(children: [
+            Icon(Icons.lock_outline_rounded, size: 14, color: _faint),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                  tr('Matau tik suvestines — jokių atskirų operacijų ar vardų.'),
+                  style: TextStyle(fontSize: 12.5, color: _faint, height: 1.4)),
+            ),
+          ]),
+        ),
       ],
     );
   }
 
-  Widget _starterChip(String s, {required bool primary}) => GestureDetector(
+
+  Widget _quickReply(String s) => GestureDetector(
         // Send what the chip SAYS, not the Lithuanian it was written in — the
         // label goes through tr(), so the tap must send tr(s) too, or an English
         // user's own question would appear (and be answered) in Lithuanian.
         onTap: () => _send(tr(s)),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           decoration: BoxDecoration(
-            color: primary ? _purple : _card,
-            borderRadius: BorderRadius.circular(15),
-            border: primary ? null : Border.all(color: _hair),
-            boxShadow: primary
-                ? [
-                    BoxShadow(
-                        color: _purple.withValues(alpha: 0.28),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6))
-                  ]
-                : null,
+            color: _card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _purple, width: 1.3),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(
-                primary
-                    ? Icons.auto_awesome_rounded
-                    : Icons.chat_bubble_outline_rounded,
-                size: 17,
-                color: primary ? Colors.white : _purple),
-            const SizedBox(width: 11),
-            Flexible(
-              child: Text(tr(s),
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: primary ? FontWeight.w700 : FontWeight.w500,
-                      color: primary ? Colors.white : _ink)),
-            ),
-          ]),
+          child: Text(tr(s),
+              style: TextStyle(
+                  fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
         ),
       );
 
