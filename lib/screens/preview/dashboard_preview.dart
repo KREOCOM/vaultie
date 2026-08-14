@@ -2479,12 +2479,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // anymore). Home stays the "at a glance" summary.
     final contentChildren = [
       _subsCard(),
-      // Scopes the week chart right below it (and, now, the Transakcijos
-      // tab's feed too — same _txFilter state, just reachable from both
-      // places). Doesn't touch the subscriptions card above, so placing it
-      // there read as "out of place" (it appeared to belong to
-      // Prenumeratos/Sąskaitos while really filtering spend).
-      _filters(),
+      // 2026-08-14: the Filtras chip itself moved to the Transakcijos tab —
+      // transactions aren't on Home any more, so a filter control here had
+      // nothing of its own left to scope. It still shares the SAME
+      // _txFilter state as the week chart below, so setting it from
+      // Transakcijos still narrows this chart too; there just isn't a
+      // second copy of the control sitting on Home.
       _weekSection(),
       _financeAgentBanner(),
     ];
@@ -2542,12 +2542,25 @@ class _DashboardPreviewState extends State<DashboardPreview>
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
-          child: Text(tr('Transakcijos'),
-              style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: _ink,
-                  letterSpacing: -0.4)),
+          child: Row(children: [
+            Text(tr('Transakcijos'),
+                style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                    letterSpacing: -0.4)),
+            const Spacer(),
+            // Moved here from Home's hero (2026-08-14) — searching FOR a
+            // transaction only makes sense where transactions actually are.
+            GestureDetector(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => _SearchScreen(
+                        all: (_d['all'] as List).cast<Map<String, dynamic>>(),
+                        budgets: DashboardStore.budgetMap(),
+                      ))),
+              child: Icon(Icons.search_rounded, size: 24, color: _ink),
+            ),
+          ]),
         ),
         _filters(),
         for (var i = 0; i < shown.length; i++) ...[
@@ -3220,15 +3233,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   size: 24,
                   color: _heroInk),
             ),
-            const SizedBox(width: 14),
-            GestureDetector(
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => _SearchScreen(
-                        all: (_d['all'] as List).cast<Map<String, dynamic>>(),
-                        budgets: DashboardStore.budgetMap(),
-                      ))),
-              child: Icon(Icons.search_rounded, size: 24, color: _heroInk),
-            ),
+            // 2026-08-14: search moved to the Transakcijos tab (see
+            // _transactionsTab) now that transactions themselves live there,
+            // not here — searching FROM Home only ever led to a transaction
+            // anyway.
           ]),
           const SizedBox(height: 18),
           GestureDetector(
