@@ -752,34 +752,47 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
           color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _line)),
-      child: Row(children: [
-        CategoryIcon(
-            icon: widget.wantType == 'subscription' ? Icons.autorenew_rounded : Icons.receipt_long_rounded,
-            color: _blue,
-            size: 40,
-            merchant: m.name),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(m.name,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
-              Text('matyta ${m.count}x · vidurkis ${m.avgAmount.toStringAsFixed(2)} €',
-                  style: const TextStyle(fontSize: 12, color: _subtle)),
-            ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          CategoryIcon(
+              icon: widget.wantType == 'subscription' ? Icons.autorenew_rounded : Icons.receipt_long_rounded,
+              color: _blue,
+              size: 40,
+              merchant: m.name),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(m.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
+                Text('matyta ${m.count}x · vidurkis ${m.avgAmount.toStringAsFixed(2)} €',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: _subtle)),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        ElevatedButton.icon(
-          onPressed: () => _confirmManual(m),
-          icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-          label: const Text('Pridėti'),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: _blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+        ]),
+        const SizedBox(height: 10),
+        // The "Pridėti" button gets its OWN full-width row below, not
+        // squeezed inline next to the name — that's what produced the
+        // broken layout (Expanded collapsing to near-zero width, wrapping
+        // the cadence text one character per line). Same pattern _row()
+        // already uses successfully for its Ne/Taip buttons.
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _confirmManual(m),
+            icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+            label: Text(widget.wantType == 'subscription' ? 'Pridėti prie prenumeratų' : 'Pridėti prie sąskaitų'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 8)),
+          ),
         ),
       ]),
     );
