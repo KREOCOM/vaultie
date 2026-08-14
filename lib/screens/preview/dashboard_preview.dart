@@ -3152,6 +3152,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
             .toList();
     final (delta, deltaPct) = _balanceDelta(seriesRaw, curVal);
     final dateLabels = _sparkDateLabels(seriesRaw);
+    final projected = designPreviewPalette
+        ? _projectedMonthEnd(seriesRaw, curVal)
+        : null;
     final topInset = MediaQuery.of(context).padding.top;
     final hero = Container(
       key: designPreviewPalette ? _heroKey : null,
@@ -3378,6 +3381,19 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   ]),
                 ],
                 const SizedBox(height: 14),
+                // PREVIEW-ONLY: the projection's own headline — without this
+                // the dashed line on the chart is just a mark with no stated
+                // meaning. Sits above the chart, never over a bar/point.
+                if (designPreviewPalette && projected != null && !_hideBal)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                        '${tr('Tokiu tempu')} ${_monGen[DateTime.now().month - 1]} ${tr('pabaigoje')}: ~${_eur0(projected)}',
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: _heroDim)),
+                  ),
                 // Chart with a soft fill, the balance pill at the endpoint, and € max/min.
                 SizedBox(
                   height: 78,
@@ -3387,7 +3403,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     // same x/y math as _NeonSparkPainter.at() below.
                     Widget? peakTag;
                     Widget? troughTag;
-                    if (designPreviewPalette && spark.length >= 2) {
+                    // Skipped when projecting: this tag's x/y math assumes the
+                    // line spans the FULL width, but the projection view
+                    // compresses it to leave room for the dashed extension —
+                    // rather than duplicate that math here too, the tags just
+                    // sit out this mode.
+                    if (designPreviewPalette && projected == null && spark.length >= 2) {
                       const rightPad = 66.0;
                       const h = 78.0;
                       final w = (box.maxWidth - rightPad).clamp(1.0, box.maxWidth);
@@ -3450,7 +3471,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
                             painter: _NeonSparkPainter(spark,
                                 dark: _darkMode,
                                 endLabel: _hideBal ? null : balStr,
-                                progress: _chartDraw?.value ?? 1),
+                                progress: _chartDraw?.value ?? 1,
+                                projectedValue: _hideBal ? null : projected),
                           ),
                         ),
                       ),
@@ -3805,6 +3827,33 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // % and the € delta derive from that same bad baseline).
     if (pct == null || pct.abs() > 300) return (null, null);
     return (delta, pct);
+  }
+
+  // 2026-08-15: PREVIEW-ONLY — "if the last ~14 days' rate holds, here's the
+  // balance at month-end." A straight-line extrapolation, not a forecast —
+  // deliberately simple so it's easy to reason about what it's actually
+  // saying. Null when there's under 2 days of recent data to draw a rate
+  // from, rather than guess off a single point.
+  double? _projectedMonthEnd(List<Map> series, double? cur) {
+    if (cur == null || series.isEmpty) return null;
+    final now = DateTime.now();
+    final monthEnd = DateTime(now.year, now.month + 1, 0);
+    final today = DateTime(now.year, now.month, now.day);
+    final daysLeft = monthEnd.difference(today).inDays;
+    if (daysLeft <= 0) return cur;
+    final cutoff = today.subtract(const Duration(days: 14));
+    final recent = <(DateTime, double)>[];
+    for (final p in series) {
+      final d = DateTime.tryParse((p['d'] ?? '').toString());
+      final v = (p['v'] as num?)?.toDouble();
+      if (d != null && v != null && !d.isBefore(cutoff)) recent.add((d, v));
+    }
+    if (recent.length < 2) return null;
+    recent.sort((a, b) => a.$1.compareTo(b.$1));
+    final spanDays = recent.last.$1.difference(recent.first.$1).inDays;
+    if (spanDays <= 0) return null;
+    final dailyRate = (recent.last.$2 - recent.first.$2) / spanDays;
+    return cur + dailyRate * daysLeft;
   }
 
   /// ~5 evenly-spaced "dd-MM" labels spanning the balance series, for the chart's
@@ -5811,9 +5860,13 @@ class _SparkPainter extends CustomPainter {
 /// the line's endpoint. [pulse] is a 0→1 animation value from the host widget.
 class _NeonSparkPainter extends CustomPainter {
   _NeonSparkPainter(this.pts,
-      {this.dark = true, this.endLabel, this.progress = 1});
+      {this.dark = true, this.endLabel, this.progress = 1, this.projectedValue});
   final List<double> pts;
   final bool dark;
+  // 2026-08-15: PREVIEW-ONLY — when set, the real line stops short (leaving
+  // room on the right) and a dashed segment + hollow dot continue on to this
+  // value, read as "if this rate holds, here's where you land."
+  final double? projectedValue;
 
   /// How much of the line is drawn, 0→1. Always 1 in the app; the onboarding
   /// demo runs it up from 0 so the balance draws itself across the chart.
@@ -5833,10 +5886,6 @@ class _NeonSparkPainter extends CustomPainter {
       designPreviewPalette
           ? Colors.white
           : dark ? const Color(0xFF8B5CF6) : const Color(0xFF2F6BFF);
-  // PREVIEW-ONLY: trading-chart read — each segment colours by its own
-  // direction instead of one flat line, so a dip is visible at a glance.
-  static const Color _up = Color(0xFF00E676);
-  static const Color _down = Color(0xFFFF5252);
   Color get _gridColor =>
       (designPreviewPalette ? Colors.white : dark ? const Color(0xFFFFFFFF) : const Color(0xFF14203A))
           .withValues(alpha: designPreviewPalette ? 0.32 : 0.07);
@@ -5853,13 +5902,19 @@ class _NeonSparkPainter extends CustomPainter {
         Offset(0, size.height - 1), Offset(size.width, size.height - 1), grid);
     if (pts.length < 2) return;
 
-    final mn = pts.reduce((a, b) => a < b ? a : b);
-    final mx = pts.reduce((a, b) => a > b ? a : b);
+    // The real line stops at histW, leaving room for the dashed projection —
+    // full width when there's nothing to project.
+    final hasProj = projectedValue != null;
+    final histW = hasProj ? w * 0.74 : w;
+
+    final mn0 = pts.reduce((a, b) => a < b ? a : b);
+    final mx0 = pts.reduce((a, b) => a > b ? a : b);
+    final mn = hasProj && projectedValue! < mn0 ? projectedValue! : mn0;
+    final mx = hasProj && projectedValue! > mx0 ? projectedValue! : mx0;
     final range = (mx - mn).abs() < 1e-6 ? 1.0 : (mx - mn);
-    Offset at(int i) => Offset(
-          i / (pts.length - 1) * w,
-          (size.height - 8) - (pts[i] - mn) / range * (size.height - 16) + 4,
-        );
+    double yOf(double v) =>
+        (size.height - 8) - (v - mn) / range * (size.height - 16) + 4;
+    Offset at(int i) => Offset(i / (pts.length - 1) * histW, yOf(pts[i]));
 
     final line = Path()..moveTo(at(0).dx, at(0).dy);
     for (var i = 1; i < pts.length; i++) {
@@ -5871,65 +5926,70 @@ class _NeonSparkPainter extends CustomPainter {
     final t = progress.clamp(0.0, 1.0);
     if (t < 1) {
       canvas.save();
-      canvas.clipRect(Rect.fromLTWH(0, 0, w * t + 0.5, size.height));
+      canvas.clipRect(Rect.fromLTWH(0, 0, histW * t + 0.5, size.height));
     }
 
     // Soft area fill under the line — a clean colour tint (no blur haze).
-    // PREVIEW-ONLY: skipped — with a white _line, this read as a small
-    // "glow" sitting right under the line's highest point (near the
-    // endpoint), which wasn't wanted.
-    if (!designPreviewPalette) {
-      final area = Path.from(line)
-        ..lineTo(at(pts.length - 1).dx, size.height)
-        ..lineTo(0, size.height)
-        ..close();
-      canvas.drawPath(
-        area,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              _line.withValues(alpha: dark ? 0.26 : 0.16),
-              _line.withValues(alpha: 0.0)
-            ],
-          ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
-      );
-    }
+    final area = Path.from(line)
+      ..lineTo(at(pts.length - 1).dx, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      area,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            _line.withValues(alpha: designPreviewPalette ? 0.22 : (dark ? 0.26 : 0.16)),
+            _line.withValues(alpha: 0.0)
+          ],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
 
-    // PREVIEW-ONLY: candlestick read instead of a line — one bar per step,
-    // spanning the previous point's height to this point's, coloured by
-    // direction (only one value per point, so this is the "body", no wick).
-    if (designPreviewPalette) {
-      final spacing = pts.length > 1 ? w / (pts.length - 1) : w;
-      // Thin capsule/pill bars (fully rounded ends) instead of sharp-edged
-      // trading blocks — softer, more "Vaultie" than a literal candlestick.
-      final barW = (spacing * 0.32).clamp(3.0, 7.0);
-      for (var i = 1; i < pts.length; i++) {
-        final a = at(i - 1), b = at(i);
-        final rising = pts[i] >= pts[i - 1];
-        final top = a.dy < b.dy ? a.dy : b.dy;
-        final bottom = a.dy > b.dy ? a.dy : b.dy;
-        final rect = RRect.fromRectAndRadius(
-          Rect.fromLTRB(b.dx - barW / 2, top, b.dx + barW / 2,
-              (bottom - top).abs() < barW ? top + barW : bottom),
-          Radius.circular(barW / 2),
-        );
-        canvas.drawRRect(rect, Paint()..color = rising ? _up : _down);
-      }
-    } else {
-      canvas.drawPath(
-        line,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..color = _line,
-      );
-    }
+    canvas.drawPath(
+      line,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = _line,
+    );
 
     if (t < 1) canvas.restore();
+
+    // PREVIEW-ONLY: dashed continuation out to the projected value — "if
+    // this rate holds, here's where you land" — only once the real line has
+    // fully drawn in (matches the endLabel pill's own t >= 0.995 gate).
+    if (hasProj && t >= 0.995) {
+      final from = at(pts.length - 1);
+      final to = Offset(w, yOf(projectedValue!));
+      final dashPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.55)
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round;
+      const dashLen = 5.0, gapLen = 4.5;
+      final total = (to - from).distance;
+      if (total > 0) {
+        final dir = Offset((to.dx - from.dx) / total, (to.dy - from.dy) / total);
+        var dist = 0.0;
+        while (dist < total) {
+          final segEnd = (dist + dashLen).clamp(0.0, total);
+          canvas.drawLine(
+              from + dir * dist, from + dir * segEnd, dashPaint);
+          dist += dashLen + gapLen;
+        }
+      }
+      canvas.drawCircle(to, 4, Paint()..color = const Color(0xFF1557E8));
+      canvas.drawCircle(
+          to,
+          4,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = Colors.white);
+    }
 
     // Endpoint dot (white halo for contrast against the fill), then the balance
     // pill. Mid-draw the dot rides the tip of the line instead.
@@ -5940,7 +6000,7 @@ class _NeonSparkPainter extends CustomPainter {
       final seg = t * (pts.length - 1);
       final i = seg.floor().clamp(0, pts.length - 2);
       final a = at(i), b = at(i + 1);
-      end = Offset(w * t, a.dy + (b.dy - a.dy) * (seg - i));
+      end = Offset(histW * t, a.dy + (b.dy - a.dy) * (seg - i));
     }
     // PREVIEW-ONLY: a translucent white halo works on any patch of the blue
     // gradient it happens to land on; the old fixed grey/dark-violet halo
@@ -5952,13 +6012,7 @@ class _NeonSparkPainter extends CustomPainter {
           ..color = designPreviewPalette
               ? Colors.white.withValues(alpha: 0.28)
               : (dark ? const Color(0xFF201545) : const Color(0xFFEEF1F7)));
-    canvas.drawCircle(
-        end,
-        3.4,
-        Paint()
-          ..color = designPreviewPalette
-              ? (pts.last >= pts[pts.length - 2] ? _up : _down)
-              : _line);
+    canvas.drawCircle(end, 3.4, Paint()..color = _line);
 
     if (endLabel != null && endLabel!.isNotEmpty && t >= 0.995) {
       // PREVIEW-ONLY: the pill needs its OWN colours, not _line (now white
@@ -5994,7 +6048,8 @@ class _NeonSparkPainter extends CustomPainter {
       old.pts != pts ||
       old.dark != dark ||
       old.endLabel != endLabel ||
-      old.progress != progress;
+      old.progress != progress ||
+      old.projectedValue != projectedValue;
 }
 
 /// The weekly chart's background: faint € gridlines (so a bar's height reads as
