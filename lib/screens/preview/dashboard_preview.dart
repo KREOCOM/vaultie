@@ -1255,32 +1255,63 @@ class _HeroShapeClipper extends CustomClipper<Path> {
     required this.legDepth,
     required this.shelfInset,
     this.topRadius = 24,
+    this.grooveDepth = 0,
+    this.grooveWidth = 64,
   });
   final double legDepth;
   final double shelfInset;
   final double topRadius;
+
+  // 2026-08-14: a shallow SECOND dip, centered on the flat shelf, for the
+  // grabber indicator to sit inside — still filled with the hero's own
+  // blue, not a cutout revealing the white card below. 0 = no groove (the
+  // shelf stays a plain flat line), matching the previous shape exactly.
+  final double grooveDepth;
+  final double grooveWidth;
 
   @override
   Path getClip(Size size) {
     final w = size.width;
     final h = size.height;
     final shelfY = h - legDepth;
-    return Path()
+    final cx = w / 2;
+    final gHalf = grooveWidth / 2;
+    final path = Path()
       ..moveTo(topRadius, 0)
       ..lineTo(w - topRadius, 0)
       ..quadraticBezierTo(w, 0, w, topRadius)
       ..lineTo(w, h)
       ..quadraticBezierTo(w, shelfY, w - shelfInset, shelfY)
+      ..lineTo(cx + gHalf, shelfY);
+    if (grooveDepth > 0) {
+      // A flat floor, not a round bowl bottom — rounded ONLY at the two
+      // transitions (shelf → floor, floor → shelf), each a quarter-ish
+      // curve, with a straight run across the middle at the full
+      // grooveDepth. floorHalf < gHalf so the transitions have room to
+      // curve before the floor starts.
+      final floorHalf = gHalf * 0.45;
+      path
+        ..quadraticBezierTo(
+            cx + gHalf, shelfY + grooveDepth, cx + floorHalf, shelfY + grooveDepth)
+        ..lineTo(cx - floorHalf, shelfY + grooveDepth)
+        ..quadraticBezierTo(cx - gHalf, shelfY + grooveDepth, cx - gHalf, shelfY);
+    }
+    path
       ..lineTo(shelfInset, shelfY)
       ..quadraticBezierTo(0, shelfY, 0, h)
       ..lineTo(0, topRadius)
       ..quadraticBezierTo(0, 0, topRadius, 0)
       ..close();
+    return path;
   }
 
   @override
   bool shouldReclip(covariant _HeroShapeClipper old) =>
-      old.legDepth != legDepth || old.shelfInset != shelfInset || old.topRadius != topRadius;
+      old.legDepth != legDepth ||
+      old.shelfInset != shelfInset ||
+      old.topRadius != topRadius ||
+      old.grooveDepth != grooveDepth ||
+      old.grooveWidth != grooveWidth;
 }
 
 /// Two slow, translucent sine bands drifting near a hero's top edge — plain
@@ -2581,6 +2612,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // How far the hero's outer bottom corners hang below its flat center
   // "shelf" — see _HeroShapeClipper and _topBanner.
   static const double _heroLegDepth = 28;
+  // How deep the shelf's own centered groove dips — still filled with the
+  // hero's blue, not a cutout. The grabber indicator sits inside it.
+  static const double _heroGrooveDepth = 16;
   // solidRun covers the 40px overlap PLUS ~20px genuinely below the hero's
   // true bottom, so the fade's own top stop can't land inside the rounded
   // corner's arc (which would show as the corner fading instead of solid).
@@ -3121,7 +3155,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
           Positioned(
             left: 0,
             right: 0,
-            bottom: _heroLegDepth + 7,
+            // This Positioned lives inside the Stack, which sits INSIDE the
+            // Container's padding — so bottom:0 here lands at the padded
+            // content edge, h - (18 + legDepth) in the clipper's own
+            // coordinate space, NOT at the clipper's y=h. Solving
+            // clipperY = h - (18+legDepth) - bottom for the bottom that puts
+            // the pill at the groove's centre (clipperY = h - legDepth +
+            // grooveDepth/2) gives bottom = -(18 + grooveDepth/2). Negative
+            // on purpose — the pill sits below the Stack's own nominal box,
+            // inside the padding, which Positioned allows.
+            bottom: -(18 + _heroGrooveDepth / 2),
             child: Center(
               child: Container(
                 width: 40,
@@ -3562,11 +3605,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     ],
                   ),
                 ],
-                const SizedBox(height: 12),
-                Text(tr('Likutis iš banko · grafikas = likučio kitimas laike'),
-                    style: TextStyle(
-                        fontSize: 10.5,
-                        color: _heroDim.withValues(alpha: 0.8))),
+                if (!designPreviewPalette) ...[
+                  const SizedBox(height: 12),
+                  Text(tr('Likutis iš banko · grafikas = likučio kitimas laike'),
+                      style: TextStyle(
+                          fontSize: 10.5,
+                          color: _heroDim.withValues(alpha: 0.8))),
+                ],
               ],
             ),
           ),
@@ -3579,6 +3624,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
       clipper: _HeroShapeClipper(
         legDepth: _heroLegDepth,
         shelfInset: MediaQuery.of(context).size.width * 0.15,
+        grooveDepth: _heroGrooveDepth,
+        grooveWidth: 64,
       ),
       child: hero,
     );
