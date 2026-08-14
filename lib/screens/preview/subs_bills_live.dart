@@ -141,7 +141,11 @@ Future<void> _renameLive(BuildContext context, _LiveItem it, VoidCallback onChan
 
 class LiveRecurringScreen extends StatefulWidget {
   const LiveRecurringScreen(
-      {super.key, required this.wantType, required this.title, this.itemsOverride});
+      {super.key,
+      required this.wantType,
+      required this.title,
+      this.itemsOverride,
+      this.allTransactions});
   final String wantType; // 'subscription' | 'bill'
   final String title; // 'Prenumeratos' | 'Sąskaitos'
   // When the caller already has the recurring items in memory (e.g. the
@@ -151,6 +155,13 @@ class LiveRecurringScreen extends StatefulWidget {
   // (main_subs_live.dart on a real signed-in device) leave this null and read
   // the real synced snapshot.
   final List<Map>? itemsOverride;
+
+  // The FULL transaction list (dashboard_preview.dart's `_d['all']`) — only
+  // used for the manual "search my own transactions" fallback in
+  // _LiveSortScreen, for a merchant the backend never flagged as a
+  // recurring candidate at all (so it can't be in itemsOverride either).
+  // Null on the standalone entry point, same as itemsOverride.
+  final List<Map>? allTransactions;
 
   @override
   State<LiveRecurringScreen> createState() => _LiveRecurringScreenState();
@@ -185,6 +196,11 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
         items: _pending,
         wantType: widget.wantType,
         onChanged: () => setState(() {}),
+        allTransactions: widget.allTransactions,
+        // Every name already tracked in EITHER pool (any type, confirmed or
+        // still pending) — never offer "add manually" for a merchant that
+        // already has a verdict somewhere, subscription or bill.
+        existingNames: _all.map((it) => it.merchant.trim().toLowerCase()).toSet(),
       ),
     ));
     setState(() {});
@@ -469,11 +485,29 @@ class _WavePainter extends CustomPainter {
   bool shouldRepaint(covariant _WavePainter old) => old.t != t;
 }
 
+/// A merchant found by searching the user's OWN raw transactions — not one
+/// of the backend's recurring candidates at all (`amount`/`occ` are our own
+/// average/count over the matching rows, not the backend's).
+class _TxMatch {
+  const _TxMatch({required this.name, required this.avgAmount, required this.count});
+  final String name;
+  final double avgAmount;
+  final int count;
+}
+
 class _LiveSortScreen extends StatefulWidget {
-  const _LiveSortScreen({required this.items, required this.wantType, required this.onChanged});
+  const _LiveSortScreen({
+    required this.items,
+    required this.wantType,
+    required this.onChanged,
+    this.allTransactions,
+    this.existingNames = const {},
+  });
   final List<_LiveItem> items;
   final String wantType;
   final VoidCallback onChanged;
+  final List<Map>? allTransactions;
+  final Set<String> existingNames;
 
   @override
   State<_LiveSortScreen> createState() => _LiveSortScreenState();
@@ -482,11 +516,48 @@ class _LiveSortScreen extends StatefulWidget {
 class _LiveSortScreenState extends State<_LiveSortScreen> {
   String _query = '';
   late List<_LiveItem> _items = widget.items;
+  // Manually added THIS session, so a just-added merchant stops showing up
+  // as a "not tracked yet" search result immediately, without needing
+  // widget.existingNames (fixed at screen-open time) to somehow know about it.
+  final Set<String> _manuallyAdded = {};
 
   List<_LiveItem> get _visible {
     if (_query.trim().isEmpty) return _items;
     final q = _query.trim().toLowerCase();
     return _items.where((it) => it.displayName.toLowerCase().contains(q)).toList();
+  }
+
+  /// Merchants the backend never flagged as recurring at all — found by
+  /// grouping the user's own transaction history by name. Only searched (not
+  /// browsed) — a full merchant list would be mostly one-off shopping, not
+  /// worth wading through for the rare subscription/bill the detector missed.
+  List<_TxMatch> get _txMatches {
+    final all = widget.allTransactions;
+    final q = _query.trim().toLowerCase();
+    if (all == null || q.isEmpty) return const [];
+    final excluded = {...widget.existingNames, ..._manuallyAdded};
+    final amounts = <String, List<double>>{};
+    final display = <String, String>{};
+    for (final t in all) {
+      final nm = (t['nm'] as String?)?.trim();
+      if (nm == null || nm.isEmpty) continue;
+      final key = nm.toLowerCase();
+      if (excluded.contains(key) || !key.contains(q)) continue;
+      final amt = (t['a'] as num?)?.toDouble() ?? 0;
+      if (amt >= 0) continue; // money OUT only — subs/bills are never income
+      amounts.putIfAbsent(key, () => []).add(amt.abs());
+      display.putIfAbsent(key, () => nm);
+    }
+    final out = amounts.entries.map((e) {
+      final vals = e.value;
+      return _TxMatch(
+        name: display[e.key]!,
+        avgAmount: vals.reduce((a, b) => a + b) / vals.length,
+        count: vals.length,
+      );
+    }).toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
+    return out.take(8).toList();
   }
 
   Future<void> _confirm(_LiveItem it) async {
@@ -509,9 +580,42 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
     widget.onChanged();
   }
 
+  /// The user's own pick, from a transaction search — not a backend
+  /// candidate at all. Same DashboardStore calls _addToRecurring (the
+  /// existing transaction-detail flow) already uses, so it's tracked exactly
+  /// the same way whichever door it came in through, and merges cleanly if
+  /// the backend later starts detecting this merchant on its own
+  /// (_recItemsFull matches manual entries onto real ones by folded name).
+  Future<void> _confirmManual(_TxMatch m) async {
+    final sid = 'manual:${m.name.trim().toLowerCase()}';
+    await DashboardStore.addManualRecurring({
+      'sid': sid,
+      'name': m.name,
+      'monthly': m.avgAmount,
+      'cost': m.avgAmount,
+      'cycle': 'monthly',
+      'status': 'active',
+      'active': true,
+      'type': widget.wantType,
+      'occ': m.count,
+      'manual': true,
+    });
+    await DashboardStore.setRecurringType(sid, widget.wantType);
+    await DashboardStore.markRecurringReviewed(sid);
+    setState(() => _manuallyAdded.add(m.name.trim().toLowerCase()));
+    widget.onChanged();
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+            SnackBar(content: Text('„${m.name}" pridėta'), duration: const Duration(seconds: 2)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
+    final txMatches = _txMatches;
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
@@ -543,11 +647,27 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
             children: [
               for (final it in visible) ...[_row(it), const SizedBox(height: 10)],
-              if (visible.isEmpty)
+              if (visible.isEmpty && txMatches.isEmpty && _query.trim().isNotEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 40),
                   child: Text('Nieko nerasta.', textAlign: TextAlign.center, style: TextStyle(color: _subtle)),
                 ),
+              if (visible.isEmpty && txMatches.isEmpty && _query.trim().isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 40),
+                  child: Text('Viskas peržiūrėta.', textAlign: TextAlign.center, style: TextStyle(color: _subtle)),
+                ),
+              // Merchants the backend never flagged at all — found by
+              // searching the user's own transaction history instead of the
+              // (possibly incomplete) auto-detected candidate list.
+              if (txMatches.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                  child: Text('Neradai automatiškai? Iš tavo tranzakcijų:',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _subtle)),
+                ),
+                for (final m in txMatches) ...[_manualRow(m), const SizedBox(height: 10)],
+              ],
             ],
           ),
         ),
@@ -616,6 +736,44 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
             ),
           ),
         ]),
+      ]),
+    );
+  }
+
+  Widget _manualRow(_TxMatch m) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: _card, borderRadius: BorderRadius.circular(14), border: Border.all(color: _line)),
+      child: Row(children: [
+        CategoryIcon(
+            icon: widget.wantType == 'subscription' ? Icons.autorenew_rounded : Icons.receipt_long_rounded,
+            color: _blue,
+            size: 40,
+            merchant: m.name),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(m.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
+              Text('matyta ${m.count}x · vidurkis ${m.avgAmount.toStringAsFixed(2)} €',
+                  style: const TextStyle(fontSize: 12, color: _subtle)),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          onPressed: () => _confirmManual(m),
+          icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+          label: const Text('Pridėti'),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: _blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+        ),
       ]),
     );
   }

@@ -3846,6 +3846,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 wantType: typeFilter,
                 title: typeFilter == 'subscription' ? tr('Prenumeratos') : tr('Sąskaitos'),
                 itemsOverride: allItems,
+                allTransactions: (_d['all'] as List?)?.cast<Map>(),
               )));
       // Toggling a payment off in the manager has to reach Planning's copy of
       // the list too — it lives in the CACHED tab list, not this tab's state.
