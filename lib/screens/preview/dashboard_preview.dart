@@ -1567,9 +1567,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // 2026-08-15: which week _weekSection shows — 0 = this week, -1 = last
   // week, etc. Never positive: you can't browse into the future.
   int _weekOffset = 0;
-  // 2026-08-16: PREVIEW-ONLY — cash on hand, the one balance nothing syncs
-  // for. Null until the user sets it once (see DashboardStore.cashOnHand).
-  double? _cash;
   int _shownPast = 2; // how many past months are shown below the current one
   final _txFilter = _TxFilter(); // feed filter (type + sections)
 
@@ -1976,7 +1973,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // otherwise they'd sit at their light defaults until the user toggled.
     _applyTheme(AppPrefs.darkMode.value);
     if (designPreviewPalette) _applyPreviewPalette();
-    _cash = DashboardStore.cashOnHand();
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     AppPrefs.locale.addListener(_onTheme); // ...and when the language changes
@@ -3711,13 +3707,28 @@ class _DashboardPreviewState extends State<DashboardPreview>
     );
   }
 
+  // 2026-08-16: shares storage with Paskyra's "Grynasis turtas" list
+  // (DashboardStore.manualAssets) instead of its own key — adding cash here
+  // and adding it in Paskyra used to be two different numbers that never
+  // agreed with each other. Both read/write the SAME entry, matched by its
+  // label ('Grynieji' — Paskyra's own default label for a nameless asset,
+  // written as raw data there, never through tr()). Read fresh from storage
+  // on every build rather than cached in a field, since Paskyra can change
+  // it while Home stays mounted (IndexedStack keeps both alive).
+  Map<String, dynamic>? get _cashAsset {
+    for (final a in DashboardStore.manualAssets()) {
+      if (((a['label'] as String?) ?? '').trim() == 'Grynieji') return a;
+    }
+    return null;
+  }
+
   // 2026-08-16: PREVIEW-ONLY — cash on hand. No card, no fill: one line of
   // text and two thin step buttons, so the hero doesn't gain a second block.
   // No value yet → a quiet "+ Grynieji" ghost link starts it; set once → the
   // full row with +/− (each opens a one-field sheet, not a blind increment,
   // since "how much did you spend/get" needs an actual number).
   Widget _cashRow() {
-    final cash = _cash;
+    final cash = (_cashAsset?['amount'] as num?)?.toDouble();
     if (cash == null) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 2),
@@ -3852,13 +3863,31 @@ class _DashboardPreviewState extends State<DashboardPreview>
       ),
     );
     if (v == null) return;
+    final list = DashboardStore.manualAssets();
+    final idx = list
+        .indexWhere((a) => ((a['label'] as String?) ?? '').trim() == 'Grynieji');
+    final current =
+        idx >= 0 ? ((list[idx]['amount'] as num?)?.toDouble() ?? 0) : 0.0;
     final next = delta == 0
         ? v
         : delta > 0
-            ? (_cash ?? 0) + v
-            : ((_cash ?? 0) - v).clamp(0.0, double.infinity);
-    setState(() => _cash = next);
-    await DashboardStore.setCashOnHand(next);
+            ? current + v
+            : (current - v).clamp(0.0, double.infinity);
+    final updated = [...list];
+    final entry = {
+      'id': idx >= 0
+          ? updated[idx]['id']
+          : DateTime.now().microsecondsSinceEpoch.toString(),
+      'label': 'Grynieji',
+      'amount': next,
+    };
+    if (idx >= 0) {
+      updated[idx] = entry;
+    } else {
+      updated.add(entry);
+    }
+    await DashboardStore.setManualAssets(updated);
+    setState(() {});
   }
 
   /// PREVIEW-ONLY (2026-08-12): two soft radial blobs behind the hero content,
@@ -4468,6 +4497,27 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return list.take(limit).toList();
   }
 
+  // The real earliest→latest dated row in the whole synced history, so the
+  // section can say exactly what it's drawn from instead of a vague "all
+  // time" — however many months the bank connection actually has (3? 6?)
+  // varies per person, so this is computed, never a guessed constant.
+  String _historySpanLabel() {
+    final rows = (_d['all'] as List?)?.cast<Map>() ?? const [];
+    DateTime? earliest, latest;
+    for (final t in rows) {
+      final d = DateTime.tryParse(_dOf(t));
+      if (d == null) continue;
+      if (earliest == null || d.isBefore(earliest)) earliest = d;
+      if (latest == null || d.isAfter(latest)) latest = d;
+    }
+    if (earliest == null || latest == null) return tr('Visos operacijos');
+    final months =
+        (latest.year - earliest.year) * 12 + (latest.month - earliest.month) + 1;
+    if (months <= 1) return tr('Šio mėnesio operacijos');
+    return '${tr('Paskutinių')} $months ${tr('mėn.')} '
+        '(${_monNom[earliest.month - 1]}–${_monNom[latest.month - 1]})';
+  }
+
   Widget _topMerchantsSection() {
     final top = _topMerchants(limit: 6);
     if (top.isEmpty) return const SizedBox.shrink();
@@ -4493,8 +4543,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
           padding: const EdgeInsets.all(2.5),
           decoration:
               BoxDecoration(color: _bg, shape: BoxShape.circle, boxShadow: DS.e1),
+          // category left null on purpose: SubscriptionAvatar only guesses a
+          // brand logo from the NAME when category is null or 'entertainment'
+          // — passing the real spend category (groceries, transport…) would
+          // have blocked every real logo (Maxima, Circle K, ...) in favour of
+          // a generic category-tinted icon.
           child: ClipOval(
-              child: SubscriptionAvatar(name: m.name, category: m.cat, size: 27)),
+              child: SubscriptionAvatar(name: m.name, category: null, size: 27)),
         ),
       ));
       start += 2 * math.pi * frac;
@@ -4503,11 +4558,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(tr('Kur keliauja pinigai'),
+        Text(tr('Kur išleidai daugiausiai'),
             style: TextStyle(
                 fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
         const SizedBox(height: 2),
-        Text(tr('Visas turimas laikotarpis'),
+        Text(_historySpanLabel(),
             style: TextStyle(fontSize: 12, color: _faint)),
         const SizedBox(height: 18),
         Center(
@@ -15744,7 +15799,7 @@ class _AiChatTabState extends State<_AiChatTab> {
         ),
         const SizedBox(height: 14),
         Padding(
-          padding: const EdgeInsets.only(left: 42),
+          padding: const EdgeInsets.only(left: 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -15758,7 +15813,7 @@ class _AiChatTabState extends State<_AiChatTab> {
         ),
         const SizedBox(height: 10),
         Padding(
-          padding: const EdgeInsets.only(left: 42),
+          padding: const EdgeInsets.only(left: 0),
           child: Row(children: [
             Icon(Icons.lock_outline_rounded, size: 14, color: _faint),
             const SizedBox(width: 7),

@@ -29,6 +29,7 @@ const Map<String, String> _en = {
   'Agentas': 'Agent',
   'Planavimas': 'Planning',
   'Paskyra': 'Account',
+  'Transakcijos': 'Transactions',
 
   // ── Account type labels (Enable Banking cash_account_type) ──
   'Taupomoji': 'Savings',
@@ -42,6 +43,21 @@ const Map<String, String> _en = {
   'nuo praėjusio mėn.': 'vs last month',
   'Likutis iš banko · grafikas = likučio kitimas laike':
       'Bank balance · chart = balance over time',
+  'Dar nėra pajamų duomenų': 'No income data yet',
+  'Sutaupei': 'You saved',
+  'Viršyta': 'Over by',
+  'praėjusio mėn.': 'last month',
+  'iš viso': 'total',
+  'Kur išleidai daugiausiai': 'Where you spent the most',
+  'Paskutinių': 'Last',
+  'Visos operacijos': 'All transactions',
+  'Šio mėnesio operacijos': 'This month’s transactions',
+
+  // ── Cash on hand (Home hero + Paskyra net worth) ── ('Grynieji' itself is
+  // already translated below, in Sub-categories & transaction labels)
+  'Kiek turi grynųjų?': 'How much cash do you have?',
+  'Kiek gavai grynais?': 'How much cash did you get?',
+  'Kiek išleidai grynais?': 'How much cash did you spend?',
 
   // ── Filters / week ──
   'Filtras': 'Filter',
@@ -49,6 +65,8 @@ const Map<String, String> _en = {
   'Šios savaitės išlaidos': 'This week’s spending',
   'vidurkis': 'average',
   'Šią savaitę išėjo': 'Left your account this week',
+  'Šią savaitę išleista': 'Spent this week',
+  'Praėjusią savaitę išleista': 'Spent last week',
   'Išėjo, ne išlaidos': 'Left, not spending',
 
   // ── Subscriptions card ──
@@ -79,9 +97,14 @@ const Map<String, String> _en = {
       'What’s my most expensive subscription?',
   'Kur galėčiau sutaupyti?': 'Where could I save?',
   'Kur daugiausiai išleidžiu?': 'What do I spend the most on?',
+  'Kokia mano santaupų norma?': 'What’s my savings rate?',
+  'Labas 👋 Galiu padėti suprasti, kur keliauja tavo pinigai. Ko norėtum paklausti?':
+      'Hi 👋 I can help you understand where your money goes. What would you like to ask?',
 
   // ── Overview / analytics ──
   'Kategorija': 'Category',
+  'Kategorijos': 'Categories',
+  'per 31 d.': 'in the last 31 days',
   'Suma': 'Amount',
   'Santaupų norma': 'Savings rate',
   'suma': 'total',
@@ -324,6 +347,11 @@ const Map<String, String> _en = {
   // ── Planning: budgets & insights ──
   'Biudžetai': 'Budgets',
   'Pasikartojantys': 'Recurring',
+  'Nuo': 'From',
+  'Nuo kada sekti?': 'Track from when?',
+  'Nuo mėnesio pradžios': 'From the start of the month',
+  'Nuo šiandien': 'From today',
+  'keisk': 'edit',
   'Įžvalgos': 'Insights',
   'Analitika': 'Analytics',
   'Vartotojas': 'User',
