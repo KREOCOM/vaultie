@@ -266,7 +266,20 @@ const _taxonomy = [
     'sec': 'Transportas',
     'c': 'blue',
     'i': 'car',
-    'subs': ['Kuras', 'Taksi, pavėžėja', 'Automobilis', 'Viešasis transportas']
+    // 'Taksi' (not 'Taksi, pavėžėja') — matches the exact string the server's
+    // own auto-classifier assigns (functions/dashboard.py _TAXI). They used
+    // to differ, so a bank-tagged taxi charge and a manually-picked one
+    // showed up as two unrelated categories anywhere rows are grouped by
+    // `cat` (category lists, search). Same reasoning for 'Būstas, nuoma'
+    // below.
+    'subs': [
+      'Kuras',
+      'Taksi',
+      'Automobilis',
+      'Viešasis transportas',
+      'Paspirtukai, dalinimasis',
+      'Parkavimas'
+    ]
   },
   {
     'sec': 'Apsipirkimas',
@@ -278,7 +291,17 @@ const _taxonomy = [
     'sec': 'Būstas, sąskaitos',
     'c': 'olive',
     'i': 'home',
-    'subs': ['Nuoma, būstas', 'Komunaliniai', 'Ryšys, internetas', 'Draudimas']
+    // 'Nuoma' (plain rent) and 'Būstas, nuoma' (generic housing) are two
+    // DISTINCT categories the server can assign (CAT_MAP's "rent" vs
+    // "housing" keys) — kept separate here too, not merged.
+    'subs': [
+      'Nuoma',
+      'Būstas, nuoma',
+      'Būsto paskola',
+      'Komunaliniai',
+      'Ryšys, internetas',
+      'Draudimas'
+    ]
   },
   {
     'sec': 'Sveikata, sportas',
@@ -296,13 +319,18 @@ const _taxonomy = [
     'sec': 'Finansai',
     'c': 'red',
     'i': 'money',
-    'subs': ['Mokesčiai', 'Bankas, komisiniai', 'Investicijos']
+    'subs': [
+      'Mokesčiai',
+      'Bankas, komisiniai',
+      'Investicijos',
+      'Paskola, lizingas'
+    ]
   },
   {
     'sec': 'Švietimas',
     'c': 'purple',
     'i': 'edu',
-    'subs': ['Mokslas', 'Kursai, knygos']
+    'subs': ['Mokslas', 'Kursai, knygos', 'Vaikai, ugdymas']
   },
   {
     'sec': 'Pajamos ir pervedimai',
@@ -316,7 +344,31 @@ const _taxonomy = [
     // because a bank can code a recurring salary as a plain top-up/transfer
     // (see _flowOf) — that hides it from "uždirbta"/savings until the
     // server's own >=2-distinct-month auto-detection catches up.
-    'subs': ['Atlyginimas', 'Pajamos', 'Pervedimai', 'Grynieji']
+    //
+    // 'Grąžinimas'/'Savas pervedimas' are real, useful manual picks too —
+    // _flowOf and _receivedOf both check those EXACT cat strings directly,
+    // so correcting a mis-coded refund or a same-owner transfer by hand
+    // actually changes how it's counted, not just how it's labelled.
+    'subs': [
+      'Atlyginimas',
+      'Pajamos',
+      'Dovana',
+      'Grąžinimas',
+      'Pervedimai',
+      'Asmeninis pervedimas',
+      'Sąskaitos papildymas',
+      'Savas pervedimas',
+      'Valiutos keitimas',
+      'Grynieji'
+    ]
+  },
+  // A way BACK to the neutral bucket — before this there was no way to
+  // explicitly re-file a wrongly-categorised row as 'Kita' from this sheet.
+  {
+    'sec': 'Kita',
+    'c': 'indigo',
+    'i': 'transfer',
+    'subs': ['Kita']
   },
 ];
 
@@ -5653,17 +5705,21 @@ const _expenseCats = <_ManualCat>[
   _ManualCat(
       'Alkoholis, tabakas', 'Maistas, gėrimai', 'green', 'food', 'bottle'),
   _ManualCat('Kuras', 'Transportas', 'blue', 'fuel', 'fuel'),
-  _ManualCat('Taksi, pavėžėja', 'Transportas', 'blue', 'transport', 'taxi'),
+  _ManualCat('Taksi', 'Transportas', 'blue', 'transport', 'taxi'),
   _ManualCat('Paspirtukai, dalinimasis', 'Transportas', 'blue', 'transport',
       'scooter'),
   _ManualCat(
       'Viešasis transportas', 'Transportas', 'blue', 'transport', 'taxi'),
   _ManualCat('Automobilis', 'Transportas', 'blue', 'vehicle', 'car'),
+  _ManualCat('Parkavimas', 'Transportas', 'blue', 'transport', 'taxi'),
   _ManualCat('Drabužiai', 'Apsipirkimas', 'teal', 'shopping', 'bag'),
   _ManualCat(
       'Elektronika, prekės', 'Apsipirkimas', 'teal', 'shopping', 'monitor'),
   _ManualCat('Namų prekės', 'Apsipirkimas', 'teal', 'shopping', 'bag'),
-  _ManualCat('Nuoma, būstas', 'Būstas, sąskaitos', 'olive', 'housing', 'house'),
+  _ManualCat('Nuoma', 'Būstas, sąskaitos', 'olive', 'housing', 'house'),
+  _ManualCat('Būstas, nuoma', 'Būstas, sąskaitos', 'olive', 'housing', 'house'),
+  _ManualCat(
+      'Būsto paskola', 'Būstas, sąskaitos', 'olive', 'housing', 'house'),
   _ManualCat('Komunaliniai', 'Būstas, sąskaitos', 'olive', 'housing', 'home'),
   _ManualCat(
       'Ryšys, internetas', 'Būstas, sąskaitos', 'olive', 'housing', 'home'),
@@ -5677,14 +5733,19 @@ const _expenseCats = <_ManualCat>[
   _ManualCat('Mokesčiai', 'Finansai', 'red', 'taxes', 'doc'),
   _ManualCat('Bankas, komisiniai', 'Finansai', 'red', 'finance', 'money'),
   _ManualCat('Investicijos', 'Finansai', 'red', 'finance', 'doc'),
+  _ManualCat('Paskola, lizingas', 'Finansai', 'red', 'finance', 'money'),
   _ManualCat('Mokslas', 'Švietimas', 'purple', 'edu', 'edu'),
   _ManualCat('Kursai, knygos', 'Švietimas', 'purple', 'edu', 'edu'),
+  _ManualCat('Vaikai, ugdymas', 'Švietimas', 'purple', 'edu', 'edu'),
   _ManualCat('Kita', 'Kita', 'indigo', 'other', 'swap'),
 ];
 const _incomeCats = <_ManualCat>[
   _ManualCat('Atlyginimas', 'Pajamos', 'amber', 'income', 'income'),
   _ManualCat('Pajamos', 'Pajamos', 'amber', 'income', 'income'),
   _ManualCat('Dovana', 'Pajamos', 'amber', 'income', 'income'),
+  // _flowOf checks this EXACT string directly — a manual pick here really
+  // does reclassify the row as a refund, not just relabel it.
+  _ManualCat('Grąžinimas', 'Pajamos', 'amber', 'income', 'income'),
 ];
 const _transferCats = <_ManualCat>[
   _ManualCat('Pervedimas', 'Pervedimai', 'indigo', 'transfer', 'swap'),
@@ -5693,6 +5754,12 @@ const _transferCats = <_ManualCat>[
       'Asmeninis pervedimas', 'Pervedimai', 'indigo', 'transfer', 'person'),
   _ManualCat(
       'Sąskaitos papildymas', 'Pervedimai', 'indigo', 'transfer', 'swap'),
+  // _receivedOf checks this EXACT string directly too — picking it excludes
+  // the row from "Gauta", same as a bank-detected own-account transfer.
+  _ManualCat(
+      'Savas pervedimas', 'Pervedimai', 'indigo', 'transfer', 'swap'),
+  _ManualCat(
+      'Valiutos keitimas', 'Pervedimai', 'indigo', 'transfer', 'swap'),
 ];
 List<_ManualCat> _catsFor(String kind) => kind == 'income'
     ? _incomeCats
