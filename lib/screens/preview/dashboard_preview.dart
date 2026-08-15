@@ -8787,10 +8787,18 @@ class _SplitLine {
       required this.secc,
       required this.col,
       required this.ic,
+      this.name = '',
       double amt = 0})
       : amtCtrl = TextEditingController(
             text: amt > 0 ? amt.toStringAsFixed(2).replaceAll('.', ',') : '');
   String cat, sec, secc, col, ic;
+  // The actual product name from a receipt scan ("Duona tostinė", "Šampūnas
+  // Head & Shoulders") — empty for a manually-added line. 2026-08-16: this
+  // was captured from the scan but never stored anywhere or shown — the
+  // split screen showed only a category icon + price per line, so there
+  // was no way to check the scan actually put the RIGHT product under the
+  // right category, only that the numbers summed correctly.
+  String name;
   final TextEditingController amtCtrl;
   double get amt =>
       double.tryParse(amtCtrl.text.replaceAll(',', '.').trim()) ??
@@ -8848,6 +8856,7 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
                 secc: m.secc,
                 col: m.col,
                 ic: m.ic,
+                name: (it['name'] as String?) ?? '',
                 amt: ((it['price'] as num?) ?? 0).toDouble());
           }(),
       ];
@@ -8860,6 +8869,7 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
               secc: it['secc'] as String,
               col: it['col'] as String,
               ic: it['ic'] as String,
+              name: (it['label'] as String?) ?? '',
               amt: (it['amt'] as num).toDouble())
       ];
     } else {
@@ -8957,6 +8967,7 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
                   secc: m.secc,
                   col: m.col,
                   ic: m.ic,
+                  name: (it['name'] as String?) ?? '',
                   amt: ((it['price'] as num?) ?? 0).toDouble());
             }(),
         ];
@@ -9013,6 +9024,11 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
           'col': l.col,
           'ic': l.ic,
           'amt': negative ? -l.amt : l.amt,
+          // The scanned product name ("Duona tostinė") — _applyTxSplits
+          // uses this as the split child row's OWN name in the feed
+          // (falling back to the merchant name when empty, e.g. for a
+          // manually-added line with no product name).
+          if (l.name.isNotEmpty) 'label': l.name,
         }
     ];
     await DashboardStore.setTxSplit(
@@ -9112,36 +9128,36 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
     );
   }
 
+  // 2026-08-16: a scanned product name ("Duona tostinė", "Šampūnas Head &
+  // Shoulders") is now its own row up top — before this the line showed
+  // ONLY a category icon + price, so there was no way to check the scan
+  // actually put the right PRODUCT under the right category, only that the
+  // numbers happened to sum correctly. A manually-added line has no name
+  // (l.name is empty) and keeps the original single-row layout.
   Widget _lineRow(_SplitLine line) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _hair)),
-      child: Row(children: [
-        InkWell(
-          onTap: () => _pickLineCategory(line),
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(children: [
-              CategoryIcon(icon: _iconOf(line.ic), color: _colOf(line.col),
-                  size: 32),
-              const SizedBox(width: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 110),
-                child: Text(tr(line.cat),
-                    maxLines: 2,
-                    style: TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
-              ),
-              Icon(Icons.expand_more_rounded, size: 16, color: _muted),
-            ]),
-          ),
+    final catRow = Row(children: [
+      InkWell(
+        onTap: () => _pickLineCategory(line),
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: [
+            CategoryIcon(
+                icon: _iconOf(line.ic), color: _colOf(line.col), size: 32),
+            const SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 110),
+              child: Text(tr(line.cat),
+                  maxLines: 2,
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
+            ),
+            Icon(Icons.expand_more_rounded, size: 16, color: _muted),
+          ]),
         ),
-        const Spacer(),
+      ),
+      const Spacer(),
+      if (line.name.isEmpty)
         SizedBox(
           width: 90,
           child: TextField(
@@ -9164,17 +9180,63 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
             ),
           ),
         ),
-        if (_lines.length > 2)
-          IconButton(
-            onPressed: () => _removeLine(line),
-            icon: Icon(Icons.close_rounded, size: 18, color: _faint),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            visualDensity: VisualDensity.compact,
-          )
-        else
-          const SizedBox(width: 24),
-      ]),
+      if (_lines.length > 2)
+        IconButton(
+          onPressed: () => _removeLine(line),
+          icon: Icon(Icons.close_rounded, size: 18, color: _faint),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          visualDensity: VisualDensity.compact,
+        )
+      else if (line.name.isEmpty)
+        const SizedBox(width: 24),
+    ]);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _hair)),
+      child: line.name.isEmpty
+          ? catRow
+          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                  child: Text(line.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: _ink)),
+                ),
+                SizedBox(
+                  width: 84,
+                  child: TextField(
+                    controller: line.amtCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: _ink,
+                        fontFeatures: const [FontFeature.tabularFigures()]),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      suffixText: ' €',
+                      suffixStyle: TextStyle(color: _muted, fontSize: 13),
+                      border: InputBorder.none,
+                      hintText: '0,00',
+                      hintStyle: TextStyle(color: _faint),
+                    ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 2),
+              catRow,
+            ]),
     );
   }
 
