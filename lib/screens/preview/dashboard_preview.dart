@@ -1566,6 +1566,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // 2026-08-15: which week _weekSection shows — 0 = this week, -1 = last
   // week, etc. Never positive: you can't browse into the future.
   int _weekOffset = 0;
+  // 2026-08-16: PREVIEW-ONLY — cash on hand, the one balance nothing syncs
+  // for. Null until the user sets it once (see DashboardStore.cashOnHand).
+  double? _cash;
   int _shownPast = 2; // how many past months are shown below the current one
   final _txFilter = _TxFilter(); // feed filter (type + sections)
 
@@ -1972,6 +1975,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // otherwise they'd sit at their light defaults until the user toggled.
     _applyTheme(AppPrefs.darkMode.value);
     if (designPreviewPalette) _applyPreviewPalette();
+    _cash = DashboardStore.cashOnHand();
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     AppPrefs.locale.addListener(_onTheme); // ...and when the language changes
@@ -2507,7 +2511,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // _txFilter state as the week chart above, so setting it from
       // Transakcijos still narrows this chart too; there just isn't a
       // second copy of the control sitting on Home.
-      if (designPreviewPalette) _savingsRateCard(),
+      // 2026-08-16: Santaupų norma removed from Home per request — it stays
+      // on Apžvalga (_OverviewTabState._savingsCard), just not duplicated
+      // here too.
       // 2026-08-14: moved up, right after the summary cards — it had sunk
       // below the weekly chart and read as buried down there.
       _financeAgentBanner(),
@@ -3382,12 +3388,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 ],
                 const SizedBox(height: 14),
                 // 2026-08-16: PREVIEW-ONLY — the line chart (candlesticks,
-                // clean line, projection) and then the account-split bar all
-                // kept reading as "too much"/"not pretty" on this hero.
-                // Settled on this month's cash flow instead — thin gauged
-                // (not chunky) income/expense tracks + the net.
+                // clean line, projection), the account-split bar, and the
+                // cash-flow strip all kept reading as "too much"/"not
+                // pretty" on this hero. Settled on a cash-on-hand row
+                // instead — no card, just a line of text and two small
+                // step buttons, since a bank can't report physical cash.
                 if (designPreviewPalette)
-                  _cashFlowStrip()
+                  _cashRow()
                 else
                 // Chart with a soft fill, the balance pill at the endpoint, and € max/min.
                 SizedBox(
@@ -3527,7 +3534,23 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   // BIGGEST is shown until asked: four accounts — three of them
                   // Revolut currency pockets sitting at 0 € — filled the header
                   // with rows carrying no information. The rest are one tap away.
-                  Wrap(
+                  // 2026-08-16: expanded state was a Wrap — chips of
+                  // different widths centering per-row left every row's
+                  // left edge in a different place, reading as "thrown any
+                  // which way". A Column stacks them one under another
+                  // instead, same centered chip each time.
+                  designPreviewPalette && _acctsOpen
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final a in accounts) ...[
+                              _expandedAcctChip(a, acctTotal),
+                              const SizedBox(height: 8),
+                            ],
+                            _acctsToggleChip(accounts),
+                          ],
+                        )
+                      : Wrap(
                     alignment: designPreviewPalette
                         ? WrapAlignment.center
                         : WrapAlignment.start,
@@ -3680,75 +3703,154 @@ class _DashboardPreviewState extends State<DashboardPreview>
     );
   }
 
-  // 2026-08-16: PREVIEW-ONLY — this month's cash flow, thin gauged tracks
-  // (not chunky bars) so it reads as a quiet strip, not another chart.
-  // Income/expense only — the full breakdown stays on Apžvalga; this is
-  // just the pulse.
-  Widget _cashFlowStrip() {
-    final now = DateTime.now();
-    final mk = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-    final income = _monthIncome(mk);
-    final expenses = _monthExpenses(mk);
-    final maxV = income > expenses ? income : expenses;
-    final net = income - expenses;
+  // 2026-08-16: PREVIEW-ONLY — cash on hand. No card, no fill: one line of
+  // text and two thin step buttons, so the hero doesn't gain a second block.
+  // No value yet → a quiet "+ Grynieji" ghost link starts it; set once → the
+  // full row with +/− (each opens a one-field sheet, not a blind increment,
+  // since "how much did you spend/get" needs an actual number).
+  Widget _cashRow() {
+    final cash = _cash;
+    if (cash == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 2),
+        child: GestureDetector(
+          onTap: () => _promptCash(delta: 0),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.add_rounded,
+                size: 15, color: Colors.white.withValues(alpha: 0.7)),
+            const SizedBox(width: 4),
+            Text(tr('Grynieji'),
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.7))),
+          ]),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(children: [
+        const Text('💵', style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 6),
+        Text(tr('Grynieji'),
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.white.withValues(alpha: 0.7))),
+        const SizedBox(width: 8),
+        Text(_eur0(cash),
+            style: const TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+        const Spacer(),
+        _cashStepBtn(Icons.remove_rounded, () => _promptCash(delta: -1)),
+        const SizedBox(width: 8),
+        _cashStepBtn(Icons.add_rounded, () => _promptCash(delta: 1)),
+      ]),
+    );
+  }
 
-    Widget track(IconData icon, Color tint, double v) => Padding(
-          padding: const EdgeInsets.only(bottom: 9),
-          child: Row(children: [
-            Container(
-              width: 20,
-              height: 20,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                  color: tint.withValues(alpha: 0.2), shape: BoxShape.circle),
-              child: Icon(icon, size: 11, color: tint),
-            ),
-            const SizedBox(width: 9),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(2.5),
-                child: SizedBox(
-                  height: 5,
-                  child: Stack(children: [
-                    Container(color: Colors.white.withValues(alpha: 0.14)),
-                    FractionallySizedBox(
-                        widthFactor:
-                            maxV > 0 ? (v / maxV).clamp(0.0, 1.0) : 0,
-                        child: Container(color: tint)),
-                  ]),
+  Widget _cashStepBtn(IconData icon, VoidCallback onTap) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.4))),
+          child: Icon(icon, size: 14, color: Colors.white),
+        ),
+      );
+
+  // delta: +1 = "Gavau" (add), -1 = "Išleidau" (subtract), 0 = first-time set.
+  Future<void> _promptCash({required int delta}) async {
+    final ctl = TextEditingController();
+    final title = delta == 0
+        ? tr('Kiek turi grynųjų?')
+        : delta > 0
+            ? tr('Kiek gavai grynais?')
+            : tr('Kiek išleidai grynais?');
+    final v = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            left: 18,
+            right: 18,
+            top: 18),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text(title,
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: _ink))),
+                GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Icon(Icons.close_rounded, color: _faint)),
+              ]),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                    color: _soft,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _hair)),
+                child: Row(children: [
+                  Expanded(
+                      child: TextField(
+                          controller: ctl,
+                          keyboardType: TextInputType.number,
+                          autofocus: true,
+                          style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: _ink),
+                          decoration: const InputDecoration(
+                              border: InputBorder.none, hintText: '0'))),
+                  Text(Money.symbol,
+                      style: TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.w700, color: _muted)),
+                ]),
+              ),
+              const SizedBox(height: 18),
+              GestureDetector(
+                onTap: () {
+                  final n = double.tryParse(ctl.text.replaceAll(',', '.'));
+                  if (n == null || n <= 0) return;
+                  Navigator.pop(ctx, n / Money.rate);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                      color: _purple, borderRadius: BorderRadius.circular(14)),
+                  child: Text(tr('Išsaugoti'),
+                      style: const TextStyle(
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white)),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 66,
-              child: Text(_eur0(v),
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white)),
-            ),
-          ]),
-        );
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      track(Icons.arrow_downward_rounded, const Color(0xFF3ED598), income),
-      track(Icons.arrow_upward_rounded, const Color(0xFFFF8A73), expenses),
-      Padding(
-        padding: const EdgeInsets.only(top: 3),
-        child: Row(children: [
-          Text(tr('Grynasis šio mėn.'),
-              style: TextStyle(fontSize: 12, color: _heroDim)),
-          const Spacer(),
-          Text('${net >= 0 ? '+' : '−'}${_eur0(net.abs())}',
-              style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white)),
-        ]),
+            ]),
       ),
-    ]);
+    );
+    if (v == null) return;
+    final next = delta == 0
+        ? v
+        : delta > 0
+            ? (_cash ?? 0) + v
+            : ((_cash ?? 0) - v).clamp(0.0, double.infinity);
+    setState(() => _cash = next);
+    await DashboardStore.setCashOnHand(next);
   }
 
   /// PREVIEW-ONLY (2026-08-12): two soft radial blobs behind the hero content,
@@ -3817,6 +3919,78 @@ class _DashboardPreviewState extends State<DashboardPreview>
     );
   }
 
+  // 2026-08-16: PREVIEW-ONLY — one row of the expanded account list (stacked
+  // in a Column now, not a Wrap — see the call site's own note).
+  Widget _expandedAcctChip(Map a, double acctTotal) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _hair),
+          boxShadow: DS.e1,
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          _acctGlyph(a, diameter: 24, fontSize: 11),
+          const SizedBox(width: 8),
+          Text((a['bank'] ?? a['name'] ?? tr('Sąskaita')).toString(),
+              style: TextStyle(
+                  fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
+          if (a['sub'] != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFFBF1DE),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Text(tr(a['sub'] as String),
+                  style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF9C6B0A))),
+            ),
+          ],
+          const SizedBox(width: 8),
+          Text(
+              _hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
+              style: TextStyle(
+                  fontSize: 13,
+                  color: _purpleDeep,
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: const [FontFeature.tabularFigures()])),
+          if (!_hideBal && acctTotal > 0) ...[
+            const SizedBox(width: 5),
+            Text(
+                '${(((a['amount'] ?? 0) as num).toDouble() / acctTotal * 100).round()}%',
+                style: TextStyle(
+                    fontSize: 11, color: _heroDim, fontWeight: FontWeight.w600)),
+          ],
+        ]),
+      );
+
+  Widget _acctsToggleChip(List<Map> accounts) => GestureDetector(
+        onTap: () => setState(() => _acctsOpen = !_acctsOpen),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.17)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(_acctsOpen ? tr('Suskleisti') : '+${accounts.length - 1}',
+                style: TextStyle(
+                    fontSize: 13, color: _heroInk, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 3),
+            Icon(
+                _acctsOpen
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                size: 17,
+                color: _heroInk),
+          ]),
+        ),
+      );
+
   /// PREVIEW-ONLY: the collapsed account row as ONE merged, centered chip —
   /// bank + balance + (if there's more than one account) a "+N" count baked
   /// into the SAME block, instead of two separate pills. Smaller than the
@@ -3828,46 +4002,46 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return GestureDetector(
       onTap: more > 0 ? () => setState(() => _acctsOpen = true) : null,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
           color: _card,
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: _hair),
           boxShadow: DS.e1,
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          _acctGlyph(a, diameter: 20, fontSize: 10),
-          const SizedBox(width: 6),
+          _acctGlyph(a, diameter: 16, fontSize: 8.5),
+          const SizedBox(width: 5),
           Text((a['bank'] ?? a['name'] ?? tr('Sąskaita')).toString(),
               style: TextStyle(
-                  fontSize: 12, color: _ink, fontWeight: FontWeight.w700)),
-          const SizedBox(width: 6),
+                  fontSize: 10.5, color: _ink, fontWeight: FontWeight.w700)),
+          const SizedBox(width: 5),
           Text(
               _hideBal
                   ? '••••'
                   : _eur0(((a['amount'] ?? 0) as num).toDouble()),
               style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 10.5,
                   color: _purpleDeep,
                   fontWeight: FontWeight.w800,
                   fontFeatures: const [FontFeature.tabularFigures()])),
           if (!_hideBal && acctTotal > 0) ...[
-            const SizedBox(width: 4),
+            const SizedBox(width: 3),
             Text(
                 '${(((a['amount'] ?? 0) as num).toDouble() / acctTotal * 100).round()}%',
                 style: TextStyle(
-                    fontSize: 10, color: _muted, fontWeight: FontWeight.w600)),
+                    fontSize: 9, color: _muted, fontWeight: FontWeight.w600)),
           ],
           if (more > 0) ...[
-            const SizedBox(width: 6),
-            Container(width: 1, height: 14, color: _hair),
-            const SizedBox(width: 6),
+            const SizedBox(width: 5),
+            Container(width: 1, height: 12, color: _hair),
+            const SizedBox(width: 5),
             Text('+$more',
                 style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 10.5,
                     color: _purple,
                     fontWeight: FontWeight.w800)),
-            Icon(Icons.expand_more_rounded, size: 15, color: _purple),
+            Icon(Icons.expand_more_rounded, size: 13, color: _purple),
           ],
         ]),
       ),

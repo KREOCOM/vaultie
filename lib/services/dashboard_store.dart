@@ -709,6 +709,26 @@ class DashboardStore {
     }
   }
 
+  // ── Cash on hand ─────────────────────────────────────────────────────────────
+  // A user-entered figure — no bank reports physical cash, so this is the one
+  // balance in the app that isn't reconstructed from a sync. Null means "never
+  // set" (the Home row stays hidden), distinct from an explicit 0 €.
+  static const _kCash = 'cashOnHand';
+
+  static double? cashOnHand() {
+    final raw = _box.get(_kCash) as String?;
+    if (raw == null) return null;
+    return double.tryParse(raw);
+  }
+
+  static Future<void> setCashOnHand(double value) async {
+    try {
+      await _box.put(_kCash, value.toString());
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   // ── Per-category budgets ────────────────────────────────────────────────────
   // The user's spending limits, one per section. Each entry:
   // {sec, limit, auto} where `auto` records whether the limit was our suggestion
