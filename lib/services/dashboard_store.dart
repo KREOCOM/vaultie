@@ -861,6 +861,47 @@ class DashboardStore {
     }
   }
 
+  static const _kTxSplits = 'txSplits';
+
+  /// Parent-transaction key ('grp:mkey|date' for a merged/day-group row, or
+  /// the plain txIdentity for a single opened row) → {'parent': <snapshot of
+  /// the original row, for instant undo — see dashboard_preview.dart's
+  /// _undoSplit>, 'items': <the line items it was broken into>}. Re-applied
+  /// to every synced feed (see _applyTxSplits): the parent row(s) are
+  /// removed and replaced by one new row per item, so every existing
+  /// category/budget total just sums them like any other row.
+  static Map<String, Map<String, dynamic>> txSplits() {
+    try {
+      final raw = _box.get(_kTxSplits) as String?;
+      if (raw == null) return {};
+      return (jsonDecode(raw) as Map)
+          .map((k, v) => MapEntry(k as String, Map<String, dynamic>.from(v as Map)));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> setTxSplit(String key, Map<String, dynamic> parent,
+      List<Map<String, dynamic>> items) async {
+    if (key.isEmpty) return;
+    final m = txSplits();
+    m[key] = {'parent': parent, 'items': items};
+    try {
+      await _box.put(_kTxSplits, jsonEncode(m));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  static Future<void> removeTxSplit(String key) async {
+    final m = txSplits()..remove(key);
+    try {
+      await _box.put(_kTxSplits, jsonEncode(m));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   /// Mark [id] deleted (and drop any field override for it — a gone row needs none).
   static Future<void> addTxDeleted(String id) async {
     if (id.isEmpty) return;

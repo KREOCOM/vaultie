@@ -205,6 +205,15 @@ const Map<String, String> _en = {
   'Ištrinti': 'Delete',
   'Redaguoti': 'Edit',
   'Netrukus': 'Coming soon',
+  'Skaidyti': 'Split',
+  'Skaidyti operaciją': 'Split transaction',
+  'Anuliuoti skaidymą': 'Undo split',
+  'Pridėti eilutę': 'Add line',
+  'Pasirink kategoriją': 'Pick a category',
+  'Paskirstyta viskas': 'Fully allocated',
+  'Liko paskirstyti': 'Left to allocate',
+  'Priskirti likutį': 'Fill remainder',
+  'Išsaugoti skaidymą': 'Save split',
 
   // ── Recurring status / cadence / kind / payment-type (variable-resolved) ──
   'Aktyvus': 'Active',

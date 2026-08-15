@@ -799,7 +799,13 @@ String _txDisplayName(Map r) {
     final a = _subAliases()[sid];
     if (a != null && a.isNotEmpty) return a;
   }
-  return (r['nm'] as String?) ?? '—';
+  final base = (r['nm'] as String?) ?? '—';
+  // A split child (see _applyTxSplits) shares its parent's name across every
+  // line item — without a suffix, 3 receipt lines from one Maxima trip read
+  // as 3 unrelated duplicate charges in the day feed.
+  final i = r['splitIndex'] as int?, n = r['splitCount'] as int?;
+  if (i != null && n != null && n > 1) return '$base (${i + 1}/$n)';
+  return base;
 }
 
 /// Local "HH:MM" from the backend's UTC epoch-seconds, or null when absent.
@@ -1178,6 +1184,64 @@ void _applySalaryRefs(List<Map<String, dynamic>> all, Set<String> refs) {
     t['ic'] = 'income';
     t['cat'] = 'Atlyginimas';
   }
+}
+
+// 2026-08-16: PHASE 1 of receipt-line-item splitting — turns one purchase
+// into several separately-categorised rows sharing its date. Modeled as
+// REPLACING the parent row(s) with one new row per item (parent + child
+// transactions, the same pattern Copilot Money/Monarch/Lunch Money all use)
+// rather than a hidden "splits" field on the original — every existing
+// consumer (budgets, the category donut, month totals, search) already sums
+// `all` by iterating rows, so nothing else needs to know splits exist.
+// Idempotent by construction (removes any of ITS OWN earlier output for the
+// same key first, via the 'splitGroup' tag), so it's safe to call more than
+// once on the same list.
+void _applyTxSplits(
+    List<Map<String, dynamic>> all, Map<String, Map<String, dynamic>> splits) {
+  if (splits.isEmpty) return;
+  final byGroup = <String, List<Map<String, dynamic>>>{};
+  for (final r in all) {
+    if (r['splitGroup'] != null) continue; // never re-group a split child
+    byGroup.putIfAbsent('grp:${r['mkey']}|${r['d']}', () => []).add(r);
+  }
+  final toRemove = <Map<String, dynamic>>[];
+  final toAdd = <Map<String, dynamic>>[];
+  splits.forEach((key, entry) {
+    final items = (entry['items'] as List?)?.cast<Map>() ?? const [];
+    if (items.isEmpty) return;
+    toRemove.addAll(all.where((r) => r['splitGroup'] == key));
+    final genuine = key.startsWith('grp:')
+        ? (byGroup[key] ?? const <Map<String, dynamic>>[])
+        : all
+            .where((r) =>
+                r['splitGroup'] == null && DashboardStore.txIdentity(r) == key)
+            .toList();
+    toRemove.addAll(genuine);
+    final base = genuine.isNotEmpty
+        ? genuine.first
+        : (entry['parent'] as Map?)?.cast<String, dynamic>();
+    if (base == null) return; // nothing to anchor the split's date/mkey to
+    for (var i = 0; i < items.length; i++) {
+      final it = items[i];
+      toAdd.add({
+        ...base,
+        'mkey': '${base['mkey']}__split$i',
+        'nm': it['label'] ?? base['nm'],
+        'a': it['amt'],
+        'cat': it['cat'],
+        'sec': it['sec'],
+        'secc': it['secc'],
+        'col': it['col'],
+        'ic': it['ic'],
+        'splitGroup': key,
+        'splitIndex': i,
+        'splitCount': items.length,
+        'star': false,
+      });
+    }
+  });
+  all.removeWhere(toRemove.contains);
+  all.addAll(toAdd);
 }
 
 String _shortNm(String n) {
@@ -2511,13 +2575,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final edits = DashboardStore.txEdits();
     final deleted = DashboardStore.txDeleted();
     final salaryRefs = DashboardStore.salaryRefs();
-    if (edits.isEmpty && deleted.isEmpty && salaryRefs.isEmpty) return;
+    final splits = DashboardStore.txSplits();
+    if (edits.isEmpty &&
+        deleted.isEmpty &&
+        salaryRefs.isEmpty &&
+        splits.isEmpty) return;
     final rawAll = fresh['all'];
     if (rawAll is! List) return;
     final all =
         rawAll.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
     DashboardStore.applyTxOverrides(all, edits, deleted);
     if (salaryRefs.isNotEmpty) _applySalaryRefs(all, salaryRefs);
+    if (splits.isNotEmpty) _applyTxSplits(all, splits);
     fresh['all'] = all;
     fresh
         .remove('totals'); // month/day headers recompute canonically from `all`
@@ -7705,6 +7774,51 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
         : tr('Grąžinta į įprastą (kategorija „Kita")'));
   }
 
+  // 2026-08-16: PHASE 1 of receipt-line-item splitting (manual only — no
+  // OCR yet). Keyed by the (mkey, date) group _underlying already groups
+  // this card by, so a merged N× row and a single search-opened row (see
+  // widget.single) split consistently with how every other action here
+  // already scopes itself.
+  String get _splitKey => widget.single
+      ? DashboardStore.txIdentity(tx)
+      : 'grp:${tx['mkey']}|${tx['d']}';
+
+  bool get _isSplitChild => tx['splitGroup'] != null;
+
+  Future<void> _openSplit() async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _SplitTransactionScreen(
+          splitKey: _splitKey,
+          merchant: merchant,
+          total: amount.abs(),
+          initialCat: _cat,
+          initialMeta: _catMetaFor(_cat),
+          parentSnapshot: Map<String, dynamic>.from(tx),
+        ),
+      ),
+    );
+    if (saved != true || !mounted) return;
+    _dashRefresh?.call();
+    // The row this screen was showing no longer exists as ONE transaction —
+    // it's now several line items back in the feed, same as after a delete.
+    Navigator.pop(context);
+  }
+
+  Future<void> _undoSplit() async {
+    final key = tx['splitGroup'] as String;
+    final entry = DashboardStore.txSplits()[key];
+    await DashboardStore.removeTxSplit(key);
+    // Reconstructed immediately from the stashed snapshot, rather than
+    // waiting on the next background sync to re-derive it.
+    final children = widget.all.where((r) => r['splitGroup'] == key).toList();
+    widget.all.removeWhere(children.contains);
+    final parent = (entry?['parent'] as Map?)?.cast<String, dynamic>();
+    if (parent != null) widget.all.add(Map<String, dynamic>.from(parent));
+    _dashRefresh?.call();
+    if (mounted) Navigator.pop(context);
+  }
+
   String get _dateFull {
     final d = _pDate(widget.day['date']);
     String two(int n) => n.toString().padLeft(2, '0');
@@ -8066,6 +8180,14 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
           tr('Pridėti prie pasikartojančių'),
           _addToRecurring
         ],
+      // A single bank charge (Maxima receipt, etc.) covering several real
+      // categories — turn it into separate categorised line items. Not
+      // offered for transfers/income: splitting only makes sense for a
+      // purchase covering several spending categories.
+      if (_isSplitChild)
+        [Icons.call_split_rounded, tr('Anuliuoti skaidymą'), _undoSplit]
+      else if (!_isTransfer && !isPos)
+        [Icons.call_split_rounded, tr('Skaidyti'), _openSplit],
       [Icons.delete_outline_rounded, tr('Ištrinti'), _delete],
     ];
     return Padding(
@@ -8416,6 +8538,343 @@ class _SelectCategorySheetState extends State<_SelectCategorySheet> {
           ),
         ),
     ];
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SPLIT TRANSACTION (PHASE 1 — manual only, no receipt scan yet)
+// One purchase (a Maxima receipt covering groceries + alcohol + household)
+// becomes several separately-categorised line items. Modeled as REPLACING
+// the original row with one new row per item (see _applyTxSplits) rather
+// than a hidden field on it — every existing consumer already sums `all` by
+// iterating rows, so nothing else in the app needs to know splits exist.
+// Matches how Copilot Money / Monarch / Lunch Money all model this
+// (parent + child transactions), not a bespoke scheme invented here.
+// ══════════════════════════════════════════════════════════════════════════════
+class _SplitLine {
+  _SplitLine(
+      {required this.cat,
+      required this.sec,
+      required this.secc,
+      required this.col,
+      required this.ic,
+      double amt = 0})
+      : amtCtrl = TextEditingController(
+            text: amt > 0 ? amt.toStringAsFixed(2).replaceAll('.', ',') : '');
+  String cat, sec, secc, col, ic;
+  final TextEditingController amtCtrl;
+  double get amt =>
+      double.tryParse(amtCtrl.text.replaceAll(',', '.').trim()) ??
+      double.nan;
+  void dispose() => amtCtrl.dispose();
+}
+
+class _SplitTransactionScreen extends StatefulWidget {
+  const _SplitTransactionScreen({
+    required this.splitKey,
+    required this.merchant,
+    required this.total, // magnitude — always positive
+    required this.initialCat,
+    required this.initialMeta,
+    required this.parentSnapshot,
+  });
+  final String splitKey;
+  final String merchant;
+  final double total;
+  final String initialCat;
+  final _ManualCat? initialMeta;
+  final Map<String, dynamic> parentSnapshot;
+
+  @override
+  State<_SplitTransactionScreen> createState() =>
+      _SplitTransactionScreenState();
+}
+
+class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
+  late List<_SplitLine> _lines;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = DashboardStore.txSplits()[widget.splitKey];
+    final items = (existing?['items'] as List?)?.cast<Map>();
+    if (items != null && items.isNotEmpty) {
+      _lines = [
+        for (final it in items)
+          _SplitLine(
+              cat: it['cat'] as String,
+              sec: it['sec'] as String,
+              secc: it['secc'] as String,
+              col: it['col'] as String,
+              ic: it['ic'] as String,
+              amt: (it['amt'] as num).toDouble())
+      ];
+    } else {
+      final meta = widget.initialMeta;
+      // Row 1 starts holding the FULL amount under the original category —
+      // splitting is "peel a piece off the bucket", not "type every line
+      // from zero". Row 2 starts empty so there's always ≥2 rows to edit.
+      _lines = [
+        _SplitLine(
+            cat: widget.initialCat,
+            sec: meta?.sec ?? 'Kita',
+            secc: meta?.secc ?? 'indigo',
+            col: meta?.col ?? 'other',
+            ic: meta?.ic ?? 'swap',
+            amt: widget.total),
+        _SplitLine(cat: tr('Pasirink kategoriją'), sec: '', secc: '',
+            col: 'other', ic: 'swap'),
+      ];
+    }
+    for (final l in _lines) l.amtCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    for (final l in _lines) l.dispose();
+    super.dispose();
+  }
+
+  double get _allocated =>
+      _lines.fold(0.0, (s, l) => s + (l.amt.isNaN ? 0 : l.amt));
+  double get _remaining => widget.total - _allocated;
+  bool get _canSave =>
+      _lines.length >= 2 &&
+      _remaining.abs() < 0.01 &&
+      _lines.every((l) => !l.amt.isNaN && l.amt > 0 && l.sec.isNotEmpty);
+
+  Future<void> _pickLineCategory(_SplitLine line) async {
+    final res = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _SelectCategorySheet(current: line.cat),
+    );
+    if (res == null) return;
+    final cat = res['cat'] as String;
+    final meta = _catMetaFor(cat);
+    setState(() {
+      line.cat = cat;
+      line.sec = meta?.sec ?? res['c'] as String? ?? 'Kita';
+      line.secc = meta?.secc ?? res['c'] as String? ?? 'indigo';
+      line.col = meta?.col ?? 'other';
+      line.ic = meta?.ic ?? 'swap';
+    });
+  }
+
+  void _addLine() => setState(() => _lines.add(
+      _SplitLine(cat: tr('Pasirink kategoriją'), sec: '', secc: '',
+          col: 'other', ic: 'swap')));
+
+  void _removeLine(_SplitLine line) {
+    if (_lines.length <= 2) return; // a "split" needs at least 2 parts
+    setState(() {
+      _lines.remove(line);
+      line.dispose();
+    });
+  }
+
+  // One-tap fix for the common case — the last line takes whatever's left.
+  void _fillRemainder() {
+    if (_lines.isEmpty || _remaining.abs() < 0.005) return;
+    final l = _lines.last;
+    final cur = l.amt.isNaN ? 0 : l.amt;
+    l.amtCtrl.text =
+        (cur + _remaining).toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  Future<void> _save() async {
+    if (!_canSave) return;
+    final parentAmt = (widget.parentSnapshot['a'] as num?)?.toDouble() ?? 0;
+    final negative = parentAmt < 0;
+    final items = [
+      for (final l in _lines)
+        {
+          'cat': l.cat,
+          'sec': l.sec,
+          'secc': l.secc,
+          'col': l.col,
+          'ic': l.ic,
+          'amt': negative ? -l.amt : l.amt,
+        }
+    ];
+    await DashboardStore.setTxSplit(
+        widget.splitKey, widget.parentSnapshot, items);
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: _bg,
+        elevation: 0,
+        foregroundColor: _ink,
+        title: Text(tr('Skaidyti operaciją'),
+            style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+      ),
+      body: SafeArea(
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Row(children: [
+              Expanded(
+                  child: Text(widget.merchant,
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: _ink))),
+              Text(_eur0(widget.total),
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w800, color: _ink)),
+            ]),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: [
+                for (final l in _lines) _lineRow(l),
+                const SizedBox(height: 4),
+                InkWell(
+                  onTap: _addLine,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Row(children: [
+                      Icon(Icons.add_rounded, size: 18, color: _purple),
+                      const SizedBox(width: 6),
+                      Text(tr('Pridėti eilutę'),
+                          style: TextStyle(
+                              color: _purple, fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _summaryBar(),
+        ]),
+      ),
+    );
+  }
+
+  Widget _lineRow(_SplitLine line) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _hair)),
+      child: Row(children: [
+        InkWell(
+          onTap: () => _pickLineCategory(line),
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(children: [
+              CategoryIcon(icon: _iconOf(line.ic), color: _colOf(line.col),
+                  size: 32),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 110),
+                child: Text(tr(line.cat),
+                    maxLines: 2,
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
+              ),
+              Icon(Icons.expand_more_rounded, size: 16, color: _muted),
+            ]),
+          ),
+        ),
+        const Spacer(),
+        SizedBox(
+          width: 90,
+          child: TextField(
+            controller: line.amtCtrl,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            textAlign: TextAlign.right,
+            style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: _ink,
+                fontFeatures: const [FontFeature.tabularFigures()]),
+            decoration: InputDecoration(
+              isDense: true,
+              suffixText: ' €',
+              suffixStyle: TextStyle(color: _muted, fontSize: 13),
+              border: InputBorder.none,
+              hintText: '0,00',
+              hintStyle: TextStyle(color: _faint),
+            ),
+          ),
+        ),
+        if (_lines.length > 2)
+          IconButton(
+            onPressed: () => _removeLine(line),
+            icon: Icon(Icons.close_rounded, size: 18, color: _faint),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
+          )
+        else
+          const SizedBox(width: 24),
+      ]),
+    );
+  }
+
+  Widget _summaryBar() {
+    final ok = _remaining.abs() < 0.01;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      decoration: BoxDecoration(
+          color: _card,
+          border: Border(top: BorderSide(color: _hair)),
+          boxShadow: DS.e1),
+      child: SafeArea(
+        top: false,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Text(
+                ok
+                    ? tr('Paskirstyta viskas')
+                    : '${tr('Liko paskirstyti')}: ${_eur0(_remaining.abs())}',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: ok ? _good : DS.danger)),
+            const Spacer(),
+            if (!ok)
+              TextButton(
+                onPressed: _fillRemainder,
+                child: Text(tr('Priskirti likutį'),
+                    style:
+                        TextStyle(color: _purple, fontWeight: FontWeight.w700)),
+              ),
+          ]),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _canSave ? _save : null,
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _purple,
+                  disabledBackgroundColor: _faint,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14))),
+              child: Text(tr('Išsaugoti skaidymą'),
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 }
 
