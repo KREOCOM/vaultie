@@ -33,6 +33,7 @@ from finance_chat import chat as _finance_chat
 from finance_chat import month_report as _month_report
 from known_cache import merge_known as _merge_known
 import normalize
+from receipt_scan import scan as _scan_receipt
 from recurring import detect_recurring
 from seed_merchants import seed as _run_seed
 
@@ -1183,6 +1184,42 @@ def month_summary(req: https_fn.CallableRequest) -> dict:
         lang=str(data.get("lang") or "lt"),
     )
     return {"text": text}
+
+
+@https_fn.on_call(
+    region=_REGION,
+    secrets=[ANTHROPIC_API_KEY, REVENUECAT_API_KEY],
+    timeout_sec=45,
+    memory=options.MemoryOption.MB_256,
+)
+def scan_receipt(req: https_fn.CallableRequest) -> dict:
+    """Parse a photographed paper receipt into categorised line items, to
+    PRE-FILL the client's manual split editor (Phase 1 of transaction
+    splitting — see dashboard_preview.dart _SplitTransactionScreen).
+
+    The client sends ``{image, mediaType}`` — a base64 photo of the receipt
+    (JPEG/PNG). Nothing is persisted server-side; the image lives only for
+    this one request, same contract as finance_chat. Returns
+    ``{items: [{name, price, category}], total}``; an empty items list on any
+    failure so the client falls back to its own empty manual editor rather
+    than erroring out.
+    """
+    _require_auth(req)
+    rid = _begin(req, "scan_receipt")
+    _require_premium(req)
+    data = req.data or {}
+    image_b64 = str(data.get("image") or "")
+    media_type = str(data.get("mediaType") or "image/jpeg")
+    # ~6 MB decoded — guards against an oversized upload eating the call's
+    # timeout/memory budget before it ever reaches the API.
+    if len(image_b64) > 8_000_000:
+        logging.warning("scan_receipt rid=%s image too large (%d chars)",
+                         rid, len(image_b64))
+        return {"items": [], "total": 0}
+    result = _scan_receipt(image_b64, media_type, ANTHROPIC_API_KEY.value)
+    if result is None:
+        return {"items": [], "total": 0}
+    return result
 
 
 @https_fn.on_request(region=_REGION, secrets=[SEED_TOKEN])

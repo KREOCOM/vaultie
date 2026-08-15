@@ -221,6 +221,29 @@ class BankingService {
         timeout: const Duration(seconds: 60));
   }
 
+  /// Parse a photographed receipt into categorised line items, to pre-fill
+  /// the manual split editor (see dashboard_preview.dart
+  /// _SplitTransactionScreen). [imageB64] is the photo, base64-encoded;
+  /// [mediaType] is its MIME type ('image/jpeg' or 'image/png'). Returns
+  /// `(items, total)` — items as `{name, price, category}` maps; an empty
+  /// list on any failure (network, no items recognised) so the caller falls
+  /// back to its own empty manual editor rather than erroring out.
+  Future<(List<Map<String, dynamic>>, double)> scanReceipt({
+    required String imageB64,
+    required String mediaType,
+  }) {
+    return _call(
+        'scan_receipt', {'image': imageB64, 'mediaType': mediaType},
+        (m) => (
+              ((m['items'] as List?) ?? const [])
+                  .whereType<Map>()
+                  .map((e) => e.cast<String, dynamic>())
+                  .toList(),
+              ((m['total'] as num?) ?? 0).toDouble(),
+            ),
+        timeout: const Duration(seconds: 45));
+  }
+
   /// Today's date where the USER is, as YYYY-MM-DD.
   ///
   /// The backend runs in UTC and the user does not. At 01:30 on a Monday in

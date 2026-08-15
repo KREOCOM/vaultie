@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -8592,6 +8593,7 @@ class _SplitTransactionScreen extends StatefulWidget {
 
 class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
   late List<_SplitLine> _lines;
+  bool _scanning = false;
 
   @override
   void initState() {
@@ -8668,6 +8670,104 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
       _SplitLine(cat: tr('Pasirink kategoriją'), sec: '', secc: '',
           col: 'other', ic: 'swap')));
 
+  void _toast(String m) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(
+        content: Text(m), duration: const Duration(milliseconds: 3300)));
+
+  // PHASE 2 — the actual "scan it for me" the manual editor above exists to
+  // correct, not replace. A photo goes to scan_receipt (Cloud Function →
+  // vision LLM call, see functions/receipt_scan.py), which returns line
+  // items with a category from the SAME taxonomy _SelectCategorySheet uses.
+  // The scanned total is deliberately NOT trusted as the target — _remaining
+  // stays computed against widget.total (the real bank amount), so a missed
+  // item or a misread price just shows up as a nonzero remainder the user
+  // fixes with the exact same tools (add a line, "Priskirti likutį") as any
+  // manual edit — never a silent, possibly-wrong auto-save.
+  Future<void> _pickAndScan() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          ListTile(
+            leading: Icon(Icons.camera_alt_rounded, color: _purple),
+            title: Text(tr('Fotografuoti kvitą'),
+                style: TextStyle(color: _ink, fontWeight: FontWeight.w700)),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          ListTile(
+            leading: Icon(Icons.photo_library_outlined, color: _purple),
+            title: Text(tr('Pasirinkti iš galerijos'),
+                style: TextStyle(color: _ink, fontWeight: FontWeight.w700)),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (source == null || !mounted) return;
+    XFile? file;
+    try {
+      file = await ImagePicker()
+          .pickImage(source: source, maxWidth: 1600, imageQuality: 85);
+    } catch (_) {
+      file = null;
+    }
+    if (file == null || !mounted) return;
+    setState(() => _scanning = true);
+    try {
+      final bytes = await file.readAsBytes();
+      final mediaType =
+          file.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      final (items, _) = await BankingService.instance.scanReceipt(
+          imageB64: base64Encode(bytes), mediaType: mediaType);
+      if (!mounted) return;
+      if (items.isEmpty) {
+        _toast(tr('Nepavyko atpažinti kvito — pabandyk dar kartą arba įvesk rankiniu būdu'));
+        return;
+      }
+      setState(() {
+        for (final l in _lines) l.dispose();
+        _lines = [
+          for (final it in items)
+            () {
+              final m = _matchScanCat(it['category'] as String?);
+              return _SplitLine(
+                  cat: m.cat,
+                  sec: m.sec,
+                  secc: m.secc,
+                  col: m.col,
+                  ic: m.ic,
+                  amt: ((it['price'] as num?) ?? 0).toDouble());
+            }(),
+        ];
+        for (final l in _lines) l.amtCtrl.addListener(() => setState(() {}));
+      });
+    } on BankingException catch (e) {
+      if (mounted) _toast(e.message);
+    } catch (_) {
+      if (mounted) {
+        _toast(tr('Nepavyko atpažinti kvito — pabandyk dar kartą arba įvesk rankiniu būdu'));
+      }
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  // The server already constrains its reply to this exact taxonomy (see
+  // receipt_scan._CATEGORIES, kept in sync by hand), so this only guards
+  // against a genuinely unrecognised string reaching the UI unstyled.
+  ({String cat, String sec, String secc, String col, String ic}) _matchScanCat(
+      String? raw) {
+    final cat = (raw != null && raw.isNotEmpty) ? raw : 'Kita';
+    final meta = _catMetaFor(cat) ?? _catMetaFor('Kita')!;
+    return (cat: cat, sec: meta.sec, secc: meta.secc, col: meta.col, ic: meta.ic);
+  }
+
   void _removeLine(_SplitLine line) {
     if (_lines.length <= 2) return; // a "split" needs at least 2 parts
     setState(() {
@@ -8736,6 +8836,42 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               children: [
+                InkWell(
+                  onTap: _scanning ? null : _pickAndScan,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 13),
+                    decoration: BoxDecoration(
+                        color: _purpleSoft,
+                        borderRadius: BorderRadius.circular(14)),
+                    child: Row(children: [
+                      if (_scanning)
+                        SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.4, color: _purple))
+                      else
+                        Icon(Icons.document_scanner_outlined,
+                            size: 22, color: _purple),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                            _scanning
+                                ? tr('Skenuojama…')
+                                : tr('Skenuoti kvitą'),
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: _purple)),
+                      ),
+                      if (!_scanning)
+                        Icon(Icons.chevron_right_rounded, color: _purple),
+                    ]),
+                  ),
+                ),
                 for (final l in _lines) _lineRow(l),
                 const SizedBox(height: 4),
                 InkWell(

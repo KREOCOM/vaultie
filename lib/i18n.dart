@@ -214,6 +214,12 @@ const Map<String, String> _en = {
   'Liko paskirstyti': 'Left to allocate',
   'Priskirti likutį': 'Fill remainder',
   'Išsaugoti skaidymą': 'Save split',
+  'Skenuoti kvitą': 'Scan receipt',
+  'Skenuojama…': 'Scanning…',
+  'Fotografuoti kvitą': 'Take a photo',
+  'Pasirinkti iš galerijos': 'Choose from library',
+  'Nepavyko atpažinti kvito — pabandyk dar kartą arba įvesk rankiniu būdu':
+      'Could not read the receipt — try again or enter it manually',
 
   // ── Recurring status / cadence / kind / payment-type (variable-resolved) ──
   'Aktyvus': 'Active',

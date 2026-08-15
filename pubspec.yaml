@@ -49,6 +49,7 @@ dependencies:
   # (Android) — intercepts the vaultie:// callback with no "Open in app?" prompt
   flutter_web_auth_2: ^4.1.0
   local_auth: ^3.0.2
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
