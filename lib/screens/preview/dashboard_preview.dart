@@ -3008,9 +3008,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
       ? const Color(0xFFFF8A80)
       : const Color(0xFFE0574F);
   // "gyvai" / sync indicator: cyan glows on the dark theme, a solid green/blue on
-  // Frost (a light cyan would vanish on the pale page).
-  Color get _liveTint =>
-      (_darkMode || designPreviewPalette) ? const Color(0xFF6EE7FF) : _good;
+  // Frost (a light cyan would vanish on the pale page). PREVIEW-ONLY: green,
+  // same as the hero's own up/good tint — "gyvai" reads as a live/good
+  // status, and cyan didn't carry that the way green does.
+  Color get _liveTint => designPreviewPalette
+      ? const Color(0xFF4ADE80)
+      : (_darkMode ? const Color(0xFF6EE7FF) : _good);
   Color get _syncTint =>
       (_darkMode || designPreviewPalette) ? const Color(0xFF6EE7FF) : _purple;
 
@@ -11040,35 +11043,6 @@ class _SavingsRateScreenState extends State<_SavingsRateScreen> {
                           color: _ink))),
             ]),
           ),
-          // Month switcher — browses monthKeys without leaving the screen.
-          // "prev" in list-index terms is the OLDER month (arrow points
-          // left/back in time); "next" is the newer one.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _monthArrow(
-                    icon: Icons.chevron_left_rounded,
-                    enabled: prevMonthKey(monthKeys, curKey) != null,
-                    onTap: () => setState(
-                        () => _curKey = prevMonthKey(monthKeys, curKey)!)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: Text('${_monNom[curMon - 1]} ${curKey.substring(0, 4)}',
-                      style: TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: _ink)),
-                ),
-                _monthArrow(
-                    icon: Icons.chevron_right_rounded,
-                    enabled: nextMonthKey(monthKeys, curKey) != null,
-                    onTap: () => setState(
-                        () => _curKey = nextMonthKey(monthKeys, curKey)!)),
-              ],
-            ),
-          ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
@@ -11139,6 +11113,38 @@ class _SavingsRateScreenState extends State<_SavingsRateScreen> {
                               ),
                             ]),
                       ]),
+                ),
+                // Month switcher — browses monthKeys without leaving the
+                // screen. "prev" in list-index terms is the OLDER month
+                // (arrow points left/back in time); "next" is the newer
+                // one. Sits below the "Kas tai?" explainer, right above the
+                // figures it controls.
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _monthArrow(
+                          icon: Icons.chevron_left_rounded,
+                          enabled: prevMonthKey(monthKeys, curKey) != null,
+                          onTap: () => setState(() =>
+                              _curKey = prevMonthKey(monthKeys, curKey)!)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: Text(
+                            '${_monNom[curMon - 1]} ${curKey.substring(0, 4)}',
+                            style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: _ink)),
+                      ),
+                      _monthArrow(
+                          icon: Icons.chevron_right_rounded,
+                          enabled: nextMonthKey(monthKeys, curKey) != null,
+                          onTap: () => setState(() =>
+                              _curKey = nextMonthKey(monthKeys, curKey)!)),
+                    ],
+                  ),
                 ),
                 Container(
                   padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
