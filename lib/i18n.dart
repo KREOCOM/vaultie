@@ -149,6 +149,7 @@ const Map<String, String> _en = {
   'Drabužiai': 'Clothing',
   'Elektronika, prekės': 'Electronics & goods',
   'Namų prekės': 'Household',
+  'Higiena': 'Hygiene',
   'Būstas, nuoma': 'Rent & housing',
   'Komunaliniai': 'Utilities',
   'Ryšys, internetas': 'Phone & internet',

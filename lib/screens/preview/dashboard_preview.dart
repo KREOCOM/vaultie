@@ -286,7 +286,11 @@ const _taxonomy = [
     'sec': 'Apsipirkimas',
     'c': 'teal',
     'i': 'bag',
-    'subs': ['Drabužiai', 'Elektronika, prekės', 'Namų prekės']
+    // 'Higiena' added 2026-08-16 — shampoo/toothpaste/toilet paper were
+    // falling into 'Namų prekės' (household GOODS — closer to furniture/
+    // appliances than toiletries), too coarse next to a receipt scan
+    // where every other line gets its own precise category.
+    'subs': ['Drabužiai', 'Elektronika, prekės', 'Namų prekės', 'Higiena']
   },
   {
     'sec': 'Būstas, sąskaitos',
@@ -6009,6 +6013,7 @@ const _expenseCats = <_ManualCat>[
   _ManualCat(
       'Elektronika, prekės', 'Apsipirkimas', 'teal', 'shopping', 'monitor'),
   _ManualCat('Namų prekės', 'Apsipirkimas', 'teal', 'shopping', 'bag'),
+  _ManualCat('Higiena', 'Apsipirkimas', 'teal', 'shopping', 'bag'),
   _ManualCat('Nuoma', 'Būstas, sąskaitos', 'olive', 'housing', 'house'),
   _ManualCat('Būstas, nuoma', 'Būstas, sąskaitos', 'olive', 'housing', 'house'),
   _ManualCat(

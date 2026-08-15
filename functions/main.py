@@ -1189,7 +1189,13 @@ def month_summary(req: https_fn.CallableRequest) -> dict:
 @https_fn.on_call(
     region=_REGION,
     secrets=[ANTHROPIC_API_KEY, REVENUECAT_API_KEY],
-    timeout_sec=45,
+    # 45s was too tight: a vision call generating up to 4000 tokens can
+    # legitimately run longer than a text-only chat reply, and
+    # receipt_scan's own retry loop (2 attempts x _TIMEOUT=45s) can already
+    # approach 90s on its own — the function's own budget must cover that,
+    # or its timeout fires the request before the retry loop even gets a
+    # chance to. Keep in sync with receipt_scan._TIMEOUT if either changes.
+    timeout_sec=110,
     memory=options.MemoryOption.MB_256,
 )
 def scan_receipt(req: https_fn.CallableRequest) -> dict:

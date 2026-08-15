@@ -241,7 +241,12 @@ class BankingService {
                   .toList(),
               ((m['total'] as num?) ?? 0).toDouble(),
             ),
-        timeout: const Duration(seconds: 45));
+        // Matches scan_receipt's own timeout_sec=110 (main.py) — a vision
+        // call over a busy receipt can genuinely take a while; 45s was
+        // cutting the client off before the function itself had timed out,
+        // which read as "the scan failed" on a request that was still
+        // running server-side.
+        timeout: const Duration(seconds: 110));
   }
 
   /// Today's date where the USER is, as YYYY-MM-DD.

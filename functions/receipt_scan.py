@@ -18,7 +18,14 @@ import requests
 
 _URL = "https://api.anthropic.com/v1/messages"
 _MODEL = "claude-sonnet-5"
-_TIMEOUT = 30
+# Per-request timeout to Anthropic. A vision call generating up to 4000
+# tokens legitimately runs longer than a text-only chat reply — 30s (and 3
+# retries on top of it) could itself exceed the callable's own timeout,
+# which is exactly backwards: the RETRY LOOP became the thing timing out
+# the user's request. 2 attempts instead of 3, so worst case (both attempts
+# time out) stays comfortably under scan_receipt's timeout_sec=110 in
+# main.py — keep the two numbers in sync if either changes.
+_TIMEOUT = 45
 # A real Lithuanian grocery receipt easily runs 15-25 line items — 1200 was
 # tuned against a short example and silently truncated the JSON mid-object on
 # a real 19-item Maxima receipt (max_tokens cuts generation off mid-stream,
@@ -30,12 +37,16 @@ _MAX_TOKENS = 4000
 # FROM this list, not invent categories the client's picker/_catMetaFor won't
 # recognise — an unrecognised string would silently fall back to "Kita"
 # client-side anyway, so it's cheaper to constrain the model up front and
-# never ship a category name the two sides disagree on.
+# never ship a category name the two sides disagree on. 'Higiena' added
+# 2026-08-16 per request — shampoo/toothpaste/toilet paper were falling into
+# the generic 'Namų prekės' (household GOODS — more furniture/appliances
+# than toiletries), which read as too coarse next to a receipt where every
+# other line got its own precise category.
 _CATEGORIES = [
     "Maisto prekės", "Kavinės, restoranai", "Alkoholis, tabakas",
     "Kuras", "Taksi", "Automobilis", "Viešasis transportas",
     "Paspirtukai, dalinimasis", "Parkavimas",
-    "Drabužiai", "Elektronika, prekės", "Namų prekės",
+    "Drabužiai", "Elektronika, prekės", "Namų prekės", "Higiena",
     "Nuoma", "Būstas, nuoma", "Būsto paskola", "Komunaliniai",
     "Ryšys, internetas", "Draudimas",
     "Sveikata", "Sportas", "Vaistinė",
@@ -47,18 +58,24 @@ _CATEGORIES = [
 _CATSET = set(_CATEGORIES)
 
 _SYSTEM = (
-    "Skaitai nuotrauką kasos kvito. Grąžink KIEKVIENĄ atskirą pirktą prekę "
-    "(ne bendrą kvito sumą) su kaina ir kategorija. Naudok GALUTINĘ sumokėtą "
-    "kainą (po nuolaidos, jei ji nurodyta prie prekės). Panašius smulkius "
-    "pirkinius gali sugrupuoti į vieną eilutę pagal tipą (pvz. kelios "
-    "skirtingos daržovės → viena \"Daržovės\" eilutė), bet NIEKADA nemaišyk "
-    "skirtingų kategorijų prekių į vieną eilutę (alkoholis, buitinė chemija, "
-    "vaistai — visada atskirai nuo maisto). "
+    "Skaitai nuotrauką kasos kvito. Grąžink KIEKVIENĄ kvite atskirai "
+    "atspausdintą eilutę kaip ATSKIRĄ prekę — NIEKADA nesugrupuok kelių "
+    "skirtingų kvito eilučių į vieną, net jeigu jos panašios (pvz. "
+    "\"Agurkai\" ir \"Pomidorai\" lieka DVI atskiros eilutės, ne viena "
+    "\"Daržovės\"). Vienoje kvito eilutėje nurodytas kiekis (pvz. \"2x "
+    "Burger\") lieka viena eilute su bendra ta eilutės suma — to nereikia "
+    "skaidyti papildomai. Naudok GALUTINĘ sumokėtą kainą (po nuolaidos, jei "
+    "ji nurodyta prie prekės). "
+    "Kategorija turi būti KUO TIKSLESNĖ pačiai konkrečiai prekei, ne "
+    "bendriausia įmanoma — pvz. vištiena/duona/pienas → \"Maisto prekės\", "
+    "šampūnas/dantų pasta/tualetinis popierius/indų ploviklis → \"Higiena\", "
+    "sportinis kamuolys/sportinė apranga → \"Sportas\", alkoholis/tabakas → "
+    "\"Alkoholis, tabakas\", vaistai → \"Vaistinė\". "
     f"Kategorija kiekvienai eilutei PRIVALO būti TIKSLIAI viena iš šio "
     f"sąrašo, be jokių naujų ar pakeistų: {', '.join(_CATEGORIES)}. Jei "
     'tikrai neaišku — "Kita". '
     "Grąžink TIK kompaktišką JSON, be jokio kito teksto ar paaiškinimų: "
-    '{"items":[{"name":"<trumpas prekės/grupės pavadinimas lietuviškai>",'
+    '{"items":[{"name":"<prekės pavadinimas lietuviškai, kaip kvite>",'
     '"price":<skaičius>,"category":"<kategorija iš sąrašo>"}],'
     '"total":<visa kvito suma>}.'
 )
@@ -89,15 +106,15 @@ def scan(image_b64: str, media_type: str, api_key: str):
     })
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
                "content-type": "application/json"}
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             r = requests.post(_URL, timeout=_TIMEOUT, headers=headers, data=payload)
         except Exception as e:  # noqa: BLE001
             logging.warning("receipt_scan request failed: %s", e)
-            time.sleep(0.8 * (attempt + 1))
+            time.sleep(0.6 * (attempt + 1))
             continue
         if r.status_code == 429:
-            time.sleep(1.5 * (attempt + 1))
+            time.sleep(1.0 * (attempt + 1))
             continue
         if not r.ok:
             logging.warning("receipt_scan http %s: %s", r.status_code, r.text[:200])
