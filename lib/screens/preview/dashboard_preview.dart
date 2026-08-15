@@ -33,6 +33,7 @@ import '../bank_connect_screen.dart';
 import '../legal_screen.dart';
 import '../lock_screen.dart';
 import '../login_screen.dart';
+import '../../widgets/subscription_avatar.dart';
 import 'subs_bills_live.dart' show LiveRecurringScreen;
 
 /// Bilance-style Dashboard preview, on the user's REAL computed Revolut data.
@@ -2517,6 +2518,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // 2026-08-14: moved up, right after the summary cards — it had sunk
       // below the weekly chart and read as buried down there.
       _financeAgentBanner(),
+      // 2026-08-16: fills out the bottom of Home, which ran out of content
+      // right after the banner. Deliberately whole-history, not this-month —
+      // Apžvalga already owns "this month".
+      if (designPreviewPalette) _topMerchantsSection(),
     ];
     // REVERTED (2026-08-12): the "one continuous white panel on a blue page,
     // fading to white" experiment (v4–v9) kept producing new visual bugs on
@@ -4436,6 +4441,135 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // would highlight for it). The robot art is a true transparent cutout
   // (see assets/images/finance_agent_robot.png) so it blends straight into
   // this gradient with no background rectangle of its own.
+  // 2026-08-16: PREVIEW-ONLY — top merchants by total spend, across ALL
+  // synced history (not the current month — Apžvalga already answers "this
+  // month", so this answers "overall, where does my money really go"). Uses
+  // the canonical _spendOf rule (refunds net down, transfers excluded), same
+  // as every other spend figure in the app.
+  List<({String name, double amt, int count, String? cat})> _topMerchants(
+      {int limit = 6}) {
+    final rows = (_d['all'] as List?)?.cast<Map>() ?? const [];
+    final byKey = <String, ({String name, double amt, int count, String? cat})>{};
+    for (final t in rows) {
+      final spend = _spendOf(t);
+      if (spend <= 0) continue;
+      final nm = _nmOf(t).trim();
+      if (nm.isEmpty) continue;
+      final key = _fold(nm);
+      final ex = byKey[key];
+      byKey[key] = (
+        name: ex?.name ?? nm,
+        amt: (ex?.amt ?? 0) + spend,
+        count: (ex?.count ?? 0) + 1,
+        cat: ex?.cat ?? (t['cat'] as String?),
+      );
+    }
+    final list = byKey.values.toList()..sort((a, b) => b.amt.compareTo(a.amt));
+    return list.take(limit).toList();
+  }
+
+  Widget _topMerchantsSection() {
+    final top = _topMerchants(limit: 6);
+    if (top.isEmpty) return const SizedBox.shrink();
+    final total = top.fold(0.0, (s, m) => s + m.amt);
+    const size = 208.0, stroke = 24.0, r = (size - stroke) / 2;
+    final segments = [for (final m in top) [m.amt, SubscriptionAvatar.colorFor(m.name)]];
+
+    // Same angle walk as _DonutPainter (start at 12 o'clock, sweep clockwise,
+    // proportional to spend) so each logo sits exactly on its own segment.
+    final logos = <Widget>[];
+    var start = -math.pi / 2;
+    const gap = 0.06;
+    for (final m in top) {
+      final frac = m.amt / total;
+      final sweep = top.length == 1 ? 2 * math.pi : 2 * math.pi * frac - gap;
+      final mid = top.length == 1 ? 0.0 : start + gap / 2 + sweep / 2;
+      final dx = size / 2 + r * math.cos(mid);
+      final dy = size / 2 + r * math.sin(mid);
+      logos.add(Positioned(
+        left: dx - 16,
+        top: dy - 16,
+        child: Container(
+          padding: const EdgeInsets.all(2.5),
+          decoration:
+              BoxDecoration(color: _bg, shape: BoxShape.circle, boxShadow: DS.e1),
+          child: ClipOval(
+              child: SubscriptionAvatar(name: m.name, category: m.cat, size: 27)),
+        ),
+      ));
+      start += 2 * math.pi * frac;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(tr('Kur keliauja pinigai'),
+            style: TextStyle(
+                fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+        const SizedBox(height: 2),
+        Text(tr('Visas turimas laikotarpis'),
+            style: TextStyle(fontSize: 12, color: _faint)),
+        const SizedBox(height: 18),
+        Center(
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Stack(children: [
+              CustomPaint(size: const Size(size, size), painter: _DonutPainter(segments)),
+              Positioned.fill(
+                child: Center(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(_eur0(total),
+                        style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: _ink)),
+                    Text(tr('iš viso'),
+                        style: TextStyle(fontSize: 11, color: _faint)),
+                  ]),
+                ),
+              ),
+              ...logos,
+            ]),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Wrap(
+          spacing: 18,
+          runSpacing: 8,
+          children: [
+            for (final m in top)
+              SizedBox(
+                width: (MediaQuery.of(context).size.width - 32 - 18) / 2,
+                child: Row(children: [
+                  Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(right: 7),
+                      decoration: BoxDecoration(
+                          color: SubscriptionAvatar.colorFor(m.name),
+                          shape: BoxShape.circle)),
+                  Expanded(
+                    child: Text(m.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: _ink)),
+                  ),
+                  Text(_eur0(m.amt),
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _faint)),
+                ]),
+              ),
+          ],
+        ),
+      ]),
+    );
+  }
+
   Widget _financeAgentBanner() => Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
         child: GestureDetector(
