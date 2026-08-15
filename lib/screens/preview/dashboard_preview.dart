@@ -11395,7 +11395,13 @@ class _SavingsRateScreenState extends State<_SavingsRateScreen> {
                 Container(
                   padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
                   decoration: BoxDecoration(
-                      color: _card,
+                      // 2026-08-16: light blue instead of the plain white
+                      // _card every other card uses — this one carries the
+                      // gauge, so it gets its own tint to read as a distinct
+                      // "hero" surface on the page.
+                      color: _darkMode
+                          ? const Color(0xFF1B2540)
+                          : const Color(0xFFEAF1FF),
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: _hair)),
                   child: Column(
@@ -11690,7 +11696,9 @@ class _SavingsTrendPainter extends CustomPainter {
     final maxRate = points.map((p) => p.$2).fold(0, (a, b) => a > b ? a : b);
     final scaleMax =
         [maxRate, _target, 30].reduce((a, b) => a > b ? a : b) * 1.15;
-    double y(num pct) => bottom - (pct / scaleMax) * h;
+    // Clamped to [top, bottom] — a very negative month (e.g. -100%) must
+    // rest on the zero baseline, not plunge off the bottom of the card.
+    double y(num pct) => (bottom - (pct / scaleMax) * h).clamp(top, bottom);
     double x(int i) => points.length == 1
         ? size.width / 2
         : (size.width - 24) * i / (points.length - 1) + 12;
