@@ -1075,6 +1075,27 @@ String _fold(String s) {
   return b.toString();
 }
 
+// 2026-08-16: merges the SAME merchant even when the bank's own name string
+// varies between transactions — "MB Artusgrupė" and "Artus Grupė, MB" showed
+// up as two separate top-merchant entries because _fold (case/diacritics
+// only) still leaves word order and spacing different. Drops legal-entity
+// tokens (MB, UAB, AB...), which move around between statements, then
+// collapses everything else down to bare letters/digits — order and
+// spacing stop mattering, only the actual name does.
+const _legalEntityTokens = {
+  'mb', 'uab', 'ab', 'vsi', 'ii', 'oy', 'ltd', 'gmbh', 'inc', 'llc', 'as',
+  'sia', 'sp', 'zoo', 'sarl', 'kg', 'plc'
+};
+
+String _merchantKey(String name) {
+  final words = _fold(name)
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  final kept = words.where((w) => !_legalEntityTokens.contains(w)).join();
+  return kept.isNotEmpty ? kept : words.join();
+}
+
 String _shortNm(String n) {
   // collapse an exactly-doubled name ("VMI prie LR FM VMI prie LR FM" → "VMI prie LR FM")
   final w = n.trim().split(RegExp(r'\s+'));
@@ -4335,11 +4356,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // earned rounded to a flat "0%", indistinguishable from a month you broke
   // even on. The gauge below exists specifically to show that difference
   // (red, below the zero tick), so the number behind it has to be honest too.
+  // 2026-08-16: a month with a tiny stray "income" row (a few € refund,
+  // say) technically satisfies earned > 0 but isn't a real income month —
+  // dividing by it produces a mathematically-correct but absurd number
+  // (-2000%+), which then blows out the 6-month chart's whole scale.
+  // Clamped to ±100 — past that point the sign and "you way overspent" is
+  // already the whole story; more precision isn't more useful.
   int? _savingsPctFor(String mk) {
     final earned = _monthIncome(mk);
     if (earned <= 0) return null;
     final spent = _monthExpenses(mk);
-    return (((earned - spent) / earned) * 100).round();
+    return (((earned - spent) / earned) * 100).round().clamp(-100, 100);
   }
 
   // 2026-08-14: a "Santaupų norma" (savings rate) card for Home, matching
@@ -4395,7 +4422,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   final e = _sumIncome(rows);
                   if (e <= 0) return 0;
                   final s = _sumExpenses(rows);
-                  return (((e - s) / e) * 100).round();
+                  return (((e - s) / e) * 100).round().clamp(-100, 100);
                 },
                 earnedOf: _sumIncome,
                 rowsOf: (mk) => _rowsForMonth(mk).toList(),
@@ -4484,10 +4511,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (spend <= 0) continue;
       final nm = _nmOf(t).trim();
       if (nm.isEmpty) continue;
-      final key = _fold(nm);
+      final key = _merchantKey(nm);
       final ex = byKey[key];
+      // Prefer the longer of the name variants seen — usually the more
+      // legible one ("ARTUS GRUPĖ, MB" over "Mb artusgrupe").
+      final name = ex == null || nm.length > ex.name.length ? nm : ex.name;
       byKey[key] = (
-        name: ex?.name ?? nm,
+        name: name,
         amt: (ex?.amt ?? 0) + spend,
         count: (ex?.count ?? 0) + 1,
         cat: ex?.cat ?? (t['cat'] as String?),
@@ -10368,12 +10398,17 @@ class _OverviewTabState extends State<_OverviewTab> {
       ));
 
   // 2026-08-15: was `.clamp(0, 100)` — a month you overspent rounded to a
-  // flat "0%", indistinguishable from breaking even. See _savingsPctFor's
-  // own note (Home's equivalent) for why that got dropped.
+  // flat "0%", indistinguishable from breaking even. 2026-08-16: re-added a
+  // ±100 clamp (not 0–100) after a near-zero-income month produced a
+  // -2275% that blew out the whole 6-month chart's scale — past ±100 the
+  // sign is already the whole story. See _savingsPctFor's own note (Home's
+  // equivalent).
   int _savingsOf(List<Map<String, dynamic>> rows) {
     final earned = _earnedOf(rows);
     final spent = _spentOf(rows);
-    return earned > 0 ? ((earned - spent) / earned * 100).round() : 0;
+    return earned > 0
+        ? ((earned - spent) / earned * 100).round().clamp(-100, 100)
+        : 0;
   }
 
   // Consecutive COMPLETED months (excluding the current, possibly-partial one)
