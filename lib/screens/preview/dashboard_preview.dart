@@ -3039,15 +3039,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
   Color get _syncTint =>
       (_darkMode || designPreviewPalette) ? const Color(0xFF6EE7FF) : _purple;
 
-  // The real signed-in person's first name (Firebase displayName, set on
-  // sign-in — see AuthService._syncDisplayName), for the Home greeting.
-  // Null for an account that predates that, or a demo/preview session.
-  String? get _firstName {
-    final full = FirebaseAuth.instance.currentUser?.displayName?.trim();
-    if (full == null || full.isEmpty) return null;
-    return full.split(RegExp(r'\s+')).first;
-  }
-
   // The hero (_topBanner) shrunk to nothing via Align's heightFactor, plus a
   // grabber row that survives the collapse (so there's always something to
   // pull back down). Align — not a raw height number — because the hero's
@@ -3267,21 +3258,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
         children: [
           // Title row sits on the page backdrop; colour follows the theme.
           Row(children: [
-            // 2026-08-16: PREVIEW-ONLY — a personal greeting instead of the
-            // bare tab name, using the real signed-in name (set on sign-in,
-            // see AuthService) — not a placeholder. Falls back to "Pradžia"
-            // when there's no name yet (e.g. an account that predates this).
-            // Expanded + ellipsis: a long name must never push the icons off
-            // the hero or wrap onto a second line.
+            // 2026-08-16: PREVIEW-ONLY — a greeting instead of the bare tab
+            // name. Name dropped per request (didn't read well); smaller
+            // font than the old "Pradžia" title since "Sveiki sugrįžę" is a
+            // longer phrase.
             Expanded(
               child: Text(
-                  designPreviewPalette && _firstName != null
-                      ? '${tr('Sveiki sugrįžę')}, $_firstName!'
-                      : tr('Pradžia'),
+                  designPreviewPalette ? tr('Sveiki sugrįžę') : tr('Pradžia'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      fontSize: designPreviewPalette ? 22 : 26,
+                      fontSize: designPreviewPalette ? 19 : 26,
                       fontWeight: FontWeight.w800,
                       color: _heroInk,
                       letterSpacing: -0.4)),
