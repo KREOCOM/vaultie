@@ -216,10 +216,18 @@ const Map<String, String> _en = {
   'Išsaugoti skaidymą': 'Save split',
   'Skenuoti kvitą': 'Scan receipt',
   'Skenuojama…': 'Scanning…',
-  'Fotografuoti kvitą': 'Take a photo',
-  'Pasirinkti iš galerijos': 'Choose from library',
   'Nepavyko atpažinti kvito — pabandyk dar kartą arba įvesk rankiniu būdu':
       'Could not read the receipt — try again or enter it manually',
+  'NAUJA': 'NEW',
+  'Pasirink kvito nuotrauką — automatiškai suskaidysime pirkinį pagal kategorijas':
+      'Pick a photo of the receipt — we\'ll split the purchase by category automatically',
+  'Nepavyko atpažinti kvito — pabandyk kitą nuotrauką':
+      'Could not read the receipt — try a different photo',
+  'Su kuria operacija susieti?': 'Which transaction is this?',
+  'Nerasta panašios operacijos per pastarąsias dienas. Atidaryk ją Transakcijose ir suskaidyk iš ten — "Skaidyti".':
+      'No matching transaction found in the last few days. Open it in Transactions and split it from there — "Split".',
+  'Atpažinta suma': 'Recognised total',
+  'pasirink, kuri banko operacija tai yra': 'pick which bank transaction this is',
 
   // ── Recurring status / cadence / kind / payment-type (variable-resolved) ──
   'Aktyvus': 'Active',

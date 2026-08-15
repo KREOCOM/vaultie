@@ -1245,6 +1245,30 @@ void _applyTxSplits(
   all.addAll(toAdd);
 }
 
+// 2026-08-16: shared by both scan entry points — the per-transaction
+// "Skenuoti kvitą" button inside _SplitTransactionScreen, and Home's
+// standalone _receiptScanBanner (which doesn't know which transaction it
+// is yet). Gallery only, no camera option — Apple's camera-usage review
+// bar is higher and there's no product need for live capture over an
+// existing photo (per request). Returns null on a cancelled/failed picker
+// (not an error, caller shows nothing); throws BankingException same as
+// every other BankingService call on a real network/server failure.
+Future<(List<Map<String, dynamic>>, double)?> _pickAndScanReceipt() async {
+  XFile? file;
+  try {
+    file = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
+  } catch (_) {
+    file = null;
+  }
+  if (file == null) return null;
+  final bytes = await file.readAsBytes();
+  final mediaType =
+      file.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+  return BankingService.instance
+      .scanReceipt(imageB64: base64Encode(bytes), mediaType: mediaType);
+}
+
 String _shortNm(String n) {
   // collapse an exactly-doubled name ("VMI prie LR FM VMI prie LR FM" → "VMI prie LR FM")
   final w = n.trim().split(RegExp(r'\s+'));
@@ -2675,6 +2699,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // still one tap away via _financeAgentBanner, just not its own tab
     // anymore). Home stays the "at a glance" summary.
     final contentChildren = [
+      // 2026-08-16: leads Home per explicit request — "žmogui nereikia
+      // toli eiti" (shouldn't have to dig into a transaction's own detail
+      // screen to discover this exists). See _receiptScanBanner /
+      // _startReceiptScan.
+      _receiptScanBanner(),
       // 2026-08-15: moved above Prenumeratos/Sąskaitos per request — the
       // weekly spend chart now leads Home.
       _weekSection(),
@@ -4808,6 +4837,181 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ),
       ]),
     );
+  }
+
+  // 2026-08-16: standalone entry point for receipt scanning, separate from
+  // the per-transaction "Skaidyti" flow (_TxDetailScreenState) — this one
+  // doesn't know which bank transaction the receipt belongs to yet, so it
+  // scans FIRST, then asks which recent transaction to attach the result
+  // to (see _matchReceiptCandidates / _ReceiptMatchScreen), then hands the
+  // already-scanned items into _SplitTransactionScreen via
+  // prefilledItems — no second scan.
+  Widget _receiptScanBanner() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: InkWell(
+          onTap: _startReceiptScan,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0E8F76), Color(0xFF1FC08D)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                    color: const Color(0xFF1FC08D).withValues(alpha: 0.28),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8)),
+              ],
+            ),
+            child: Row(children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    shape: BoxShape.circle),
+                child: const Icon(Icons.document_scanner_outlined,
+                    color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Text(tr('Skenuoti kvitą'),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15.5)),
+                      const SizedBox(width: 7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(6)),
+                        child: Text(tr('NAUJA'),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 9.5,
+                                letterSpacing: 0.3)),
+                      ),
+                    ]),
+                    const SizedBox(height: 3),
+                    Text(
+                        tr('Pasirink kvito nuotrauką — automatiškai suskaidysime pirkinį pagal kategorijas'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            fontSize: 12,
+                            height: 1.3)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded,
+                  color: Colors.white.withValues(alpha: 0.85)),
+            ]),
+          ),
+        ),
+      );
+
+  void _toast(String m) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(
+        content: Text(m), duration: const Duration(milliseconds: 3300)));
+
+  // Recent, unsplit, real-spending rows whose amount is plausibly close to
+  // the scanned receipt total — closest first. A loose relative+absolute
+  // tolerance (25% of the total, +1€ floor) covers a scan that missed a
+  // small item or misread one price without matching every random charge.
+  List<Map<String, dynamic>> _matchReceiptCandidates(double scannedTotal) {
+    final all = (_d['all'] as List?)?.cast<Map>() ?? const [];
+    final now = DateTime.now();
+    final scored = <MapEntry<double, Map<String, dynamic>>>[];
+    for (final t in all) {
+      if (t['splitGroup'] != null) continue; // already split
+      final f = _flowOf(t);
+      if (f != 'expense' && f != 'refund') continue;
+      final amt = _aOf(t).abs().toDouble();
+      if (amt <= 0) continue;
+      final d = DateTime.tryParse(_dOf(t));
+      if (d == null || now.difference(d).inDays > 45) continue;
+      final diff = (amt - scannedTotal).abs();
+      if (scannedTotal > 0 && diff > scannedTotal * 0.25 + 1) continue;
+      scored.add(MapEntry(diff, t.cast<String, dynamic>()));
+    }
+    scored.sort((a, b) => a.key.compareTo(b.key));
+    return scored.take(8).map((e) => e.value).toList();
+  }
+
+  Future<void> _startReceiptScan() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+              color: _card, borderRadius: BorderRadius.circular(16)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            CircularProgressIndicator(color: _purple),
+            const SizedBox(height: 12),
+            Text(tr('Skenuojama…'), style: TextStyle(color: _ink)),
+          ]),
+        ),
+      ),
+    );
+    List<Map<String, dynamic>> items = const [];
+    double total = 0;
+    String? error;
+    try {
+      final res = await _pickAndScanReceipt();
+      if (res == null) {
+        // Picker cancelled — close the loading dialog and stop quietly.
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+        return;
+      }
+      items = res.$1;
+      total = res.$2;
+    } on BankingException catch (e) {
+      error = e.message;
+    } catch (_) {
+      error = tr('Nepavyko atpažinti kvito — pabandyk kitą nuotrauką');
+    }
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // close the spinner
+    if (error != null || items.isEmpty) {
+      _toast(error ?? tr('Nepavyko atpažinti kvito — pabandyk kitą nuotrauką'));
+      return;
+    }
+    final candidates = _matchReceiptCandidates(total);
+    final chosen = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+          builder: (_) => _ReceiptMatchScreen(
+              candidates: candidates, scannedTotal: total)),
+    );
+    if (chosen == null || !mounted) return;
+    final cat = (chosen['cat'] as String?) ?? 'Kita';
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _SplitTransactionScreen(
+        splitKey: 'grp:${chosen['mkey']}|${chosen['d']}',
+        merchant: _txDisplayName(chosen),
+        total: _aOf(chosen).abs().toDouble(),
+        initialCat: cat,
+        initialMeta: _catMetaFor(cat),
+        parentSnapshot: Map<String, dynamic>.from(chosen),
+        prefilledItems: items,
+      ),
+    ));
+    if (mounted) _refreshFromAll();
   }
 
   Widget _financeAgentBanner() => Padding(
@@ -8578,6 +8782,7 @@ class _SplitTransactionScreen extends StatefulWidget {
     required this.initialCat,
     required this.initialMeta,
     required this.parentSnapshot,
+    this.prefilledItems,
   });
   final String splitKey;
   final String merchant;
@@ -8585,6 +8790,11 @@ class _SplitTransactionScreen extends StatefulWidget {
   final String initialCat;
   final _ManualCat? initialMeta;
   final Map<String, dynamic> parentSnapshot;
+  // Set when a receipt was already scanned BEFORE this transaction was
+  // picked (the Home "Skenuoti kvitą" entry — see _startReceiptScan) —
+  // skips straight to these line items instead of the empty/full-amount
+  // starting state, and skips a second, redundant scan.
+  final List<Map<String, dynamic>>? prefilledItems;
 
   @override
   State<_SplitTransactionScreen> createState() =>
@@ -8598,9 +8808,26 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
   @override
   void initState() {
     super.initState();
+    final pre = widget.prefilledItems;
     final existing = DashboardStore.txSplits()[widget.splitKey];
     final items = (existing?['items'] as List?)?.cast<Map>();
-    if (items != null && items.isNotEmpty) {
+    if (pre != null && pre.isNotEmpty) {
+      // Scanned BEFORE the transaction was even picked (Home's "Skenuoti
+      // kvitą" entry) — go straight to these, no second scan.
+      _lines = [
+        for (final it in pre)
+          () {
+            final m = _matchScanCat(it['category'] as String?);
+            return _SplitLine(
+                cat: m.cat,
+                sec: m.sec,
+                secc: m.secc,
+                col: m.col,
+                ic: m.ic,
+                amt: ((it['price'] as num?) ?? 0).toDouble());
+          }(),
+      ];
+    } else if (items != null && items.isNotEmpty) {
       _lines = [
         for (final it in items)
           _SplitLine(
@@ -8685,47 +8912,11 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
   // fixes with the exact same tools (add a line, "Priskirti likutį") as any
   // manual edit — never a silent, possibly-wrong auto-save.
   Future<void> _pickAndScan() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: _card,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(height: 8),
-          ListTile(
-            leading: Icon(Icons.camera_alt_rounded, color: _purple),
-            title: Text(tr('Fotografuoti kvitą'),
-                style: TextStyle(color: _ink, fontWeight: FontWeight.w700)),
-            onTap: () => Navigator.pop(ctx, ImageSource.camera),
-          ),
-          ListTile(
-            leading: Icon(Icons.photo_library_outlined, color: _purple),
-            title: Text(tr('Pasirinkti iš galerijos'),
-                style: TextStyle(color: _ink, fontWeight: FontWeight.w700)),
-            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-          ),
-          const SizedBox(height: 8),
-        ]),
-      ),
-    );
-    if (source == null || !mounted) return;
-    XFile? file;
-    try {
-      file = await ImagePicker()
-          .pickImage(source: source, maxWidth: 1600, imageQuality: 85);
-    } catch (_) {
-      file = null;
-    }
-    if (file == null || !mounted) return;
     setState(() => _scanning = true);
     try {
-      final bytes = await file.readAsBytes();
-      final mediaType =
-          file.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      final (items, _) = await BankingService.instance.scanReceipt(
-          imageB64: base64Encode(bytes), mediaType: mediaType);
-      if (!mounted) return;
+      final res = await _pickAndScanReceipt();
+      if (res == null || !mounted) return; // picker cancelled — not an error
+      final (items, _) = res;
       if (items.isEmpty) {
         _toast(tr('Nepavyko atpažinti kvito — pabandyk dar kartą arba įvesk rankiniu būdu'));
         return;
@@ -9009,6 +9200,98 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
             ),
           ),
         ]),
+      ),
+    );
+  }
+}
+
+// Picks WHICH recent bank transaction a just-scanned receipt belongs to
+// (see _DashboardPreviewState._startReceiptScan) — the standalone Home
+// scan entry has a photo and a total before it has a transaction, unlike
+// the per-transaction "Skaidyti" flow which already knows. A plain list,
+// closest-amount first; tapping one returns it to the caller, which then
+// opens _SplitTransactionScreen for it with the scan already attached.
+class _ReceiptMatchScreen extends StatelessWidget {
+  const _ReceiptMatchScreen(
+      {required this.candidates, required this.scannedTotal});
+  final List<Map<String, dynamic>> candidates;
+  final double scannedTotal;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: _bg,
+        elevation: 0,
+        foregroundColor: _ink,
+        title: Text(tr('Su kuria operacija susieti?'),
+            style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+      ),
+      body: SafeArea(
+        child: candidates.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.search_off_rounded, size: 40, color: _faint),
+                    const SizedBox(height: 12),
+                    Text(
+                        tr('Nerasta panašios operacijos per pastarąsias dienas. Atidaryk ją Transakcijose ir suskaidyk iš ten — "Skaidyti".'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: _muted, height: 1.4)),
+                  ],
+                ),
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                        '${tr('Atpažinta suma')}: ${_eur0(scannedTotal)} — ${tr('pasirink, kuri banko operacija tai yra')}',
+                        style: TextStyle(color: _muted, fontSize: 13)),
+                  ),
+                  for (final t in candidates)
+                    InkWell(
+                      onTap: () => Navigator.pop(context, t),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                            color: _card,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _hair)),
+                        child: Row(children: [
+                          CategoryIcon(
+                              icon: _iconOf(t['ic'] as String?),
+                              color: _colOf(t['col'] as String?),
+                              size: 38),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(_txDisplayName(t),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: _ink)),
+                                Text(t['d'] as String? ?? '',
+                                    style: TextStyle(
+                                        fontSize: 12, color: _muted)),
+                              ],
+                            ),
+                          ),
+                          Text(_eur0(_aOf(t).abs().toDouble()),
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800, color: _ink)),
+                        ]),
+                      ),
+                    ),
+                ],
+              ),
       ),
     );
   }
