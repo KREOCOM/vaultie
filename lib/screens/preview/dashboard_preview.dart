@@ -4956,15 +4956,23 @@ class _DashboardPreviewState extends State<DashboardPreview>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-              color: _card, borderRadius: BorderRadius.circular(16)),
+      // Dialog (not a raw Center+Container) — that raw version had no
+      // Material ancestor of its own inside the dialog route, so the Text
+      // fell back to Flutter's completely unstyled default (huge, black,
+      // yellow-underlined) instead of the app's actual typography. Dialog
+      // wraps its child in Material itself, which is what every OTHER
+      // dialog in this file already gets for free from AlertDialog.
+      builder: (_) => Dialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             CircularProgressIndicator(color: _purple),
-            const SizedBox(height: 12),
-            Text(tr('Skenuojama…'), style: TextStyle(color: _ink)),
+            const SizedBox(height: 14),
+            Text(tr('Skenuojama…'),
+                style: TextStyle(
+                    color: _ink, fontWeight: FontWeight.w700, fontSize: 15)),
           ]),
         ),
       ),

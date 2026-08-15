@@ -19,7 +19,12 @@ import requests
 _URL = "https://api.anthropic.com/v1/messages"
 _MODEL = "claude-sonnet-5"
 _TIMEOUT = 30
-_MAX_TOKENS = 1200
+# A real Lithuanian grocery receipt easily runs 15-25 line items — 1200 was
+# tuned against a short example and silently truncated the JSON mid-object on
+# a real 19-item Maxima receipt (max_tokens cuts generation off mid-stream,
+# HTTP still 200, the partial text just fails json.loads → every item lost).
+# 4000 gives real receipts headroom; still cheap for a single-request feature.
+_MAX_TOKENS = 4000
 
 # Mirrors dashboard_preview.dart's _taxonomy subs exactly. The model must pick
 # FROM this list, not invent categories the client's picker/_catMetaFor won't
@@ -103,6 +108,15 @@ def scan(image_b64: str, media_type: str, api_key: str):
                           if b.get("type") == "text")
             if data.get("usage"):
                 logging.info("receipt_scan usage=%s", data["usage"])
+            if data.get("stop_reason") == "max_tokens":
+                # The reply was cut off mid-generation — likely mid-JSON, so
+                # _parse_response is about to fail. Logged distinctly from a
+                # genuine parse failure so a truncation regression (receipt
+                # with even more items than 4000 tokens covers) is visible in
+                # Cloud Logging instead of looking like a random bad scan.
+                logging.warning(
+                    "receipt_scan truncated at max_tokens (%d) — reply likely "
+                    "incomplete JSON", _MAX_TOKENS)
         except Exception as e:  # noqa: BLE001
             logging.warning("receipt_scan parse failed: %s", e)
             break
