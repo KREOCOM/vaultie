@@ -3979,48 +3979,54 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   // 2026-08-16: PREVIEW-ONLY — one row of the expanded account list (stacked
   // in a Column now, not a Wrap — see the call site's own note).
+  // 2026-08-16: sized and coloured to EXACTLY match _mergedAcctChip (the
+  // collapsed state) — they used to be visibly different sizes, so opening
+  // the list made every chip suddenly grow. The % text also used _heroDim
+  // (meant for text sitting directly on the blue hero) on what is actually
+  // an opaque white/_card chip — same mistake as the old text-on-white
+  // problem elsewhere, made it unreadable.
   Widget _expandedAcctChip(Map a, double acctTotal) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
           color: _card,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: _hair),
           boxShadow: DS.e1,
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          _acctGlyph(a, diameter: 24, fontSize: 11),
-          const SizedBox(width: 8),
+          _acctGlyph(a, diameter: 16, fontSize: 8.5),
+          const SizedBox(width: 5),
           Text((a['bank'] ?? a['name'] ?? tr('Sąskaita')).toString(),
               style: TextStyle(
-                  fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
+                  fontSize: 10.5, color: _ink, fontWeight: FontWeight.w700)),
           if (a['sub'] != null) ...[
-            const SizedBox(width: 6),
+            const SizedBox(width: 5),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(
                   color: const Color(0xFFFBF1DE),
-                  borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(7)),
               child: Text(tr(a['sub'] as String),
                   style: const TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 9,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF9C6B0A))),
             ),
           ],
-          const SizedBox(width: 8),
+          const SizedBox(width: 5),
           Text(
               _hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
               style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 10.5,
                   color: _purpleDeep,
                   fontWeight: FontWeight.w800,
                   fontFeatures: const [FontFeature.tabularFigures()])),
           if (!_hideBal && acctTotal > 0) ...[
-            const SizedBox(width: 5),
+            const SizedBox(width: 3),
             Text(
                 '${(((a['amount'] ?? 0) as num).toDouble() / acctTotal * 100).round()}%',
                 style: TextStyle(
-                    fontSize: 11, color: _heroDim, fontWeight: FontWeight.w600)),
+                    fontSize: 9, color: _muted, fontWeight: FontWeight.w600)),
           ],
         ]),
       );
