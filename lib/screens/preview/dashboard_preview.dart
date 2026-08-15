@@ -3381,19 +3381,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   ]),
                 ],
                 const SizedBox(height: 14),
-                // PREVIEW-ONLY: the projection's own headline — without this
-                // the dashed line on the chart is just a mark with no stated
-                // meaning. Sits above the chart, never over a bar/point.
-                if (designPreviewPalette && projected != null && !_hideBal)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                        '${tr('Tokiu tempu')} ${_monGen[DateTime.now().month - 1]} ${tr('pabaigoje')}: ~${_eur0(projected)}',
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: _heroDim)),
-                  ),
+                // 2026-08-16: PREVIEW-ONLY — the line chart (candlesticks,
+                // then a clean line, then a projection) kept reading as "too
+                // much" on this hero across every version tried. Swapped for
+                // the account split instead: no line at all, just how the
+                // total balance breaks down across accounts — the detailed
+                // per-account list is still one tap away in the merged chip
+                // below, so this stays a single glanceable bar, not a repeat
+                // of that list.
+                if (designPreviewPalette && accounts.isNotEmpty)
+                  _acctSplitBar(accounts, acctTotal)
+                else
                 // Chart with a soft fill, the balance pill at the endpoint, and € max/min.
                 SizedBox(
                   height: 78,
@@ -3502,7 +3500,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     ]);
                   }),
                 ),
-                if (dateLabels.length >= 2) ...[
+                if (!(designPreviewPalette && accounts.isNotEmpty) &&
+                    dateLabels.length >= 2) ...[
                   const SizedBox(height: 6),
                   Padding(
                     padding: const EdgeInsets.only(right: 66),
@@ -3688,6 +3687,69 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// PREVIEW-ONLY (2026-08-12): two soft radial blobs behind the hero content,
   /// for the layered "glow" depth the reference deck asked for instead of one
   /// flat gradient. Only ever built when designPreviewPalette is true.
+  // 2026-08-16: PREVIEW-ONLY — the hero's balance-split bar. Only the
+  // proportions + percentages, no names/amounts: the merged chip right
+  // below already states those, so this stays a single glanceable shape
+  // instead of a second copy of the same list.
+  static const _acctSplitPalette = [
+    Colors.white,
+    Color(0xFF5AC8FA),
+    Color(0x59FFFFFF),
+    Color(0xFF1E9BD7),
+  ];
+
+  Widget _acctSplitBar(List<Map> accounts, double acctTotal) {
+    final total = acctTotal.abs() < 1e-6 ? 1.0 : acctTotal.abs();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(7),
+          child: SizedBox(
+            height: 12,
+            child: Row(children: [
+              for (var i = 0; i < accounts.length; i++)
+                Expanded(
+                  flex: ((((accounts[i]['amount'] ?? 0) as num).toDouble().abs() /
+                              total *
+                              1000)
+                          .round())
+                      .clamp(1, 1000000),
+                  child: Container(
+                      color: _acctSplitPalette[i % _acctSplitPalette.length]),
+                ),
+            ]),
+          ),
+        ),
+        if (accounts.length > 1) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 16,
+            runSpacing: 4,
+            children: [
+              for (var i = 0; i < accounts.length && i < 4; i++)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                      width: 7,
+                      height: 7,
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                          color: _acctSplitPalette[i % _acctSplitPalette.length],
+                          shape: BoxShape.circle)),
+                  Text(
+                      '${((((accounts[i]['amount'] ?? 0) as num).toDouble().abs() / total) * 100).round()}%',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _heroDim)),
+                ]),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
   /// PREVIEW-ONLY: the collapsed account row as ONE merged, centered chip —
   /// bank + balance + (if there's more than one account) a "+N" count baked
   /// into the SAME block, instead of two separate pills. Smaller than the
