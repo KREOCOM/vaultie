@@ -4929,12 +4929,23 @@ class _DashboardPreviewState extends State<DashboardPreview>
         content: Text(m), duration: const Duration(milliseconds: 3300)));
 
   // Recent, unsplit, real-spending rows whose amount is plausibly close to
-  // the scanned receipt total — closest first. A loose relative+absolute
-  // tolerance (25% of the total, +1€ floor) covers a scan that missed a
-  // small item or misread one price without matching every random charge.
+  // the scanned receipt total — closest first.
+  //
+  // 2026-08-16: was ±25% of the total (+1€ floor) — meant to forgive a scan
+  // that missed one small item, but in practice a genuine match should only
+  // ever be off by tax rounding or a couple of cheap items, a few cents to
+  // ~1€. 25% on a real receipt (e.g. 65€) is a 16€ window — wide enough
+  // that a completely unrelated charge (a subscription payment, a bill)
+  // gets suggested as "the receipt", which reads as nonsense, not a helpful
+  // near-miss. Tightened to whichever is larger: 5% of the total, or a
+  // flat €1 — still forgives a missed item on a big receipt, no longer
+  // swallows an unrelated transaction that merely happens to be close in
+  // absolute euros.
   List<Map<String, dynamic>> _matchReceiptCandidates(double scannedTotal) {
     final all = (_d['all'] as List?)?.cast<Map>() ?? const [];
     final now = DateTime.now();
+    final tolerance =
+        scannedTotal > 0 ? math.max(scannedTotal * 0.05, 1.0) : 1.0;
     final scored = <MapEntry<double, Map<String, dynamic>>>[];
     for (final t in all) {
       if (t['splitGroup'] != null) continue; // already split
@@ -4945,7 +4956,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       final d = DateTime.tryParse(_dOf(t));
       if (d == null || now.difference(d).inDays > 45) continue;
       final diff = (amt - scannedTotal).abs();
-      if (scannedTotal > 0 && diff > scannedTotal * 0.25 + 1) continue;
+      if (diff > tolerance) continue;
       scored.add(MapEntry(diff, t.cast<String, dynamic>()));
     }
     scored.sort((a, b) => a.key.compareTo(b.key));
