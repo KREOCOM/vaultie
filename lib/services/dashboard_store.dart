@@ -841,6 +841,26 @@ class DashboardStore {
   /// Identities the user deleted — dropped from every future synced feed.
   static Set<String> txDeleted() => _loadSet(_kTxDeleted);
 
+  static const _kSalaryRefs = 'salaryRefs';
+
+  /// Merchant keys (see dashboard_preview.dart's _merchantKey) the user has
+  /// confirmed pay them like an employer, by picking "Atlyginimas" once from
+  /// a transaction's category sheet. Re-applied to every synced feed (see
+  /// _applySalaryRefs) so a source the bank keeps coding as a plain top-up
+  /// or transfer counts as income from then on — not just the one row that
+  /// was tapped.
+  static Set<String> salaryRefs() => _loadSet(_kSalaryRefs);
+
+  static Future<void> addSalaryRef(String key) async {
+    if (key.isEmpty) return;
+    final s = salaryRefs()..add(key);
+    try {
+      await _box.put(_kSalaryRefs, jsonEncode(s.toList()));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   /// Mark [id] deleted (and drop any field override for it — a gone row needs none).
   static Future<void> addTxDeleted(String id) async {
     if (id.isEmpty) return;

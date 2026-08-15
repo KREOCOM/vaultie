@@ -308,7 +308,15 @@ const _taxonomy = [
     'sec': 'Pajamos ir pervedimai',
     'c': 'amber',
     'i': 'income',
-    'subs': ['Pajamos', 'Pervedimai', 'Grynieji']
+    // 'Atlyginimas' first: picking it re-marks THIS row as salary and, via
+    // DashboardStore.salaryRefs (see _pickCategory/_applySalaryRefs), teaches
+    // the app that counterparty pays like an employer — every other credit
+    // from them (already-synced rows immediately, future ones on the next
+    // sync) is recognised as income too, not just the one row tapped. Needed
+    // because a bank can code a recurring salary as a plain top-up/transfer
+    // (see _flowOf) — that hides it from "uždirbta"/savings until the
+    // server's own >=2-distinct-month auto-detection catches up.
+    'subs': ['Atlyginimas', 'Pajamos', 'Pervedimai', 'Grynieji']
   },
 ];
 
@@ -1094,6 +1102,30 @@ String _merchantKey(String name) {
       .toList();
   final kept = words.where((w) => !_legalEntityTokens.contains(w)).join();
   return kept.isNotEmpty ? kept : words.join();
+}
+
+// 2026-08-16: user-confirmed salary sources (picked "Atlyginimas" once from a
+// transaction's category sheet — see _pickCategory) get re-stamped as income
+// on EVERY matching row, not just the one that was tapped. A bank that codes
+// a recurring salary as a plain top-up/transfer (see _flowOf) hid it from
+// every income figure otherwise; the server's own auto-detection
+// (functions/dashboard.py _salary_sources) only kicks in once the SAME
+// counterparty has posted in >=2 distinct months, so a fresh connection or
+// an irregularly-timed payer could stay invisible indefinitely without this.
+// Only a POSITIVE amount can be a salary credit (an outgoing payment to the
+// same name is never touched), and a row already filed under 'Pajamos' is
+// left alone rather than relabelled to the generic "Atlyginimas".
+void _applySalaryRefs(List<Map<String, dynamic>> all, Set<String> refs) {
+  for (final t in all) {
+    if (_secOf(t) == 'Pajamos') continue;
+    if (_aOf(t) <= 0) continue;
+    if (!refs.contains(_merchantKey(_nmOf(t)))) continue;
+    t['sec'] = 'Pajamos';
+    t['secc'] = 'amber';
+    t['col'] = 'income';
+    t['ic'] = 'income';
+    t['cat'] = 'Atlyginimas';
+  }
 }
 
 String _shortNm(String n) {
@@ -2426,12 +2458,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
     if (fresh == null) return;
     final edits = DashboardStore.txEdits();
     final deleted = DashboardStore.txDeleted();
-    if (edits.isEmpty && deleted.isEmpty) return;
+    final salaryRefs = DashboardStore.salaryRefs();
+    if (edits.isEmpty && deleted.isEmpty && salaryRefs.isEmpty) return;
     final rawAll = fresh['all'];
     if (rawAll is! List) return;
     final all =
         rawAll.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
     DashboardStore.applyTxOverrides(all, edits, deleted);
+    if (salaryRefs.isNotEmpty) _applySalaryRefs(all, salaryRefs);
     fresh['all'] = all;
     fresh
         .remove('totals'); // month/day headers recompute canonically from `all`
@@ -2677,9 +2711,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // How far the hero's outer bottom corners hang below its flat center
   // "shelf" — see _HeroShapeClipper and _topBanner.
   static const double _heroLegDepth = 28;
-  // How deep the shelf's own centered groove dips — still filled with the
-  // hero's blue, not a cutout. The grabber indicator sits inside it.
-  static const double _heroGrooveDepth = 16;
+  // 2026-08-16: was 16 — a centered dip in the shelf with a white pull-tab
+  // pill sitting inside it. Removed per request ("nebereikia to burbuliuko,
+  // padaryk tiesiai") — 0 keeps the clipper's flat-shelf path (see
+  // _HeroShapeClipper's own "0 = no groove" branch).
+  static const double _heroGrooveDepth = 0;
   // solidRun covers the 40px overlap PLUS ~20px genuinely below the hero's
   // true bottom, so the fade's own top stop can't land inside the rounded
   // corner's arc (which would show as the corner fading instead of solid).
@@ -3222,31 +3258,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
               ),
             ),
       child: Stack(children: [
-        if (designPreviewPalette)
-          Positioned(
-            left: 0,
-            right: 0,
-            // This Positioned lives inside the Stack, which sits INSIDE the
-            // Container's padding — so bottom:0 here lands at the padded
-            // content edge, h - (18 + legDepth) in the clipper's own
-            // coordinate space, NOT at the clipper's y=h. Solving
-            // clipperY = h - (18+legDepth) - bottom for the bottom that puts
-            // the pill at the groove's centre (clipperY = h - legDepth +
-            // grooveDepth/2) gives bottom = -(18 + grooveDepth/2). Negative
-            // on purpose — the pill sits below the Stack's own nominal box,
-            // inside the padding, which Positioned allows.
-            bottom: -(18 + _heroGrooveDepth / 2),
-            child: Center(
-              child: Container(
-                width: 40,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-            ),
-          ),
         // v6 (2026-08-12): glow blobs removed entirely — three rounds of
         // artifacts (a hard-edged blur block, then still-visible banding on
         // the plain RadialGradient's own circular edge) and the plain
@@ -7696,12 +7707,34 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
             meta != null ? _iconOf(ic) : (_secIcon[res['i']] ?? _catIcon);
         _isTransfer = sec == 'Pervedimai';
       });
+      // 2026-08-16: a manual pick used to only mutate the in-memory rows —
+      // nothing recorded it in DashboardStore, so a background sync (which
+      // rebuilds `all` straight from the bank feed) silently reverted it,
+      // same class of bug _convertTransfer/_toggleStar already guard
+      // against. 'manual': true also matches the "Įvesta ranka" vs
+      // "Kategorizuota automatiškai" badge _categoryCard already shows.
+      final fields = <String, dynamic>{'cat': cat, 'manual': true};
+      if (sec != null) fields['sec'] = sec;
+      if (secc != null) fields['secc'] = secc;
+      if (col != null) fields['col'] = col;
+      if (ic != null) fields['ic'] = ic;
       for (final r in [..._underlying, tx]) {
-        r['cat'] = cat;
-        if (sec != null) r['sec'] = sec;
-        if (secc != null) r['secc'] = secc;
-        if (col != null) r['col'] = col;
-        if (ic != null) r['ic'] = ic;
+        fields.forEach((k, v) => r[k] = v);
+      }
+      for (final r in _underlying) {
+        DashboardStore.setTxEdit(DashboardStore.txIdentity(r), fields);
+      }
+      // "Atlyginimas" picked once → remember this counterparty as a salary
+      // source (DashboardStore.salaryRefs) and re-stamp every OTHER credit
+      // from them already in view right now — not just the row that was
+      // tapped. _applySalaryRefs re-applies the same rule to every future
+      // sync, for payments that haven't arrived yet.
+      if (cat == 'Atlyginimas') {
+        final key = _merchantKey(_nmOf(tx));
+        if (key.isNotEmpty) {
+          DashboardStore.addSalaryRef(key);
+          _applySalaryRefs(widget.all, {key});
+        }
       }
       _dashRefresh?.call();
       _toast('${tr('Kategorija pakeista į')} „$cat"');
