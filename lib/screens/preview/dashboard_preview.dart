@@ -3039,6 +3039,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
   Color get _syncTint =>
       (_darkMode || designPreviewPalette) ? const Color(0xFF6EE7FF) : _purple;
 
+  // The real signed-in person's first name (Firebase displayName, set on
+  // sign-in — see AuthService._syncDisplayName), for the Home greeting.
+  // Null for an account that predates that, or a demo/preview session.
+  String? get _firstName {
+    final full = FirebaseAuth.instance.currentUser?.displayName?.trim();
+    if (full == null || full.isEmpty) return null;
+    return full.split(RegExp(r'\s+')).first;
+  }
+
   // The hero (_topBanner) shrunk to nothing via Align's heightFactor, plus a
   // grabber row that survives the collapse (so there's always something to
   // pull back down). Align — not a raw height number — because the hero's
@@ -3258,13 +3267,25 @@ class _DashboardPreviewState extends State<DashboardPreview>
         children: [
           // Title row sits on the page backdrop; colour follows the theme.
           Row(children: [
-            Text(tr('Pradžia'),
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: _heroInk,
-                    letterSpacing: -0.4)),
-            const Spacer(),
+            // 2026-08-16: PREVIEW-ONLY — a personal greeting instead of the
+            // bare tab name, using the real signed-in name (set on sign-in,
+            // see AuthService) — not a placeholder. Falls back to "Pradžia"
+            // when there's no name yet (e.g. an account that predates this).
+            // Expanded + ellipsis: a long name must never push the icons off
+            // the hero or wrap onto a second line.
+            Expanded(
+              child: Text(
+                  designPreviewPalette && _firstName != null
+                      ? '${tr('Sveiki sugrįžę')}, $_firstName!'
+                      : tr('Pradžia'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: designPreviewPalette ? 22 : 26,
+                      fontWeight: FontWeight.w800,
+                      color: _heroInk,
+                      letterSpacing: -0.4)),
+            ),
             GestureDetector(
               key: _kEye,
               onTap: () => setState(() => _hideBal = !_hideBal),
@@ -3331,9 +3352,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
                           Text(tr('gyvai'),
                               style: TextStyle(fontSize: 11, color: _liveTint)),
                         ]);
+                  // 2026-08-16: PREVIEW-ONLY — everything on this hero got
+                  // bigger EXCEPT the "gyvai"/sync indicator (syncIndicator,
+                  // above), which stays small on purpose per request.
                   final label = Text(tr('Bendras likutis'),
                       style: TextStyle(
-                          fontSize: 12.5,
+                          fontSize: designPreviewPalette ? 15 : 12.5,
                           color: _heroDim,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.2));
@@ -3362,7 +3386,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
                           // them — this is the number the screen exists for.
                           // Bigger in light mode: it was the same weight as the
                           // labels around it and sank into them.
-                          fontSize: _darkMode ? 34 : 40,
+                          fontSize: designPreviewPalette
+                              ? (_darkMode ? 40 : 48)
+                              : (_darkMode ? 34 : 40),
                           fontWeight: FontWeight.w800,
                           color: _heroInk,
                           letterSpacing: -1.2,
@@ -3392,21 +3418,21 @@ class _DashboardPreviewState extends State<DashboardPreview>
                         delta >= 0
                             ? Icons.arrow_upward_rounded
                             : Icons.arrow_downward_rounded,
-                        size: 15,
+                        size: designPreviewPalette ? 18 : 15,
                         color: delta >= 0 ? _heroGood : _heroBad),
                     const SizedBox(width: 3),
                     Text(
                       '${delta >= 0 ? '+' : '−'}${deltaPct.abs().toStringAsFixed(1).replaceAll('.', ',')} %'
                       '   |   ${delta >= 0 ? '+' : '−'}${_eur0(delta.abs())}',
                       style: TextStyle(
-                          fontSize: 13.5,
+                          fontSize: designPreviewPalette ? 16 : 13.5,
                           fontWeight: FontWeight.w800,
                           color: delta >= 0 ? _heroGood : _heroBad),
                     ),
                     const SizedBox(width: 6),
                     Text(tr('nuo praėjusio mėn.'),
                         style: TextStyle(
-                            fontSize: 12.5,
+                            fontSize: designPreviewPalette ? 14 : 12.5,
                             color: _heroDim,
                             fontWeight: FontWeight.w500)),
                   ]),
@@ -3978,55 +4004,55 @@ class _DashboardPreviewState extends State<DashboardPreview>
   }
 
   // 2026-08-16: PREVIEW-ONLY — one row of the expanded account list (stacked
-  // in a Column now, not a Wrap — see the call site's own note).
-  // 2026-08-16: sized and coloured to EXACTLY match _mergedAcctChip (the
-  // collapsed state) — they used to be visibly different sizes, so opening
-  // the list made every chip suddenly grow. The % text also used _heroDim
-  // (meant for text sitting directly on the blue hero) on what is actually
-  // an opaque white/_card chip — same mistake as the old text-on-white
-  // problem elsewhere, made it unreadable.
+  // in a Column now, not a Wrap — see the call site's own note). Back to
+  // the larger size — the "make it match" request meant grow the collapsed
+  // chip UP to this size, not shrink this one down (tried that first,
+  // wrong direction). _mergedAcctChip below now matches these exact
+  // numbers instead. The % text stays on _muted, not _heroDim (a colour
+  // meant for text sitting directly on the blue hero) — that part of the
+  // earlier fix was a real bug, unrelated to the size question.
   Widget _expandedAcctChip(Map a, double acctTotal) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: _card,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _hair),
           boxShadow: DS.e1,
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          _acctGlyph(a, diameter: 16, fontSize: 8.5),
-          const SizedBox(width: 5),
+          _acctGlyph(a, diameter: 24, fontSize: 11),
+          const SizedBox(width: 8),
           Text((a['bank'] ?? a['name'] ?? tr('Sąskaita')).toString(),
               style: TextStyle(
-                  fontSize: 10.5, color: _ink, fontWeight: FontWeight.w700)),
+                  fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
           if (a['sub'] != null) ...[
-            const SizedBox(width: 5),
+            const SizedBox(width: 6),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                   color: const Color(0xFFFBF1DE),
-                  borderRadius: BorderRadius.circular(7)),
+                  borderRadius: BorderRadius.circular(8)),
               child: Text(tr(a['sub'] as String),
                   style: const TextStyle(
-                      fontSize: 9,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF9C6B0A))),
             ),
           ],
-          const SizedBox(width: 5),
+          const SizedBox(width: 8),
           Text(
               _hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
               style: TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 13,
                   color: _purpleDeep,
                   fontWeight: FontWeight.w800,
                   fontFeatures: const [FontFeature.tabularFigures()])),
           if (!_hideBal && acctTotal > 0) ...[
-            const SizedBox(width: 3),
+            const SizedBox(width: 5),
             Text(
                 '${(((a['amount'] ?? 0) as num).toDouble() / acctTotal * 100).round()}%',
                 style: TextStyle(
-                    fontSize: 9, color: _muted, fontWeight: FontWeight.w600)),
+                    fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
           ],
         ]),
       );
@@ -4057,55 +4083,58 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   /// PREVIEW-ONLY: the collapsed account row as ONE merged, centered chip —
   /// bank + balance + (if there's more than one account) a "+N" count baked
-  /// into the SAME block, instead of two separate pills. Smaller than the
-  /// original chip too (less padding, smaller type). Tapping it expands to
-  /// the original per-account Wrap, same _acctsOpen flag either way.
+  /// into the SAME block, instead of two separate pills. Tapping it expands
+  /// to the per-account Column, same _acctsOpen flag either way.
+  // 2026-08-16: sized to match _expandedAcctChip exactly — this chip was
+  // shrunk on its own earlier ("too big"), which then made the collapsed →
+  // expanded transition jump in the other direction. Grown back up to meet
+  // the expanded size in the middle, not shrunk down to meet this one.
   Widget _mergedAcctChip(List<Map> accounts, double acctTotal) {
     final a = accounts.first;
     final more = accounts.length - 1;
     return GestureDetector(
       onTap: more > 0 ? () => setState(() => _acctsOpen = true) : null,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: _card,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _hair),
           boxShadow: DS.e1,
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          _acctGlyph(a, diameter: 16, fontSize: 8.5),
-          const SizedBox(width: 5),
+          _acctGlyph(a, diameter: 24, fontSize: 11),
+          const SizedBox(width: 8),
           Text((a['bank'] ?? a['name'] ?? tr('Sąskaita')).toString(),
               style: TextStyle(
-                  fontSize: 10.5, color: _ink, fontWeight: FontWeight.w700)),
-          const SizedBox(width: 5),
+                  fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
+          const SizedBox(width: 8),
           Text(
               _hideBal
                   ? '••••'
                   : _eur0(((a['amount'] ?? 0) as num).toDouble()),
               style: TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 13,
                   color: _purpleDeep,
                   fontWeight: FontWeight.w800,
                   fontFeatures: const [FontFeature.tabularFigures()])),
           if (!_hideBal && acctTotal > 0) ...[
-            const SizedBox(width: 3),
+            const SizedBox(width: 5),
             Text(
                 '${(((a['amount'] ?? 0) as num).toDouble() / acctTotal * 100).round()}%',
                 style: TextStyle(
-                    fontSize: 9, color: _muted, fontWeight: FontWeight.w600)),
+                    fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
           ],
           if (more > 0) ...[
-            const SizedBox(width: 5),
-            Container(width: 1, height: 12, color: _hair),
-            const SizedBox(width: 5),
+            const SizedBox(width: 6),
+            Container(width: 1, height: 14, color: _hair),
+            const SizedBox(width: 6),
             Text('+$more',
                 style: TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 13,
                     color: _purple,
                     fontWeight: FontWeight.w800)),
-            Icon(Icons.expand_more_rounded, size: 13, color: _purple),
+            Icon(Icons.expand_more_rounded, size: 15, color: _purple),
           ],
         ]),
       ),

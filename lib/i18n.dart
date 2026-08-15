@@ -37,6 +37,7 @@ const Map<String, String> _en = {
   'Paskolos sąskaita': 'Loan account',
 
   // ── Home / balance hero ──
+  'Sveiki sugrįžę': 'Welcome back',
   'Bendras likutis': 'Total balance',
   'gyvai': 'live',
   'Sinchronizuojama': 'Syncing',
