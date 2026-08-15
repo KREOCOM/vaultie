@@ -9242,6 +9242,14 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
 
   Widget _summaryBar() {
     final ok = _remaining.abs() < 0.01;
+    // 2026-08-16: was always "Liko paskirstyti: X€" — the same neutral text
+    // whether the lines summed to LESS than the real bank amount or MORE
+    // than it (only the red/green colour differed). Comparing a scanned
+    // receipt's own total against a real transaction it doesn't actually
+    // belong to made an over-allocation common enough during testing that
+    // the ambiguity itself was the confusing part — spelling out the
+    // direction removes the need to do that arithmetic in your head.
+    final over = _remaining < -0.01;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       decoration: BoxDecoration(
@@ -9255,7 +9263,9 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
             Text(
                 ok
                     ? tr('Paskirstyta viskas')
-                    : '${tr('Liko paskirstyti')}: ${_eur0(_remaining.abs())}',
+                    : over
+                        ? '${tr('Priskirta per daug')}: ${_eur0(_remaining.abs())}'
+                        : '${tr('Trūksta')}: ${_eur0(_remaining.abs())}',
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -9264,7 +9274,12 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
             if (!ok)
               TextButton(
                 onPressed: _fillRemainder,
-                child: Text(tr('Priskirti likutį'),
+                // Same underlying fix either direction (adds the signed
+                // remainder — positive or negative — to the last line), so
+                // one label that doesn't imply a direction, unlike
+                // "Priskirti likutį" (assign the LEFTOVER), which reads
+                // oddly when there's an excess to remove instead.
+                child: Text(tr('Pataisyti paskutinę eilutę'),
                     style:
                         TextStyle(color: _purple, fontWeight: FontWeight.w700)),
               ),
