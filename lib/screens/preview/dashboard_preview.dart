@@ -3382,15 +3382,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 ],
                 const SizedBox(height: 14),
                 // 2026-08-16: PREVIEW-ONLY — the line chart (candlesticks,
-                // then a clean line, then a projection) kept reading as "too
-                // much" on this hero across every version tried. Swapped for
-                // the account split instead: no line at all, just how the
-                // total balance breaks down across accounts — the detailed
-                // per-account list is still one tap away in the merged chip
-                // below, so this stays a single glanceable bar, not a repeat
-                // of that list.
-                if (designPreviewPalette && accounts.isNotEmpty)
-                  _acctSplitBar(accounts, acctTotal)
+                // clean line, projection) and then the account-split bar all
+                // kept reading as "too much"/"not pretty" on this hero.
+                // Settled on this month's cash flow instead — thin gauged
+                // (not chunky) income/expense tracks + the net.
+                if (designPreviewPalette)
+                  _cashFlowStrip()
                 else
                 // Chart with a soft fill, the balance pill at the endpoint, and € max/min.
                 SizedBox(
@@ -3500,8 +3497,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     ]);
                   }),
                 ),
-                if (!(designPreviewPalette && accounts.isNotEmpty) &&
-                    dateLabels.length >= 2) ...[
+                if (!designPreviewPalette && dateLabels.length >= 2) ...[
                   const SizedBox(height: 6),
                   Padding(
                     padding: const EdgeInsets.only(right: 66),
@@ -3682,6 +3678,77 @@ class _DashboardPreviewState extends State<DashboardPreview>
       ),
       child: hero,
     );
+  }
+
+  // 2026-08-16: PREVIEW-ONLY — this month's cash flow, thin gauged tracks
+  // (not chunky bars) so it reads as a quiet strip, not another chart.
+  // Income/expense only — the full breakdown stays on Apžvalga; this is
+  // just the pulse.
+  Widget _cashFlowStrip() {
+    final now = DateTime.now();
+    final mk = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final income = _monthIncome(mk);
+    final expenses = _monthExpenses(mk);
+    final maxV = income > expenses ? income : expenses;
+    final net = income - expenses;
+
+    Widget track(IconData icon, Color tint, double v) => Padding(
+          padding: const EdgeInsets.only(bottom: 9),
+          child: Row(children: [
+            Container(
+              width: 20,
+              height: 20,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                  color: tint.withValues(alpha: 0.2), shape: BoxShape.circle),
+              child: Icon(icon, size: 11, color: tint),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(2.5),
+                child: SizedBox(
+                  height: 5,
+                  child: Stack(children: [
+                    Container(color: Colors.white.withValues(alpha: 0.14)),
+                    FractionallySizedBox(
+                        widthFactor:
+                            maxV > 0 ? (v / maxV).clamp(0.0, 1.0) : 0,
+                        child: Container(color: tint)),
+                  ]),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 66,
+              child: Text(_eur0(v),
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white)),
+            ),
+          ]),
+        );
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      track(Icons.arrow_downward_rounded, const Color(0xFF3ED598), income),
+      track(Icons.arrow_upward_rounded, const Color(0xFFFF8A73), expenses),
+      Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: Row(children: [
+          Text(tr('Grynasis šio mėn.'),
+              style: TextStyle(fontSize: 12, color: _heroDim)),
+          const Spacer(),
+          Text('${net >= 0 ? '+' : '−'}${_eur0(net.abs())}',
+              style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white)),
+        ]),
+      ),
+    ]);
   }
 
   /// PREVIEW-ONLY (2026-08-12): two soft radial blobs behind the hero content,
