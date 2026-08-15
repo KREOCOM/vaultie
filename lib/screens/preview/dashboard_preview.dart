@@ -3118,137 +3118,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
     );
   }
 
-  // 2026-08-16: PREVIEW-ONLY — "Floating Capsule" treatment (variant E of a
-  // set explored in HTML first): the balance sits in its own raised,
-  // softly-lit pill instead of directly on the hero gradient. The
-  // highlight/shadow is a plain diagonal gradient + drop shadow, not a blur
-  // filter — a real ImageFilter blur here left a visible hard-edged "block"
-  // on device the last time a glow was tried on this hero (see
-  // _previewGlow's own note); a gradient has no such layer edge to show.
-  Widget _balanceCapsule(String balStr, double? delta, double? deltaPct) {
-    final syncIndicator = _deepening
-        ? Row(mainAxisSize: MainAxisSize.min, children: [
-            SizedBox(
-                width: 11,
-                height: 11,
-                child: CircularProgressIndicator(
-                    strokeWidth: 1.6, color: _syncTint)),
-            const SizedBox(width: 6),
-            Text(tr('Sinchronizuojama'),
-                style: TextStyle(fontSize: 11, color: _syncTint)),
-          ])
-        : Row(mainAxisSize: MainAxisSize.min, children: [
-            SizedBox(
-                width: 6,
-                height: 6,
-                child: DecoratedBox(
-                    decoration:
-                        BoxDecoration(color: _liveTint, shape: BoxShape.circle))),
-            const SizedBox(width: 5),
-            Text(tr('gyvai'), style: TextStyle(fontSize: 11, color: _liveTint)),
-          ]);
-    final showDelta =
-        !_hideBal && delta != null && deltaPct != null && delta.abs() >= 1;
-
-    Widget pill(Color bg, Widget child) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-          child: child,
-        );
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(40),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: 0.16),
-            Colors.white.withValues(alpha: 0.03),
-            Colors.black.withValues(alpha: 0.10),
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.26),
-              blurRadius: 22,
-              offset: const Offset(0, 10)),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(tr('Bendras likutis'),
-                style: TextStyle(
-                    fontSize: 12.5,
-                    color: _heroDim,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2)),
-            const SizedBox(width: 8),
-            syncIndicator,
-          ]),
-          const SizedBox(height: 6),
-          _hideBal
-              ? Text('••••••',
-                  style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: _heroInk,
-                      letterSpacing: 2))
-              : Text(balStr,
-                  style: TextStyle(
-                      fontSize: _darkMode ? 34 : 40,
-                      fontWeight: FontWeight.w800,
-                      color: _heroInk,
-                      letterSpacing: -1.2,
-                      height: 1.05,
-                      shadows: _darkMode
-                          ? const [
-                              Shadow(color: Color(0x808B5CF6), blurRadius: 18)
-                            ]
-                          : null)),
-          if (showDelta) ...[
-            const SizedBox(height: 12),
-            Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 6, children: [
-              pill(
-                (delta! >= 0 ? _heroGood : _heroBad).withValues(alpha: 0.16),
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(
-                      delta >= 0
-                          ? Icons.arrow_upward_rounded
-                          : Icons.arrow_downward_rounded,
-                      size: 13,
-                      color: delta >= 0 ? _heroGood : _heroBad),
-                  const SizedBox(width: 3),
-                  Text(
-                      '${deltaPct!.abs().toStringAsFixed(1).replaceAll('.', ',')} %',
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: delta >= 0 ? _heroGood : _heroBad)),
-                ]),
-              ),
-              pill(
-                Colors.white.withValues(alpha: 0.09),
-                Text(
-                    '${delta >= 0 ? '+' : '−'}${_eur0(delta.abs())} ${tr('nuo praėjusio mėn.')}',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.85))),
-              ),
-            ]),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _topBanner() {
     // Plot the FULL balance-over-time series — the same data the tapped balance
     // detail shows — sub-sampled to a clean small line. (The backend `spark` was
@@ -3436,102 +3305,111 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   ? CrossAxisAlignment.center
                   : CrossAxisAlignment.start,
               children: [
-                if (designPreviewPalette)
-                  _balanceCapsule(balStr, delta, deltaPct)
-                else ...[
-                  Builder(builder: (_) {
-                    // Sync status shrunk to a tiny inline indicator (was a big
-                    // card): a small spinner + "Sinchronizuojama" while a scan
-                    // runs, else a quiet "gyvai" dot.
-                    final syncIndicator = _deepening
-                        ? Row(mainAxisSize: MainAxisSize.min, children: [
-                            SizedBox(
-                                width: 11,
-                                height: 11,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 1.6, color: _syncTint)),
-                            const SizedBox(width: 6),
-                            Text(tr('Sinchronizuojama'),
-                                style:
-                                    TextStyle(fontSize: 11, color: _syncTint)),
-                          ])
-                        : Row(mainAxisSize: MainAxisSize.min, children: [
-                            SizedBox(
-                                width: 6,
-                                height: 6,
-                                child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                        color: _liveTint,
-                                        shape: BoxShape.circle))),
-                            const SizedBox(width: 5),
-                            Text(tr('gyvai'),
-                                style:
-                                    TextStyle(fontSize: 11, color: _liveTint)),
-                          ]);
-                    final label = Text(tr('Bendras likutis'),
+                Builder(builder: (_) {
+                  // Sync status shrunk to a tiny inline indicator (was a big card):
+                  // a small spinner + "Sinchronizuojama" while a scan runs, else a
+                  // quiet "gyvai" dot.
+                  final syncIndicator = _deepening
+                      ? Row(mainAxisSize: MainAxisSize.min, children: [
+                          SizedBox(
+                              width: 11,
+                              height: 11,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 1.6, color: _syncTint)),
+                          const SizedBox(width: 6),
+                          Text(tr('Sinchronizuojama'),
+                              style: TextStyle(fontSize: 11, color: _syncTint)),
+                        ])
+                      : Row(mainAxisSize: MainAxisSize.min, children: [
+                          SizedBox(
+                              width: 6,
+                              height: 6,
+                              child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                      color: _liveTint, shape: BoxShape.circle))),
+                          const SizedBox(width: 5),
+                          Text(tr('gyvai'),
+                              style: TextStyle(fontSize: 11, color: _liveTint)),
+                        ]);
+                  final label = Text(tr('Bendras likutis'),
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          color: _heroDim,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2));
+                  // PREVIEW-ONLY (2026-08-12): centered label + inline sync dot,
+                  // vs. the real app's label-left/status-right row.
+                  return designPreviewPalette
+                      ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          label,
+                          const SizedBox(width: 8),
+                          syncIndicator,
+                        ])
+                      : Row(children: [label, const Spacer(), syncIndicator]);
+                }),
+                const SizedBox(height: 5),
+                _hideBal
+                    ? Text('••••••',
+                        style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w800,
+                            color: _heroInk,
+                            letterSpacing: 2))
+                    : Text(balStr,
+                        style: TextStyle(
+                          // Bigger and tighter than the rest of the block. It was
+                          // the same weight as the labels around it and sank into
+                          // them — this is the number the screen exists for.
+                          // Bigger in light mode: it was the same weight as the
+                          // labels around it and sank into them.
+                          fontSize: _darkMode ? 34 : 40,
+                          fontWeight: FontWeight.w800,
+                          color: _heroInk,
+                          letterSpacing: -1.2,
+                          height: 1.05,
+                          shadows: _darkMode
+                              ? const [
+                                  Shadow(
+                                      color: Color(0x808B5CF6), blurRadius: 18)
+                                ]
+                              : null,
+                        )),
+                // Month-over-month change: green up / red down, "% | € nuo praėjusio mėn."
+                if (!_hideBal &&
+                    delta != null &&
+                    deltaPct != null &&
+                    delta.abs() >= 1) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: designPreviewPalette
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.start,
+                    mainAxisSize: designPreviewPalette
+                        ? MainAxisSize.min
+                        : MainAxisSize.max,
+                    children: [
+                    Icon(
+                        delta >= 0
+                            ? Icons.arrow_upward_rounded
+                            : Icons.arrow_downward_rounded,
+                        size: 15,
+                        color: delta >= 0 ? _heroGood : _heroBad),
+                    const SizedBox(width: 3),
+                    Text(
+                      '${delta >= 0 ? '+' : '−'}${deltaPct.abs().toStringAsFixed(1).replaceAll('.', ',')} %'
+                      '   |   ${delta >= 0 ? '+' : '−'}${_eur0(delta.abs())}',
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: delta >= 0 ? _heroGood : _heroBad),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(tr('nuo praėjusio mėn.'),
                         style: TextStyle(
                             fontSize: 12.5,
                             color: _heroDim,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2));
-                    return Row(children: [label, const Spacer(), syncIndicator]);
-                  }),
-                  const SizedBox(height: 5),
-                  _hideBal
-                      ? Text('••••••',
-                          style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w800,
-                              color: _heroInk,
-                              letterSpacing: 2))
-                      : Text(balStr,
-                          style: TextStyle(
-                            // Bigger and tighter than the rest of the block. It was
-                            // the same weight as the labels around it and sank into
-                            // them — this is the number the screen exists for.
-                            fontSize: _darkMode ? 34 : 40,
-                            fontWeight: FontWeight.w800,
-                            color: _heroInk,
-                            letterSpacing: -1.2,
-                            height: 1.05,
-                            shadows: _darkMode
-                                ? const [
-                                    Shadow(
-                                        color: Color(0x808B5CF6),
-                                        blurRadius: 18)
-                                  ]
-                                : null,
-                          )),
-                  // Month-over-month change: green up / red down, "% | € nuo praėjusio mėn."
-                  if (!_hideBal &&
-                      delta != null &&
-                      deltaPct != null &&
-                      delta.abs() >= 1) ...[
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      Icon(
-                          delta >= 0
-                              ? Icons.arrow_upward_rounded
-                              : Icons.arrow_downward_rounded,
-                          size: 15,
-                          color: delta >= 0 ? _heroGood : _heroBad),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${delta >= 0 ? '+' : '−'}${deltaPct.abs().toStringAsFixed(1).replaceAll('.', ',')} %'
-                        '   |   ${delta >= 0 ? '+' : '−'}${_eur0(delta.abs())}',
-                        style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: delta >= 0 ? _heroGood : _heroBad),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(tr('nuo praėjusio mėn.'),
-                          style: TextStyle(
-                              fontSize: 12.5,
-                              color: _heroDim,
-                              fontWeight: FontWeight.w500)),
-                    ]),
-                  ],
+                            fontWeight: FontWeight.w500)),
+                  ]),
                 ],
                 const SizedBox(height: 14),
                 // 2026-08-16: PREVIEW-ONLY — the line chart (candlesticks,
