@@ -54,6 +54,12 @@ const Map<String, String> _en = {
   'Visos operacijos': 'All transactions',
   'Šio mėnesio operacijos': 'This month’s transactions',
 
+  // ── Home: Finance Agent banner ── (const Text, never wrapped in tr() —
+  // stayed Lithuanian even with the app language set to English)
+  'Finansų Agentas': 'Finance Agent',
+  'Klausk manęs visko apie savo pinigus. Aš čia, kad padėčiau!':
+      'Ask me anything about your money. I\'m here to help!',
+
   // ── Cash on hand (Home hero + Paskyra net worth) ── ('Grynieji' itself is
   // already translated below, in Sub-categories & transaction labels)
   'Kiek turi grynųjų?': 'How much cash do you have?',

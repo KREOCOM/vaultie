@@ -5502,14 +5502,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Finansų Agentas',
-                            style: TextStyle(
+                        Text(tr('Finansų Agentas'),
+                            style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800)),
                         const SizedBox(height: 4),
-                        const Text('Klausk manęs visko apie savo pinigus. Aš čia, kad padėčiau!',
-                            style: TextStyle(
+                        Text(tr('Klausk manęs visko apie savo pinigus. Aš čia, kad padėčiau!'),
+                            style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12.5,
                                 height: 1.3,
