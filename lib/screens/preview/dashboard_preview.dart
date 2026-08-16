@@ -3646,10 +3646,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
+                // 2026-08-16 fix: the first version's top stop (0xFF190D38)
+                // was near-black — against dark mode's own black page
+                // background (no light backdrop to give it contrast, unlike
+                // the light-mode blue below) it visually fused with the
+                // content beneath the hero instead of reading as a purple
+                // block. Brightened so every stop stays clearly violet.
                 colors: _darkMode
                     ? const [
-                        Color(0xFF190D38), // near-black violet, top
-                        Color(0xFF5B2FC2), // mid — between deep and bright
+                        Color(0xFF3A1B7A), // deep but clearly violet, top
+                        Color(0xFF6D3EE0), // _purpleDeep's dark-mode value
                         Color(0xFF8B5CF6), // _purple's own dark-mode value
                       ]
                     : const [
