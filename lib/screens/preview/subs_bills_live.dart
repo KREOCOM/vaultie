@@ -935,10 +935,12 @@ class _WavePainter extends CustomPainter {
 /// of the backend's recurring candidates at all (`amount`/`occ` are our own
 /// average/count over the matching rows, not the backend's).
 class _TxMatch {
-  const _TxMatch({required this.name, required this.avgAmount, required this.count});
+  const _TxMatch(
+      {required this.name, required this.avgAmount, required this.count, this.lastChargeIso});
   final String name;
   final double avgAmount;
   final int count;
+  final String? lastChargeIso;
 }
 
 class _LiveSortScreen extends StatefulWidget {
@@ -987,6 +989,13 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
     final excluded = {...widget.existingNames, ..._manuallyAdded};
     final amounts = <String, List<double>>{};
     final display = <String, String>{};
+    // 2026-08-16: manually-added entries used to carry no charge date at
+    // all (nothing here ever set one), so predictedDueDate() had nothing
+    // to work from — a manually added bill silently never showed up in
+    // the due-date calendar or got a payment reminder. The latest matching
+    // transaction's own date now travels with the match into
+    // _confirmManual's 'lastCharge'.
+    final lastDate = <String, String>{};
     for (final t in all) {
       final nm = (t['nm'] as String?)?.trim();
       if (nm == null || nm.isEmpty) continue;
@@ -997,6 +1006,8 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
       if (excluded.contains(key)) continue;
       amounts.putIfAbsent(key, () => []).add(amt.abs());
       display.putIfAbsent(key, () => nm);
+      final d = (t['d'] as String?) ?? '';
+      if (d.isNotEmpty && d.compareTo(lastDate[key] ?? '') > 0) lastDate[key] = d;
     }
     final out = amounts.entries.map((e) {
       final vals = e.value;
@@ -1004,6 +1015,7 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
         name: display[e.key]!,
         avgAmount: vals.reduce((a, b) => a + b) / vals.length,
         count: vals.length,
+        lastChargeIso: lastDate[e.key],
       );
     }).toList()
       ..sort((a, b) => b.count.compareTo(a.count));
@@ -1054,6 +1066,10 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
       'type': widget.wantType,
       'occ': m.count,
       'manual': true,
+      // Without this, predictedDueDate() has nothing to work from — the
+      // item silently never appeared in the due-date calendar or got a
+      // reminder scheduled (see _txMatches' own lastDate tracking).
+      'lastCharge': m.lastChargeIso,
     });
     await DashboardStore.setRecurringType(sid, widget.wantType);
     await DashboardStore.markRecurringReviewed(sid);
