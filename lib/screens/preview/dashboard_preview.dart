@@ -1158,12 +1158,25 @@ const _legalEntityTokens = {
   'sia', 'sp', 'zoo', 'sarl', 'kg', 'plc'
 };
 
+// A token carrying a 2+ digit run is a bank-baked store/terminal/card id
+// ("X587", "0042"), not part of the brand itself — mirrors the exact same
+// gate functions/dashboard.py's _classify uses for the server-side display
+// name (see that file's NAME_OVERRIDES branch), so "Maxima Lt X587" (one
+// bank) and "Maxima" (another) collapse to the same key here too, not just
+// the same server-side display string. Gated at 2+ digits specifically so
+// a genuine digit-bearing brand ("7-Eleven") is untouched — its "7" token
+// has only one digit and survives.
+final _merchantNoiseToken = RegExp(r'\d{2,}');
+
 String _merchantKey(String name) {
   final words = _fold(name)
       .split(RegExp(r'[^a-z0-9]+'))
       .where((w) => w.isNotEmpty)
       .toList();
-  final kept = words.where((w) => !_legalEntityTokens.contains(w)).join();
+  final kept = words
+      .where((w) =>
+          !_legalEntityTokens.contains(w) && !_merchantNoiseToken.hasMatch(w))
+      .join();
   return kept.isNotEmpty ? kept : words.join();
 }
 

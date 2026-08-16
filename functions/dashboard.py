@@ -19,6 +19,7 @@ import re
 from collections import Counter, OrderedDict, defaultdict
 
 import mcc as mcc_module
+import normalize
 import resolver
 from recurring import detect_recurring
 
@@ -503,7 +504,28 @@ def _classify(t, resolve_cat, salary_refs, own_ibans=None):
             # ("Bolt.euo2607161334", "Bolt.eu/r/2605221012"), so every charge got a
             # different merge key and same-day rides never collapsed. A canonical
             # brand name for those keywords fixes it (Bolt taxi → one "Bolt" row).
-            disp = _BRAND_CANON.get(matched, name)
+            #
+            # Everything else in NAME_OVERRIDES used to keep the RAW structured
+            # creditor/debtor name verbatim — fine when the bank sends one
+            # cleanly ("Maxima"), but a bank that bakes a store/terminal id into
+            # it ("Maxima Lt X587") never collapsed with the clean version from
+            # a different bank: same real purchase, two different-looking rows,
+            # and the client's own top-merchants grouping (_merchantKey) keys
+            # off this exact string, so they'd count as two separate merchants
+            # there too. clean_merchant_display reuses the SAME store/terminal-id
+            # stripping merchant_from_remittance already does for descriptor
+            # text — but ONLY when the name actually carries a 2+ digit run
+            # (the real signature of a baked-in store/terminal/card id).
+            # Unconditionally running every name through it was tried first and
+            # reverted: _clean_merchant splits on "/" and rejoins with a space,
+            # which turned the already-correct "APPLE.COM/BILL" into
+            # "Apple.Com Bill" and broke that stream's recurring sid
+            # (test_series_id.py). Gating on a real digit run leaves anything
+            # with no such noise — "APPLE.COM/BILL", "Vilniaus Taksi UAB",
+            # "7-Eleven" — completely untouched.
+            disp = _BRAND_CANON.get(matched) or (
+                normalize.clean_merchant_display(name)
+                if re.search(r"\d{2,}", name) else name)
             return (disp, cat_lt, col, ic, sec, secc, amt > 0, False, None)
 
     # bank fees / charges

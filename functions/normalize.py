@@ -100,6 +100,19 @@ def merchant_from_remittance(text: str):
     return chunk if len(chunk) >= 3 else None
 
 
+def clean_merchant_display(name: str) -> str:
+    """Public entry to _clean_merchant, for canonicalising a merchant's
+    DISPLAY name OUTSIDE this module (dashboard.py's NAME_OVERRIDES match) —
+    strips bank-specific store/terminal-id noise a structured creditor/
+    debtor name can carry ("Maxima Lt X587" -> "Maxima") the same way a
+    card-descriptor merchant is already cleaned here. Same two names from
+    two different banks (one raw, one already tidy) converge on one string
+    instead of staying two different-looking rows for the same real
+    purchase. Safe on an already-clean name — returns it unchanged (see
+    _clean_merchant's own "falls back to the raw chunk" rule)."""
+    return _clean_merchant(name)
+
+
 def _party_name(party) -> str:
     return (party.get("name") or "").strip() if isinstance(party, dict) else ""
 
