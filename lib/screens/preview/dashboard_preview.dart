@@ -8824,11 +8824,10 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   Widget _actions() {
     final chips = <List<dynamic>>[
       [Icons.edit_outlined, tr('Redaguoti'), _edit],
-      [
-        _starred ? Icons.star_rounded : Icons.star_border_rounded,
-        tr('Žyma'),
-        _toggleStar
-      ],
+      // 2026-08-16: removed — the star icon in the AppBar (onPressed:
+      // _toggleStar, ~line 8649) already does this exact thing; having it
+      // twice (icon up top, "Žyma" text button down here) was one control
+      // shown in two places for no reason.
       [
         Icons.swap_horiz_rounded,
         _isTransfer ? tr('Į įprastą') : tr('Į vidinį pervedimą'),
