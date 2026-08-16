@@ -434,14 +434,16 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
               ]),
             ),
           ),
-          // 2026-08-16: "sluoksniuoti žiedai" per request — one ring per
-          // subscription, sweep proportional to its share of the monthly
-          // total. Prenumeratos only for now (_isSubs) — Sąskaitos usually
-          // has just 1-2 entries, which read as near-empty in this style
-          // (see the HTML comparison this was picked from).
+          // 2026-08-16: layered rings ("sluoksniuoti žiedai") tried first —
+          // rejected on a real device as too abstract/cold. Replaced with
+          // "sąrašas su juostelėmis" (dot + name + proportional mini-bar +
+          // amount), picked from the second HTML comparison round.
+          // _ringsChart/_RingsPainter left defined, unused, in case rings
+          // are worth revisiting differently later. Prenumeratos only for
+          // now (_isSubs) — Sąskaitos usually has just 1-2 entries.
           if (_isSubs && _confirmed.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            _ringsChart(),
+            const SizedBox(height: 16),
+            _rankedBarsList(),
           ],
           const SizedBox(height: 22),
           Row(children: [
@@ -452,6 +454,71 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           ]),
         ]),
       );
+
+  static const List<Color> _rankPalette = [
+    Color(0xFF7DD3FC),
+    Color(0xFFC4B5FD),
+    Color(0xFF86EFAC),
+    Color(0xFFFCD34D),
+    Color(0xFFFDA4AF),
+  ];
+
+  Widget _rankedBarsList() {
+    final sorted = [..._confirmed]..sort((a, b) => b.monthly.compareTo(a.monthly));
+    final maxV = sorted.first.monthly;
+    return Column(
+      children: [
+        for (var i = 0; i < sorted.length; i++)
+          Padding(
+            padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+            child: Row(children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                    shape: BoxShape.circle, color: _rankPalette[i % _rankPalette.length]),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 82,
+                child: Text(sorted[i].displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: SizedBox(
+                    height: 6,
+                    child: Stack(children: [
+                      Container(color: Colors.white.withValues(alpha: 0.16)),
+                      FractionallySizedBox(
+                        widthFactor: (sorted[i].monthly / maxV).clamp(0.04, 1.0),
+                        child: Container(color: _rankPalette[i % _rankPalette.length]),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 60,
+                child: Text('${sorted[i].monthly.toStringAsFixed(2)} €',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: [FontFeature.tabularFigures()])),
+              ),
+            ]),
+          ),
+      ],
+    );
+  }
 
   Widget _ringsChart() {
     final sorted = [..._confirmed]..sort((a, b) => b.monthly.compareTo(a.monthly));
