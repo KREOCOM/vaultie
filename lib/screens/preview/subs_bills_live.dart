@@ -97,6 +97,23 @@ class _RingsPainter extends CustomPainter {
       old.entries != entries || old.total != total || old.progress != progress;
 }
 
+// 2026-08-16: a generic payment-rail name (Apple Pay, Google Pay — some
+// banks never surface the underlying merchant for these) breaks the
+// assumption every OTHER key in this screen relies on, that the same name
+// means the same real-world subscription. "Apple Pay" covering a 9 €
+// Netflix and a 13 € Canva used to: (1) get search-grouped into one
+// blended "average ~11 €" suggestion neither price actually was, (2) once
+// either was added, silently hide the OTHER from ever showing up in search
+// again (name-only exclusion), and (3) if added anyway, overwrite the
+// first in storage (name-only manual sid — same sid, DashboardStore
+// replaces on add). Rounding the amount into the key fixes all three at
+// once: two genuinely different subscriptions that happen to share a
+// payment-rail name stay distinct as long as their prices round to
+// different whole euros; the same subscription's own FX/rounding noise
+// (8.99 vs 9.01) still collapses into one, which is what should happen.
+String _nameAmountKey(String name, double amount) =>
+    '${name.trim().toLowerCase()}|${amount.abs().round()}';
+
 String _cadenceLabel(String? cycle) {
   switch (cycle) {
     case 'weekly':
@@ -281,10 +298,14 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
         wantType: widget.wantType,
         onChanged: () => setState(() {}),
         allTransactions: widget.allTransactions,
-        // Every name already tracked in EITHER pool (any type, confirmed or
-        // still pending) — never offer "add manually" for a merchant that
-        // already has a verdict somewhere, subscription or bill.
-        existingNames: _all.map((it) => it.merchant.trim().toLowerCase()).toSet(),
+        // Every (name, ~amount) already tracked in EITHER pool (any type,
+        // confirmed or still pending) — never offer "add manually" for a
+        // stream that already has a verdict somewhere, subscription or
+        // bill. Amount included in the key — see _nameAmountKey — so
+        // adding one payment routed through a generic payment-rail name
+        // (Apple Pay, Google Pay) doesn't hide every OTHER amount under
+        // that same name.
+        existingNames: _all.map((it) => _nameAmountKey(it.merchant, it.monthly)).toSet(),
       ),
     ));
     setState(() {});
@@ -932,6 +953,8 @@ class _LiveSortScreen extends StatefulWidget {
   final String wantType;
   final VoidCallback onChanged;
   final List<Map>? allTransactions;
+  // _nameAmountKey(name, amount) strings, not bare names — see that
+  // function's doc for why a name alone isn't a safe key.
   final Set<String> existingNames;
 
   @override
@@ -953,9 +976,10 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
   }
 
   /// Merchants the backend never flagged as recurring at all — found by
-  /// grouping the user's own transaction history by name. Only searched (not
-  /// browsed) — a full merchant list would be mostly one-off shopping, not
-  /// worth wading through for the rare subscription/bill the detector missed.
+  /// grouping the user's own transaction history by name AND amount (see
+  /// _nameAmountKey). Only searched (not browsed) — a full merchant list
+  /// would be mostly one-off shopping, not worth wading through for the
+  /// rare subscription/bill the detector missed.
   List<_TxMatch> get _txMatches {
     final all = widget.allTransactions;
     final q = _query.trim().toLowerCase();
@@ -966,10 +990,11 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
     for (final t in all) {
       final nm = (t['nm'] as String?)?.trim();
       if (nm == null || nm.isEmpty) continue;
-      final key = nm.toLowerCase();
-      if (excluded.contains(key) || !key.contains(q)) continue;
+      if (!nm.toLowerCase().contains(q)) continue;
       final amt = (t['a'] as num?)?.toDouble() ?? 0;
       if (amt >= 0) continue; // money OUT only — subs/bills are never income
+      final key = _nameAmountKey(nm, amt);
+      if (excluded.contains(key)) continue;
       amounts.putIfAbsent(key, () => []).add(amt.abs());
       display.putIfAbsent(key, () => nm);
     }
@@ -1012,7 +1037,12 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
   /// the backend later starts detecting this merchant on its own
   /// (_recItemsFull matches manual entries onto real ones by folded name).
   Future<void> _confirmManual(_TxMatch m) async {
-    final sid = 'manual:${m.name.trim().toLowerCase()}';
+    // Amount folded into the sid too — a name-only sid meant a second
+    // manual entry sharing a payment-rail name (Apple Pay) had the SAME
+    // sid as the first, and DashboardStore.addManualRecurring replaces on
+    // add, so the second one silently overwrote the first instead of
+    // becoming its own tracked stream.
+    final sid = 'manual:${_nameAmountKey(m.name, m.avgAmount)}';
     await DashboardStore.addManualRecurring({
       'sid': sid,
       'name': m.name,
@@ -1027,7 +1057,7 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
     });
     await DashboardStore.setRecurringType(sid, widget.wantType);
     await DashboardStore.markRecurringReviewed(sid);
-    setState(() => _manuallyAdded.add(m.name.trim().toLowerCase()));
+    setState(() => _manuallyAdded.add(_nameAmountKey(m.name, m.avgAmount)));
     widget.onChanged();
     if (mounted) {
       ScaffoldMessenger.of(context)
