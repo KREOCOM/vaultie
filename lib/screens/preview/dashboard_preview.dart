@@ -5830,7 +5830,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
             Opacity(
               opacity: (_weekSel == null || selected) ? 1 : 0.4,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(9),
+                // 2026-08-16: was circular(9) on a 15px-wide bar — radius
+                // nearly half the width made every bar read as a rounded
+                // capsule/pill rather than a bar, worst on short ones. "kaip
+                // tikri stulpeliai o ne su apvalintais galais" — flat
+                // rectangle, only the top corners lightly rounded (bars grow
+                // from the baseline, so the bottom staying square is what
+                // makes it read as sitting ON the axis, like a real bar
+                // chart).
+                borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(3), topRight: Radius.circular(3)),
                 child: SizedBox(
                   width: 15,
                   height: h,
