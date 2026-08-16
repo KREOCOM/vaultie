@@ -100,6 +100,21 @@ out = dedupe([
 check(len(out) == 2,
       "a pending in one wallet was settled by a booking in another")
 
+# ── 9. an OLDER booked row must never "settle" a NEWER pending one ─────────
+# Real report (2026-08-16): a frequent-merchant shopper (Circle K, Maxima)
+# refreshed and saw nothing past a few days ago even though they'd bought
+# something today. Root cause: the day-window used to be symmetric
+# (abs(bd - d) <= 4), so an already-booked visit from days ago could "settle"
+# today's still-pending visit to the SAME merchant — backwards, since a
+# booked confirmation can only arrive at or after a charge went pending,
+# never before it. Today's real purchase vanished, silently, every refresh.
+out = dedupe([
+    tx("b1", "2026-08-12", 23.86, "CIRCLE K MISKAS"),          # booked days ago
+    tx("p1", "2026-08-16", 19.40, "CIRCLE K MISKAS", status="PDNG"),  # today
+])
+check(len(out) == 2,
+      f"an older booked visit wrongly settled today's pending one: {refs(out)}")
+
 # ── 8. transactions without any reference still dedupe ─────────────────────
 a = tx("", "2026-07-10", 9.99, "SPOTIFY")
 b = tx("", "2026-07-10", 9.99, "SPOTIFY")

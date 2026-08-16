@@ -288,6 +288,14 @@ def _drop_settled_pendings(txns):
     days — but ONE-TO-ONE, so two genuine visits to the same shop cannot be
     collapsed into one. A booked row can settle exactly one pending.
 
+    2026-08-16: the day window used to be symmetric (`abs(bd - d) <= 4`), which
+    let an OLDER already-booked visit "settle" a NEWER pending one — backwards,
+    since a booked confirmation can only ever arrive AT OR AFTER the charge went
+    pending, never before it. For someone who visits the same few places
+    (Circle K, Maxima, ...) every few days, an old booked trip there would match
+    and silently eat a genuinely new pending one, so a purchase made today could
+    vanish from the feed entirely. Now requires bd >= d.
+
     The residual error is the safer one: an unmatched pending is shown until it
     books, whereas the old behaviour invented spending that never happened.
     """
@@ -320,7 +328,7 @@ def _drop_settled_pendings(txns):
             if id(b) in settled:
                 continue  # this booked row already settled another pending
             bd = day(b)
-            if d is None or bd is None or abs((bd - d).days) <= 4:
+            if d is None or bd is None or 0 <= (bd - d).days <= 4:
                 match = b
                 break
         if match is None:
