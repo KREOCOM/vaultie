@@ -1300,16 +1300,25 @@ void _toastAt(BuildContext context, String m) =>
 // user — the caller has nothing further to do in either case.
 Future<(List<Map<String, dynamic>>, double, String?)?> _scanReceiptFlow(
     BuildContext context) async {
-  showDialog(
+  // showGeneralDialog with an explicit fade (not plain showDialog) —
+  // showDialog's default Material transition scales the card in from a
+  // squashed rectangle, which read fine over Home's light backdrop but on
+  // Bill Split's pure-black screens (_billBg) that in-between frame showed
+  // as a stray white sliver, and the default ~54%-alpha barrier let the
+  // screen's own buttons ghost through behind the card instead of the
+  // screen just going quietly dark. A near-opaque barrier + a plain fade
+  // looks calm and consistent regardless of what screen is behind it.
+  showGeneralDialog(
     context: context,
     barrierDismissible: false,
-    // Dialog (not a raw Center+Container) — that raw version had no
-    // Material ancestor of its own inside the dialog route, so the Text
-    // fell back to Flutter's completely unstyled default (huge, black,
-    // yellow-underlined) instead of the app's actual typography. Dialog
-    // wraps its child in Material itself, which is what every OTHER
-    // dialog in this file already gets for free from AlertDialog.
-    builder: (_) => const _ScanningDialog(),
+    barrierLabel: '',
+    barrierColor: Colors.black.withValues(alpha: 0.82),
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (_, __, ___) => const _ScanningDialog(),
+    transitionBuilder: (_, anim, __, child) => FadeTransition(
+      opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+      child: child,
+    ),
   );
   List<Map<String, dynamic>> items = const [];
   double total = 0;
@@ -2916,16 +2925,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // still one tap away via _financeAgentBanner, just not its own tab
     // anymore). Home stays the "at a glance" summary.
     final contentChildren = [
-      // 2026-08-16: leads Home per explicit request — "žmogui nereikia
-      // toli eiti" (shouldn't have to dig into a transaction's own detail
-      // screen to discover this exists). See _receiptScanBanner /
-      // _startReceiptScan.
-      _receiptScanBanner(),
-      // 2026-08-16: Bill Split gets its OWN entry right after — explicitly
-      // a separate feature, not a second destination reached through
-      // "Skenuoti kvitą" (that was tried first, then corrected). See
-      // _billSplitBanner / _startBillSplit.
-      _billSplitBanner(),
+      // 2026-08-16: these two used to live here as standalone banners
+      // ("žmogui nereikia toli eiti" — shouldn't have to dig into a
+      // transaction's own detail screen to discover this exists). Moved
+      // INTO the hero as quick-action buttons (_heroQuickActions) per a
+      // later request to shorten the page and put them next to the
+      // balance/accounts they act on. Kept here, unchanged, for the
+      // production (non-preview) layout, which the hero restructure never
+      // touched. See _receiptScanBanner / _billSplitBanner /
+      // _startReceiptScan / _startBillSplit.
+      if (!designPreviewPalette) _receiptScanBanner(),
+      if (!designPreviewPalette) _billSplitBanner(),
       // 2026-08-15: moved above Prenumeratos/Sąskaitos per request — the
       // weekly spend chart now leads Home.
       _weekSection(),
@@ -3950,7 +3960,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   // smaller) instead of two separate pills side by side.
                   // Expanded stays the original per-account list below.
                   if (designPreviewPalette && !_acctsOpen)
-                    Center(child: _mergedAcctChip(accounts, acctTotal))
+                    // 2026-08-16: was the merged bank+balance+percent chip
+                    // inline (_mergedAcctChip) — replaced per request with a
+                    // plain "Sąskaitos" pill (no numbers), matching a
+                    // reference design's "Accounts" button. Tapping it does
+                    // exactly what the old chip's tap already did — opens
+                    // the SAME expanded per-account list below
+                    // (_expandedAcctChip), nothing about that mechanism
+                    // changed, only what invites you into it.
+                    Center(child: _heroAccountsButton())
                   else
                   // Compact account chips (logo · name · balance · share). Only the
                   // BIGGEST is shown until asked: four accounts — three of them
@@ -4098,6 +4116,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
                         ),
                     ],
                   ),
+                ],
+                // 2026-08-16: three quick actions moved INTO the hero
+                // (Kvitas / Transakcijos / Bill Split), replacing the two
+                // separate banner blocks that used to sit below it
+                // (_receiptScanBanner/_billSplitBanner, now removed). The
+                // hero has no fixed height — this Column drives it — so the
+                // block simply grows to fit, exactly as asked.
+                if (designPreviewPalette) ...[
+                  const SizedBox(height: 16),
+                  _heroQuickActions(),
                 ],
                 if (!designPreviewPalette) ...[
                   const SizedBox(height: 12),
@@ -4460,57 +4488,94 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // shrunk on its own earlier ("too big"), which then made the collapsed →
   // expanded transition jump in the other direction. Grown back up to meet
   // the expanded size in the middle, not shrunk down to meet this one.
-  Widget _mergedAcctChip(List<Map> accounts, double acctTotal) {
-    final a = accounts.first;
-    final more = accounts.length - 1;
-    return GestureDetector(
-      onTap: more > 0 ? () => setState(() => _acctsOpen = true) : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _hair),
-          boxShadow: DS.e1,
+  // 2026-08-16: plain "Sąskaitos" pill replacing the merged bank/balance/
+  // percent chip in the hero's collapsed accounts state — reference was a
+  // crypto-wallet app's balance → "Accounts" button → Send/Receive/Swap row.
+  // Carries no numbers of its own; tapping it opens the SAME expanded
+  // per-account list (_expandedAcctChip) the old chip already opened, only
+  // the invitation changed, not the mechanism.
+  Widget _heroAccountsButton() => GestureDetector(
+        onTap: () => setState(() => _acctsOpen = true),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.account_balance_wallet_rounded,
+                size: 15, color: _heroInk),
+            const SizedBox(width: 6),
+            Text(tr('Sąskaitos'),
+                style: TextStyle(
+                    fontSize: 13, color: _heroInk, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 3),
+            Icon(Icons.expand_more_rounded, size: 16, color: _heroInk),
+          ]),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          _acctGlyph(a, diameter: 24, fontSize: 11),
-          const SizedBox(width: 8),
-          Text((a['bank'] ?? a['name'] ?? tr('Sąskaita')).toString(),
+      );
+
+  // 2026-08-16: the hero's own quick-action row — "sutalpinti po revolut
+  // banku prideti 3 funkcijas kad zmones galetu lengviau pasiekti", in the
+  // order asked: kvito skenavimas, transakcijos (per vidury), Bill Split.
+  // Reuses the exact handlers the old standalone banners called
+  // (_startReceiptScan / _startBillSplit) plus the same tab-jump the bottom
+  // nav's "Transakcijos" item uses (see _navBar's navTarget: index 5).
+  Widget _heroQuickActions() => Row(
+        children: [
+          Expanded(
+            child: _heroActionButton(
+              icon: Icons.document_scanner_outlined,
+              label: tr('Kvitas'),
+              onTap: _startReceiptScan,
+            ),
+          ),
+          Expanded(
+            child: _heroActionButton(
+              icon: Icons.receipt_long_rounded,
+              label: tr('Transakcijos'),
+              onTap: () => setState(() => _tab = 5),
+            ),
+          ),
+          Expanded(
+            child: _heroActionButton(
+              icon: Icons.groups_rounded,
+              label: tr('Dalybos'),
+              onTap: _startBillSplit,
+            ),
+          ),
+        ],
+      );
+
+  Widget _heroActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) =>
+      GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+            ),
+            child: Icon(icon, color: _heroInk, size: 22),
+          ),
+          const SizedBox(height: 6),
+          Text(label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                  fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
-          const SizedBox(width: 8),
-          Text(
-              _hideBal
-                  ? '••••'
-                  : _eur0(((a['amount'] ?? 0) as num).toDouble()),
-              style: TextStyle(
-                  fontSize: 13,
-                  color: _purpleDeep,
-                  fontWeight: FontWeight.w800,
-                  fontFeatures: const [FontFeature.tabularFigures()])),
-          if (!_hideBal && acctTotal > 0) ...[
-            const SizedBox(width: 5),
-            Text(
-                '${(((a['amount'] ?? 0) as num).toDouble() / acctTotal * 100).round()}%',
-                style: TextStyle(
-                    fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
-          ],
-          if (more > 0) ...[
-            const SizedBox(width: 6),
-            Container(width: 1, height: 14, color: _hair),
-            const SizedBox(width: 6),
-            Text('+$more',
-                style: TextStyle(
-                    fontSize: 13,
-                    color: _purple,
-                    fontWeight: FontWeight.w800)),
-            Icon(Icons.expand_more_rounded, size: 15, color: _purple),
-          ],
+                  fontSize: 11.5, color: _heroInk, fontWeight: FontWeight.w600)),
         ]),
-      ),
-    );
-  }
+      );
 
   /// Three overlapping, ACTUALLY-blurred blobs — a hard-edged RadialGradient
   /// falloff reads as a flat smudge no matter how saturated its colour is;
@@ -5189,7 +5254,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Text('Bill Split',
+                      Text(tr('Dalybos'),
                           style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
@@ -5307,8 +5372,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // one screen in, from _BillSplitHomeScreen, via the same _scanReceiptFlow
   // Home's own receipt scan uses.
   Future<void> _startBillSplit() async {
-    await Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const _BillSplitHomeScreen()));
+    // 2026-08-16 bug: this route never carried the _kBillSplitHomeRoute
+    // name, so _exitBillSplitWizard's popUntil((r) => r.settings.name ==
+    // _kBillSplitHomeRoute) could never match it — the predicate was never
+    // satisfied, so popUntil kept popping past this screen, past Home,
+    // until nothing was left to pop, landing on a black screen that only a
+    // full app relaunch recovered from. Tapping "Uždaryti" after saving a
+    // split (or deleting one) hit this every time. Naming the route fixes
+    // it: popUntil now actually finds this screen and stops here.
+    await Navigator.of(context).push(MaterialPageRoute(
+      settings: const RouteSettings(name: _kBillSplitHomeRoute),
+      builder: (_) => const _BillSplitHomeScreen(),
+    ));
   }
 
   Widget _financeAgentBanner() => Padding(
@@ -9798,8 +9873,8 @@ class _BillSplitHomeScreen extends StatelessWidget {
         backgroundColor: _billBg,
         elevation: 0,
         foregroundColor: _billInk,
-        title: const Text('Bill Split',
-            style: TextStyle(fontWeight: FontWeight.w800, color: _billInk)),
+        title: Text(tr('Dalybos'),
+            style: const TextStyle(fontWeight: FontWeight.w800, color: _billInk)),
       ),
       body: SafeArea(
         child: saved.isEmpty
