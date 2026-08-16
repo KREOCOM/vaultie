@@ -1257,7 +1257,7 @@ void _applyTxSplits(
 // existing photo (per request). Returns null on a cancelled/failed picker
 // (not an error, caller shows nothing); throws BankingException same as
 // every other BankingService call on a real network/server failure.
-Future<(List<Map<String, dynamic>>, double)?> _pickAndScanReceipt() async {
+Future<(List<Map<String, dynamic>>, double, String?)?> _pickAndScanReceipt() async {
   XFile? file;
   try {
     file = await ImagePicker()
@@ -1271,6 +1271,60 @@ Future<(List<Map<String, dynamic>>, double)?> _pickAndScanReceipt() async {
       file.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
   return BankingService.instance
       .scanReceipt(imageB64: base64Encode(bytes), mediaType: mediaType);
+}
+
+void _toastAt(BuildContext context, String m) =>
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+          content: Text(m), duration: const Duration(milliseconds: 3300)));
+
+// Top-level (not tied to _DashboardPreviewState) so both Home's own
+// "Skenuoti kvitą" and Bill Split's entry (_BillSplitHomeScreen, a
+// different screen entirely) share ONE implementation of "show the
+// scanning dialog, pick+scan a photo, handle every failure the same way".
+// Returns null on a cancelled picker or a failure already toasted to the
+// user — the caller has nothing further to do in either case.
+Future<(List<Map<String, dynamic>>, double, String?)?> _scanReceiptFlow(
+    BuildContext context) async {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    // Dialog (not a raw Center+Container) — that raw version had no
+    // Material ancestor of its own inside the dialog route, so the Text
+    // fell back to Flutter's completely unstyled default (huge, black,
+    // yellow-underlined) instead of the app's actual typography. Dialog
+    // wraps its child in Material itself, which is what every OTHER
+    // dialog in this file already gets for free from AlertDialog.
+    builder: (_) => const _ScanningDialog(),
+  );
+  List<Map<String, dynamic>> items = const [];
+  double total = 0;
+  String? merchant;
+  String? error;
+  try {
+    final res = await _pickAndScanReceipt();
+    if (res == null) {
+      // Picker cancelled — close the loading dialog and stop quietly.
+      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+      return null;
+    }
+    items = res.$1;
+    total = res.$2;
+    merchant = res.$3;
+  } on BankingException catch (e) {
+    error = e.message;
+  } catch (_) {
+    error = tr('Nepavyko atpažinti kvito — pabandyk kitą nuotrauką');
+  }
+  if (!context.mounted) return null;
+  Navigator.of(context, rootNavigator: true).pop(); // close the spinner
+  if (error != null || items.isEmpty) {
+    _toastAt(
+        context, error ?? tr('Nepavyko atpažinti kvito — pabandyk kitą nuotrauką'));
+    return null;
+  }
+  return (items, total, merchant);
 }
 
 // 2026-08-16: was a plain CircularProgressIndicator + "Skenuojama…" —
@@ -5207,48 +5261,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // point (see _startBillSplit) instead of branching off a shared scan via
   // a choice sheet, per explicit correction: the two are separate features,
   // not two destinations for one flow.
-  Future<(List<Map<String, dynamic>>, double)?> _scanWithLoadingDialog() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      // Dialog (not a raw Center+Container) — that raw version had no
-      // Material ancestor of its own inside the dialog route, so the Text
-      // fell back to Flutter's completely unstyled default (huge, black,
-      // yellow-underlined) instead of the app's actual typography. Dialog
-      // wraps its child in Material itself, which is what every OTHER
-      // dialog in this file already gets for free from AlertDialog.
-      builder: (_) => const _ScanningDialog(),
-    );
-    List<Map<String, dynamic>> items = const [];
-    double total = 0;
-    String? error;
-    try {
-      final res = await _pickAndScanReceipt();
-      if (res == null) {
-        // Picker cancelled — close the loading dialog and stop quietly.
-        if (mounted) Navigator.of(context, rootNavigator: true).pop();
-        return null;
-      }
-      items = res.$1;
-      total = res.$2;
-    } on BankingException catch (e) {
-      error = e.message;
-    } catch (_) {
-      error = tr('Nepavyko atpažinti kvito — pabandyk kitą nuotrauką');
-    }
-    if (!mounted) return null;
-    Navigator.of(context, rootNavigator: true).pop(); // close the spinner
-    if (error != null || items.isEmpty) {
-      _toast(error ?? tr('Nepavyko atpažinti kvito — pabandyk kitą nuotrauką'));
-      return null;
-    }
-    return (items, total);
-  }
-
   Future<void> _startReceiptScan() async {
-    final res = await _scanWithLoadingDialog();
+    final res = await _scanReceiptFlow(context);
     if (res == null || !mounted) return;
-    final (items, total) = res;
+    final (items, total, _) = res;
     final candidates = _matchReceiptCandidates(total);
     final chosen = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
@@ -5271,17 +5287,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
     if (mounted) _refreshFromAll();
   }
 
-  // 2026-08-16: Bill Split's OWN entry point and OWN scan — a separate
-  // feature from "Skenuoti kvitą" above, not a second destination reached
-  // through it. Goes straight from a scanned photo to _BillSplitScreen; no
-  // bank transaction is ever involved, so there's no matching step here.
+  // 2026-08-16: Bill Split's OWN entry point — a separate feature from
+  // "Skenuoti kvitą" above, not a second destination reached through it.
+  // Opens the Bill Split section itself (its own saved-splits list + a "new
+  // scan" action) rather than scanning immediately — the scan now happens
+  // one screen in, from _BillSplitHomeScreen, via the same _scanReceiptFlow
+  // Home's own receipt scan uses.
   Future<void> _startBillSplit() async {
-    final res = await _scanWithLoadingDialog();
-    if (res == null || !mounted) return;
-    final (items, total) = res;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => _BillSplitScreen(items: items, total: total),
-    ));
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const _BillSplitHomeScreen()));
   }
 
   Widget _financeAgentBanner() => Padding(
@@ -9197,7 +9211,7 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
     try {
       final res = await _pickAndScanReceipt();
       if (res == null || !mounted) return; // picker cancelled — not an error
-      final (items, _) = res;
+      final (items, _, _) = res;
       if (items.isEmpty) {
         _toast(tr('Nepavyko atpažinti kvito — pabandyk dar kartą arba įvesk rankiniu būdu'));
         return;
@@ -9648,44 +9662,353 @@ class _ReceiptMatchScreen extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 // BILL SPLIT — split a scanned receipt between PEOPLE, not categories.
 // 2026-08-16, explicitly requested as a SEPARATE concept from the category
-// split above, with one hard rule: nothing here ever touches
-// DashboardStore, the bank feed, budgets, or categories. Every bit of state
-// (people, who's assigned to what) lives ONLY in this screen's own State
-// object and is gone the instant it's popped — there is no save action, by
-// design, only "Uždaryti". Reuses the SAME scanned items as the category
-// flow (one scan, see _startReceiptScan's choice sheet) since it's the same
-// underlying question — "what did this receipt actually contain" — just a
-// different thing to do with the answer.
+// split feature above, with one rule that never changed across every
+// revision of this section: nothing here ever touches DashboardStore's
+// txSplits/txEdits, the bank feed, budgets, or categories — a Bill Split can
+// only ever affect DashboardStore.billSplits(), its own private list, never
+// anything a real transaction/expense screen reads.
+//
+// Rewritten 2026-08-16 (second pass) from a single screen into the
+// step-by-step flow requested against a reference design: scan -> review
+// receipt -> add people -> assign items -> review split -> saved. Saved
+// results now DO persist (in billSplits() only, per the request that a
+// completed split doesn't have to be thrown away) with an explicit
+// delete option — the "nothing is ever saved" rule from the FIRST pass
+// was specifically about never reaching the app's real financial data, not
+// about Bill Split remembering nothing of its own.
+//
+// Fixed true-black identity, independent of the app's own light/dark theme
+// toggle — explicitly requested after seeing the reference design ("gali
+// foną juodą daryti istikro"). None of the app-wide theme getters
+// (_ink/_card/_bg/etc., used everywhere else in this file) appear anywhere
+// in this section on purpose.
 // ══════════════════════════════════════════════════════════════════════════════
+
+const _billBg = Color(0xFF07070B);
+const _billCard = Color(0xFF17181F);
+const _billCard2 = Color(0xFF1E202A);
+const _billInk = Color(0xFFFFFFFF);
+const _billMuted = Color(0xFFA7A8B8);
+const _billFaint = Color(0xFF64657A);
+const _billAccent = Color(0xFF5B62F0);
+const _billGood = Color(0xFF34C77B);
+const _billHair = Color(0xFF23242E);
+
+// Every "leave the wizard" action (Atmesti / Uždaryti after saving) jumps
+// straight back to the Bill Split list via this route name, no matter how
+// many steps deep it's called from — simpler and more robust than relaying
+// a result back up through every intermediate screen's own push/await.
+const _kBillSplitHomeRoute = 'billSplitHome';
+
+void _exitBillSplitWizard(BuildContext context) => Navigator.of(context)
+    .popUntil((r) => r.settings.name == _kBillSplitHomeRoute);
+
+String _billYmd(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
 class _BillPerson {
   _BillPerson(this.name, this.color);
   final String name;
   final Color color;
+  Map<String, dynamic> toJson() => {'name': name, 'color': color.toARGB32()};
+  static _BillPerson fromJson(Map m) =>
+      _BillPerson(m['name'] as String, Color(m['color'] as int));
 }
 
-class _BillSplitScreen extends StatefulWidget {
-  const _BillSplitScreen({required this.items, required this.total});
-  final List<Map<String, dynamic>> items; // {name, price, category}
-  final double total; // the receipt's own printed total
+const _billPalette = [
+  Color(0xFF5866F0),
+  Color(0xFF46AE4B),
+  Color(0xFFE0574F),
+  Color(0xFFF0A322),
+  Color(0xFF7C5CD6),
+  Color(0xFF2E9BE6),
+  Color(0xFF00897B),
+  Color(0xFFEE7A3A),
+];
+
+Widget _billAvatar(_BillPerson p, {double radius = 15, double fontSize = 13}) =>
+    CircleAvatar(
+      radius: radius,
+      backgroundColor: p.color,
+      child: Text(
+          p.name.trim().isEmpty ? '?' : p.name.trim()[0].toUpperCase(),
+          style: TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w800, fontSize: fontSize)),
+    );
+
+// ── STEP 0: Bill Split's own section — past saves + start a new one ────────
+class _BillSplitHomeScreen extends StatelessWidget {
+  const _BillSplitHomeScreen();
+
+  Future<void> _startNew(BuildContext context) async {
+    final res = await _scanReceiptFlow(context);
+    if (res == null || !context.mounted) return;
+    final (items, total, merchant) = res;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) =>
+          _BillReviewReceiptScreen(items: items, total: total, merchant: merchant),
+    ));
+  }
+
+  Future<void> _openSaved(BuildContext context, Map<String, dynamic> s) async {
+    final people = (s['people'] as List)
+        .map((e) => _BillPerson.fromJson(e as Map))
+        .toList();
+    final totals = (s['personTotals'] as List)
+        .map((e) => (e as num).toDouble())
+        .toList();
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _BillSplitSavedScreen(
+        id: s['id'] as String,
+        merchant: s['merchant'] as String?,
+        date: s['date'] as String,
+        total: (s['total'] as num).toDouble(),
+        people: people,
+        personTotals: totals,
+        justSaved: false,
+      ),
+    ));
+  }
+
   @override
-  State<_BillSplitScreen> createState() => _BillSplitScreenState();
+  Widget build(BuildContext context) {
+    // Read fresh on every build — deliberately no cached field. This screen
+    // stays alive underneath the whole wizard while it's pushed on top, and
+    // a plain Navigator.popUntil back to it (see _exitBillSplitWizard)
+    // triggers a rebuild but would never re-run a one-shot field
+    // initializer, so a save made mid-wizard would otherwise still be
+    // missing from this list the moment the user lands back on it.
+    final saved = DashboardStore.billSplits();
+    return Scaffold(
+      backgroundColor: _billBg,
+      appBar: AppBar(
+        backgroundColor: _billBg,
+        elevation: 0,
+        foregroundColor: _billInk,
+        title: const Text('Bill Split',
+            style: TextStyle(fontWeight: FontWeight.w800, color: _billInk)),
+      ),
+      body: SafeArea(
+        child: saved.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.groups_rounded, size: 46, color: _billFaint),
+                    const SizedBox(height: 14),
+                    Text(tr('Dar nėra išsaugotų skaidymų.'),
+                        style: TextStyle(color: _billMuted, fontSize: 14),
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 24),
+                    _newSplitButton(context),
+                  ]),
+                ),
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                children: [
+                  _newSplitButton(context),
+                  const SizedBox(height: 18),
+                  Text(tr('Anksčiau išsaugoti'),
+                      style: TextStyle(
+                          color: _billMuted,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  for (final s in saved) _savedCard(context, s),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _newSplitButton(BuildContext context) => SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => _startNew(context),
+          icon: const Icon(Icons.add_rounded),
+          label: Text(tr('Naujas skaidymas'),
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: _billAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+        ),
+      );
+
+  Widget _savedCard(BuildContext context, Map<String, dynamic> s) {
+    final people = (s['people'] as List).cast<Map>();
+    final peopleLabel =
+        people.length == 1 ? tr('1 žmogus') : '${people.length} ${tr('žmonės')}';
+    return InkWell(
+      onTap: () => _openSaved(context, s),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration:
+            BoxDecoration(color: _billCard, borderRadius: BorderRadius.circular(16)),
+        child: Row(children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text((s['merchant'] as String?) ?? tr('Kvitas'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: _billInk, fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(height: 3),
+                Text('${s['date']} · $peopleLabel',
+                    style: TextStyle(color: _billMuted, fontSize: 12)),
+              ],
+            ),
+          ),
+          Text(_eur0((s['total'] as num).toDouble()),
+              style: const TextStyle(
+                  color: _billInk, fontWeight: FontWeight.w800, fontSize: 15)),
+        ]),
+      ),
+    );
+  }
 }
 
-class _BillSplitScreenState extends State<_BillSplitScreen> {
-  static const _palette = [
-    Color(0xFF5866F0),
-    Color(0xFF46AE4B),
-    Color(0xFFE0574F),
-    Color(0xFFF0A322),
-    Color(0xFF7C5CD6),
-    Color(0xFF2E9BE6),
-    Color(0xFF00897B),
-    Color(0xFFEE7A3A),
-  ];
+// ── STEP 1: Review receipt ──────────────────────────────────────────────────
+class _BillReviewReceiptScreen extends StatelessWidget {
+  const _BillReviewReceiptScreen(
+      {required this.items, required this.total, required this.merchant});
+  final List<Map<String, dynamic>> items;
+  final double total;
+  final String? merchant;
 
+  double get _itemSum =>
+      items.fold(0.0, (s, it) => s + ((it['price'] as num?) ?? 0).toDouble());
+  double get _extra => total - _itemSum;
+
+  @override
+  Widget build(BuildContext context) {
+    final extra = _extra;
+    return Scaffold(
+      backgroundColor: _billBg,
+      appBar: AppBar(
+        backgroundColor: _billBg,
+        elevation: 0,
+        foregroundColor: _billInk,
+        title: Text(tr('Peržiūrėti kvitą'),
+            style: const TextStyle(fontWeight: FontWeight.w800, color: _billInk)),
+      ),
+      body: SafeArea(
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                    color: _billGood.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(20)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.check_circle_rounded, size: 15, color: _billGood),
+                  const SizedBox(width: 5),
+                  Text('${items.length} ${tr('prekės rasta')}',
+                      style: const TextStyle(
+                          color: _billGood,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5)),
+                ]),
+              ),
+            ]),
+          ),
+          if (merchant != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(merchant!,
+                    style: const TextStyle(
+                        color: _billInk, fontWeight: FontWeight.w800, fontSize: 21)),
+              ),
+            ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              children: [
+                for (final it in items)
+                  _priceRow((it['name'] as String?) ?? '',
+                      ((it['price'] as num?) ?? 0).toDouble()),
+                if (extra > 0.01) ...[
+                  const SizedBox(height: 4),
+                  _priceRow(tr('Kiti mokesčiai'), extra, muted: true),
+                ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(color: _billHair, height: 1),
+                ),
+                _priceRow(tr('Iš viso'), total, big: true),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => _BillAddPeopleScreen(
+                        items: items, total: total, merchant: merchant))),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _billAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14))),
+                child: Text(tr('Tęsti'),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _priceRow(String name, double price, {bool muted = false, bool big = false}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(children: [
+          Expanded(
+              child: Text(name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: muted ? _billMuted : _billInk,
+                      fontWeight: big ? FontWeight.w800 : FontWeight.w600,
+                      fontSize: big ? 17 : 14.5))),
+          const SizedBox(width: 10),
+          Text(_eur0(price),
+              style: TextStyle(
+                  color: muted ? _billMuted : _billInk,
+                  fontWeight: FontWeight.w800,
+                  fontSize: big ? 17 : 14.5)),
+        ]),
+      );
+}
+
+// ── STEP 2: Add people ──────────────────────────────────────────────────────
+class _BillAddPeopleScreen extends StatefulWidget {
+  const _BillAddPeopleScreen(
+      {required this.items, required this.total, required this.merchant});
+  final List<Map<String, dynamic>> items;
+  final double total;
+  final String? merchant;
+  @override
+  State<_BillAddPeopleScreen> createState() => _BillAddPeopleScreenState();
+}
+
+class _BillAddPeopleScreenState extends State<_BillAddPeopleScreen> {
   final List<_BillPerson> _people = [];
-  // item index -> set of person indices sharing that item's cost evenly.
-  final Map<int, Set<int>> _assign = {};
   final _nameCtrl = TextEditingController();
 
   @override
@@ -9694,193 +10017,297 @@ class _BillSplitScreenState extends State<_BillSplitScreen> {
     super.dispose();
   }
 
-  void _addPerson() {
+  void _add() {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
     setState(() {
-      _people.add(_BillPerson(name, _palette[_people.length % _palette.length]));
+      _people.add(_BillPerson(name, _billPalette[_people.length % _billPalette.length]));
       _nameCtrl.clear();
     });
   }
 
-  void _removePerson(int i) {
-    setState(() {
-      _people.removeAt(i);
-      // Re-key every assignment set: drop the removed person, shift every
-      // index above it down by one so they still point at the right person.
-      final next = <int, Set<int>>{};
-      _assign.forEach((item, set) {
-        final shifted = <int>{};
-        for (final p in set) {
-          if (p == i) continue;
-          shifted.add(p > i ? p - 1 : p);
-        }
-        next[item] = shifted;
-      });
-      _assign
-        ..clear()
-        ..addAll(next);
-    });
+  void _remove(int i) => setState(() => _people.removeAt(i));
+
+  void _showAddSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _billCard,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(tr('Vardas'),
+              style: const TextStyle(
+                  color: _billInk, fontWeight: FontWeight.w800, fontSize: 17)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _nameCtrl,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            style: const TextStyle(color: _billInk, fontSize: 16),
+            onSubmitted: (_) {
+              _add();
+              Navigator.pop(ctx);
+            },
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: _billCard2,
+              hintText: tr('Vardas…'),
+              hintStyle: TextStyle(color: _billFaint),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                _add();
+                Navigator.pop(ctx);
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _billAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14))),
+              child: Text(tr('Pridėti'),
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _billBg,
+      appBar: AppBar(
+        backgroundColor: _billBg,
+        elevation: 0,
+        foregroundColor: _billInk,
+        title: Text(tr('Pridėti žmones'),
+            style: const TextStyle(fontWeight: FontWeight.w800, color: _billInk)),
+      ),
+      body: SafeArea(
+        child: Column(children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              children: [
+                for (var i = 0; i < _people.length; i++) _personRow(i),
+                InkWell(
+                  onTap: _showAddSheet,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: Row(children: [
+                      Icon(Icons.add_rounded, color: _billAccent),
+                      const SizedBox(width: 10),
+                      Text(tr('Pridėti žmogų'),
+                          style: const TextStyle(
+                              color: _billAccent,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15)),
+                    ]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _people.isEmpty
+                    ? null
+                    : () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => _BillAssignItemsScreen(
+                            items: widget.items,
+                            total: widget.total,
+                            merchant: widget.merchant,
+                            people: _people))),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _billAccent,
+                    disabledBackgroundColor: _billCard2,
+                    disabledForegroundColor: _billFaint,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14))),
+                child: Text(tr('Tęsti'),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _personRow(int i) {
+    final p = _people[i];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration:
+          BoxDecoration(color: _billCard, borderRadius: BorderRadius.circular(14)),
+      child: Row(children: [
+        _billAvatar(p, radius: 17, fontSize: 14),
+        const SizedBox(width: 12),
+        Expanded(
+            child: Text(p.name,
+                style: const TextStyle(
+                    color: _billInk, fontWeight: FontWeight.w700, fontSize: 15.5))),
+        GestureDetector(
+            onTap: () => _remove(i),
+            child: Icon(Icons.close_rounded, color: _billFaint)),
+      ]),
+    );
+  }
+}
+
+// ── STEP 3: Assign items ────────────────────────────────────────────────────
+class _BillAssignItemsScreen extends StatefulWidget {
+  const _BillAssignItemsScreen(
+      {required this.items,
+      required this.total,
+      required this.merchant,
+      required this.people});
+  final List<Map<String, dynamic>> items;
+  final double total;
+  final String? merchant;
+  final List<_BillPerson> people;
+  @override
+  State<_BillAssignItemsScreen> createState() => _BillAssignItemsScreenState();
+}
+
+class _BillAssignItemsScreenState extends State<_BillAssignItemsScreen> {
+  final Map<int, Set<int>> _assign = {};
+
+  double _priceOf(int i) => ((widget.items[i]['price'] as num?) ?? 0).toDouble();
+  double get _itemSum =>
+      widget.items.fold(0.0, (s, it) => s + ((it['price'] as num?) ?? 0).toDouble());
+  double get _extra => (widget.total - _itemSum).clamp(0, double.infinity);
 
   void _toggle(int itemIndex, int personIndex) => setState(() {
         final s = _assign.putIfAbsent(itemIndex, () => {});
         if (!s.remove(personIndex)) s.add(personIndex);
       });
 
-  double _priceOf(int i) => ((widget.items[i]['price'] as num?) ?? 0).toDouble();
-
-  double _totalFor(int personIndex) {
+  double get _unassigned {
     var sum = 0.0;
     for (var i = 0; i < widget.items.length; i++) {
-      final s = _assign[i];
-      if (s == null || s.isEmpty || !s.contains(personIndex)) continue;
-      sum += _priceOf(i) / s.length;
+      if ((_assign[i] ?? const <int>{}).isEmpty) sum += _priceOf(i);
     }
     return sum;
   }
 
-  // Printed total minus whatever's been assigned so far — covers both an
-  // item nobody's claimed yet AND any tax/service the receipt's total
-  // includes that isn't broken out as its own line item.
-  double get _unassigned {
-    var assigned = 0.0;
-    for (var i = 0; i < widget.items.length; i++) {
-      if ((_assign[i] ?? const <int>{}).isNotEmpty) assigned += _priceOf(i);
-    }
-    return widget.total - assigned;
-  }
-
   @override
   Widget build(BuildContext context) {
+    final unassigned = _unassigned;
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: _billBg,
       appBar: AppBar(
-        backgroundColor: _bg,
+        backgroundColor: _billBg,
         elevation: 0,
-        foregroundColor: _ink,
-        title: Text(tr('Padalinti sąskaitą'),
-            style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(tr('Niekas neišsaugoma'),
-                  style: TextStyle(
-                      fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
-            ),
-          ),
-        ],
+        foregroundColor: _billInk,
+        title: Text(tr('Priskirti prekes'),
+            style: const TextStyle(fontWeight: FontWeight.w800, color: _billInk)),
       ),
       body: SafeArea(
         child: Column(children: [
-          Expanded(
+          SizedBox(
+            height: 78,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                Text(tr('Kas dalinasi?'),
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: _muted)),
-                const SizedBox(height: 10),
-                Wrap(spacing: 10, runSpacing: 10, children: [
-                  for (var i = 0; i < _people.length; i++) _personPill(i),
-                  _addPersonField(),
-                ]),
-                const SizedBox(height: 22),
-                Text(tr('Kas ką pirko?'),
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: _muted)),
-                const SizedBox(height: 8),
-                if (_people.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Text(tr('Pirmiau pridėk bent vieną žmogų.'),
-                        style: TextStyle(color: _faint)),
-                  )
-                else
-                  for (var i = 0; i < widget.items.length; i++) _itemRow(i),
+                for (var p = 0; p < widget.people.length; p++) _personLegend(p),
               ],
             ),
           ),
-          _summaryBar(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+              children: [
+                for (var i = 0; i < widget.items.length; i++) _itemRow(i),
+                if (_extra > 0.01) _extraRow(),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            decoration: BoxDecoration(
+                color: _billCard, border: Border(top: BorderSide(color: _billHair))),
+            child: SafeArea(
+              top: false,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Row(children: [
+                  Text('${tr('Nepriskirta')}: ${_eur0(unassigned)}',
+                      style: TextStyle(
+                          color: unassigned > 0.01 ? _billMuted : _billGood,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  Text('${tr('Iš viso')}: ${_eur0(widget.total)}',
+                      style: const TextStyle(
+                          color: _billInk, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                ]),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => _BillReviewSplitScreen(
+                            items: widget.items,
+                            total: widget.total,
+                            merchant: widget.merchant,
+                            people: widget.people,
+                            assign: _assign,
+                            extra: _extra))),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: _billAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14))),
+                    child: Text(tr('Peržiūrėti skaidymą'),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15)),
+                  ),
+                ),
+              ]),
+            ),
+          ),
         ]),
       ),
     );
   }
 
-  // 2026-08-16: bigger, avatar-style — was a plain Material Chip with just
-  // a name label, small enough that it read as "very basic" next to the
-  // scale of everything else on this screen.
-  Widget _personPill(int i) {
-    final p = _people[i];
-    final initial = p.name.trim().isEmpty ? '?' : p.name.trim()[0].toUpperCase();
-    return Container(
-      padding: const EdgeInsets.only(left: 5, right: 12, top: 5, bottom: 5),
-      decoration: BoxDecoration(
-        color: p.color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: p.color.withValues(alpha: 0.35)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: p.color,
-          child: Text(initial,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
-        ),
-        const SizedBox(width: 9),
-        Text(p.name,
-            style: TextStyle(
-                color: p.color, fontWeight: FontWeight.w800, fontSize: 14.5)),
-        const SizedBox(width: 6),
-        GestureDetector(
-          onTap: () => _removePerson(i),
-          child: Icon(Icons.close_rounded, size: 17, color: p.color),
-        ),
-      ]),
-    );
-  }
-
-  // 2026-08-16: taller pill + a real filled circular add-button, replacing
-  // a small OutlineInputBorder box with a tiny inline icon.
-  Widget _addPersonField() {
-    return Container(
-      height: 46,
-      padding: const EdgeInsets.only(left: 16, right: 5),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: _hair),
-        color: _card,
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
+  Widget _personLegend(int p) {
+    final person = widget.people[p];
+    return Padding(
+      padding: const EdgeInsets.only(right: 16),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        _billAvatar(person, radius: 20, fontSize: 15),
+        const SizedBox(height: 5),
         SizedBox(
-          width: 120,
-          child: TextField(
-            controller: _nameCtrl,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _addPerson(),
-            style: TextStyle(color: _ink, fontSize: 15, fontWeight: FontWeight.w600),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: tr('Vardas…'),
-              hintStyle: TextStyle(color: _faint),
-              border: InputBorder.none,
-            ),
-          ),
-        ),
-        GestureDetector(
-          onTap: _addPerson,
-          child: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(color: _purple, shape: BoxShape.circle),
-            child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
-          ),
+          width: 48,
+          child: Text(person.name,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: _billMuted, fontSize: 11)),
         ),
       ]),
     );
@@ -9892,40 +10319,38 @@ class _BillSplitScreenState extends State<_BillSplitScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _hair)),
+      decoration:
+          BoxDecoration(color: _billCard, borderRadius: BorderRadius.circular(14)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
               child: Text((it['name'] as String?) ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: FontWeight.w700, color: _ink))),
+                  style: const TextStyle(
+                      color: _billInk, fontWeight: FontWeight.w700, fontSize: 14.5))),
           const SizedBox(width: 8),
           Text(_eur0(_priceOf(i)),
-              style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+              style: const TextStyle(color: _billInk, fontWeight: FontWeight.w800)),
         ]),
-        const SizedBox(height: 8),
-        Wrap(spacing: 6, runSpacing: 6, children: [
-          for (var p = 0; p < _people.length; p++)
+        const SizedBox(height: 9),
+        Wrap(spacing: 7, runSpacing: 7, children: [
+          for (var p = 0; p < widget.people.length; p++)
             GestureDetector(
               onTap: () => _toggle(i, p),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: assigned.contains(p)
-                      ? _people[p].color
-                      : _people[p].color.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(_people[p].name,
+              child: CircleAvatar(
+                radius: 14,
+                backgroundColor: assigned.contains(p)
+                    ? widget.people[p].color
+                    : widget.people[p].color.withValues(alpha: 0.18),
+                child: Text(
+                    widget.people[p].name.trim().isEmpty
+                        ? '?'
+                        : widget.people[p].name.trim()[0].toUpperCase(),
                     style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color:
-                            assigned.contains(p) ? Colors.white : _people[p].color)),
+                        color: assigned.contains(p) ? Colors.white : widget.people[p].color,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5)),
               ),
             ),
         ]),
@@ -9933,119 +10358,388 @@ class _BillSplitScreenState extends State<_BillSplitScreen> {
     );
   }
 
-  // 2026-08-16: each total now animates in place (TweenAnimationBuilder)
-  // whenever an assignment changes, and a full-width "Viskas paskirstyta"
-  // banner pops in once every euro is claimed — the "some kind of effect"
-  // this screen was missing when it only ever quietly rewrote numbers at
-  // the bottom. Deliberately still ONE screen, no step-by-step wizard —
-  // that part of the reference was explicitly not wanted, only the polish.
-  Widget _summaryBar() {
-    final unassigned = _unassigned;
-    final allDone = _people.isNotEmpty && unassigned.abs() < 0.01;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: BoxDecoration(
-          color: _card,
-          border: Border(top: BorderSide(color: _hair)),
-          boxShadow: DS.e1),
-      child: SafeArea(
-        top: false,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 280),
-            transitionBuilder: (child, anim) => ScaleTransition(
-                scale: CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
-                child: FadeTransition(opacity: anim, child: child)),
-            child: !allDone
-                ? const SizedBox(key: ValueKey('notdone'), height: 0)
-                : Container(
-                    key: const ValueKey('done'),
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                        color: _good.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(12)),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.check_circle_rounded, color: _good, size: 18),
-                      const SizedBox(width: 7),
-                      Text(tr('Viskas paskirstyta'),
-                          style: TextStyle(
-                              color: _good, fontWeight: FontWeight.w800, fontSize: 13.5)),
-                    ]),
-                  ),
+  Widget _extraRow() => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration:
+            BoxDecoration(color: _billCard2, borderRadius: BorderRadius.circular(14)),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tr('Kiti mokesčiai'),
+                  style: const TextStyle(
+                      color: _billInk, fontWeight: FontWeight.w700, fontSize: 14.5)),
+              Text(tr('Dalinama lygiai visiems'),
+                  style: TextStyle(color: _billFaint, fontSize: 11.5)),
+            ]),
           ),
-          if (_people.isNotEmpty)
-            SizedBox(
-              height: 64,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  for (var p = 0; p < _people.length; p++) _personTotal(p),
-                ],
+          Text(_eur0(_extra),
+              style: const TextStyle(color: _billInk, fontWeight: FontWeight.w800)),
+        ]),
+      );
+}
+
+// ── STEP 4: Review split ─────────────────────────────────────────────────────
+class _BillReviewSplitScreen extends StatelessWidget {
+  const _BillReviewSplitScreen({
+    required this.items,
+    required this.total,
+    required this.merchant,
+    required this.people,
+    required this.assign,
+    required this.extra,
+  });
+  final List<Map<String, dynamic>> items;
+  final double total;
+  final String? merchant;
+  final List<_BillPerson> people;
+  final Map<int, Set<int>> assign;
+  final double extra;
+
+  double _priceOf(int i) => ((items[i]['price'] as num?) ?? 0).toDouble();
+
+  List<MapEntry<String, double>> _breakdownFor(int p) {
+    final out = <MapEntry<String, double>>[];
+    for (var i = 0; i < items.length; i++) {
+      final s = assign[i];
+      if (s == null || s.isEmpty || !s.contains(p)) continue;
+      out.add(MapEntry((items[i]['name'] as String?) ?? '', _priceOf(i) / s.length));
+    }
+    if (people.isNotEmpty && extra > 0.01) {
+      out.add(MapEntry(tr('Kiti mokesčiai'), extra / people.length));
+    }
+    return out;
+  }
+
+  double _totalFor(int p) => _breakdownFor(p).fold(0.0, (s, e) => s + e.value);
+
+  Future<void> _confirmAndSave(BuildContext context) async {
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final personTotals = [for (var p = 0; p < people.length; p++) _totalFor(p)];
+    await DashboardStore.saveBillSplit({
+      'id': id,
+      'merchant': merchant,
+      'date': _billYmd(DateTime.now()),
+      'total': total,
+      'people': [for (final p in people) p.toJson()],
+      'personTotals': personTotals,
+    });
+    if (!context.mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _BillSplitSavedScreen(
+        id: id,
+        merchant: merchant,
+        date: _billYmd(DateTime.now()),
+        total: total,
+        people: people,
+        personTotals: personTotals,
+        justSaved: true,
+      ),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _billBg,
+      appBar: AppBar(
+        backgroundColor: _billBg,
+        elevation: 0,
+        foregroundColor: _billInk,
+        title: Text(tr('Peržiūrėti skaidymą'),
+            style: const TextStyle(fontWeight: FontWeight.w800, color: _billInk)),
+      ),
+      body: SafeArea(
+        child: Column(children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              children: [
+                for (var p = 0; p < people.length; p++) _personCard(p),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Text(tr('Iš viso'),
+                      style: const TextStyle(
+                          color: _billInk, fontWeight: FontWeight.w800, fontSize: 17)),
+                  const Spacer(),
+                  Text(_eur0(total),
+                      style: const TextStyle(
+                          color: _billInk, fontWeight: FontWeight.w800, fontSize: 17)),
+                ]),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => _confirmAndSave(context),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: _billAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14))),
+                  child: Text(tr('Patvirtinti ir išsaugoti'),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 15)),
+                ),
               ),
-            ),
-          if (unassigned.abs() > 0.01)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text('${tr('Nepriskirta')}: ${_eur0(unassigned)}',
-                  style: TextStyle(fontSize: 12, color: _muted)),
-            ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: _purple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14))),
-              child: Text(tr('Uždaryti'),
-                  style: const TextStyle(fontWeight: FontWeight.w800)),
-            ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => _exitBillSplitWizard(context),
+                child: Text(tr('Atmesti'),
+                    style: TextStyle(color: _billFaint, fontWeight: FontWeight.w700)),
+              ),
+            ]),
           ),
         ]),
       ),
     );
   }
 
-  Widget _personTotal(int p) {
-    final person = _people[p];
-    final initial =
-        person.name.trim().isEmpty ? '?' : person.name.trim()[0].toUpperCase();
+  Widget _personCard(int p) {
+    final person = people[p];
+    final breakdown = _breakdownFor(p);
     return Container(
-      margin: const EdgeInsets.only(right: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-          color: person.color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(14)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        CircleAvatar(
-          radius: 14,
-          backgroundColor: person.color,
-          child: Text(initial,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration:
+          BoxDecoration(color: _billCard, borderRadius: BorderRadius.circular(16)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          _billAvatar(person),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Text(person.name,
+                  style: const TextStyle(
+                      color: _billInk, fontWeight: FontWeight.w800, fontSize: 15.5))),
+          Text(_eur0(_totalFor(p)),
               style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
-        ),
-        const SizedBox(width: 8),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(person.name,
-              style: TextStyle(fontSize: 10.5, color: _muted, fontWeight: FontWeight.w600)),
-          // The number itself counts up/down to its new value instead of
-          // silently snapping — the one bit of "did something just happen"
-          // feedback a tap on an item chip gives back.
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: _totalFor(p)),
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOutCubic,
-            builder: (_, value, __) => Text(_eur0(value),
-                style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w800, color: _ink)),
-          ),
+                  color: _billInk, fontWeight: FontWeight.w800, fontSize: 15.5)),
         ]),
+        if (breakdown.isNotEmpty) ...[
+          const SizedBox(height: 9),
+          for (final e in breakdown)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(children: [
+                Expanded(
+                    child: Text(e.key,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: _billMuted, fontSize: 12.5))),
+                Text(_eur0(e.value), style: TextStyle(color: _billMuted, fontSize: 12.5)),
+              ]),
+            ),
+        ],
       ]),
+    );
+  }
+}
+
+// ── STEP 5: Saved confirmation (also doubles as the read-only viewer for a
+// past save, opened from _BillSplitHomeScreen) ─────────────────────────────
+class _BillSplitSavedScreen extends StatefulWidget {
+  const _BillSplitSavedScreen({
+    required this.id,
+    required this.merchant,
+    required this.date,
+    required this.total,
+    required this.people,
+    required this.personTotals,
+    required this.justSaved,
+  });
+  final String id;
+  final String? merchant;
+  final String date;
+  final double total;
+  final List<_BillPerson> people;
+  final List<double> personTotals;
+  // true right after Confirm-and-save (shows the checkmark moment); false
+  // when reopened later from the saved-splits list (skips straight to the
+  // summary, offers delete instead of a second "saved!" animation).
+  final bool justSaved;
+
+  @override
+  State<_BillSplitSavedScreen> createState() => _BillSplitSavedScreenState();
+}
+
+class _BillSplitSavedScreenState extends State<_BillSplitSavedScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 550))
+        ..forward();
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _billCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(tr('Ištrinti skaidymą?'),
+            style: const TextStyle(color: _billInk, fontWeight: FontWeight.w800)),
+        content: Text(tr('Šio veiksmo anuliuoti negalima.'),
+            style: TextStyle(color: _billMuted)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Atšaukti'), style: TextStyle(color: _billMuted))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Ištrinti'),
+                  style: const TextStyle(
+                      color: Color(0xFFE0574F), fontWeight: FontWeight.w800))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await DashboardStore.deleteBillSplit(widget.id);
+    if (mounted) _exitBillSplitWizard(context);
+  }
+
+  void _share() {
+    final b = StringBuffer()
+      ..writeln('${widget.merchant ?? tr('Kvitas')} · ${widget.date}')
+      ..writeln(_eur0(widget.total))
+      ..writeln();
+    for (var i = 0; i < widget.people.length; i++) {
+      b.writeln('${widget.people[i].name}: ${_eur0(widget.personTotals[i])}');
+    }
+    SharePlus.instance.share(ShareParams(text: b.toString().trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final peopleLabel = widget.people.length == 1
+        ? tr('1 žmogus')
+        : '${widget.people.length} ${tr('žmonės')}';
+    return Scaffold(
+      backgroundColor: _billBg,
+      appBar: widget.justSaved
+          ? null
+          : AppBar(
+              backgroundColor: _billBg,
+              elevation: 0,
+              foregroundColor: _billInk,
+              title: Text(widget.merchant ?? tr('Kvitas'),
+                  style:
+                      const TextStyle(fontWeight: FontWeight.w800, color: _billInk)),
+              actions: [
+                IconButton(
+                    onPressed: _delete,
+                    icon: Icon(Icons.delete_outline_rounded, color: _billFaint)),
+              ],
+            ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          children: [
+            if (widget.justSaved) ...[
+              const SizedBox(height: 10),
+              Center(
+                child: ScaleTransition(
+                  scale: CurvedAnimation(parent: _ctl, curve: Curves.elasticOut),
+                  child: Container(
+                    width: 76,
+                    height: 76,
+                    decoration:
+                        const BoxDecoration(color: _billGood, shape: BoxShape.circle),
+                    child: const Icon(Icons.check_rounded, color: Colors.white, size: 40),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Center(
+                child: Text(tr('Skaidymas išsaugotas!'),
+                    style: const TextStyle(
+                        color: _billInk, fontWeight: FontWeight.w800, fontSize: 21)),
+              ),
+              const SizedBox(height: 6),
+              Center(
+                child: Text(
+                    '${widget.merchant ?? tr('Kvitas')} · ${widget.date} · $peopleLabel',
+                    style: TextStyle(color: _billMuted, fontSize: 13)),
+              ),
+              const SizedBox(height: 4),
+              Center(
+                child: Text(_eur0(widget.total),
+                    style: const TextStyle(
+                        color: _billInk, fontWeight: FontWeight.w800, fontSize: 26)),
+              ),
+              const SizedBox(height: 26),
+            ] else ...[
+              Text(_eur0(widget.total),
+                  style: const TextStyle(
+                      color: _billInk, fontWeight: FontWeight.w800, fontSize: 30)),
+              const SizedBox(height: 4),
+              Text('${widget.date} · $peopleLabel',
+                  style: TextStyle(color: _billMuted, fontSize: 13)),
+              const SizedBox(height: 20),
+            ],
+            for (var i = 0; i < widget.people.length; i++)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                    color: _billCard, borderRadius: BorderRadius.circular(14)),
+                child: Row(children: [
+                  _billAvatar(widget.people[i]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                      child: Text(widget.people[i].name,
+                          style: const TextStyle(
+                              color: _billInk,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15))),
+                  Text(_eur0(widget.personTotals[i]),
+                      style: const TextStyle(
+                          color: _billInk, fontWeight: FontWeight.w800, fontSize: 15)),
+                ]),
+              ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _share,
+                icon: const Icon(Icons.ios_share_rounded, size: 18),
+                label: Text(tr('Dalintis suvestine'),
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _billAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14))),
+              ),
+            ),
+            if (widget.justSaved) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => _exitBillSplitWizard(context),
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: _billMuted,
+                      side: BorderSide(color: _billHair),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14))),
+                  child: Text(tr('Uždaryti')),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

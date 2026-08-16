@@ -902,6 +902,43 @@ class DashboardStore {
     }
   }
 
+  static const _kBillSplits = 'billSplits';
+
+  /// Saved Bill Split results — completely separate from every other
+  /// persisted concept here (txEdits, salaryRefs, txSplits): a Bill Split
+  /// never touches a real bank transaction, budget, or category. This list
+  /// exists purely for Bill Split's own "past splits" history, newest
+  /// first, and is the ONLY thing a Bill Split ever writes to storage.
+  static List<Map<String, dynamic>> billSplits() {
+    try {
+      final raw = _box.get(_kBillSplits) as String?;
+      if (raw == null) return [];
+      return (jsonDecode(raw) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> saveBillSplit(Map<String, dynamic> split) async {
+    final list = billSplits()..insert(0, split);
+    try {
+      await _box.put(_kBillSplits, jsonEncode(list));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  static Future<void> deleteBillSplit(String id) async {
+    final list = billSplits()..removeWhere((s) => s['id'] == id);
+    try {
+      await _box.put(_kBillSplits, jsonEncode(list));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   /// Mark [id] deleted (and drop any field override for it — a gone row needs none).
   static Future<void> addTxDeleted(String id) async {
     if (id.isEmpty) return;

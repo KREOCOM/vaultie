@@ -121,8 +121,16 @@ _TOOL = {
                 "type": "number",
                 "description": "The receipt's own printed grand total.",
             },
+            "merchant": {
+                "type": ["string", "null"],
+                "description": (
+                    "The store/restaurant name printed at the top of the "
+                    "receipt (e.g. \"Maxima\", \"IKI\"), in Lithuanian as "
+                    "printed. null if genuinely not legible — never guess."
+                ),
+            },
         },
-        "required": ["items", "total"],
+        "required": ["items", "total", "merchant"],
     },
 }
 
@@ -285,4 +293,7 @@ def _validate(obj: dict):
         total = round(float(obj.get("total")), 2)
     except (TypeError, ValueError):
         total = round(sum(i["price"] for i in out), 2)
-    return {"items": out, "total": total}
+    merchant = obj.get("merchant")
+    merchant = str(merchant).strip()[:60] if isinstance(merchant, str) else None
+    merchant = merchant or None  # an empty string is the same as "not legible"
+    return {"items": out, "total": total, "merchant": merchant}

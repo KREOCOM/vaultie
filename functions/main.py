@@ -1206,7 +1206,8 @@ def scan_receipt(req: https_fn.CallableRequest) -> dict:
     The client sends ``{image, mediaType}`` — a base64 photo of the receipt
     (JPEG/PNG). Nothing is persisted server-side; the image lives only for
     this one request, same contract as finance_chat. Returns
-    ``{items: [{name, price, category}], total}``; an empty items list on any
+    ``{items: [{name, price, category}], total, merchant}`` (merchant is the
+    store/restaurant name if legible, else null); an empty items list on any
     failure so the client falls back to its own empty manual editor rather
     than erroring out.
     """
@@ -1221,10 +1222,10 @@ def scan_receipt(req: https_fn.CallableRequest) -> dict:
     if len(image_b64) > 8_000_000:
         logging.warning("scan_receipt rid=%s image too large (%d chars)",
                          rid, len(image_b64))
-        return {"items": [], "total": 0}
+        return {"items": [], "total": 0, "merchant": None}
     result = _scan_receipt(image_b64, media_type, ANTHROPIC_API_KEY.value)
     if result is None:
-        return {"items": [], "total": 0}
+        return {"items": [], "total": 0, "merchant": None}
     return result
 
 

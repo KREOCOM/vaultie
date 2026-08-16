@@ -10,15 +10,28 @@ from receipt_scan import (_CATEGORIES, _TOOL_NAME, _tool_input, _validate,
 
 
 def _run():
-    # Happy path: well-formed input, real category names.
+    # Happy path: well-formed input, real category names, a legible merchant.
     r = _validate(
         {"items": [{"name": "Duona", "price": 1.5, "category": "Maisto prekės"},
                     {"name": "Alus", "price": 4.2, "category": "Alkoholis, tabakas"}],
-         "total": 5.7})
+         "total": 5.7, "merchant": "Maxima"})
     assert r is not None
     assert len(r["items"]) == 2
     assert r["total"] == 5.7
     assert r["items"][0]["category"] == "Maisto prekės"
+    assert r["merchant"] == "Maxima"
+
+    # No merchant, or a genuinely blank one, is None — never an empty string
+    # the UI would render as a blank-but-present header.
+    r = _validate({"items": [{"name": "X", "price": 1, "category": "Kita"}],
+                    "total": 1})
+    assert r["merchant"] is None
+    r = _validate({"items": [{"name": "X", "price": 1, "category": "Kita"}],
+                    "total": 1, "merchant": "  "})
+    assert r["merchant"] is None
+    r = _validate({"items": [{"name": "X", "price": 1, "category": "Kita"}],
+                    "total": 1, "merchant": 42})
+    assert r["merchant"] is None
 
     # A category the model invented (not in our taxonomy) falls back to
     # "Kita" rather than being dropped or shipped as an unrecognised string

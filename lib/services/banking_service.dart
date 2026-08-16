@@ -223,12 +223,14 @@ class BankingService {
 
   /// Parse a photographed receipt into categorised line items, to pre-fill
   /// the manual split editor (see dashboard_preview.dart
-  /// _SplitTransactionScreen). [imageB64] is the photo, base64-encoded;
-  /// [mediaType] is its MIME type ('image/jpeg' or 'image/png'). Returns
-  /// `(items, total)` — items as `{name, price, category}` maps; an empty
-  /// list on any failure (network, no items recognised) so the caller falls
-  /// back to its own empty manual editor rather than erroring out.
-  Future<(List<Map<String, dynamic>>, double)> scanReceipt({
+  /// _SplitTransactionScreen) or Bill Split. [imageB64] is the photo,
+  /// base64-encoded; [mediaType] is its MIME type ('image/jpeg' or
+  /// 'image/png'). Returns `(items, total, merchant)` — items as
+  /// `{name, price, category}` maps, merchant the store/restaurant name if
+  /// legible (else null); an empty item list on any failure (network, no
+  /// items recognised) so the caller falls back to its own empty manual
+  /// editor rather than erroring out.
+  Future<(List<Map<String, dynamic>>, double, String?)> scanReceipt({
     required String imageB64,
     required String mediaType,
   }) {
@@ -240,6 +242,7 @@ class BankingService {
                   .map((e) => e.cast<String, dynamic>())
                   .toList(),
               ((m['total'] as num?) ?? 0).toDouble(),
+              (m['merchant'] as String?),
             ),
         // Matches scan_receipt's own timeout_sec=110 (main.py) — a vision
         // call over a busy receipt can genuinely take a while; 45s was
