@@ -3851,12 +3851,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 // 2026-08-16: PREVIEW-ONLY — the line chart (candlesticks,
                 // clean line, projection), the account-split bar, and the
                 // cash-flow strip all kept reading as "too much"/"not
-                // pretty" on this hero. Settled on a cash-on-hand row
-                // instead — no card, just a line of text and two small
-                // step buttons, since a bank can't report physical cash.
-                if (designPreviewPalette)
-                  _cashRow()
-                else
+                // pretty" on this hero, so none of it renders in preview.
+                // The cash-on-hand row (_cashRow, the "+ Grynieji" ghost
+                // link) that used to sit in this exact slot is pulled too —
+                // "nuimk cash sugalvosim kazka kito su cash" — cash needs a
+                // different treatment, not decided yet. _cashRow/_cashAsset/
+                // _promptCash are left defined, unused, for whatever that
+                // treatment turns out to be.
+                if (!designPreviewPalette)
                 // Chart with a soft fill, the balance pill at the endpoint, and € max/min.
                 SizedBox(
                   height: 78,
@@ -4536,7 +4538,19 @@ class _DashboardPreviewState extends State<DashboardPreview>
             Icon(Icons.account_balance_wallet_rounded,
                 size: 15, color: _heroInk),
             const SizedBox(width: 6),
-            Text(tr('Sąskaitos'),
+            // NOT tr('Sąskaitos') — that key is already taken by the
+            // Prenumeratos/Sąskaitos BILLS card ("Sąskaitos" → "Bills"),
+            // a different Lithuanian word that happens to be spelled the
+            // same as this button's "bank accounts" meaning. tr() keys off
+            // the literal Lithuanian text, so reusing it here showed
+            // "Bills" on a button that opens the connected BANK accounts —
+            // wrong word English-side even though the Lithuanian itself was
+            // correct. Branches on locale directly instead of colliding
+            // with that key.
+            Text(
+                effectiveLocale().languageCode == 'en'
+                    ? 'Accounts'
+                    : 'Sąskaitos',
                 style: TextStyle(
                     fontSize: 13, color: _heroInk, fontWeight: FontWeight.w700)),
             const SizedBox(width: 3),
