@@ -493,7 +493,7 @@ _SCAN_WORKERS = 6
 
 
 def _scan_one_account(client: EnableBankingClient, m: dict, *, months_back: int,
-                      psu_available: dict | None):
+                      psu_available: dict | None, today=None):
     """Balance + transactions for ONE account. Never raises — every failure path
     returns a result dict, so a thread pool can run these concurrently and the
     caller just merges whatever comes back, in order, with no exception to catch
@@ -508,8 +508,16 @@ def _scan_one_account(client: EnableBankingClient, m: dict, *, months_back: int,
         # bank's rate limit. Swedbank has a low cap: fetched after ~2 min of
         # paging it returned 429 → silently 0. Fresh at the top, it succeeds.
         bal, bal_ccy = normalize.pick_balance(client.balances(m["uid"], psu=psu))
+        # `today` — without it this fell back to the SERVER's own UTC date
+        # (EnableBankingClient.transactions' own `today or dt.date.today()`
+        # default), never the caller-computed client-local one already
+        # threaded into _merge_known/_build_result a few lines up from here.
+        # Cloud Run's UTC clock runs behind Lithuania's by 2-3 hours, so the
+        # "freshest window" (`d_to = today`) could end a few hours short of
+        # the user's actual today — on top of, not instead of, Enable
+        # Banking's own reporting lag for a transaction made minutes ago.
         acc_txns, diag = client.transactions(m["uid"], months_back=months_back,
-                                             psu=psu)
+                                             psu=psu, today=today)
         for t in acc_txns:
             # Tag every entry with the bank it came from: it's what lets the
             # phone's cache be merged back per-bank when one bank goes quiet.
@@ -559,7 +567,7 @@ def _scan_one_account(client: EnableBankingClient, m: dict, *, months_back: int,
 
 
 def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int,
-                   psu_available: dict | None = None):
+                   psu_available: dict | None = None, today=None):
     """Fetch transactions + current balance for each account BY UID (no session
     needed — Enable Banking addresses accounts directly, so this works for a
     freshly-created session AND for a stored multi-bank refresh weeks later).
@@ -606,7 +614,7 @@ def _scan_accounts(client: EnableBankingClient, metas: list, *, months_back: int
     with ThreadPoolExecutor(max_workers=min(_SCAN_WORKERS, len(to_fetch))) as ex:
         results = list(ex.map(
             lambda m: _scan_one_account(client, m, months_back=months_back,
-                                        psu_available=psu_available),
+                                        psu_available=psu_available, today=today),
             to_fetch))
 
     for m, r in zip(to_fetch, results):
@@ -1009,12 +1017,16 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
     # granted by the person holding this Firebase session.
     _remember_accounts(_uid(req), [m.get("uid") for m in metas],
                        session_id=session.get("session_id"))
+    # Computed before the scan (not after, as it used to be) — the fetch
+    # window itself needs the caller's real local date, same as
+    # _merge_known/_build_result below already get.
+    today = _client_today(data)
     all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
-        client, metas, months_back=months_back, psu_available=_psu_available(req))
+        client, metas, months_back=months_back, psu_available=_psu_available(req),
+        today=today)
     ai_enabled = bool(data.get("aiEnrichment"))
     # This scan only covers the bank being connected, so the phone's cache of the
     # OTHER banks is what keeps them whole in the combined payload.
-    today = _client_today(data)
     all_txns, summaries, own_ibans, stale = _merge_known(
         all_txns, summaries, own_ibans, scan_diag, data.get("known") or {},
         months_back, today=today)
@@ -1116,7 +1128,7 @@ def refresh_dashboard(req: https_fn.CallableRequest) -> dict:
         fetch_months = max(1, (fresh_days + 29) // 30)
     all_txns, summaries, scan_diag, own_ibans = _scan_accounts(
         _client(), metas, months_back=fetch_months,
-        psu_available=_psu_available(req))
+        psu_available=_psu_available(req), today=today)
     all_txns, summaries, own_ibans, stale = _merge_known(
         all_txns, summaries, own_ibans, scan_diag, known,
         months_back, today=today, fresh_from=fresh_from)

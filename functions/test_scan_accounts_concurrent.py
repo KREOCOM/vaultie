@@ -51,7 +51,7 @@ class FakeClient:
         return [{"balance_amount": {"amount": "100.00", "currency": "EUR"},
                  "balance_type": "CLBD"}]
 
-    def transactions(self, uid, *, months_back=6, psu=None):
+    def transactions(self, uid, *, months_back=6, psu=None, today=None):
         time.sleep(self.delays.get(uid, 0) / 2)
         if uid in self.fail_uids:
             raise EnableBankingError(401, f"/accounts/{uid}/transactions", "revoked")
