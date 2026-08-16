@@ -2708,6 +2708,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // screen to discover this exists). See _receiptScanBanner /
       // _startReceiptScan.
       _receiptScanBanner(),
+      // 2026-08-16: Bill Split gets its OWN entry right after — explicitly
+      // a separate feature, not a second destination reached through
+      // "Skenuoti kvitą" (that was tried first, then corrected). See
+      // _billSplitBanner / _startBillSplit.
+      _billSplitBanner(),
       // 2026-08-15: moved above Prenumeratos/Sąskaitos per request — the
       // weekly spend chart now leads Home.
       _weekSection(),
@@ -4927,6 +4932,90 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ),
       );
 
+  // 2026-08-16: Bill Split's own entry, right after "Skenuoti kvitą" —
+  // deliberately a SEPARATE banner, not a second option offered after that
+  // one's scan (tried that first, corrected explicitly: "bill split turi
+  // būti kaip atskira funkcija"). Amber, not the receipt banner's teal —
+  // two features that both start with "scan a photo" need to read as
+  // different things at a glance, not variants of one flow. See
+  // _startBillSplit / _BillSplitScreen — nothing this opens is ever saved.
+  Widget _billSplitBanner() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: InkWell(
+          onTap: _startBillSplit,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFB4650D), Color(0xFFF0A322)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                    color: const Color(0xFFF0A322).withValues(alpha: 0.28),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8)),
+              ],
+            ),
+            child: Row(children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    shape: BoxShape.circle),
+                child: const Icon(Icons.groups_rounded,
+                    color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Text('Bill Split',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15.5)),
+                      const SizedBox(width: 7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(6)),
+                        child: Text(tr('NAUJA'),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 9.5,
+                                letterSpacing: 0.3)),
+                      ),
+                    ]),
+                    const SizedBox(height: 3),
+                    Text(
+                        tr('Padalink sąskaitą tarp žmonių — niekas neišsaugoma'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            fontSize: 12,
+                            height: 1.3)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded,
+                  color: Colors.white.withValues(alpha: 0.85)),
+            ]),
+          ),
+        ),
+      );
+
   void _toast(String m) => ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
@@ -4967,7 +5056,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return scored.take(8).map((e) => e.value).toList();
   }
 
-  Future<void> _startReceiptScan() async {
+  // 2026-08-16: shared by both scan entry points below — was inline in
+  // _startReceiptScan only, factored out once Bill Split got its OWN entry
+  // point (see _startBillSplit) instead of branching off a shared scan via
+  // a choice sheet, per explicit correction: the two are separate features,
+  // not two destinations for one flow.
+  Future<(List<Map<String, dynamic>>, double)?> _scanWithLoadingDialog() async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -5000,7 +5094,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (res == null) {
         // Picker cancelled — close the loading dialog and stop quietly.
         if (mounted) Navigator.of(context, rootNavigator: true).pop();
-        return;
+        return null;
       }
       items = res.$1;
       total = res.$2;
@@ -5009,68 +5103,19 @@ class _DashboardPreviewState extends State<DashboardPreview>
     } catch (_) {
       error = tr('Nepavyko atpažinti kvito — pabandyk kitą nuotrauką');
     }
-    if (!mounted) return;
+    if (!mounted) return null;
     Navigator.of(context, rootNavigator: true).pop(); // close the spinner
     if (error != null || items.isEmpty) {
       _toast(error ?? tr('Nepavyko atpažinti kvito — pabandyk kitą nuotrauką'));
-      return;
+      return null;
     }
-    // 2026-08-16: one scan, two DELIBERATELY separate destinations — asked
-    // for explicitly as two different concepts, not variants of one flow.
-    // "Suskaidyti" attaches the receipt to a real bank transaction and
-    // persists it (DashboardStore.txSplits — everything above this point).
-    // "Bill Split" is the opposite on purpose: no bank transaction, no
-    // DashboardStore, no budgets/categories touched at all — it exists ONLY
-    // in _BillSplitScreen's own widget state and is gone the moment that
-    // screen is closed. Kept as a plain choice sheet, not a 3rd Home
-    // banner, so there's exactly one "Skenuoti kvitą" entry point.
-    final mode = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: _card,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(tr('Ką darom su šiuo kvitu?'),
-                style: TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
-            const SizedBox(height: 14),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              onTap: () => Navigator.pop(ctx, 'categorize'),
-              leading: Icon(Icons.pie_chart_outline_rounded, color: _purple),
-              title: Text(tr('Suskaidyti pagal kategorijas'),
-                  style:
-                      TextStyle(color: _ink, fontWeight: FontWeight.w700)),
-              subtitle: Text(
-                  tr('Priskiriama tavo tikrai banko operacijai ir įskaičiuojama į išlaidas.'),
-                  style: TextStyle(color: _muted, fontSize: 12.5)),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              onTap: () => Navigator.pop(ctx, 'billsplit'),
-              leading: Icon(Icons.groups_outlined, color: _purple),
-              title: Text(tr('Padalinti tarp žmonių (Bill Split)'),
-                  style:
-                      TextStyle(color: _ink, fontWeight: FontWeight.w700)),
-              subtitle: Text(
-                  tr('Tik parodo, kas kiek turi mokėti. Niekas neišsaugoma — nei operacijose, nei išlaidose.'),
-                  style: TextStyle(color: _muted, fontSize: 12.5)),
-            ),
-            const SizedBox(height: 8),
-          ]),
-        ),
-      ),
-    );
-    if (mode == null || !mounted) return;
-    if (mode == 'billsplit') {
-      await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => _BillSplitScreen(items: items, total: total),
-      ));
-      return;
-    }
+    return (items, total);
+  }
+
+  Future<void> _startReceiptScan() async {
+    final res = await _scanWithLoadingDialog();
+    if (res == null || !mounted) return;
+    final (items, total) = res;
     final candidates = _matchReceiptCandidates(total);
     final chosen = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
@@ -5091,6 +5136,19 @@ class _DashboardPreviewState extends State<DashboardPreview>
       ),
     ));
     if (mounted) _refreshFromAll();
+  }
+
+  // 2026-08-16: Bill Split's OWN entry point and OWN scan — a separate
+  // feature from "Skenuoti kvitą" above, not a second destination reached
+  // through it. Goes straight from a scanned photo to _BillSplitScreen; no
+  // bank transaction is ever involved, so there's no matching step here.
+  Future<void> _startBillSplit() async {
+    final res = await _scanWithLoadingDialog();
+    if (res == null || !mounted) return;
+    final (items, total) = res;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _BillSplitScreen(items: items, total: total),
+    ));
   }
 
   Widget _financeAgentBanner() => Padding(

@@ -230,13 +230,8 @@ const Map<String, String> _en = {
       'No matching transaction found in the last few days. Open it in Transactions and split it from there — "Split".',
   'Atpažinta suma': 'Recognised total',
   'pasirink, kuri banko operacija tai yra': 'pick which bank transaction this is',
-  'Ką darom su šiuo kvitu?': 'What do you want to do with this receipt?',
-  'Suskaidyti pagal kategorijas': 'Split by category',
-  'Priskiriama tavo tikrai banko operacijai ir įskaičiuojama į išlaidas.':
-      'Attached to your real bank transaction and counted in your spending.',
-  'Padalinti tarp žmonių (Bill Split)': 'Split between people (Bill Split)',
-  'Tik parodo, kas kiek turi mokėti. Niekas neišsaugoma — nei operacijose, nei išlaidose.':
-      'Just shows who owes what. Nothing is saved — not in transactions, not in spending.',
+  'Padalink sąskaitą tarp žmonių — niekas neišsaugoma':
+      'Split the bill between people — nothing is saved',
   'Padalinti sąskaitą': 'Split the bill',
   'Niekas neišsaugoma': 'Nothing is saved',
   'Kas dalinasi?': 'Who\'s splitting?',
