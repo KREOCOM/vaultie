@@ -601,6 +601,42 @@ class DashboardStore {
     }
   }
 
+  // ── Recurring DUE-DAY overrides (day-of-month), by sid ─────────────────────
+  // 2026-08-16: the predicted due day is computed live from the last real
+  // charge + one cycle (see notification_service.dart's _advance/_addMonths
+  // and subs_bills_live.dart's _predictedDueDay) — it just repeats whichever
+  // day-of-month the LAST charge happened to land on, so a bank that
+  // processes a charge a day early/late one cycle throws the prediction off
+  // by that same day. Same override pattern as recurringTypes/
+  // subscriptionAliases above: never touches the computed value or the sid
+  // matching itself, just a client-side correction re-applied on every read.
+  static const _kRecDueDay = 'recDueDay';
+
+  static Map<String, int> recurringDueDayOverrides() {
+    try {
+      final raw = _box.get(_kRecDueDay) as String?;
+      if (raw == null) return {};
+      return (jsonDecode(raw) as Map).map((k, v) => MapEntry(k as String, v as int));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> setRecurringDueDay(String sid, int? day) async {
+    if (sid.isEmpty) return;
+    final m = recurringDueDayOverrides();
+    if (day == null) {
+      m.remove(sid);
+    } else {
+      m[sid] = day.clamp(1, 31);
+    }
+    try {
+      await _box.put(_kRecDueDay, jsonEncode(m));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   // ── Manual recurring entries (bills/subscriptions the user adds by hand) ───
   // Streams the bank data didn't surface (cash rent, a card the app isn't linked
   // to). Same shape as a backend `subs.item`, plus manual:true. Counted like any

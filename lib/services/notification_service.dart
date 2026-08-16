@@ -6,6 +6,72 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../app_prefs.dart';
 import '../models/subscription.dart';
+import '../services/dashboard_store.dart';
+
+DateTime _addMonthsClamped(DateTime d, int months) {
+  final zb = d.month - 1 + months;
+  final y = d.year + zb ~/ 12;
+  final m = zb % 12 + 1;
+  final lastDay = DateTime(y, m + 1, 0).day;
+  return DateTime(y, m, d.day < lastDay ? d.day : lastDay);
+}
+
+DateTime _advanceCycle(DateTime d, String cycle) {
+  switch (cycle) {
+    case 'weekly':
+      return d.add(const Duration(days: 7));
+    case 'quarterly':
+      return _addMonthsClamped(d, 3);
+    case 'yearly':
+      return _addMonthsClamped(d, 12);
+    default:
+      return _addMonthsClamped(d, 1);
+  }
+}
+
+/// The single source of truth for "when is this recurring item due next" —
+/// used both to schedule the actual reminder (below) and to draw the
+/// Sąskaitos due-date chart (subs_bills_live.dart), so what the chart shows
+/// and when the reminder fires can never drift apart.
+///
+/// Starts from the last REAL charge + one cycle, rolled forward past today
+/// (a bank charging a day early/late one cycle shifts this prediction by
+/// that same day — see DashboardStore.recurringDueDayOverrides' own doc).
+/// If the user has corrected this item's day-of-month, that wins outright.
+DateTime? predictedDueDate(String sid, {
+  required String? lastChargeIso,
+  required String cycle,
+  DateTime? today,
+}) {
+  final last = lastChargeIso != null ? DateTime.tryParse(lastChargeIso) : null;
+  if (last == null) return null;
+  final now = today ?? DateTime.now();
+  final t = DateTime(now.year, now.month, now.day);
+  var due = _advanceCycle(last, cycle);
+  var guard = 0;
+  while (due.isBefore(t) && guard++ < 24) {
+    due = _advanceCycle(due, cycle);
+  }
+  final overrideDay = sid.isEmpty ? null : DashboardStore.recurringDueDayOverrides()[sid];
+  if (overrideDay != null) {
+    final lastDayOfMonth = DateTime(due.year, due.month + 1, 0).day;
+    due = DateTime(due.year, due.month, overrideDay > lastDayOfMonth ? lastDayOfMonth : overrideDay);
+  }
+  return due;
+}
+
+/// Same sid fallback dashboard_preview.dart's `_recKey` / subs_bills_live.dart's
+/// `_LiveItem.sid` use — the backend's own id, else name|monthly for a payload
+/// old enough to carry none. Kept in sync by convention, not by sharing code,
+/// same as those two.
+String recurringSidOf(Map it) {
+  final sid = ((it['sid'] as String?) ?? '').trim();
+  if (sid.isNotEmpty) return sid;
+  final name = ((it['name'] as String?) ?? '').trim().toLowerCase();
+  if (name.isEmpty) return '';
+  final monthly = ((it['monthly'] ?? 0) as num).toDouble();
+  return '$name|${monthly.toStringAsFixed(2)}';
+}
 
 /// Schedules local "payment due soon" reminders.
 ///
@@ -153,27 +219,6 @@ class NotificationService {
 
   static const _cleanCadence = {'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'};
 
-  DateTime _addMonths(DateTime d, int months) {
-    final zb = d.month - 1 + months;
-    final y = d.year + zb ~/ 12;
-    final m = zb % 12 + 1;
-    final lastDay = DateTime(y, m + 1, 0).day;
-    return DateTime(y, m, d.day < lastDay ? d.day : lastDay);
-  }
-
-  DateTime _advance(DateTime d, String cycle) {
-    switch (cycle) {
-      case 'weekly':
-        return d.add(const Duration(days: 7));
-      case 'quarterly':
-        return _addMonths(d, 3);
-      case 'yearly':
-        return _addMonths(d, 12);
-      default:
-        return _addMonths(d, 1);
-    }
-  }
-
   /// (Re)schedules reminders from the LIVE recurring bills (dashboard `subs`),
   /// replacing the old stale-import path. For each ACTIVE, user-kept bill/
   /// subscription with a regular cadence, the next due date is computed from the
@@ -229,15 +274,10 @@ class NotificationService {
       if (monthly < 5) continue; // ignore trivial amounts
       if (!seen.add(key)) continue; // one reminder per payee
 
-      final lastStr = it['lastCharge'] as String?;
-      final last = lastStr != null ? DateTime.tryParse(lastStr) : null;
-      if (last == null) continue;
       final cycle = (it['cycle'] as String?) ?? 'monthly';
-      var due = _advance(last, cycle);
-      var guard = 0;
-      while (due.isBefore(today) && guard++ < 24) {
-        due = _advance(due, cycle);
-      }
+      final due = predictedDueDate(recurringSidOf(it),
+          lastChargeIso: it['lastCharge'] as String?, cycle: cycle, today: today);
+      if (due == null) continue;
       // What the bank will actually take, not the monthly EQUIVALENT. `monthly`
       // is a normalised figure: a 120 €/year subscription carries monthly ≈ 10,
       // and the reminder used to announce "10 € – due in 2 days" two days before

@@ -21,6 +21,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../services/dashboard_store.dart';
+import '../../services/notification_service.dart' show predictedDueDate;
 import '../../ui/design_system.dart' show CategoryIcon;
 
 const _ink = Color(0xFF0B1533);
@@ -132,6 +133,15 @@ class _LiveItem {
   double get monthly => ((raw['monthly'] ?? raw['cost'] ?? 0) as num).toDouble();
   int get occ => (raw['occ'] as num?)?.toInt() ?? 0;
   String get cadence => _cadenceLabel(raw['cycle'] as String?);
+  String get cycleRaw => (raw['cycle'] as String?) ?? 'monthly';
+  String? get lastChargeIso => raw['lastCharge'] as String?;
+
+  /// Predicted next due date — last real charge + one cycle, or the user's
+  /// own day-of-month correction if they've set one. Same function
+  /// notification_service.dart's reminder scheduler uses, so the calendar
+  /// chart and the actual reminder can never show two different dates.
+  DateTime? get dueDate =>
+      predictedDueDate(sid, lastChargeIso: lastChargeIso, cycle: cycleRaw);
 
   /// Backend's own guess, overridden by the user's past reclassification —
   /// the exact same lookup dashboard_preview.dart's `_recType` does.
@@ -445,14 +455,18 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
             const SizedBox(height: 16),
             _rankedBarsList(),
           ],
-          // 2026-08-16: Sąskaitos gets its OWN visualization, not the same
-          // list-with-bars as Prenumeratos — "stulpelių eilutė" (variant A,
-          // second HTML round): one vertical bar per bill, height
-          // proportional to its cost. Reads well even with just the usual
-          // 1-2 bills, where a list-with-bars would look a little thin.
+          // 2026-08-16: "stulpelių eilutė" (bar-skyline) tried first for
+          // Sąskaitos, replaced per request with the due-date calendar
+          // (variant D, second HTML round) — WHEN each bill is due, not
+          // just how much. The predicted day can drift by a day if a bank
+          // processes a charge early/late (see predictedDueDate's own doc);
+          // tapping a bill lets the user correct it, stored via
+          // DashboardStore.setRecurringDueDay and read back everywhere
+          // that date matters, including the actual payment reminder.
+          // _barSkyline left defined, unused.
           if (!_isSubs && _confirmed.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _barSkyline(),
+            _dueDateCalendar(),
           ],
           const SizedBox(height: 22),
           Row(children: [
@@ -527,6 +541,173 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           ),
       ],
     );
+  }
+
+  static const List<Color> _calPalette = [
+    Color(0xFF7DD3FC),
+    Color(0xFFFCD34D),
+    Color(0xFF86EFAC),
+    Color(0xFFC4B5FD),
+    Color(0xFFFDA4AF),
+  ];
+
+  Future<void> _editDueDay(_LiveItem it) async {
+    final today = it.dueDate ?? DateTime.now();
+    final daysInMonth = DateTime(today.year, today.month + 1, 0).day;
+    var picked = today.day;
+    final saved = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheetState) {
+        return Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20, left: 20, right: 20, top: 18),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('„${it.displayName}" — kada nusiskaito?',
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+            const SizedBox(height: 4),
+            Text(
+                'Appsas numato dieną iš paskutinio tikro mokėjimo — jeigu bankas '
+                'nuskaito kitą dieną, pataisyk čia. Tai nekeičia, kaip appsas '
+                'atpažįsta pačią sąskaitą, tik parodomą/priminimo dieną.',
+                style: TextStyle(fontSize: 12.5, color: _subtle, height: 1.4)),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var d = 1; d <= daysInMonth; d++)
+                  GestureDetector(
+                    onTap: () => setSheetState(() => picked = d),
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: picked == d ? _blue : _bg,
+                        border: Border.all(color: picked == d ? _blue : _line),
+                      ),
+                      child: Text('$d',
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: picked == d ? Colors.white : _ink)),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Row(children: [
+              if (DashboardStore.recurringDueDayOverrides().containsKey(it.sid))
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, -1), // sentinel: clear override
+                  child: const Text('Atstatyti numatytą', style: TextStyle(color: _subtle)),
+                ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, picked),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: const Text('Išsaugoti', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ]),
+          ]),
+        );
+      }),
+    );
+    if (saved == null || !mounted) return;
+    await DashboardStore.setRecurringDueDay(it.sid, saved == -1 ? null : saved);
+    setState(() {});
+  }
+
+  Widget _dueDateCalendar() {
+    final sorted = [..._confirmed]..sort((a, b) => (a.dueDate ?? DateTime(9999)).compareTo(b.dueDate ?? DateTime(9999)));
+    final withDates = sorted.where((it) => it.dueDate != null).toList();
+    if (withDates.isEmpty) return const SizedBox.shrink();
+    final ref = withDates.first.dueDate!;
+    final daysInMonth = DateTime(ref.year, ref.month + 1, 0).day;
+    // A bill's predicted day can land in a DIFFERENT month than the first
+    // one shown (e.g. a bill due the 2nd next to one due the 28th, viewed
+    // near month-end) — only dots landing in `ref`'s month are drawn; the
+    // legend row below always shows every bill regardless.
+    Color? colorFor(int day) {
+      for (var i = 0; i < withDates.length; i++) {
+        final d = withDates[i].dueDate!;
+        if (d.year == ref.year && d.month == ref.month && d.day == day) {
+          return _calPalette[i % _calPalette.length];
+        }
+      }
+      return null;
+    }
+
+    return Column(children: [
+      GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: daysInMonth,
+        gridDelegate:
+            const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 10, crossAxisSpacing: 4, mainAxisSpacing: 4),
+        itemBuilder: (_, i) {
+          final day = i + 1;
+          final c = colorFor(day);
+          return Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: c ?? Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Text('$day',
+                style: TextStyle(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
+                    color: c != null ? const Color(0xFF0B1533) : Colors.white.withValues(alpha: 0.4))),
+          );
+        },
+      ),
+      const SizedBox(height: 12),
+      Column(
+        children: [
+          for (var i = 0; i < withDates.length; i++)
+            Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
+              child: GestureDetector(
+                onTap: () => _editDueDay(withDates[i]),
+                behavior: HitTestBehavior.opaque,
+                child: Row(children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                        shape: BoxShape.circle, color: _calPalette[i % _calPalette.length]),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(withDates[i].displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                  Text('${withDates[i].dueDate!.day} d.',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.75),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 6),
+                  Icon(Icons.edit_rounded, size: 13, color: Colors.white.withValues(alpha: 0.5)),
+                ]),
+              ),
+            ),
+        ],
+      ),
+    ]);
   }
 
   Widget _barSkyline() {
