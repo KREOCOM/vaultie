@@ -873,27 +873,40 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
         ],
       );
 
+  // 2026-08-16: was a small left-aligned text row, easy to miss — "gali
+  // padaryti ant abieju [Prenumeratos ir Sąskaitos] kad būtų didesnis ir
+  // per vidury". Both screens already share this one method (_isSubs just
+  // swaps the label), so making it bigger/centered here covers both.
+  // Full-width with its own border so it reads as a real button, not text.
   Widget _addMoreRow() => InkWell(
         onTap: _canOpenSort ? _openSort : null,
         borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(children: [
-            Icon(Icons.add_circle_outline_rounded, color: _canOpenSort ? _blue : _faint, size: 20),
-            const SizedBox(width: 10),
-            Text(_isSubs ? 'Rasti naują prenumeratą' : 'Rasti naują sąskaitą',
-                style: TextStyle(
-                    color: _canOpenSort ? _blue : _faint, fontWeight: FontWeight.w700, fontSize: 14.5)),
-            if (_pending.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(color: _blueSoft, borderRadius: BorderRadius.circular(20)),
-                child: Text('${_pending.length}',
-                    style: const TextStyle(color: _blue, fontSize: 11.5, fontWeight: FontWeight.w800)),
-              ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _canOpenSort ? _blue.withValues(alpha: 0.35) : _line, width: 1.4),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_circle_outline_rounded, color: _canOpenSort ? _blue : _faint, size: 23),
+              const SizedBox(width: 10),
+              Text(_isSubs ? 'Rasti naują prenumeratą' : 'Rasti naują sąskaitą',
+                  style: TextStyle(
+                      color: _canOpenSort ? _blue : _faint, fontWeight: FontWeight.w800, fontSize: 16.5)),
+              if (_pending.isNotEmpty) ...[
+                const SizedBox(width: 9),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: _blueSoft, borderRadius: BorderRadius.circular(20)),
+                  child: Text('${_pending.length}',
+                      style: const TextStyle(color: _blue, fontSize: 12.5, fontWeight: FontWeight.w800)),
+                ),
+              ],
             ],
-          ]),
+          ),
         ),
       );
 
