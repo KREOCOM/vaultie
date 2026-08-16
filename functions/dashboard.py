@@ -220,7 +220,17 @@ def _amt(t):
     except (TypeError, ValueError):
         # A non-numeric amount is a broken row, not a free transaction — but it
         # must not take the whole dashboard down with it (see _ymd).
-        logging.warning("dashboard: unparseable amount %r", ta.get("amount"))
+        #
+        # 2026-08-16 fix: this used to log the raw value (%r) — a real
+        # transaction amount, unmasked, reaching Cloud Logging, unlike every
+        # other sensitive field in this file. Digits are swapped for "X" so
+        # the FORMAT that broke parsing is still visible (comma-decimal,
+        # scientific notation, a stray currency symbol, empty string) without
+        # exposing the actual figure.
+        raw = ta.get("amount")
+        shape = re.sub(r"\d", "X", str(raw))[:24] if raw is not None else "None"
+        logging.warning("dashboard: unparseable amount, shape=%r type=%s",
+                        shape, type(raw).__name__)
         v = 0.0
     # Direction comes SOLELY from the credit/debit indicator; magnitude is abs().
     # A bank/cached row that signs the amount itself (DBIT with amount "-5.00")

@@ -175,7 +175,19 @@ def _require_premium(req: https_fn.CallableRequest) -> None:
     # ⚠️ TEMP TEST BYPASS — allow the paid endpoints during the wife's Swedbank
     # test (she can't complete the App Store purchase). Pairs with the client
     # kBypassPaywall flag. REVERT before any real release.
+    #
+    # 2026-08-16: this is a global switch — if it's ever flipped True and
+    # forgotten before a deploy, EVERY user gets every paid endpoint for
+    # free, silently, with nothing in the logs pointing at why. Can't narrow
+    # this to a single allowlisted uid (like _REVIEW_UID below) without
+    # knowing the actual tester's uid, so instead: every single bypass now
+    # logs loudly, every call, so a forgotten-on flag is impossible to miss
+    # in Cloud Logging instead of being a silent, invisible landmine.
     if _TEST_BYPASS_PREMIUM:
+        logging.warning(
+            "⚠️ _TEST_BYPASS_PREMIUM is active for uid=%s — premium "
+            "check skipped. This flag must be False before any real release.",
+            _uid(req))
         return
     # App Review's demo account. One hard-coded uid, nothing else.
     #
@@ -423,6 +435,21 @@ def _mask_iban(v):
         r"^[A-Z]{2}\d{2}[A-Z0-9]{6,}$", s.replace(" ", "")) else s
 
 
+def _mask_label(v):
+    """Mask an account LABEL before it reaches Cloud Logging — unconditionally,
+    unlike _mask_iban above.
+
+    2026-08-16 fix: an account's label isn't always IBAN-shaped — Enable
+    Banking sends whatever nickname the bank has for it, which can just as
+    easily be the account holder's own first name ("OSVALDAS", "ZIVILE",
+    seen literally in real test fixtures). _mask_iban's regex only matches
+    IBAN-looking strings, so a plain name passed straight through into the
+    scan-failure warning logs and the scan_diag summary log unmasked. This
+    truncates ANY label the same way, whatever it looks like."""
+    s = str(v or "")
+    return (s[:2] + "…") if len(s) > 2 else s
+
+
 def _norm_iban(iban) -> str | None:
     """Uppercase, strip spaces — so own-account IBANs compare regardless of
     formatting."""
@@ -611,7 +638,7 @@ def _scan_one_account(client: EnableBankingClient, m: dict, *, months_back: int,
         }
     except EnableBankingError as e:
         logging.warning("scan: account %r (%s) failed, skipping: %s",
-                        _mask_iban(m.get("name")), bank, e)
+                        _mask_label(m.get("name")), bank, e)
         status = getattr(e, "status", None)
         return {
             "ok": False, "bank": bank,
@@ -644,7 +671,7 @@ def _scan_one_account(client: EnableBankingClient, m: dict, *, months_back: int,
         # as a quiet (not revoked, not rate-limited) failure — the client
         # already has a path for that (cached data re-served).
         logging.warning("scan: account %r (%s) failed with an unexpected "
-                        "error, skipping: %s", _mask_iban(m.get("name")), bank, e)
+                        "error, skipping: %s", _mask_label(m.get("name")), bank, e)
         return {
             "ok": False, "bank": bank,
             "diag": {
@@ -809,7 +836,7 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
     def _redact(d):
         r = dict(d)
         if "account" in r:
-            r["account"] = _mask_iban(r["account"])
+            r["account"] = _mask_label(r["account"])
         if "iban" in r:
             r["iban"] = _mask_iban(r["iban"])
         return r
@@ -898,7 +925,13 @@ def delete_user_data(req: https_fn.CallableRequest) -> dict:
     # raised NameError and never deleted the documents it exists to erase.
     from firebase_admin import firestore
     db = firestore.client()
-    for coll in (_BANK_LINKS, "entitlements"):
+    # bank_auth_states added 2026-08-16 for the OAuth state check — omitted
+    # from this cleanup loop at the time, so a user who started (but never
+    # finished) a bank connection and then deleted their account left a
+    # stray document behind. Harmless on its own (a random token + timestamp,
+    # useless after 30 min — see _auth_state_fresh), but a real exception to
+    # "delete_user_data erases everything."
+    for coll in (_BANK_LINKS, _BANK_AUTH_STATES, "entitlements"):
         try:
             db.collection(coll).document(uid).delete()
         except Exception:  # noqa: BLE001
