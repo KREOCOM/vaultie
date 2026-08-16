@@ -658,6 +658,13 @@ def build_dashboard(transactions, accounts, today=None, ai_key=None, own_ibans=N
             "amb": False, "badges": (["res"] if t.get("status") == "PDNG" else []),
             "pos": pos, "ts": _txn_epoch(t), "dom": dom,
             "raw": round(raw_amt, 2), "cur": raw_cur,
+            # Which account this row came from (main.py stamps "_acct" =
+            # the account's own uid at scan time) — used by _balance_block
+            # to build each account's OWN balance series. Rides along in
+            # the client's transaction feed too (all_rows is returned
+            # as-is) — harmless, just the same uid the client already sees
+            # on that account's own summary.
+            "acct": t.get("_acct"),
         })
     if skipped:
         # Dropping a row silently is how a bank's odd date format turns into
@@ -1150,11 +1157,36 @@ def _totals(all_rows):
             "months": {mk: _finalize(b) for mk, b in periods.items()}}
 
 
+def _daily_cumulative_series(rows, end_amount):
+    """The shared "walk backward from today's balance" math both the combined
+    and the per-account series (below) use — factored out so per-account
+    isn't a second, drifting copy of the same logic."""
+    by_day = OrderedDict()
+    for r in sorted(rows, key=lambda x: x["d"]):
+        by_day[r["d"]] = by_day.get(r["d"], 0.0) + r["a"]
+    run, cum = 0.0, OrderedDict()
+    for dtk, tot in by_day.items():
+        run += tot
+        cum[dtk] = run
+    base = end_amount - run if cum else end_amount
+    return [{"d": k, "v": round(base + v, 2)} for k, v in cum.items()]
+
+
 def _balance_block(all_rows, accounts):
     """Daily cumulative series anchored so the end == summed account balance.
 
     Per-account balances are converted to EUR (see _to_eur) so a mixed-currency
     consent sums correctly; the original currency is kept as `origCurrency`.
+
+    2026-08-16: each account also gets its OWN series — same walk-backward
+    math, filtered to just that account's rows (tagged "acct" = the uid
+    `t["_acct"]` was stamped with at scan time — see main.py's
+    _scan_one_account) and anchored to that account's OWN current amount
+    instead of the household total. Lets the client show "what happened in
+    THIS bank" when a user taps one account chip, instead of always falling
+    back to the combined household chart — a tap on SEB used to open the
+    exact same graph as a tap on Revolut, which read as broken once there
+    were two real banks connected instead of one.
     """
     accounts = [
         {**a,
@@ -1172,15 +1204,15 @@ def _balance_block(all_rows, accounts):
         for a in (accounts or [])
     ]
     end = round(sum(float(a.get("amount") or 0) for a in accounts), 2) if accounts else 0.0
-    by_day = OrderedDict()
-    for r in sorted(all_rows, key=lambda x: x["d"]):
-        by_day[r["d"]] = by_day.get(r["d"], 0.0) + r["a"]
-    run, cum = 0.0, OrderedDict()
-    for dtk, tot in by_day.items():
-        run += tot
-        cum[dtk] = run
-    base = end - run if cum else end
-    series = [{"d": k, "v": round(base + v, 2)} for k, v in cum.items()]
+    series = _daily_cumulative_series(all_rows, end)
+    for a in accounts:
+        uid = a.get("uid")
+        own_rows = [r for r in all_rows if uid and r.get("acct") == uid]
+        # No rows tagged for this account (uid missing on old cached data, or
+        # a brand-new account with no transactions yet) — no per-account
+        # series rather than a flat line that would just repeat today's
+        # balance backward and look like real history.
+        a["series"] = _daily_cumulative_series(own_rows, a["amount"]) if own_rows else []
     return {
         "current": end,
         "series": series,

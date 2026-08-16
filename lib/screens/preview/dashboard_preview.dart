@@ -4441,7 +4441,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // numbers instead. The % text stays on _muted, not _heroDim (a colour
   // meant for text sitting directly on the blue hero) — that part of the
   // earlier fix was a real bug, unrelated to the size question.
-  Widget _expandedAcctChip(Map a, double acctTotal) => Container(
+  // 2026-08-16: own tap target — "jeigu paspaudžia ant SEB rodytų būtent
+  // SEB grafiką, o ant Revolut rodytų Revolut". Without this the tap fell
+  // through to the hero's own GestureDetector (_showBalance, combined) —
+  // SEB and Revolut opened the exact same chart. Tapping the plain blue
+  // background still does that (nothing here intercepts it); this chip
+  // now intercepts ITS OWN tap first.
+  Widget _expandedAcctChip(Map a, double acctTotal) => GestureDetector(
+        onTap: () => _showBalance(a.cast<String, dynamic>()),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: _card,
@@ -4485,6 +4494,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
           ],
         ]),
+        ),
       );
 
   Widget _acctsToggleChip(List<Map> accounts) => GestureDetector(
@@ -4749,14 +4759,33 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return out;
   }
 
-  void _showBalance() {
+  // [account] scopes the sheet to ONE bank — its own series (see
+  // functions/dashboard.py's _balance_block), its own current amount, no
+  // combined household total. Null (the hero's own balance tap) shows the
+  // combined view exactly as before.
+  void _showBalance([Map<String, dynamic>? account]) {
+    final bal = account == null
+        ? _d['balance'] as Map<String, dynamic>
+        : {
+            'current': account['amount'],
+            // Old cached accounts (synced before this existed) or one with
+            // no transactions yet carry no series — _BalanceSheet already
+            // shows its own "Balanso istorijos dar nėra" empty state for
+            // that, same as it always has for a brand-new connection.
+            'series': account['series'] ?? const [],
+            'accounts': [account],
+          };
     showModalBottomSheet(
       context: context,
       backgroundColor: _card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _BalanceSheet(bal: _d['balance'] as Map<String, dynamic>),
+      builder: (_) => _BalanceSheet(
+          bal: bal,
+          title: account == null
+              ? null
+              : (account['bank'] ?? account['name'] ?? tr('Sąskaita')).toString()),
     );
   }
 
@@ -7669,8 +7698,13 @@ String _eurRound(double v) {
 /// ranges therefore clamp to the earliest data we have (a freshly-connected
 /// account only has ~90d under PSD2, so 1Y/Max == 3M until history accrues).
 class _BalanceSheet extends StatefulWidget {
-  const _BalanceSheet({required this.bal});
+  const _BalanceSheet({required this.bal, this.title});
   final Map<String, dynamic> bal;
+  // 2026-08-16: null → "Bendras likutis" (combined). Set to a bank's own
+  // name when this sheet is scoped to ONE account (see _showBalance) —
+  // tapping the SEB chip used to open the exact same combined chart a tap
+  // on Revolut did, which read as broken with two real banks connected.
+  final String? title;
   @override
   State<_BalanceSheet> createState() => _BalanceSheetState();
 }
@@ -7762,7 +7796,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(tr('Bendras likutis'),
+                    Text(widget.title ?? tr('Bendras likutis'),
                         style: TextStyle(
                             fontSize: 15,
                             color: _muted,
@@ -7947,10 +7981,15 @@ class _BalanceSheetState extends State<_BalanceSheet> {
                 ],
               ),
             ),
-          Divider(height: 24, thickness: 1, color: _hair),
-          for (var i = 0; i < accounts.length; i++) ...[
-            _accountRow(accounts[i]),
-            if (i != accounts.length - 1) const RowDivider(indent: 68),
+          // Per-account sheet (widget.title set) already IS this one
+          // account's own chart — repeating it as a one-row list below
+          // would just be the same account shown twice.
+          if (widget.title == null) ...[
+            Divider(height: 24, thickness: 1, color: _hair),
+            for (var i = 0; i < accounts.length; i++) ...[
+              _accountRow(accounts[i]),
+              if (i != accounts.length - 1) const RowDivider(indent: 68),
+            ],
           ],
         ],
       ),
