@@ -3782,7 +3782,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
                               : null,
                         )),
                 // Month-over-month change: green up / red down, "% | € nuo praėjusio mėn."
-                if (!_hideBal &&
+                // 2026-08-16: removed from the preview hero per request —
+                // "per daug apkrautas melynas blokas" (the blue block was
+                // too busy with numbers). Production layout keeps it.
+                if (!designPreviewPalette &&
+                    !_hideBal &&
                     delta != null &&
                     deltaPct != null &&
                     delta.abs() >= 1) ...[
