@@ -1273,6 +1273,152 @@ Future<(List<Map<String, dynamic>>, double)?> _pickAndScanReceipt() async {
       .scanReceipt(imageB64: base64Encode(bytes), mediaType: mediaType);
 }
 
+// 2026-08-16: was a plain CircularProgressIndicator + "Skenuojama…" —
+// looked too basic for a call that can genuinely take up to ~100s (see
+// receipt_scan.py's timeouts). A viewfinder frame with a real scanning
+// beam sweeping over it reads as "something is actually happening", not
+// just a generic spinner shared with every other loading state in the app.
+class _ScanningDialog extends StatefulWidget {
+  const _ScanningDialog();
+  @override
+  State<_ScanningDialog> createState() => _ScanningDialogState();
+}
+
+class _ScanningDialogState extends State<_ScanningDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1700))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  Widget _corner({required bool top, required bool left}) => Positioned(
+        top: top ? -3 : null,
+        bottom: top ? null : -3,
+        left: left ? -3 : null,
+        right: left ? null : -3,
+        child: Container(
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+            border: Border(
+              top: top
+                  ? BorderSide(color: _purple, width: 2.5)
+                  : BorderSide.none,
+              bottom: !top
+                  ? BorderSide(color: _purple, width: 2.5)
+                  : BorderSide.none,
+              left: left
+                  ? BorderSide(color: _purple, width: 2.5)
+                  : BorderSide.none,
+              right: !left
+                  ? BorderSide(color: _purple, width: 2.5)
+                  : BorderSide.none,
+            ),
+            borderRadius: BorderRadius.only(
+              topLeft: top && left ? const Radius.circular(6) : Radius.zero,
+              topRight: top && !left ? const Radius.circular(6) : Radius.zero,
+              bottomLeft:
+                  !top && left ? const Radius.circular(6) : Radius.zero,
+              bottomRight:
+                  !top && !left ? const Radius.circular(6) : Radius.zero,
+            ),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    const w = 108.0, h = 132.0;
+    return Dialog(
+      backgroundColor: _card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 30, 28, 26),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          SizedBox(
+            width: w,
+            height: h,
+            child: Stack(clipBehavior: Clip.none, children: [
+              // The "receipt" — a few grey bars standing in for printed
+              // lines, just enough to read as a document, not a blank card.
+              Container(
+                width: w,
+                height: h,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                decoration: BoxDecoration(
+                  color: _darkMode ? const Color(0xFF20263A) : const Color(0xFFF1F3FA),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (final f in [0.85, 0.55, 0.7, 0.4, 0.75, 0.5, 0.65])
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: FractionallySizedBox(
+                        widthFactor: f,
+                        child: Container(
+                          height: 5,
+                          decoration: BoxDecoration(
+                              color: _faint.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(3)),
+                        ),
+                      ),
+                    ),
+                ]),
+              ),
+              // The scanning beam — sweeps top-to-bottom-to-top forever
+              // (the controller repeats with reverse:true) for as long as
+              // the dialog is on screen.
+              AnimatedBuilder(
+                animation: _ctl,
+                builder: (_, __) {
+                  final y = -4 + _ctl.value * (h + 8);
+                  return Positioned(
+                    left: -4,
+                    right: -4,
+                    top: y,
+                    child: Container(
+                      height: 3,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(2),
+                        gradient: LinearGradient(colors: [
+                          _purple.withValues(alpha: 0),
+                          _purple,
+                          _purple.withValues(alpha: 0),
+                        ]),
+                        boxShadow: [
+                          BoxShadow(
+                              color: _purple.withValues(alpha: 0.65),
+                              blurRadius: 9),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _corner(top: true, left: true),
+              _corner(top: true, left: false),
+              _corner(top: false, left: true),
+              _corner(top: false, left: false),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          Text(tr('Skenuojama…'),
+              style: TextStyle(
+                  color: _ink, fontWeight: FontWeight.w800, fontSize: 15.5)),
+          const SizedBox(height: 4),
+          Text(tr('Atpažįstame prekes ir kainas'),
+              style: TextStyle(color: _muted, fontSize: 12.5)),
+        ]),
+      ),
+    );
+  }
+}
+
 String _shortNm(String n) {
   // collapse an exactly-doubled name ("VMI prie LR FM VMI prie LR FM" → "VMI prie LR FM")
   final w = n.trim().split(RegExp(r'\s+'));
@@ -5071,20 +5217,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // yellow-underlined) instead of the app's actual typography. Dialog
       // wraps its child in Material itself, which is what every OTHER
       // dialog in this file already gets for free from AlertDialog.
-      builder: (_) => Dialog(
-        backgroundColor: _card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            CircularProgressIndicator(color: _purple),
-            const SizedBox(height: 14),
-            Text(tr('Skenuojama…'),
-                style: TextStyle(
-                    color: _ink, fontWeight: FontWeight.w700, fontSize: 15)),
-          ]),
-        ),
-      ),
+      builder: (_) => const _ScanningDialog(),
     );
     List<Map<String, dynamic>> items = const [];
     double total = 0;
@@ -9650,43 +9783,10 @@ class _BillSplitScreenState extends State<_BillSplitScreen> {
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
                         color: _muted)),
-                const SizedBox(height: 8),
-                Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (var i = 0; i < _people.length; i++)
-                    Chip(
-                      backgroundColor: _people[i].color.withValues(alpha: 0.15),
-                      label: Text(_people[i].name,
-                          style: TextStyle(
-                              color: _people[i].color,
-                              fontWeight: FontWeight.w700)),
-                      deleteIcon:
-                          Icon(Icons.close_rounded, size: 16, color: _people[i].color),
-                      onDeleted: () => _removePerson(i),
-                      side: BorderSide.none,
-                    ),
-                  SizedBox(
-                    width: 150,
-                    child: TextField(
-                      controller: _nameCtrl,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _addPerson(),
-                      style: TextStyle(color: _ink, fontSize: 14),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        hintText: tr('Vardas…'),
-                        hintStyle: TextStyle(color: _faint),
-                        suffixIcon: IconButton(
-                            icon: Icon(Icons.add_circle_rounded,
-                                color: _purple, size: 22),
-                            onPressed: _addPerson),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide(color: _hair)),
-                        contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 14),
-                      ),
-                    ),
-                  ),
+                const SizedBox(height: 10),
+                Wrap(spacing: 10, runSpacing: 10, children: [
+                  for (var i = 0; i < _people.length; i++) _personPill(i),
+                  _addPersonField(),
                 ]),
                 const SizedBox(height: 22),
                 Text(tr('Kas ką pirko?'),
@@ -9709,6 +9809,80 @@ class _BillSplitScreenState extends State<_BillSplitScreen> {
           _summaryBar(),
         ]),
       ),
+    );
+  }
+
+  // 2026-08-16: bigger, avatar-style — was a plain Material Chip with just
+  // a name label, small enough that it read as "very basic" next to the
+  // scale of everything else on this screen.
+  Widget _personPill(int i) {
+    final p = _people[i];
+    final initial = p.name.trim().isEmpty ? '?' : p.name.trim()[0].toUpperCase();
+    return Container(
+      padding: const EdgeInsets.only(left: 5, right: 12, top: 5, bottom: 5),
+      decoration: BoxDecoration(
+        color: p.color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: p.color.withValues(alpha: 0.35)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: p.color,
+          child: Text(initial,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+        ),
+        const SizedBox(width: 9),
+        Text(p.name,
+            style: TextStyle(
+                color: p.color, fontWeight: FontWeight.w800, fontSize: 14.5)),
+        const SizedBox(width: 6),
+        GestureDetector(
+          onTap: () => _removePerson(i),
+          child: Icon(Icons.close_rounded, size: 17, color: p.color),
+        ),
+      ]),
+    );
+  }
+
+  // 2026-08-16: taller pill + a real filled circular add-button, replacing
+  // a small OutlineInputBorder box with a tiny inline icon.
+  Widget _addPersonField() {
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.only(left: 16, right: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: _hair),
+        color: _card,
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(
+          width: 120,
+          child: TextField(
+            controller: _nameCtrl,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _addPerson(),
+            style: TextStyle(color: _ink, fontSize: 15, fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: tr('Vardas…'),
+              hintStyle: TextStyle(color: _faint),
+              border: InputBorder.none,
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: _addPerson,
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(color: _purple, shape: BoxShape.circle),
+            child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -9759,8 +9933,15 @@ class _BillSplitScreenState extends State<_BillSplitScreen> {
     );
   }
 
+  // 2026-08-16: each total now animates in place (TweenAnimationBuilder)
+  // whenever an assignment changes, and a full-width "Viskas paskirstyta"
+  // banner pops in once every euro is claimed — the "some kind of effect"
+  // this screen was missing when it only ever quietly rewrote numbers at
+  // the bottom. Deliberately still ONE screen, no step-by-step wizard —
+  // that part of the reference was explicitly not wanted, only the polish.
   Widget _summaryBar() {
     final unassigned = _unassigned;
+    final allDone = _people.isNotEmpty && unassigned.abs() < 0.01;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: BoxDecoration(
@@ -9770,28 +9951,44 @@ class _BillSplitScreenState extends State<_BillSplitScreen> {
       child: SafeArea(
         top: false,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            transitionBuilder: (child, anim) => ScaleTransition(
+                scale: CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+                child: FadeTransition(opacity: anim, child: child)),
+            child: !allDone
+                ? const SizedBox(key: ValueKey('notdone'), height: 0)
+                : Container(
+                    key: const ValueKey('done'),
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                        color: _good.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.check_circle_rounded, color: _good, size: 18),
+                      const SizedBox(width: 7),
+                      Text(tr('Viskas paskirstyta'),
+                          style: TextStyle(
+                              color: _good, fontWeight: FontWeight.w800, fontSize: 13.5)),
+                    ]),
+                  ),
+          ),
           if (_people.isNotEmpty)
-            Wrap(spacing: 14, runSpacing: 6, children: [
-              for (var p = 0; p < _people.length; p++)
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                          color: _people[p].color, shape: BoxShape.circle)),
-                  const SizedBox(width: 5),
-                  Text('${_people[p].name}: ${_eur0(_totalFor(p))}',
-                      style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: _ink)),
-                ]),
-            ]),
+            SizedBox(
+              height: 64,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (var p = 0; p < _people.length; p++) _personTotal(p),
+                ],
+              ),
+            ),
           if (unassigned.abs() > 0.01)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                  '${tr('Nepriskirta')}: ${_eur0(unassigned)}',
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('${tr('Nepriskirta')}: ${_eur0(unassigned)}',
                   style: TextStyle(fontSize: 12, color: _muted)),
             ),
           const SizedBox(height: 10),
@@ -9811,6 +10008,44 @@ class _BillSplitScreenState extends State<_BillSplitScreen> {
           ),
         ]),
       ),
+    );
+  }
+
+  Widget _personTotal(int p) {
+    final person = _people[p];
+    final initial =
+        person.name.trim().isEmpty ? '?' : person.name.trim()[0].toUpperCase();
+    return Container(
+      margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+          color: person.color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        CircleAvatar(
+          radius: 14,
+          backgroundColor: person.color,
+          child: Text(initial,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+        ),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(person.name,
+              style: TextStyle(fontSize: 10.5, color: _muted, fontWeight: FontWeight.w600)),
+          // The number itself counts up/down to its new value instead of
+          // silently snapping — the one bit of "did something just happen"
+          // feedback a tap on an item chip gives back.
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: _totalFor(p)),
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOutCubic,
+            builder: (_, value, __) => Text(_eur0(value),
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w800, color: _ink)),
+          ),
+        ]),
+      ]),
     );
   }
 }

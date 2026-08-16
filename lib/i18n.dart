@@ -218,6 +218,8 @@ const Map<String, String> _en = {
   'Išsaugoti skaidymą': 'Save split',
   'Skenuoti kvitą': 'Scan receipt',
   'Skenuojama…': 'Scanning…',
+  'Atpažįstame prekes ir kainas': 'Recognising items and prices',
+  'Viskas paskirstyta': 'Fully assigned',
   'Nepavyko atpažinti kvito — pabandyk dar kartą arba įvesk rankiniu būdu':
       'Could not read the receipt — try again or enter it manually',
   'NAUJA': 'NEW',
