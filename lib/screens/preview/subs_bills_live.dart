@@ -554,14 +554,18 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   Future<void> _editDueDay(_LiveItem it) async {
     final today = it.dueDate ?? DateTime.now();
     final daysInMonth = DateTime(today.year, today.month + 1, 0).day;
-    var picked = today.day;
+    // 2026-08-16 fix: tapping a day used to only highlight it — saving still
+    // needed a separate "Išsaugoti" tap below, which read as "nothing
+    // happened" ("paspaudžiu ant kitos dienos, niekas nepasikeičia"). A day
+    // now saves and closes the sheet immediately, one tap, like every other
+    // day-picker.
     final saved = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
       backgroundColor: _card,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheetState) {
+      builder: (ctx) {
         return Padding(
           padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20, left: 20, right: 20, top: 18),
@@ -571,7 +575,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
             const SizedBox(height: 4),
             Text(
                 'Appsas numato dieną iš paskutinio tikro mokėjimo — jeigu bankas '
-                'nuskaito kitą dieną, pataisyk čia. Tai nekeičia, kaip appsas '
+                'nuskaito kitą dieną, pasirink tikrąją. Tai nekeičia, kaip appsas '
                 'atpažįsta pačią sąskaitą, tik parodomą/priminimo dieną.',
                 style: TextStyle(fontSize: 12.5, color: _subtle, height: 1.4)),
             const SizedBox(height: 18),
@@ -581,46 +585,37 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
               children: [
                 for (var d = 1; d <= daysInMonth; d++)
                   GestureDetector(
-                    onTap: () => setSheetState(() => picked = d),
+                    onTap: () => Navigator.pop(ctx, d),
                     child: Container(
                       width: 34,
                       height: 34,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: picked == d ? _blue : _bg,
-                        border: Border.all(color: picked == d ? _blue : _line),
+                        color: today.day == d ? _blue : _bg,
+                        border: Border.all(color: today.day == d ? _blue : _line),
                       ),
                       child: Text('$d',
                           style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
-                              color: picked == d ? Colors.white : _ink)),
+                              color: today.day == d ? Colors.white : _ink)),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 18),
-            Row(children: [
-              if (DashboardStore.recurringDueDayOverrides().containsKey(it.sid))
-                TextButton(
+            if (DashboardStore.recurringDueDayOverrides().containsKey(it.sid)) ...[
+              const SizedBox(height: 14),
+              Center(
+                child: TextButton(
                   onPressed: () => Navigator.pop(ctx, -1), // sentinel: clear override
-                  child: const Text('Atstatyti numatytą', style: TextStyle(color: _subtle)),
+                  child: const Text('Atstatyti numatytą dieną', style: TextStyle(color: _subtle)),
                 ),
-              const Spacer(),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, picked),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: _blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                child: const Text('Išsaugoti', style: TextStyle(fontWeight: FontWeight.w800)),
               ),
-            ]),
+            ],
           ]),
         );
-      }),
+      },
     );
     if (saved == null || !mounted) return;
     await DashboardStore.setRecurringDueDay(it.sid, saved == -1 ? null : saved);
