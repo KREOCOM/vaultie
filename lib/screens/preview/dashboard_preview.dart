@@ -5015,6 +5015,62 @@ class _DashboardPreviewState extends State<DashboardPreview>
       _toast(error ?? tr('Nepavyko atpažinti kvito — pabandyk kitą nuotrauką'));
       return;
     }
+    // 2026-08-16: one scan, two DELIBERATELY separate destinations — asked
+    // for explicitly as two different concepts, not variants of one flow.
+    // "Suskaidyti" attaches the receipt to a real bank transaction and
+    // persists it (DashboardStore.txSplits — everything above this point).
+    // "Bill Split" is the opposite on purpose: no bank transaction, no
+    // DashboardStore, no budgets/categories touched at all — it exists ONLY
+    // in _BillSplitScreen's own widget state and is gone the moment that
+    // screen is closed. Kept as a plain choice sheet, not a 3rd Home
+    // banner, so there's exactly one "Skenuoti kvitą" entry point.
+    final mode = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(tr('Ką darom su šiuo kvitu?'),
+                style: TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+            const SizedBox(height: 14),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              onTap: () => Navigator.pop(ctx, 'categorize'),
+              leading: Icon(Icons.pie_chart_outline_rounded, color: _purple),
+              title: Text(tr('Suskaidyti pagal kategorijas'),
+                  style:
+                      TextStyle(color: _ink, fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                  tr('Priskiriama tavo tikrai banko operacijai ir įskaičiuojama į išlaidas.'),
+                  style: TextStyle(color: _muted, fontSize: 12.5)),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              onTap: () => Navigator.pop(ctx, 'billsplit'),
+              leading: Icon(Icons.groups_outlined, color: _purple),
+              title: Text(tr('Padalinti tarp žmonių (Bill Split)'),
+                  style:
+                      TextStyle(color: _ink, fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                  tr('Tik parodo, kas kiek turi mokėti. Niekas neišsaugoma — nei operacijose, nei išlaidose.'),
+                  style: TextStyle(color: _muted, fontSize: 12.5)),
+            ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      ),
+    );
+    if (mode == null || !mounted) return;
+    if (mode == 'billsplit') {
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => _BillSplitScreen(items: items, total: total),
+      ));
+      return;
+    }
     final candidates = _matchReceiptCandidates(total);
     final chosen = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
@@ -9393,6 +9449,309 @@ class _ReceiptMatchScreen extends StatelessWidget {
                     ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BILL SPLIT — split a scanned receipt between PEOPLE, not categories.
+// 2026-08-16, explicitly requested as a SEPARATE concept from the category
+// split above, with one hard rule: nothing here ever touches
+// DashboardStore, the bank feed, budgets, or categories. Every bit of state
+// (people, who's assigned to what) lives ONLY in this screen's own State
+// object and is gone the instant it's popped — there is no save action, by
+// design, only "Uždaryti". Reuses the SAME scanned items as the category
+// flow (one scan, see _startReceiptScan's choice sheet) since it's the same
+// underlying question — "what did this receipt actually contain" — just a
+// different thing to do with the answer.
+// ══════════════════════════════════════════════════════════════════════════════
+class _BillPerson {
+  _BillPerson(this.name, this.color);
+  final String name;
+  final Color color;
+}
+
+class _BillSplitScreen extends StatefulWidget {
+  const _BillSplitScreen({required this.items, required this.total});
+  final List<Map<String, dynamic>> items; // {name, price, category}
+  final double total; // the receipt's own printed total
+  @override
+  State<_BillSplitScreen> createState() => _BillSplitScreenState();
+}
+
+class _BillSplitScreenState extends State<_BillSplitScreen> {
+  static const _palette = [
+    Color(0xFF5866F0),
+    Color(0xFF46AE4B),
+    Color(0xFFE0574F),
+    Color(0xFFF0A322),
+    Color(0xFF7C5CD6),
+    Color(0xFF2E9BE6),
+    Color(0xFF00897B),
+    Color(0xFFEE7A3A),
+  ];
+
+  final List<_BillPerson> _people = [];
+  // item index -> set of person indices sharing that item's cost evenly.
+  final Map<int, Set<int>> _assign = {};
+  final _nameCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  void _addPerson() {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    setState(() {
+      _people.add(_BillPerson(name, _palette[_people.length % _palette.length]));
+      _nameCtrl.clear();
+    });
+  }
+
+  void _removePerson(int i) {
+    setState(() {
+      _people.removeAt(i);
+      // Re-key every assignment set: drop the removed person, shift every
+      // index above it down by one so they still point at the right person.
+      final next = <int, Set<int>>{};
+      _assign.forEach((item, set) {
+        final shifted = <int>{};
+        for (final p in set) {
+          if (p == i) continue;
+          shifted.add(p > i ? p - 1 : p);
+        }
+        next[item] = shifted;
+      });
+      _assign
+        ..clear()
+        ..addAll(next);
+    });
+  }
+
+  void _toggle(int itemIndex, int personIndex) => setState(() {
+        final s = _assign.putIfAbsent(itemIndex, () => {});
+        if (!s.remove(personIndex)) s.add(personIndex);
+      });
+
+  double _priceOf(int i) => ((widget.items[i]['price'] as num?) ?? 0).toDouble();
+
+  double _totalFor(int personIndex) {
+    var sum = 0.0;
+    for (var i = 0; i < widget.items.length; i++) {
+      final s = _assign[i];
+      if (s == null || s.isEmpty || !s.contains(personIndex)) continue;
+      sum += _priceOf(i) / s.length;
+    }
+    return sum;
+  }
+
+  // Printed total minus whatever's been assigned so far — covers both an
+  // item nobody's claimed yet AND any tax/service the receipt's total
+  // includes that isn't broken out as its own line item.
+  double get _unassigned {
+    var assigned = 0.0;
+    for (var i = 0; i < widget.items.length; i++) {
+      if ((_assign[i] ?? const <int>{}).isNotEmpty) assigned += _priceOf(i);
+    }
+    return widget.total - assigned;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: _bg,
+        elevation: 0,
+        foregroundColor: _ink,
+        title: Text(tr('Padalinti sąskaitą'),
+            style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: Text(tr('Niekas neišsaugoma'),
+                  style: TextStyle(
+                      fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              children: [
+                Text(tr('Kas dalinasi?'),
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _muted)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (var i = 0; i < _people.length; i++)
+                    Chip(
+                      backgroundColor: _people[i].color.withValues(alpha: 0.15),
+                      label: Text(_people[i].name,
+                          style: TextStyle(
+                              color: _people[i].color,
+                              fontWeight: FontWeight.w700)),
+                      deleteIcon:
+                          Icon(Icons.close_rounded, size: 16, color: _people[i].color),
+                      onDeleted: () => _removePerson(i),
+                      side: BorderSide.none,
+                    ),
+                  SizedBox(
+                    width: 150,
+                    child: TextField(
+                      controller: _nameCtrl,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _addPerson(),
+                      style: TextStyle(color: _ink, fontSize: 14),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: tr('Vardas…'),
+                        hintStyle: TextStyle(color: _faint),
+                        suffixIcon: IconButton(
+                            icon: Icon(Icons.add_circle_rounded,
+                                color: _purple, size: 22),
+                            onPressed: _addPerson),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: _hair)),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 14),
+                      ),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 22),
+                Text(tr('Kas ką pirko?'),
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _muted)),
+                const SizedBox(height: 8),
+                if (_people.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Text(tr('Pirmiau pridėk bent vieną žmogų.'),
+                        style: TextStyle(color: _faint)),
+                  )
+                else
+                  for (var i = 0; i < widget.items.length; i++) _itemRow(i),
+              ],
+            ),
+          ),
+          _summaryBar(),
+        ]),
+      ),
+    );
+  }
+
+  Widget _itemRow(int i) {
+    final it = widget.items[i];
+    final assigned = _assign[i] ?? const <int>{};
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _hair)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+              child: Text((it['name'] as String?) ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontWeight: FontWeight.w700, color: _ink))),
+          const SizedBox(width: 8),
+          Text(_eur0(_priceOf(i)),
+              style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        ]),
+        const SizedBox(height: 8),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (var p = 0; p < _people.length; p++)
+            GestureDetector(
+              onTap: () => _toggle(i, p),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: assigned.contains(p)
+                      ? _people[p].color
+                      : _people[p].color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(_people[p].name,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color:
+                            assigned.contains(p) ? Colors.white : _people[p].color)),
+              ),
+            ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _summaryBar() {
+    final unassigned = _unassigned;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+          color: _card,
+          border: Border(top: BorderSide(color: _hair)),
+          boxShadow: DS.e1),
+      child: SafeArea(
+        top: false,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_people.isNotEmpty)
+            Wrap(spacing: 14, runSpacing: 6, children: [
+              for (var p = 0; p < _people.length; p++)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                          color: _people[p].color, shape: BoxShape.circle)),
+                  const SizedBox(width: 5),
+                  Text('${_people[p].name}: ${_eur0(_totalFor(p))}',
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: _ink)),
+                ]),
+            ]),
+          if (unassigned.abs() > 0.01)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                  '${tr('Nepriskirta')}: ${_eur0(unassigned)}',
+                  style: TextStyle(fontSize: 12, color: _muted)),
+            ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _purple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14))),
+              child: Text(tr('Uždaryti'),
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ]),
       ),
     );
   }
