@@ -821,12 +821,6 @@ def _build_result(all_txns: list, summaries: list, own_ibans: set,
         "frequent": detection["frequent"],
         "dash": dash,
         "scanDiag": scan_diag,
-        # Banks that refused us outright — expired or withdrawn consent. Split
-        # out from scanDiag so the phone doesn't have to know which HTTP codes
-        # mean "gone": these connections should be dropped locally and the user
-        # asked to reconnect, unlike a merely quiet bank.
-        "revokedBanks": sorted({d.get("bank") for d in scan_diag
-                                if d.get("revoked") and d.get("bank")}),
         # What the phone should keep and hand back on the next scan, so a bank
         # that goes quiet then can be filled in from here instead of vanishing.
         # Booked only: pending entries still move, and a cancelled one must not

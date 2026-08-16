@@ -764,8 +764,11 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
               // due that day, fell through to neither and painted no fill
               // at all, just a bare number over the plain card ("visi
               // kvadratukai su juodais skaičiais", "kitos spalvos nebuvo").
+              // 2026-08-16: bumped from 0.08/0.4 — computed contrast on the
+              // blue card was ~2.5:1, below WCAG AA (4.5:1). Still visibly
+              // dimmer than a filled day, just no longer hard to read.
               color: colors.isEmpty
-                  ? Colors.white.withValues(alpha: 0.08)
+                  ? Colors.white.withValues(alpha: 0.12)
                   : (colors.length == 1 ? colors.first : null),
               alignment: Alignment.center,
               child: Stack(
@@ -787,7 +790,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: colors.isEmpty
-                              ? Colors.white.withValues(alpha: 0.4)
+                              ? Colors.white.withValues(alpha: 0.6)
                               : const Color(0xFF0B1533))),
                 ],
               ),

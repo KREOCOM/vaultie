@@ -10031,12 +10031,14 @@ class _BillSplitHomeScreen extends StatelessWidget {
         people.length == 1 ? tr('1 žmogus') : '${people.length} ${tr('žmonės')}';
     return InkWell(
       onTap: () => _openSaved(context, s),
-      borderRadius: BorderRadius.circular(16),
+      // 2026-08-16: was 16 here, 14 on every other _billCard in this wizard
+      // — matched for consistency (audit finding).
+      borderRadius: BorderRadius.circular(14),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration:
-            BoxDecoration(color: _billCard, borderRadius: BorderRadius.circular(16)),
+            BoxDecoration(color: _billCard, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
           Expanded(
             child: Column(
@@ -10694,7 +10696,7 @@ class _BillReviewSplitScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration:
-          BoxDecoration(color: _billCard, borderRadius: BorderRadius.circular(16)),
+          BoxDecoration(color: _billCard, borderRadius: BorderRadius.circular(14)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           _billAvatar(person),
