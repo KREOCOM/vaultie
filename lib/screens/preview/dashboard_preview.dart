@@ -3703,96 +3703,84 @@ class _DashboardPreviewState extends State<DashboardPreview>
             behavior: HitTestBehavior.opaque,
             onTap: _showBalance,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: designPreviewPalette
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
               children: [
-                // 2026-08-16 EXPERIMENT: bank total on the left, "Grynieji"
-                // cash on the right, side by side — "banko saskaitos
-                // automatines butu kaireje o gryni pinigai butu desineje".
-                // Was one column with a separate "+ Grynieji" line further
-                // down that never sat right ("gryni nelimpa"). Production
-                // keeps its original single-column [sync row, balance] here,
-                // untouched.
-                designPreviewPalette
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _heroSyncRow(),
-                                const SizedBox(height: 5),
-                                _hideBal
-                                    ? Text('••••••',
-                                        style: TextStyle(
-                                            fontSize: 32,
-                                            fontWeight: FontWeight.w800,
-                                            color: _heroInk,
-                                            letterSpacing: 2))
-                                    : Text(balStr,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                            // Slightly smaller than the old
-                                            // single-column layout (was
-                                            // 40/48) — this number now
-                                            // shares the row with the cash
-                                            // column instead of owning full
-                                            // width.
-                                            fontSize: _darkMode ? 34 : 40,
-                                            fontWeight: FontWeight.w800,
-                                            color: _heroInk,
-                                            letterSpacing: -1.1,
-                                            height: 1.05,
-                                            shadows: _darkMode
-                                                ? const [
-                                                    Shadow(
-                                                        color:
-                                                            Color(0x808B5CF6),
-                                                        blurRadius: 18)
-                                                  ]
-                                                : null)),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          _heroCashColumn(),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _heroSyncRow(),
-                          const SizedBox(height: 5),
-                          _hideBal
-                              ? Text('••••••',
-                                  style: TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.w800,
-                                      color: _heroInk,
-                                      letterSpacing: 2))
-                              : Text(balStr,
-                                  style: TextStyle(
-                                    // Bigger and tighter than the rest of the
-                                    // block. It was the same weight as the
-                                    // labels around it and sank into them —
-                                    // this is the number the screen exists
-                                    // for.
-                                    fontSize: _darkMode ? 34 : 40,
-                                    fontWeight: FontWeight.w800,
-                                    color: _heroInk,
-                                    letterSpacing: -1.2,
-                                    height: 1.05,
-                                    shadows: _darkMode
-                                        ? const [
-                                            Shadow(
-                                                color: Color(0x808B5CF6),
-                                                blurRadius: 18)
-                                          ]
-                                        : null,
-                                  )),
-                        ],
-                      ),
+                Builder(builder: (_) {
+                  // Sync status shrunk to a tiny inline indicator (was a big card):
+                  // a small spinner + "Sinchronizuojama" while a scan runs, else a
+                  // quiet "gyvai" dot.
+                  final syncIndicator = _deepening
+                      ? Row(mainAxisSize: MainAxisSize.min, children: [
+                          SizedBox(
+                              width: 11,
+                              height: 11,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 1.6, color: _syncTint)),
+                          const SizedBox(width: 6),
+                          Text(tr('Sinchronizuojama'),
+                              style: TextStyle(fontSize: 11, color: _syncTint)),
+                        ])
+                      : Row(mainAxisSize: MainAxisSize.min, children: [
+                          SizedBox(
+                              width: 6,
+                              height: 6,
+                              child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                      color: _liveTint, shape: BoxShape.circle))),
+                          const SizedBox(width: 5),
+                          Text(tr('gyvai'),
+                              style: TextStyle(fontSize: 11, color: _liveTint)),
+                        ]);
+                  // 2026-08-16: PREVIEW-ONLY — everything on this hero got
+                  // bigger EXCEPT the "gyvai"/sync indicator (syncIndicator,
+                  // above), which stays small on purpose per request.
+                  final label = Text(tr('Bendras likutis'),
+                      style: TextStyle(
+                          fontSize: designPreviewPalette ? 15 : 12.5,
+                          color: _heroDim,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2));
+                  // PREVIEW-ONLY (2026-08-12): centered label + inline sync dot,
+                  // vs. the real app's label-left/status-right row.
+                  return designPreviewPalette
+                      ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          label,
+                          const SizedBox(width: 8),
+                          syncIndicator,
+                        ])
+                      : Row(children: [label, const Spacer(), syncIndicator]);
+                }),
+                const SizedBox(height: 5),
+                _hideBal
+                    ? Text('••••••',
+                        style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w800,
+                            color: _heroInk,
+                            letterSpacing: 2))
+                    : Text(balStr,
+                        style: TextStyle(
+                          // Bigger and tighter than the rest of the block. It was
+                          // the same weight as the labels around it and sank into
+                          // them — this is the number the screen exists for.
+                          // Bigger in light mode: it was the same weight as the
+                          // labels around it and sank into them.
+                          fontSize: designPreviewPalette
+                              ? (_darkMode ? 40 : 48)
+                              : (_darkMode ? 34 : 40),
+                          fontWeight: FontWeight.w800,
+                          color: _heroInk,
+                          letterSpacing: -1.2,
+                          height: 1.05,
+                          shadows: _darkMode
+                              ? const [
+                                  Shadow(
+                                      color: Color(0x808B5CF6), blurRadius: 18)
+                                ]
+                              : null,
+                        )),
                 // Month-over-month change: green up / red down, "% | € nuo praėjusio mėn."
                 // 2026-08-16: removed from the preview hero per request —
                 // "per daug apkrautas melynas blokas" (the blue block was
@@ -3838,12 +3826,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 // 2026-08-16: PREVIEW-ONLY — the line chart (candlesticks,
                 // clean line, projection), the account-split bar, and the
                 // cash-flow strip all kept reading as "too much"/"not
-                // pretty" on this hero, so none of it renders in preview.
-                // Cash itself moved up to sit beside the balance number
-                // instead of living in this slot (see _heroCashColumn) —
-                // _cashRow is kept below, unused, in case this experiment
-                // doesn't hold up and cash needs to move back down here.
-                if (!designPreviewPalette)
+                // pretty" on this hero. Settled on a cash-on-hand row
+                // instead — no card, just a line of text and two small
+                // step buttons, since a bank can't report physical cash.
+                if (designPreviewPalette)
+                  _cashRow()
+                else
                 // Chart with a soft fill, the balance pill at the endpoint, and € max/min.
                 SizedBox(
                   height: 78,
@@ -4242,102 +4230,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
           child: Icon(icon, size: 14, color: Colors.white),
         ),
       );
-
-  // "Bendras likutis" label + the tiny "gyvai"/"Sinchronizuojama" status,
-  // label-left/status-right — used by BOTH the preview two-column
-  // experiment and the untouched production layout, which is why this was
-  // pulled out of _topBanner's old inline Builder instead of duplicated.
-  Widget _heroSyncRow() {
-    final syncIndicator = _deepening
-        ? Row(mainAxisSize: MainAxisSize.min, children: [
-            SizedBox(
-                width: 11,
-                height: 11,
-                child: CircularProgressIndicator(
-                    strokeWidth: 1.6, color: _syncTint)),
-            const SizedBox(width: 6),
-            Text(tr('Sinchronizuojama'),
-                style: TextStyle(fontSize: 11, color: _syncTint)),
-          ])
-        : Row(mainAxisSize: MainAxisSize.min, children: [
-            SizedBox(
-                width: 6,
-                height: 6,
-                child: DecoratedBox(
-                    decoration: BoxDecoration(
-                        color: _liveTint, shape: BoxShape.circle))),
-            const SizedBox(width: 5),
-            Text(tr('gyvai'),
-                style: TextStyle(fontSize: 11, color: _liveTint)),
-          ]);
-    final label = Text(tr('Bendras likutis'),
-        style: TextStyle(
-            fontSize: designPreviewPalette ? 15 : 12.5,
-            color: _heroDim,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2));
-    return Row(children: [label, const Spacer(), syncIndicator]);
-  }
-
-  // 2026-08-16 EXPERIMENT: the hero's right column — "Grynieji" cash,
-  // paired at the balance's own eye level with the real bank total on the
-  // left (see _topBanner). No value yet → a small "+" ghost circle starts
-  // it; set once → label + amount + the same +/− step buttons _cashRow used
-  // to own. Shares storage with _cashAsset/_promptCash — same data, just a
-  // different home for it on screen.
-  Widget _heroCashColumn() {
-    final cash = (_cashAsset?['amount'] as num?)?.toDouble();
-    if (cash == null) {
-      return GestureDetector(
-        onTap: () => _promptCash(delta: 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(tr('Grynieji'),
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.7))),
-            const SizedBox(height: 8),
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-              ),
-              child: const Icon(Icons.add_rounded, size: 17, color: Colors.white),
-            ),
-          ],
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          const Text('💵', style: TextStyle(fontSize: 12)),
-          const SizedBox(width: 4),
-          Text(tr('Grynieji'),
-              style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white.withValues(alpha: 0.7))),
-        ]),
-        const SizedBox(height: 4),
-        Text(_eur0(cash),
-            style: const TextStyle(
-                fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
-        const SizedBox(height: 8),
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          _cashStepBtn(Icons.remove_rounded, () => _promptCash(delta: -1)),
-          const SizedBox(width: 8),
-          _cashStepBtn(Icons.add_rounded, () => _promptCash(delta: 1)),
-        ]),
-      ],
-    );
-  }
 
   // delta: +1 = "Gavau" (add), -1 = "Išleidau" (subtract), 0 = first-time set.
   Future<void> _promptCash({required int delta}) async {
