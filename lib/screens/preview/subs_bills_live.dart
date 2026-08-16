@@ -306,6 +306,9 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
         // (Apple Pay, Google Pay) doesn't hide every OTHER amount under
         // that same name.
         existingNames: _all.map((it) => _nameAmountKey(it.merchant, it.monthly)).toSet(),
+        // Appends straight into `_all` — see _LiveSortScreen.onManualAdded's
+        // own doc for why onChanged() alone wasn't enough.
+        onManualAdded: (raw) => setState(() => _all.add(_LiveItem(raw))),
       ),
     ));
     setState(() {});
@@ -644,57 +647,93 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   }
 
   Widget _dueDateCalendar() {
-    final sorted = [..._confirmed]..sort((a, b) => (a.dueDate ?? DateTime(9999)).compareTo(b.dueDate ?? DateTime(9999)));
-    final withDates = sorted.where((it) => it.dueDate != null).toList();
+    // 2026-08-16 perf fix: `.dueDate` re-decodes DashboardStore's overrides
+    // JSON from Hive on EVERY call (predictedDueDate → recurringDueDayOverrides).
+    // The old version called it inside a 31-cell grid's per-cell color lookup,
+    // each scanning every bill — up to 31×N fresh Hive reads on one build, a
+    // real contributor to the app feeling laggy on this screen. Computed once
+    // here instead, reused everywhere below.
+    final withDates = <_LiveItem>[];
+    final dates = <DateTime>[];
+    for (final it in _confirmed) {
+      final d = it.dueDate;
+      if (d != null) {
+        withDates.add(it);
+        dates.add(d);
+      }
+    }
     if (withDates.isEmpty) return const SizedBox.shrink();
-    final ref = withDates.first.dueDate!;
+    final order = List<int>.generate(withDates.length, (i) => i)
+      ..sort((a, b) => dates[a].compareTo(dates[b]));
+    final sortedItems = [for (final i in order) withDates[i]];
+    final sortedDates = [for (final i in order) dates[i]];
+    final ref = sortedDates.first;
     final daysInMonth = DateTime(ref.year, ref.month + 1, 0).day;
     // A bill's predicted day can land in a DIFFERENT month than the first
     // one shown (e.g. a bill due the 2nd next to one due the 28th, viewed
     // near month-end) — only dots landing in `ref`'s month are drawn; the
     // legend row below always shows every bill regardless.
-    Color? colorFor(int day) {
-      for (var i = 0; i < withDates.length; i++) {
-        final d = withDates[i].dueDate!;
-        if (d.year == ref.year && d.month == ref.month && d.day == day) {
-          return _calPalette[i % _calPalette.length];
-        }
-      }
-      return null;
-    }
+    List<Color> colorsFor(int day) => [
+          for (var i = 0; i < sortedDates.length; i++)
+            if (sortedDates[i].year == ref.year &&
+                sortedDates[i].month == ref.month &&
+                sortedDates[i].day == day)
+              _calPalette[i % _calPalette.length],
+        ];
 
     return Column(children: [
       GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: daysInMonth,
-        gridDelegate:
-            const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 10, crossAxisSpacing: 4, mainAxisSpacing: 4),
+        // 2026-08-16: 10 columns made the cells tiny ("kvadratukus didesnius
+        // padaryti") — 7 columns (a real calendar week) gives each cell
+        // ~40% more area and reads more like an actual calendar besides.
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7, crossAxisSpacing: 5, mainAxisSpacing: 5, childAspectRatio: 1),
         itemBuilder: (_, i) {
           final day = i + 1;
-          final c = colorFor(day);
-          return Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: c ?? Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(5),
+          final colors = colorsFor(day);
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: Container(
+              color: colors.isEmpty ? Colors.white.withValues(alpha: 0.08) : null,
+              alignment: Alignment.center,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Two+ bills the SAME day used to just show whichever bill
+                  // happened to be checked first — "MOGO laimėjo, jo spalva
+                  // rodoma" even though Apple Pay was ALSO due that day.
+                  // Split the cell into equal vertical bands, one per bill,
+                  // so a shared day is visibly shared.
+                  if (colors.length > 1)
+                    Row(
+                      children: [
+                        for (final c in colors) Expanded(child: Container(color: c)),
+                      ],
+                    ),
+                  Text('$day',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: colors.isEmpty
+                              ? Colors.white.withValues(alpha: 0.4)
+                              : const Color(0xFF0B1533))),
+                ],
+              ),
             ),
-            child: Text('$day',
-                style: TextStyle(
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w700,
-                    color: c != null ? const Color(0xFF0B1533) : Colors.white.withValues(alpha: 0.4))),
           );
         },
       ),
       const SizedBox(height: 12),
       Column(
         children: [
-          for (var i = 0; i < withDates.length; i++)
+          for (var i = 0; i < sortedItems.length; i++)
             Padding(
               padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
               child: GestureDetector(
-                onTap: () => _editDueDay(withDates[i]),
+                onTap: () => _editDueDay(sortedItems[i]),
                 behavior: HitTestBehavior.opaque,
                 child: Row(children: [
                   Container(
@@ -705,13 +744,13 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(withDates[i].displayName,
+                    child: Text(sortedItems[i].displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
                   ),
-                  Text('${withDates[i].dueDate!.day} d.',
+                  Text('${sortedDates[i].day} d.',
                       style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.75),
                           fontSize: 12,
@@ -950,11 +989,16 @@ class _LiveSortScreen extends StatefulWidget {
     required this.onChanged,
     this.allTransactions,
     this.existingNames = const {},
+    this.onManualAdded,
   });
   final List<_LiveItem> items;
   final String wantType;
   final VoidCallback onChanged;
   final List<Map>? allTransactions;
+  // The raw item just persisted via _confirmManual, so the parent screen
+  // can append it directly instead of relying on a stale snapshot — see
+  // that call site's own comment.
+  final void Function(Map<String, dynamic> raw)? onManualAdded;
   // _nameAmountKey(name, amount) strings, not bare names — see that
   // function's doc for why a name alone isn't a safe key.
   final Set<String> existingNames;
@@ -1055,7 +1099,7 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
     // add, so the second one silently overwrote the first instead of
     // becoming its own tracked stream.
     final sid = 'manual:${_nameAmountKey(m.name, m.avgAmount)}';
-    await DashboardStore.addManualRecurring({
+    final raw = <String, dynamic>{
       'sid': sid,
       'name': m.name,
       'monthly': m.avgAmount,
@@ -1070,10 +1114,17 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
       // item silently never appeared in the due-date calendar or got a
       // reminder scheduled (see _txMatches' own lastDate tracking).
       'lastCharge': m.lastChargeIso,
-    });
+    };
+    await DashboardStore.addManualRecurring(raw);
     await DashboardStore.setRecurringType(sid, widget.wantType);
     await DashboardStore.markRecurringReviewed(sid);
     setState(() => _manuallyAdded.add(_nameAmountKey(m.name, m.avgAmount)));
+    // 2026-08-16 fix: onChanged() alone just re-rendered the PARENT screen
+    // with its ORIGINAL, one-time-loaded `_all` list — a manual add never
+    // existed in that snapshot, so the new bill was invisible until the
+    // whole screen was reopened from scratch (which rebuilds `_all` fresh).
+    // onManualAdded hands the parent the exact item to append directly.
+    widget.onManualAdded?.call(raw);
     widget.onChanged();
     if (mounted) {
       ScaffoldMessenger.of(context)
