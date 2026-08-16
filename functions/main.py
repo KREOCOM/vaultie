@@ -202,6 +202,19 @@ def _require_premium(req: https_fn.CallableRequest) -> None:
 # the built dashboard — stays in memory and on the phone.
 _BANK_LINKS = "bank_links"
 
+# 2026-08-16: a SECOND thing this backend stores, briefly — see
+# _remember_auth_state/_consume_auth_state below. Not a data-retention
+# exception to the comment above (nothing here is the user's financial
+# data), it closes a real gap: start_bank_auth generated an OAuth `state`
+# and handed it back to the client, but finish_bank_auth never checked it
+# against anything — so it exchanged ANY code a caller supplied for
+# accounts bound to THAT caller's uid, with nothing proving the code
+# actually came from a consent flow that uid itself started. A deep link
+# crafted with someone else's valid code (obtained from their own,
+# unrelated consent flow) would have linked their bank account into
+# whichever signed-in victim tapped it.
+_BANK_AUTH_STATES = "bank_auth_states"
+
 
 def _remember_accounts(uid: str, account_uids: list,
                        session_id: str | None = None) -> None:
@@ -236,6 +249,60 @@ def _remember_accounts(uid: str, account_uids: list,
         # ask them to reconnect, which runs this write again. Denying later is
         # the safe direction to fail in.
         logging.exception("bank_links: could not record ownership for uid=%s", uid)
+
+
+def _remember_auth_state(uid: str, state: str) -> None:
+    """Ties a start_bank_auth-issued `state` to the caller who requested it, so
+    finish_bank_auth can later prove the code it's about to exchange belongs to
+    THIS user's own just-started consent. One document per uid: a new
+    start_bank_auth simply overwrites it, silently invalidating an abandoned
+    prior attempt — the real usage pattern is one auth flow in flight at a
+    time. Deliberately NOT wrapped in try/except (unlike _remember_accounts
+    above): if this write fails, finish_bank_auth would reject the state check
+    anyway, so failing start_bank_auth loudly here is more honest than
+    proceeding into a connection attempt that can only end in a confusing
+    "couldn't verify" error after the user already sat through the bank's
+    consent pages."""
+    from firebase_admin import firestore
+    firestore.client().collection(_BANK_AUTH_STATES).document(uid).set({
+        "state": state,
+        "createdAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+    })
+
+
+_AUTH_STATE_TTL = dt.timedelta(minutes=30)
+
+
+def _auth_state_fresh(created_iso, now: "dt.datetime | None" = None) -> bool:
+    """Pure freshness check, factored out so it's testable with no Firestore —
+    30 min is generous for actually completing a bank's consent pages, tight
+    enough that a leaked/replayed state is useless soon after."""
+    try:
+        created = dt.datetime.fromisoformat(created_iso)
+    except (TypeError, ValueError):
+        return False
+    now = now or dt.datetime.now(dt.timezone.utc)
+    return now - created <= _AUTH_STATE_TTL
+
+
+def _consume_auth_state(uid: str, state: str) -> bool:
+    """True iff `state` matches the one THIS uid's own start_bank_auth issued,
+    and it's still fresh (see _auth_state_fresh). Deletes the record either
+    way it resolves: single-use, so the same state can never be presented
+    twice even if this first check fails."""
+    from firebase_admin import firestore
+    ref = firestore.client().collection(_BANK_AUTH_STATES).document(uid)
+    snap = ref.get()
+    try:
+        ref.delete()
+    except Exception:
+        logging.exception("bank_auth_states: cleanup delete failed uid=%s", uid)
+    if not snap.exists or not state:
+        return False
+    data = snap.to_dict() or {}
+    if data.get("state") != state:
+        return False
+    return _auth_state_fresh(data.get("createdAt"))
 
 
 def _owned_accounts(uid: str) -> set:
@@ -562,6 +629,28 @@ def _scan_one_account(client: EnableBankingClient, m: dict, *, months_back: int,
                 # deserve opposite treatment — one gets its cached data
                 # re-served, the other must stop being shown at all.
                 "revoked": status in (401, 403),
+            },
+        }
+    except Exception as e:  # noqa: BLE001
+        # 2026-08-16: this docstring promised "never raises" but only
+        # EnableBankingError was ever caught — a raw network fault
+        # (requests.exceptions.Timeout/ConnectionError, a malformed JSON
+        # body, anything the enable_banking.py client didn't wrap) escaped
+        # this function, propagated through _scan_accounts' thread pool,
+        # and crashed the WHOLE finish_bank_auth/refresh_dashboard call —
+        # a user with 3 banks lost their entire dashboard because ONE bank
+        # timed out, instead of losing just that one bank's data like every
+        # other failure mode here already correctly does. Treated the same
+        # as a quiet (not revoked, not rate-limited) failure — the client
+        # already has a path for that (cached data re-served).
+        logging.warning("scan: account %r (%s) failed with an unexpected "
+                        "error, skipping: %s", _mask_iban(m.get("name")), bank, e)
+        return {
+            "ok": False, "bank": bank,
+            "diag": {
+                "account": m["name"], "bank": bank, "error": str(e),
+                "iban": m.get("iban"), "currency": m.get("currency"),
+                "rateLimited": False, "revoked": False,
             },
         }
 
@@ -946,6 +1035,11 @@ def start_bank_auth(req: https_fn.CallableRequest) -> dict:
             code=https_fn.FunctionsErrorCode.INTERNAL,
             message="Could not start bank authorization.",
         )
+    # Tie this state to the caller BEFORE handing it back — finish_bank_auth
+    # verifies it later (see _consume_auth_state). Outside the try/except
+    # above on purpose: a failure here should surface as this call failing,
+    # not as a silently-unprotected auth flow.
+    _remember_auth_state(_uid(req), state)
     return {"url": url, "state": state}
 
 
@@ -983,6 +1077,17 @@ def finish_bank_auth(req: https_fn.CallableRequest) -> dict:
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
             message="code is required.",
+        )
+    # Proves this code came from a consent flow THIS caller's OWN
+    # start_bank_auth started (see _consume_auth_state) — without it, any
+    # signed-in caller could exchange a code obtained through someone else's
+    # unrelated auth flow and bind those accounts to themselves.
+    if not _consume_auth_state(_uid(req), data.get("state")):
+        logging.warning("finish_bank_auth: state check failed rid=%s uid=%s",
+                        rid, _uid(req))
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+            message="This bank connection could not be verified — please try connecting again.",
         )
     # Fetch newest window first (see EnableBankingClient.transactions): recent
     # data is always retrieved even on oldest-first banks, and the deeper history

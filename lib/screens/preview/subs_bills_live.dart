@@ -20,21 +20,37 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../app_prefs.dart';
+import '../../i18n.dart';
 import '../../services/dashboard_store.dart';
 import '../../services/notification_service.dart' show predictedDueDate;
 import '../../ui/design_system.dart' show CategoryIcon;
 
-const _ink = Color(0xFF0B1533);
-const _subtle = Color(0xFF5B6684);
-const _faint = Color(0xFF93A0C2);
-const _line = Color(0xFFE6EAF2);
-const _bg = Color(0xFFF6F7FB);
-const _card = Color(0xFFFFFFFF);
-const _blue = Color(0xFF003DE1);
-const _blueDeep = Color(0xFF0B2E9B);
-const _blueSoft = Color(0xFFEAF0FF);
-const _good = Color(0xFF1FA971);
-const _bad = Color(0xFFD9534F);
+// 2026-08-16: this whole screen used to be FIXED light colors regardless of
+// the app's own dark-mode setting — reached via Navigator.push from the live
+// dashboard (dashboard_preview.dart:4830's LiveRecurringScreen, not just the
+// standalone main_subs_live.dart demo entry), so a user in dark mode tapped
+// Sąskaitos/Prenumeratos from the (now violet, since today's hero fix) Home
+// hero and landed on a jarring bright-white screen. Colors are now getters
+// keyed off AppPrefs.darkMode (the same app-wide notifier dashboard_preview.
+// dart's own theme toggle writes to) — a plain top-level bool can't be
+// shared across files the way dashboard_preview.dart's own `_darkMode` is
+// (underscore = library-private to that file), so this reads the public
+// notifier directly instead. Dark values match dashboard_preview.dart's own
+// dark palette (_ink/_card/_bg/_hair) and its violet accent (_purple/
+// _purpleDeep's dark-mode values) for visual consistency with the rest of
+// the app, rather than inventing a second dark palette.
+Color get _ink => AppPrefs.darkMode.value ? const Color(0xFFEDEAF6) : const Color(0xFF0B1533);
+Color get _subtle => AppPrefs.darkMode.value ? const Color(0xFFBDB7CE) : const Color(0xFF5B6684);
+Color get _faint => AppPrefs.darkMode.value ? const Color(0xFF948DAC) : const Color(0xFF93A0C2);
+Color get _line => AppPrefs.darkMode.value ? const Color(0xFF2C2740) : const Color(0xFFE6EAF2);
+Color get _bg => AppPrefs.darkMode.value ? const Color(0xFF0A0910) : const Color(0xFFF6F7FB);
+Color get _card => AppPrefs.darkMode.value ? const Color(0xFF16131F) : const Color(0xFFFFFFFF);
+Color get _blue => AppPrefs.darkMode.value ? const Color(0xFF8B5CF6) : const Color(0xFF003DE1);
+Color get _blueDeep => AppPrefs.darkMode.value ? const Color(0xFF6D3EE0) : const Color(0xFF0B2E9B);
+Color get _blueSoft => AppPrefs.darkMode.value ? const Color(0xFF241C3B) : const Color(0xFFEAF0FF);
+Color get _good => AppPrefs.darkMode.value ? const Color(0xFF34D399) : const Color(0xFF1FA971);
+Color get _bad => AppPrefs.darkMode.value ? const Color(0xFFF87171) : const Color(0xFFD9534F);
 
 // 2026-08-16: layered rings — one ring per subscription, radius ranked by
 // size (biggest = outermost), sweep proportional to its share of the
@@ -114,16 +130,63 @@ class _RingsPainter extends CustomPainter {
 String _nameAmountKey(String name, double amount) =>
     '${name.trim().toLowerCase()}|${amount.abs().round()}';
 
+// 2026-08-16: this screen used a naive `count == 1 ? singular : plural`
+// ternary for every "N aktyvios prenumeratos"-style line — wrong for 10-20
+// (and any count ending in 1 other than literal "1", e.g. 21, 31), which
+// Lithuanian declines differently: 1 aktyvi prenumerata / 2-9 aktyvios
+// prenumeratos / 0,10-20 aktyvių prenumeratų. `n=11` used to render "11
+// aktyvios sąskaitos" (should be "11 aktyvių sąskaitų").
+String _ltCount(int n, {required String one, required String few, required String many}) {
+  final t = n % 100;
+  if (t >= 11 && t <= 19) return many;
+  switch (n % 10) {
+    case 1:
+      return one;
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+      return few;
+    default:
+      return many;
+  }
+}
+
+bool get _isEnglishUi => effectiveLocale().languageCode == 'en';
+
+String _activeCountLabel(int n, bool isSubs) {
+  if (_isEnglishUi) {
+    final noun = isSubs ? 'subscription' : 'bill';
+    return '$n active $noun${n == 1 ? '' : 's'}';
+  }
+  final adj = _ltCount(n, one: 'aktyvi', few: 'aktyvios', many: 'aktyvių');
+  final noun = isSubs
+      ? _ltCount(n, one: 'prenumerata', few: 'prenumeratos', many: 'prenumeratų')
+      : _ltCount(n, one: 'sąskaita', few: 'sąskaitos', many: 'sąskaitų');
+  return '$n $adj $noun';
+}
+
+String _pendingCountLabel(int n) {
+  if (_isEnglishUi) return '$n possible payment${n == 1 ? '' : 's'}';
+  final adj = _ltCount(n, one: 'galimas', few: 'galimi', many: 'galimų');
+  final noun = _ltCount(n, one: 'mokėjimas', few: 'mokėjimai', many: 'mokėjimų');
+  return '$n $adj $noun';
+}
+
 String _cadenceLabel(String? cycle) {
   switch (cycle) {
     case 'weekly':
-      return 'kas savaitę';
+      return tr('kas savaitę');
     case 'yearly':
-      return 'kas metus';
+      return tr('kas metus');
     case 'quarterly':
-      return 'kas ketvirtį';
+      return tr('kas ketvirtį');
     default:
-      return 'kas mėnesį';
+      return tr('kas mėnesį');
   }
 }
 
@@ -199,24 +262,24 @@ Future<void> _renameLive(BuildContext context, _LiveItem it, VoidCallback onChan
   final name = await showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Kaip pavadinti?'),
+      title: Text(tr('Kaip pavadinti?')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-              '„${it.merchant}" (${it.monthly.toStringAsFixed(2)} €) — įvesk tikrąjį pavadinimą. '
-              'Pervadinimas paveiks tik šitos kainos mokėjimus.',
-              style: const TextStyle(fontSize: 13, color: _subtle, height: 1.4)),
+              '„${it.merchant}" (${it.monthly.toStringAsFixed(2)} €) — '
+              '${tr('įvesk tikrąjį pavadinimą. Pervadinimas paveiks tik šitos kainos mokėjimus.')}',
+              style: TextStyle(fontSize: 13, color: _subtle, height: 1.4)),
           const SizedBox(height: 12),
           TextField(controller: ctl, autofocus: true),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Atšaukti')),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Atšaukti'))),
         ElevatedButton(
           onPressed: () => Navigator.pop(ctx, ctl.text.trim()),
-          child: const Text('Patvirtinti'),
+          child: Text(tr('Patvirtinti')),
         ),
       ],
     ),
@@ -323,15 +386,15 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
         elevation: 0,
         foregroundColor: _ink,
         title: Text(widget.title,
-            style: const TextStyle(color: _ink, fontWeight: FontWeight.w800)),
+            style: TextStyle(color: _ink, fontWeight: FontWeight.w800)),
       ),
       body: (widget.itemsOverride == null && !DashboardStore.hasData)
-          ? const Center(
+          ? Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Text(
-                    'Nerasta sinchronizuotų banko duomenų šiame įrenginyje.\n'
-                    'Atidaryk tikrąją Vaultie ir susisiek su banku bent kartą.',
+                    tr('Nerasta sinchronizuotų banko duomenų šiame įrenginyje.\n'
+                        'Atidaryk tikrąją Vaultie ir susisiek su banku bent kartą.'),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: _subtle)),
               ),
@@ -357,7 +420,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   Widget _hero() => Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_blueDeep, _blue]),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
@@ -386,12 +449,12 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                       color: Colors.white, size: 22),
                 ),
                 const SizedBox(height: 18),
-                Text(_isSubs ? 'Rask savo prenumeratas' : 'Rask savo sąskaitas',
+                Text(_isSubs ? tr('Rask savo prenumeratas') : tr('Rask savo sąskaitas'),
                     style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
                 Text(
-                    'Vaultie rado pasikartojančių mokėjimų tavo banko istorijoje. '
-                    'Padėk mums atpažinti, kuriuos iš jų nori sekti.',
+                    tr('Vaultie rado pasikartojančių mokėjimų tavo banko istorijoje. '
+                        'Padėk mums atpažinti, kuriuos iš jų nori sekti.'),
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.94),
                         fontSize: 14,
@@ -416,13 +479,13 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       elevation: 0,
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Peržiūrėti mokėjimus',
-                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                        SizedBox(width: 6),
-                        Icon(Icons.arrow_forward_rounded, size: 18),
+                        Text(tr('Peržiūrėti mokėjimus'),
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.arrow_forward_rounded, size: 18),
                       ],
                     ),
                   ),
@@ -430,8 +493,8 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                 const SizedBox(height: 12),
                 Text(
                     _pending.isNotEmpty
-                        ? '${_pending.length} galimi mokėjimai'
-                        : (_canOpenSort ? 'Ieškok pats savo tranzakcijose' : 'Nieko naujo nerasta'),
+                        ? _pendingCountLabel(_pending.length)
+                        : (_canOpenSort ? tr('Ieškok pats savo tranzakcijose') : tr('Nieko naujo nerasta')),
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.88),
                         fontSize: 12.5,
@@ -445,7 +508,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   Widget _totalCard() => Container(
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_blueDeep, _blue]),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
@@ -462,8 +525,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                 Icon(_isSubs ? Icons.autorenew_rounded : Icons.receipt_long_rounded,
                     color: Colors.white, size: 15),
                 const SizedBox(width: 8),
-                Text(
-                    '${_confirmed.length} ${_confirmed.length == 1 ? (_isSubs ? "aktyvi prenumerata" : "aktyvi sąskaita") : (_isSubs ? "aktyvios prenumeratos" : "aktyvios sąskaitos")}',
+                Text(_activeCountLabel(_confirmed.length, _isSubs),
                     style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
               ]),
             ),
@@ -494,10 +556,10 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           ],
           const SizedBox(height: 22),
           Row(children: [
-            Expanded(child: _statText('Per mėnesį', _monthlyTotal)),
+            Expanded(child: _statText(tr('Per mėnesį'), _monthlyTotal)),
             Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.22)),
             const SizedBox(width: 18),
-            Expanded(child: _statText('Per metus', _yearlyTotal)),
+            Expanded(child: _statText(tr('Per metus'), _yearlyTotal)),
           ]),
         ]),
       );
@@ -594,13 +656,13 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20, left: 20, right: 20, top: 18),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('„${it.displayName}" — kada nusiskaito?',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+            Text('„${it.displayName}" — ${tr('kada nusiskaito?')}',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
             const SizedBox(height: 4),
             Text(
-                'Appsas numato dieną iš paskutinio tikro mokėjimo — jeigu bankas '
-                'nuskaito kitą dieną, pasirink tikrąją. Tai nekeičia, kaip appsas '
-                'atpažįsta pačią sąskaitą, tik parodomą/priminimo dieną.',
+                tr('Appsas numato dieną iš paskutinio tikro mokėjimo — jeigu bankas '
+                    'nuskaito kitą dieną, pasirink tikrąją. Tai nekeičia, kaip appsas '
+                    'atpažįsta pačią sąskaitą, tik parodomą/priminimo dieną.'),
                 style: TextStyle(fontSize: 12.5, color: _subtle, height: 1.4)),
             const SizedBox(height: 18),
             Wrap(
@@ -633,7 +695,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
               Center(
                 child: TextButton(
                   onPressed: () => Navigator.pop(ctx, -1), // sentinel: clear override
-                  child: const Text('Atstatyti numatytą dieną', style: TextStyle(color: _subtle)),
+                  child: Text(tr('Atstatyti numatytą dieną'), style: TextStyle(color: _subtle)),
                 ),
               ),
             ],
@@ -757,7 +819,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                         style: const TextStyle(
                             color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
                   ),
-                  Text('${sortedDates[i].day} d.',
+                  Text(_isEnglishUi ? 'Day ${sortedDates[i].day}' : '${sortedDates[i].day} d.',
                       style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.75),
                           fontSize: 12,
@@ -893,7 +955,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
             children: [
               Icon(Icons.add_circle_outline_rounded, color: _canOpenSort ? _blue : _faint, size: 23),
               const SizedBox(width: 10),
-              Text(_isSubs ? 'Rasti naują prenumeratą' : 'Rasti naują sąskaitą',
+              Text(_isSubs ? tr('Rasti naują prenumeratą') : tr('Rasti naują sąskaitą'),
                   style: TextStyle(
                       color: _canOpenSort ? _blue : _faint, fontWeight: FontWeight.w800, fontSize: 16.5)),
               if (_pending.isNotEmpty) ...[
@@ -902,7 +964,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(color: _blueSoft, borderRadius: BorderRadius.circular(20)),
                   child: Text('${_pending.length}',
-                      style: const TextStyle(color: _blue, fontSize: 12.5, fontWeight: FontWeight.w800)),
+                      style: TextStyle(color: _blue, fontSize: 12.5, fontWeight: FontWeight.w800)),
                 ),
               ],
             ],
@@ -931,8 +993,8 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
               children: [
                 Text(it.displayName,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
-                Text(it.cadence, style: const TextStyle(fontSize: 12, color: _subtle)),
+                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
+                Text(it.cadence, style: TextStyle(fontSize: 12, color: _subtle)),
               ],
             ),
           ),
@@ -940,21 +1002,21 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text('${it.monthly.toStringAsFixed(2)} €',
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
               const SizedBox(height: 6),
               Row(mainAxisSize: MainAxisSize.min, children: [
                 InkWell(
                   borderRadius: BorderRadius.circular(20),
                   onTap: () => _renameLive(context, it, () => setState(() {})),
-                  child: const Padding(
-                      padding: EdgeInsets.all(4), child: Icon(Icons.edit_outlined, size: 16, color: _blue)),
+                  child: Padding(
+                      padding: const EdgeInsets.all(4), child: Icon(Icons.edit_outlined, size: 16, color: _blue)),
                 ),
                 const SizedBox(width: 4),
                 InkWell(
                   borderRadius: BorderRadius.circular(20),
                   onTap: () => _removeConfirmed(it),
-                  child: const Padding(
-                      padding: EdgeInsets.all(4), child: Icon(Icons.delete_outline_rounded, size: 16, color: _bad)),
+                  child: Padding(
+                      padding: const EdgeInsets.all(4), child: Icon(Icons.delete_outline_rounded, size: 16, color: _bad)),
                 ),
               ]),
             ],
@@ -1095,7 +1157,8 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(SnackBar(
-            content: Text('„${it.displayName}" pridėta'), duration: const Duration(seconds: 2)));
+            content: Text('„${it.displayName}" ${tr('pridėta')}'),
+            duration: const Duration(seconds: 2)));
     }
   }
 
@@ -1150,7 +1213,8 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
-            SnackBar(content: Text('„${m.name}" pridėta'), duration: const Duration(seconds: 2)));
+            SnackBar(content: Text('„${m.name}" ${tr('pridėta')}'),
+                duration: const Duration(seconds: 2)));
     }
   }
 
@@ -1164,7 +1228,7 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
         backgroundColor: _bg,
         elevation: 0,
         foregroundColor: _ink,
-        title: const Text('Peržiūrėk mokėjimus',
+        title: Text(tr('Peržiūrėk mokėjimus'),
             style: TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 17)),
       ),
       body: Column(children: [
@@ -1173,14 +1237,14 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
           child: TextField(
             onChanged: (v) => setState(() => _query = v),
             decoration: InputDecoration(
-              hintText: 'Ieškoti pagal pavadinimą…',
-              prefixIcon: const Icon(Icons.search_rounded, color: _faint),
+              hintText: tr('Ieškoti pagal pavadinimą…'),
+              prefixIcon: Icon(Icons.search_rounded, color: _faint),
               filled: true,
               fillColor: _card,
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _line)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _line)),
               enabledBorder:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _line)),
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _line)),
             ),
           ),
         ),
@@ -1190,14 +1254,14 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
             children: [
               for (final it in visible) ...[_row(it), const SizedBox(height: 10)],
               if (visible.isEmpty && txMatches.isEmpty && _query.trim().isNotEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 40),
-                  child: Text('Nieko nerasta.', textAlign: TextAlign.center, style: TextStyle(color: _subtle)),
+                Padding(
+                  padding: const EdgeInsets.only(top: 40),
+                  child: Text(tr('Nieko nerasta.'), textAlign: TextAlign.center, style: TextStyle(color: _subtle)),
                 ),
               if (visible.isEmpty && txMatches.isEmpty && _query.trim().isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 40),
-                  child: Text('Viskas peržiūrėta.', textAlign: TextAlign.center, style: TextStyle(color: _subtle)),
+                Padding(
+                  padding: const EdgeInsets.only(top: 40),
+                  child: Text(tr('Viskas peržiūrėta.'), textAlign: TextAlign.center, style: TextStyle(color: _subtle)),
                 ),
               // Merchants the backend never flagged at all — found by
               // searching the user's own transaction history instead of the
@@ -1205,7 +1269,7 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
               if (txMatches.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.only(top: 8, bottom: 8),
-                  child: Text('Neradai automatiškai? Iš tavo tranzakcijų:',
+                  child: Text(tr('Neradai automatiškai? Iš tavo tranzakcijų:'),
                       style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _subtle)),
                 ),
                 for (final m in txMatches) ...[_manualRow(m), const SizedBox(height: 10)],
@@ -1237,33 +1301,34 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
                   Flexible(
                     child: Text(it.displayName,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
                   ),
                   const SizedBox(width: 2),
                   InkWell(
                     borderRadius: BorderRadius.circular(20),
                     onTap: () => _renameLive(context, it, () => setState(() {})),
-                    child: const Padding(
-                        padding: EdgeInsets.all(4), child: Icon(Icons.edit_outlined, size: 15, color: _blue)),
+                    child: Padding(
+                        padding: const EdgeInsets.all(4), child: Icon(Icons.edit_outlined, size: 15, color: _blue)),
                   ),
                 ]),
-                Text('matyta ${it.occ}x · ${it.cadence}', style: const TextStyle(fontSize: 12, color: _subtle)),
+                Text('${tr('matyta')} ${it.occ}x · ${it.cadence}',
+                    style: TextStyle(fontSize: 12, color: _subtle)),
               ],
             ),
           ),
           Text('${it.monthly.toStringAsFixed(2)} €',
-              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _ink)),
         ]),
         const SizedBox(height: 10),
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
               onPressed: () => _dismiss(it),
-              icon: const Icon(Icons.close_rounded, size: 16, color: _bad),
-              label: const Text('Ne', style: TextStyle(color: _bad, fontWeight: FontWeight.w700)),
+              icon: Icon(Icons.close_rounded, size: 16, color: _bad),
+              label: Text(tr('Ne'), style: TextStyle(color: _bad, fontWeight: FontWeight.w700)),
               style: OutlinedButton.styleFrom(
                   backgroundColor: _bad.withValues(alpha: 0.06),
-                  side: const BorderSide(color: _bad, width: 1.3),
+                  side: BorderSide(color: _bad, width: 1.3),
                   padding: const EdgeInsets.symmetric(vertical: 8)),
             ),
           ),
@@ -1272,7 +1337,9 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
             child: ElevatedButton.icon(
               onPressed: () => _confirm(it),
               icon: const Icon(Icons.check_rounded, size: 16, color: Colors.white),
-              label: Text(widget.wantType == 'subscription' ? 'Taip, prenumerata' : 'Taip, sąskaita'),
+              label: Text(widget.wantType == 'subscription'
+                  ? tr('Taip, prenumerata')
+                  : tr('Taip, sąskaita')),
               style: ElevatedButton.styleFrom(
                   backgroundColor: _good, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 8)),
             ),
@@ -1302,11 +1369,11 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
                 Text(m.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
-                Text('matyta ${m.count}x · vidurkis ${m.avgAmount.toStringAsFixed(2)} €',
+                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
+                Text('${tr('matyta')} ${m.count}x · ${tr('vidurkis')} ${m.avgAmount.toStringAsFixed(2)} €',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: _subtle)),
+                    style: TextStyle(fontSize: 12, color: _subtle)),
               ],
             ),
           ),
@@ -1322,7 +1389,9 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
           child: ElevatedButton.icon(
             onPressed: () => _confirmManual(m),
             icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-            label: Text(widget.wantType == 'subscription' ? 'Pridėti prie prenumeratų' : 'Pridėti prie sąskaitų'),
+            label: Text(widget.wantType == 'subscription'
+                ? tr('Pridėti prie prenumeratų')
+                : tr('Pridėti prie sąskaitų')),
             style: ElevatedButton.styleFrom(
                 backgroundColor: _blue,
                 foregroundColor: Colors.white,

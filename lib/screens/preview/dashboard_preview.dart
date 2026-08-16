@@ -944,6 +944,17 @@ List<Map<String, dynamic>> _recItemsFull(Map subs) {
 ///
 /// Name + monthly amount is stable across a re-split and still separates the case
 /// a plain name key got wrong (iCloud €2.99 vs Apple One €19.95 share a name).
+// NOT tr('Sąskaita') — that key already means "Bill" (a recurring-bill badge
+// on a transaction row, see _badge/dashboard.py's "rec" tag), a different
+// Lithuanian word that happens to be spelled the same as this one's meaning:
+// a bank ACCOUNT's own fallback display name when it has neither a bank
+// label nor its own name. Same collision, same fix as the plural "Sąskaitos"
+// pill (_heroAccountsButton) — branch on locale directly instead of reusing
+// the taken key. Top-level (not a State method) since it's needed from
+// several different screens' classes, not just one.
+String acctFallbackName() =>
+    effectiveLocale().languageCode == 'en' ? 'Account' : 'Sąskaita';
+
 String _recKey(Map it) {
   // The backend's series id, which is now built to survive exactly the things
   // that used to move it: a deeper scan changing the average, a price rise, the
@@ -4048,7 +4059,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                             _acctGlyph(a, diameter: 24, fontSize: 11),
                             const SizedBox(width: 8),
                             Text(
-                                (a['bank'] ?? a['name'] ?? tr('Sąskaita'))
+                                (a['bank'] ?? a['name'] ?? acctFallbackName())
                                     .toString(),
                                 style: TextStyle(
                                     fontSize: 13,
@@ -4461,7 +4472,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           _acctGlyph(a, diameter: 24, fontSize: 11),
           const SizedBox(width: 8),
-          Text((a['bank'] ?? a['name'] ?? tr('Sąskaita')).toString(),
+          Text((a['bank'] ?? a['name'] ?? acctFallbackName()).toString(),
               style: TextStyle(
                   fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
           if (a['sub'] != null) ...[
@@ -4469,13 +4480,20 @@ class _DashboardPreviewState extends State<DashboardPreview>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                  color: const Color(0xFFFBF1DE),
+                  // 2026-08-16: this chip's own card background (_card)
+                  // already goes near-black in dark mode — a fixed cream
+                  // badge inside it read as visibly inconsistent with the
+                  // SAME badge on the collapsed hero chip a few lines up,
+                  // which already branches on _darkMode. Matched here too.
+                  color: _darkMode
+                      ? Colors.white.withValues(alpha: 0.14)
+                      : const Color(0xFFFBF1DE),
                   borderRadius: BorderRadius.circular(8)),
               child: Text(tr(a['sub'] as String),
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF9C6B0A))),
+                      color: _darkMode ? _ink : const Color(0xFF9C6B0A))),
             ),
           ],
           const SizedBox(width: 8),
@@ -4785,7 +4803,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
           bal: bal,
           title: account == null
               ? null
-              : (account['bank'] ?? account['name'] ?? tr('Sąskaita')).toString()),
+              : (account['bank'] ?? account['name'] ?? acctFallbackName()).toString()),
     );
   }
 
@@ -8966,7 +8984,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(tr('Sąskaita'),
+          Text(acctFallbackName(),
               style: TextStyle(
                   fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),

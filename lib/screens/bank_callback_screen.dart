@@ -23,9 +23,14 @@ import 'preview/dashboard_preview.dart';
 /// dashboard. The bank label is recovered from the pending-connect marker set
 /// before the browser opened.
 class BankCallbackScreen extends StatefulWidget {
-  const BankCallbackScreen({super.key, required this.code});
+  const BankCallbackScreen({super.key, required this.code, required this.state});
 
   final String code;
+  // The `state` Enable Banking echoed back on this same callback — the
+  // server checks it against what THIS device's own startBankAuth issued
+  // before exchanging `code` (2026-08-16 fix, see completeBankConnection's
+  // own doc).
+  final String state;
 
   @override
   State<BankCallbackScreen> createState() => _BankCallbackScreenState();
@@ -89,6 +94,7 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
       }
       final r = await completeBankConnection(
         widget.code,
+        widget.state,
         bank: DashboardStore.pendingConnect(),
       );
       if (!mounted) return;

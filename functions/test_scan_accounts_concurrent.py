@@ -39,9 +39,11 @@ class FakeClient:
     a parallel scan from a sequential one by wall-clock time alone — no mocking
     of internals, no timing hacks inside main.py."""
 
-    def __init__(self, delays, fail_uids=frozenset()):
+    def __init__(self, delays, fail_uids=frozenset(), raise_uids=frozenset()):
         self.delays = delays          # {uid: seconds}
-        self.fail_uids = fail_uids    # uids whose transactions() call raises
+        self.fail_uids = fail_uids    # uids whose transactions() call raises EnableBankingError
+        self.raise_uids = raise_uids  # uids whose transactions() call raises a RAW exception
+                                       # (network fault, not a shaped bank error)
 
     def psu_headers_for(self, *a, **k):
         return {}
@@ -55,6 +57,8 @@ class FakeClient:
         time.sleep(self.delays.get(uid, 0) / 2)
         if uid in self.fail_uids:
             raise EnableBankingError(401, f"/accounts/{uid}/transactions", "revoked")
+        if uid in self.raise_uids:
+            raise TimeoutError("connection timed out")
         return ([{"entry_reference": f"{uid}-1",
                   "transaction_amount": {"amount": "-5.00", "currency": "EUR"},
                   "credit_debit_indicator": "DBIT", "booking_date": "2026-07-01"}],
@@ -108,6 +112,28 @@ check("the failure is recorded in scan_diag with its status",
       f"diag={diag3}")
 check("scan_diag has one entry per account, success or failure",
       len(diag3) == 3, f"got {len(diag3)}")
+
+# ── 3b. a RAW (non-EnableBankingError) exception never crashes the scan ─────
+# 2026-08-16 regression: _scan_one_account's docstring promised "never
+# raises", but only EnableBankingError was ever caught — a genuine network
+# fault (timeout, connection reset) escaped uncaught, propagated through
+# ex.map's thread pool, and crashed the WHOLE finish_bank_auth/
+# refresh_dashboard call. A user with 3 banks lost their entire dashboard
+# because ONE bank timed out.
+metas3b = [meta(23), meta(24), meta(25)]
+client3b = FakeClient({}, raise_uids={"acct24"})
+_txns3b, summaries3b, diag3b, _own3b = _scan_accounts(client3b, metas3b, months_back=6)
+check("a raw exception doesn't propagate out of _scan_accounts",
+      True)  # reaching this line at all is the assertion — a crash would abort the test
+check("the account whose fetch raised is excluded from summaries",
+      "Account 24" not in [s["name"] for s in summaries3b])
+check("the other two accounts still succeeded despite the raw exception",
+      {"Account 23", "Account 25"} <= {s["name"] for s in summaries3b},
+      f"got {[s['name'] for s in summaries3b]}")
+check("the raw-exception failure is still recorded in scan_diag",
+      any(d.get("account") == "Account 24" and "timed out" in (d.get("error") or "")
+          for d in diag3b),
+      f"diag={diag3b}")
 
 # ── 4. dedup and own_ibans are unaffected by concurrency ────────────────────
 dupe_metas = [meta(30), meta(30), meta(31)]  # acct30 listed twice

@@ -386,8 +386,11 @@ class BankingService {
     });
   }
 
-  /// Begins consent for [bankName]; returns the bank's authorization URL to open.
-  Future<String> startBankAuth(String bankName, {String country = 'LT'}) {
+  /// Begins consent for [bankName]; returns the bank's authorization URL to
+  /// open AND the `state` the server tied to this call (see finishBankAuth's
+  /// own doc for why the caller must hang onto it).
+  Future<(String url, String state)> startBankAuth(String bankName,
+      {String country = 'LT'}) {
     return _call(
         'start_bank_auth',
         {
@@ -395,12 +398,18 @@ class BankingService {
           'country': country,
           'redirectUrl': kBankingRedirectUrl,
         },
-        (m) => (m['url'] ?? '') as String);
+        (m) => ((m['url'] ?? '') as String, (m['state'] ?? '') as String));
   }
 
   /// Exchanges the redirect [code] for the scan result: importable recurring
   /// candidates plus frequent-spending merchants (never recurring, feed-only).
-  Future<BankScanResult> finishBankAuth(String code,
+  ///
+  /// [state] must be the SAME value the bank's own redirect handed back
+  /// alongside [code] (see [codeFromCallback]/[stateFromCallback]) — the
+  /// server checks it matches what THIS session's startBankAuth issued
+  /// before exchanging the code, so a code lifted from an unrelated auth
+  /// flow can never be replayed into this account (2026-08-16 fix).
+  Future<BankScanResult> finishBankAuth(String code, String state,
       {bool aiEnrichment = false, String? bank, int monthsBack = 6}) async {
     // Hand the backend the last-known raw scan and keep whatever it gives back.
     // A connect only fetches the bank being connected, so this cache is what
@@ -415,7 +424,8 @@ class BankingService {
         // function runs at 300s/512Mi — restored via deploy.sh after each deploy).
         // `bank` labels the connection so the stored record + Account breakdown
         // name the right bank.
-        {'code': code, 'debug': kDebugMode, 'aiEnrichment': aiEnrichment,
+        {'code': code, 'state': state, 'debug': kDebugMode,
+         'aiEnrichment': aiEnrichment,
          'monthsBack': monthsBack, if (bank != null) 'bank': bank,
          'today': _localToday(), 'known': DashboardStore.knownScan()}, (m) {
       known = _known(m);
@@ -587,4 +597,9 @@ class BankingService {
     if (!isCustomScheme && !isUniversalLink) return null;
     return uri.queryParameters['code'];
   }
+
+  /// The `state` Enable Banking echoes back on the same callback — see
+  /// finishBankAuth's doc. null just means finish_bank_auth will (correctly)
+  /// reject the exchange, same as any other tampered/missing value.
+  static String? stateFromCallback(Uri uri) => uri.queryParameters['state'];
 }

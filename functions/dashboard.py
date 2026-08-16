@@ -873,12 +873,25 @@ def _week(txns, salary_refs, resolve_cat, today, own_ibans=None):
                                         "icon": SEC_ICON.get(sec, "money"), "amount": 0.0})
             e["amount"] += -a
         cats = [secagg[l] for l in SEC_ORDER if l in secagg]
-        for c in cats:
-            # A refund bigger than that day's spending in the same section would
-            # otherwise draw a negative bar. Floor it: the refund still shows in
-            # the month totals, and a bar chart has no honest way to go below 0.
-            c["amount"] = round(max(c["amount"], 0.0), 2)
+        # 2026-08-16 fix: `total` used to be summed AFTER each category was
+        # floored to 0 below — so an uncoded refund (no bank-recognised
+        # CARD_REFUND/CARD_CREDIT/RRTN code; _flow() only catches it via the
+        # amount-sign heuristic, and "plenty of merchants don't use [refund
+        # codes]" per _subs' own note) stayed in its ORIGINAL spending
+        # section instead of being routed to Pajamas, got floored away
+        # there, and vanished from the day/week total instead of netting it
+        # down. A €25 purchase + a same-day €120 uncoded refund in
+        # "Apsipirkimas" has a true net of -95 €, but the old code summed
+        # max(25-120, 0)=0 for that section — the day (and the week) read
+        # as if €95 of real, already-netted money simply wasn't there,
+        # silently disagreeing with the client's own independent
+        # _computeWeek/_sumExpenses fallback (dashboard_preview.dart), which
+        # never floors and was always right. Sum the TRUE (unfloored) net
+        # for the headline total; only the per-category DISPLAY amount
+        # (below, a bar segment can't honestly go negative) gets floored.
         total = round(sum(c["amount"] for c in cats), 2)
+        for c in cats:
+            c["amount"] = round(max(c["amount"], 0.0), 2)
         # `total` stays SPENDING — every existing consumer depends on that, and
         # the month figure, categories and budget are all built on it. `gone` is
         # additional information the bar may draw; nothing sums the two but the

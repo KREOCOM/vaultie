@@ -48,6 +48,9 @@ class BankingDeepLinks {
   Future<void> _handle(Uri uri, GlobalKey<NavigatorState> navigatorKey) async {
     final code = BankingService.codeFromCallback(uri);
     if (code == null) return; // not our callback — leave the launch untouched
+    // Same URI the code came from — see BankCallbackScreen's own doc for why
+    // the server needs this (2026-08-16 fix).
+    final state = BankingService.stateFromCallback(uri) ?? '';
 
     // If the in-app flow already claimed this code (the bank delivered the
     // callback through both the session and the universal link), back off — the
@@ -62,7 +65,7 @@ class BankingDeepLinks {
     // all, with the single-use code already spent, so retrying cost a whole new
     // consent. BankCallbackScreen does its own (longer) wait and, crucially, has
     // a visible error state with a retry — it is the right owner for both.
-    _push(navigatorKey, code);
+    _push(navigatorKey, code, state);
   }
 
   /// Pushes the callback screen once the navigator exists.
@@ -71,19 +74,19 @@ class BankingDeepLinks {
   /// `currentState?.push` on a null navigator is a silent no-op — which would
   /// strand a code that this method has ALREADY claimed, so nothing else could
   /// pick it up either. Retries briefly instead of dropping it.
-  void _push(GlobalKey<NavigatorState> navigatorKey, String code,
+  void _push(GlobalKey<NavigatorState> navigatorKey, String code, String state,
       [int attempt = 0]) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final nav = navigatorKey.currentState;
       if (nav == null) {
         if (attempt < 20) {
           Future<void>.delayed(const Duration(milliseconds: 150),
-              () => _push(navigatorKey, code, attempt + 1));
+              () => _push(navigatorKey, code, state, attempt + 1));
         }
         return;
       }
       nav.push(
-        MaterialPageRoute(builder: (_) => BankCallbackScreen(code: code)),
+        MaterialPageRoute(builder: (_) => BankCallbackScreen(code: code, state: state)),
       );
     });
   }

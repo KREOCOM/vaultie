@@ -952,6 +952,43 @@ const Map<String, String> _en = {
   'Paskutiniai 5 mėn.': 'Last 5 months',
   'Per mėnesį': 'Per month',
   'Per metus': 'Per year',
+
+  // ── Prenumeratos / Sąskaitos (subs_bills_live.dart) — 2026-08-16 ──
+  'Kaip pavadinti?': 'What should we call it?',
+  'įvesk tikrąjį pavadinimą. Pervadinimas paveiks tik šitos kainos mokėjimus.':
+      'enter the real name. Renaming only affects payments at this price.',
+  'Nerasta sinchronizuotų banko duomenų šiame įrenginyje.\n'
+          'Atidaryk tikrąją Vaultie ir susisiek su banku bent kartą.':
+      'No synced bank data found on this device.\n'
+          'Open the real Vaultie and connect a bank at least once.',
+  'Rask savo prenumeratas': 'Find your subscriptions',
+  'Rask savo sąskaitas': 'Find your bills',
+  'Vaultie rado pasikartojančių mokėjimų tavo banko istorijoje. Padėk mums atpažinti, kuriuos iš jų nori sekti.':
+      'Vaultie found recurring payments in your bank history. Help us tell which ones you want to track.',
+  'Peržiūrėti mokėjimus': 'Review payments',
+  'Ieškok pats savo tranzakcijose': 'Search your own transactions',
+  'Nieko naujo nerasta': 'Nothing new found',
+  'kada nusiskaito?': 'when does it charge?',
+  'Appsas numato dieną iš paskutinio tikro mokėjimo — jeigu bankas nuskaito kitą dieną, pasirink tikrąją. Tai nekeičia, kaip appsas atpažįsta pačią sąskaitą, tik parodomą/priminimo dieną.':
+      "The app predicts the day from your last real payment — if the bank charges on a different day, pick the real one. This doesn't change how the app recognises the bill itself, only the day shown/reminded.",
+  'Atstatyti numatytą dieną': 'Reset to the predicted day',
+  'Rasti naują prenumeratą': 'Find a new subscription',
+  'Rasti naują sąskaitą': 'Find a new bill',
+  'pridėta': 'added',
+  'Peržiūrėk mokėjimus': 'Review payments',
+  'Ieškoti pagal pavadinimą…': 'Search by name…',
+  'Nieko nerasta.': 'Nothing found.',
+  'Viskas peržiūrėta.': 'Everything reviewed.',
+  'Neradai automatiškai? Iš tavo tranzakcijų:':
+      "Didn't find it automatically? From your transactions:",
+  'Ne': 'No',
+  'Taip, prenumerata': 'Yes, subscription',
+  'Taip, sąskaita': 'Yes, bill',
+  'Pridėti prie prenumeratų': 'Add to subscriptions',
+  'Pridėti prie sąskaitų': 'Add to bills',
+  'matyta': 'seen',
+  // 'vidurkis' → 'average' already defined above (line ~73).
+
   'sąskaitos': 'bills',
   'aktyvios': 'active',
   'kitas': 'next',

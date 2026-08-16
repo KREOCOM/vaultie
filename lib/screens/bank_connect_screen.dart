@@ -46,19 +46,24 @@ typedef BankConnectionResult = ({
 
 /// Turns an authorisation [code] into a connected, saved dashboard.
 ///
+/// [state] is whatever the bank's own redirect handed back alongside [code]
+/// (BankingService.stateFromCallback) — passed straight through to
+/// finishBankAuth, which the server checks against the state THIS device's
+/// own startBankAuth call issued (2026-08-16 fix).
+///
 /// Everything after we hold the code lives here so the two ways of getting one
 /// — the in-app ASWebAuthenticationSession, and a universal-link return that
 /// cold-launches the app — finish identically: fetch a fast 3-month scan,
 /// record the connection, build a combined dashboard when more than one bank is
 /// linked, persist it, and kick off the full 12-month backfill in the
 /// background. Throws [BankingException] on failure; the caller shows it.
-Future<BankConnectionResult> completeBankConnection(String code,
+Future<BankConnectionResult> completeBankConnection(String code, String state,
     {String? bank}) async {
   // The dashboard as it stood before this connect — used to make sure the
   // combined re-fetch below never overwrites it by dropping a bank we already had.
   final prevDash = DashboardStore.load();
   final scan = await BankingService.instance.finishBankAuth(
-      code, aiEnrichment: AppPrefs.aiEnrichment, bank: bank, monthsBack: 3);
+      code, state, aiEnrichment: AppPrefs.aiEnrichment, bank: bank, monthsBack: 3);
   final conn = scan.connection;
   final connAccounts = (((conn?['accounts'] as List?) ?? const [])
       .map((e) => (e as Map).cast<String, dynamic>())
@@ -517,7 +522,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       // its own app and the return cold-launches Vaultie, the callback carries
       // only a code, and the resume path recovers the label from here.
       await DashboardStore.setPendingConnect(bank.name, logo: bank.logo);
-      final url = await BankingService.instance.startBankAuth(bank.name,
+      final (url, _) = await BankingService.instance.startBankAuth(bank.name,
           country: bank.country.isNotEmpty ? bank.country : _country.code);
       // REVERTED (2026-08-11): tried ephemeralIntentFlags
       // (FLAG_ACTIVITY_NO_HISTORY) here to stop the Custom Tab falling back
@@ -538,12 +543,14 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         url: url,
         callbackUrlScheme: kBankingCallbackScheme,
       );
-      final code = BankingService.codeFromCallback(Uri.parse(result));
+      final resultUri = Uri.parse(result);
+      final code = BankingService.codeFromCallback(resultUri);
       if (code == null) {
         throw BankingException(_isLt
             ? 'Negavome prisijungimo kodo iš banko.'
             : 'The bank didn\'t return a sign-in code.');
       }
+      final state = BankingService.stateFromCallback(resultUri) ?? '';
       // If the deep-link handler already claimed this code (the bank fired both
       // channels), let it finish — don't exchange the same single-use code
       // twice. Its BankCallbackScreen is on top and will land on the dashboard.
@@ -567,7 +574,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       // inconsistently dressed. One path, one screen, only the bank's own logo
       // changes.
       await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => BankCallbackScreen(code: code)),
+        MaterialPageRoute(builder: (_) => BankCallbackScreen(code: code, state: state)),
       );
     } on PlatformException catch (e) {
       if (!mounted) return;
