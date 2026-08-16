@@ -35,6 +35,67 @@ const _blueSoft = Color(0xFFEAF0FF);
 const _good = Color(0xFF1FA971);
 const _bad = Color(0xFFD9534F);
 
+// 2026-08-16: layered rings — one ring per subscription, radius ranked by
+// size (biggest = outermost), sweep proportional to its share of the
+// monthly total. First pass (see the HTML mockup this was picked from) used
+// a faint 10%-alpha track and thin strokes that all but disappeared against
+// the blue card on a real screen — "tik rysius padaryk kad matytųsi
+// vaizdas". Track brightened to 26% and every ring gets a floor on its
+// sweep angle so even a small subscription (SEB at 2 €) still draws a
+// visible arc instead of a barely-there sliver.
+class _RingsPainter extends CustomPainter {
+  _RingsPainter(this.entries, this.total, {this.progress = 1});
+  final List<MapEntry<String, double>> entries; // name -> monthly, sorted desc
+  final double total;
+  final double progress;
+
+  static const palette = [
+    Color(0xFF7DD3FC),
+    Color(0xFFC4B5FD),
+    Color(0xFF86EFAC),
+    Color(0xFFFCD34D),
+    Color(0xFFFDA4AF),
+    Color(0xFFFDBA74),
+  ];
+
+  static const double _strokeW = 13;
+  static const double _minR = 32;
+  static const double _minSweep = 0.30; // radians, ~17° — never fully disappears
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (entries.isEmpty || total <= 0) return;
+    final center = size.center(Offset.zero);
+    final maxR = size.width / 2 - _strokeW / 2;
+    final n = entries.length;
+    final step = n > 1 ? (maxR - _minR) / (n - 1) : 0.0;
+    final track = Paint()
+      ..color = Colors.white.withValues(alpha: 0.26)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _strokeW;
+    for (var i = 0; i < n; i++) {
+      final r = maxR - step * i;
+      canvas.drawCircle(center, r, track);
+    }
+    for (var i = 0; i < n; i++) {
+      final r = maxR - step * i;
+      final share = entries[i].value / total;
+      final sweep = math.max(share * 2 * math.pi, _minSweep) * progress;
+      final arc = Paint()
+        ..color = palette[i % palette.length]
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _strokeW
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(
+          Rect.fromCircle(center: center, radius: r), -math.pi / 2, sweep, false, arc);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingsPainter old) =>
+      old.entries != entries || old.total != total || old.progress != progress;
+}
+
 String _cadenceLabel(String? cycle) {
   switch (cycle) {
     case 'weekly':
@@ -168,10 +229,15 @@ class LiveRecurringScreen extends StatefulWidget {
 }
 
 class _LiveRecurringScreenState extends State<LiveRecurringScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late List<_LiveItem> _all = _loadLiveItems(widget.itemsOverride);
   late final AnimationController _waveCtl =
       AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat();
+  // 2026-08-16: the layered-rings chart's own one-shot draw-in — separate
+  // controller from _waveCtl (a continuous 8s loop), so SingleTicker becomes
+  // TickerProviderStateMixin to allow both at once.
+  late final AnimationController _ringsCtl =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 750))..forward();
 
   bool get _isSubs => widget.wantType == 'subscription';
 
@@ -194,6 +260,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   @override
   void dispose() {
     _waveCtl.dispose();
+    _ringsCtl.dispose();
     super.dispose();
   }
 
@@ -367,6 +434,15 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
               ]),
             ),
           ),
+          // 2026-08-16: "sluoksniuoti žiedai" per request — one ring per
+          // subscription, sweep proportional to its share of the monthly
+          // total. Prenumeratos only for now (_isSubs) — Sąskaitos usually
+          // has just 1-2 entries, which read as near-empty in this style
+          // (see the HTML comparison this was picked from).
+          if (_isSubs && _confirmed.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            _ringsChart(),
+          ],
           const SizedBox(height: 22),
           Row(children: [
             Expanded(child: _statText('Per mėnesį', _monthlyTotal)),
@@ -376,6 +452,47 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           ]),
         ]),
       );
+
+  Widget _ringsChart() {
+    final sorted = [..._confirmed]..sort((a, b) => b.monthly.compareTo(a.monthly));
+    final entries = [for (final it in sorted) MapEntry(it.displayName, it.monthly)];
+    return Column(children: [
+      SizedBox(
+        width: 176,
+        height: 176,
+        child: AnimatedBuilder(
+          animation: _ringsCtl,
+          builder: (_, __) => CustomPaint(
+            painter: _RingsPainter(entries, _monthlyTotal, progress: _ringsCtl.value),
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+      Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 14,
+        runSpacing: 6,
+        children: [
+          for (var i = 0; i < entries.length; i++)
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _RingsPainter.palette[i % _RingsPainter.palette.length]),
+              ),
+              const SizedBox(width: 6),
+              Text(entries[i].key,
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600)),
+            ]),
+        ],
+      ),
+    ]);
+  }
 
   Widget _statText(String label, double value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
