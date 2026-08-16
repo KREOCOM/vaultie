@@ -244,6 +244,20 @@ class AppPrefs {
     await _box.put(_kUserName, value.trim());
   }
 
+  // 2026-08-16: the profile photo's LOCAL file path (app documents dir,
+  // never uploaded anywhere — same "everything local" rule as the rest of
+  // Vaultie's data). Empty = no photo, fall back to the initial-letter
+  // avatar. See dashboard_preview.dart's _SettingsScreenState._pickProfilePhoto.
+  static const _kProfilePhotoPath = 'profilePhotoPath';
+
+  static String get profilePhotoPath => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _strOr(_kProfilePhotoPath, '')
+      : '';
+
+  static Future<void> setProfilePhotoPath(String value) async {
+    await _box.put(_kProfilePhotoPath, value);
+  }
+
   static const _kOnboardingComplete = 'onboardingComplete';
 
   /// Whether the post-login "How would you like to start?" choice has been made.

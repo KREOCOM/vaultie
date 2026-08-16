@@ -16483,6 +16483,7 @@ class _SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<_SettingsScreen> {
   String _name = AppPrefs.userName.isEmpty ? 'Vartotojas' : AppPrefs.userName;
+  String _photoPath = AppPrefs.profilePhotoPath;
   String _currency = _currencyLabel(AppPrefs.currencyCode.value);
   // A live getter, not a field set once at construction. The home header's
   // quick toggle can now flip dark mode while this screen sits cached in
@@ -16605,20 +16606,49 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         color: _card,
         padding: const EdgeInsets.only(bottom: 22, top: 4),
         child: Column(children: [
-          Container(
-            width: 84,
-            height: 84,
-            decoration:
-                BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: _name == 'Vartotojas'
-                ? Icon(Icons.person_rounded, size: 44, color: _purple)
-                : Text(
-                    _name.trim().isEmpty ? '?' : _name.trim()[0].toUpperCase(),
-                    style: TextStyle(
-                        fontSize: 38,
-                        fontWeight: FontWeight.w800,
-                        color: _purple)),
+          GestureDetector(
+            onTap: _pickProfilePhoto,
+            child: Stack(children: [
+              Container(
+                width: 84,
+                height: 84,
+                clipBehavior: Clip.antiAlias,
+                decoration:
+                    BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                // 2026-08-16: local photo (gallery-only, never uploaded —
+                // see _pickProfilePhoto) takes over the circle when set;
+                // falls back to the initial-letter avatar otherwise, exactly
+                // as before.
+                child: _photoPath.isNotEmpty && File(_photoPath).existsSync()
+                    ? Image.file(File(_photoPath),
+                        width: 84, height: 84, fit: BoxFit.cover)
+                    : (_name == 'Vartotojas'
+                        ? Icon(Icons.person_rounded, size: 44, color: _purple)
+                        : Text(
+                            _name.trim().isEmpty
+                                ? '?'
+                                : _name.trim()[0].toUpperCase(),
+                            style: TextStyle(
+                                fontSize: 38,
+                                fontWeight: FontWeight.w800,
+                                color: _purple))),
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                      color: _purple,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _card, width: 2.5)),
+                  child: const Icon(Icons.camera_alt_rounded,
+                      size: 14, color: Colors.white),
+                ),
+              ),
+            ]),
           ),
           const SizedBox(height: 12),
           GestureDetector(
@@ -16637,6 +16667,72 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           ),
         ]),
       );
+
+  // 2026-08-16: gallery-only, no camera option — same rule and same
+  // ImagePicker call shape as _pickAndScanReceipt (see that function's own
+  // doc): Apple's PHPicker (what ImagePicker uses for ImageSource.gallery
+  // on iOS) runs out-of-process and hands back only the ONE photo picked,
+  // so it needs no NSPhotoLibraryUsageDescription entry at all — no new
+  // Info.plist permission, no new App Review privacy prompt. The photo
+  // itself never leaves the device: copied into the app's own documents
+  // directory under a fixed filename (overwriting any previous one, so
+  // storage never grows) and only its local path is persisted
+  // (AppPrefs.profilePhotoPath) — same "nothing uploaded" rule as every
+  // other piece of Vaultie's data.
+  Future<void> _pickProfilePhoto() async {
+    if (_photoPath.isNotEmpty && File(_photoPath).existsSync()) {
+      final choice = await showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: _card,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+        builder: (ctx) => SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Icon(Icons.photo_outlined, color: _purple),
+              title: Text(tr('Keisti nuotrauką'), style: TextStyle(color: _ink)),
+              onTap: () => Navigator.pop(ctx, 'change'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded,
+                  color: Color(0xFFE0574F)),
+              title: Text(tr('Pašalinti nuotrauką'),
+                  style: const TextStyle(color: Color(0xFFE0574F))),
+              onTap: () => Navigator.pop(ctx, 'remove'),
+            ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      );
+      if (choice == 'remove') {
+        try {
+          await File(_photoPath).delete();
+        } catch (_) {}
+        await AppPrefs.setProfilePhotoPath('');
+        if (mounted) setState(() => _photoPath = '');
+        return;
+      }
+      if (choice != 'change') return;
+    }
+    XFile? file;
+    try {
+      file = await ImagePicker()
+          .pickImage(source: ImageSource.gallery, maxWidth: 800, imageQuality: 85);
+    } catch (_) {
+      file = null;
+    }
+    if (file == null || !mounted) return;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final dest = File('${dir.path}/profile_photo.jpg');
+      await dest.writeAsBytes(await file.readAsBytes(), flush: true);
+      await AppPrefs.setProfilePhotoPath(dest.path);
+      if (mounted) setState(() => _photoPath = dest.path);
+    } catch (_) {
+      if (mounted) _snack(tr('Nepavyko įrašyti nuotraukos'));
+    }
+  }
 
   void _editName() {
     final ctl = TextEditingController(text: _name == 'Vartotojas' ? '' : _name);
