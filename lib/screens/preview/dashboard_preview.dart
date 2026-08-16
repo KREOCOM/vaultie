@@ -3629,15 +3629,34 @@ class _DashboardPreviewState extends State<DashboardPreview>
           18, topInset + 8, 18, 18 + (designPreviewPalette ? _heroLegDepth : 0)),
       decoration: !designPreviewPalette
           ? null
-          : const BoxDecoration(
+          : BoxDecoration(
               // 2026-08-14: shape now comes entirely from _HeroShapeClipper
               // (spiked corners, flat center shelf) — no borderRadius here
               // any more, a plain rounded rectangle was never going to
               // produce that shape no matter the radius.
+              // 2026-08-16: this stayed the SAME blue gradient in dark mode
+              // too — flipping the moon icon changed everything else on the
+              // page except the one block people look at first. Dark mode
+              // now gets its own violet gradient built from the SAME purple
+              // the rest of dark mode already uses (_purple/_purpleDeep's
+              // own dark-mode values, see _applyTheme — 0xFF8B5CF6 is
+              // already what the balance number's glow (below) is tinted
+              // with, so the glow now blends into the surface it sits on
+              // instead of being a color introduced just for this gradient).
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFF071A52), Color(0xFF0B2E9B), Color(0xFF1557E8)],
+                colors: _darkMode
+                    ? const [
+                        Color(0xFF190D38), // near-black violet, top
+                        Color(0xFF5B2FC2), // mid — between deep and bright
+                        Color(0xFF8B5CF6), // _purple's own dark-mode value
+                      ]
+                    : const [
+                        Color(0xFF071A52),
+                        Color(0xFF0B2E9B),
+                        Color(0xFF1557E8),
+                      ],
               ),
             ),
       child: Stack(children: [
