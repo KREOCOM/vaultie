@@ -697,7 +697,14 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           return ClipRRect(
             borderRadius: BorderRadius.circular(7),
             child: Container(
-              color: colors.isEmpty ? Colors.white.withValues(alpha: 0.08) : null,
+              // 2026-08-16 bug: only handled 0 colors (dim) and 2+ (split
+              // Row below) — the single most common case, exactly ONE bill
+              // due that day, fell through to neither and painted no fill
+              // at all, just a bare number over the plain card ("visi
+              // kvadratukai su juodais skaičiais", "kitos spalvos nebuvo").
+              color: colors.isEmpty
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : (colors.length == 1 ? colors.first : null),
               alignment: Alignment.center,
               child: Stack(
                 alignment: Alignment.center,
