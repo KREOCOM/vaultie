@@ -445,6 +445,15 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
             const SizedBox(height: 16),
             _rankedBarsList(),
           ],
+          // 2026-08-16: Sąskaitos gets its OWN visualization, not the same
+          // list-with-bars as Prenumeratos — "stulpelių eilutė" (variant A,
+          // second HTML round): one vertical bar per bill, height
+          // proportional to its cost. Reads well even with just the usual
+          // 1-2 bills, where a list-with-bars would look a little thin.
+          if (!_isSubs && _confirmed.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _barSkyline(),
+          ],
           const SizedBox(height: 22),
           Row(children: [
             Expanded(child: _statText('Per mėnesį', _monthlyTotal)),
@@ -517,6 +526,55 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
             ]),
           ),
       ],
+    );
+  }
+
+  Widget _barSkyline() {
+    final sorted = [..._confirmed]..sort((a, b) => b.monthly.compareTo(a.monthly));
+    final maxV = sorted.first.monthly;
+    return SizedBox(
+      height: 118,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (var i = 0; i < sorted.length; i++)
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: sorted.length > 4 ? 3 : 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text('${sorted[i].monthly.toStringAsFixed(0)} €',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 14 + (sorted[i].monthly / maxV) * 66,
+                      decoration: BoxDecoration(
+                        color: _rankPalette[i % _rankPalette.length],
+                        borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(8),
+                            topRight: Radius.circular(8),
+                            bottomLeft: Radius.circular(4),
+                            bottomRight: Radius.circular(4)),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(sorted[i].displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.65),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
