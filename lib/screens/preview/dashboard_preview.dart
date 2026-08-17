@@ -104,7 +104,14 @@ bool designPreviewFakeRecurring = false;
 // and pointing it at blue leaked the Home hero's colour into Overview/Agent/
 // Planning/Account too. Kept as its own constant so it can only ever affect
 // the one place that explicitly reads it.
-const _previewPageBlue = Color(0xFF1557E8);
+// 2026-08-17: updated to match the new RadialGradient's bottom/right-side
+// colour (0xFF081A4D) — the hero used to be a top-to-bottom LinearGradient
+// ending in bright blue everywhere along its bottom edge, but a radial
+// gradient centred near the top-left is dark navy by the time it reaches the
+// bottom corners and right edge, which is exactly where this strip has to
+// match it. Left at the old bright blue, the mismatch showed as a visible
+// seam right where the hero's rounded corner meets this continuation layer.
+const _previewPageBlue = Color(0xFF081A4D);
 
 void _applyPreviewPalette() {
   // Page = a soft off-white, not pure white — cards ARE pure white, so the
@@ -159,6 +166,22 @@ void _applyTheme(bool dark) {
   _purpleDeep = dark ? const Color(0xFF6D3EE0) : const Color(0xFF1E50C8);
   _themeVN.value = dark;
 }
+
+// 2026-08-17: same off-center RadialGradient formula used for the hero,
+// Finansų Agentas, the Prenumeratos/Sąskaitos heroes and the weekly bar
+// chart (see _premiumSwatch in _DashboardPreviewState) — a bright spot near
+// one corner fading toward a richer version of the SAME hue. Top-level
+// twin of that instance method so CustomPainters (which aren't part of the
+// state class) can build a matching Shader for canvas-drawn shapes, e.g.
+// _DonutPainter's arcs. One direct lerp toward black, kept shallow (0.28)
+// per "labai netamsink" — a thin ring stroke reads dark much faster than a
+// wide block does.
+Shader _premiumStroke(Rect rect, Color base) => RadialGradient(
+      center: const Alignment(-0.7, -0.6),
+      radius: 1.5,
+      colors: [base, Color.lerp(base, Colors.black, 0.28)!],
+      stops: const [0.0, 0.75],
+    ).createShader(rect);
 
 /// The quick flip: persist (Hive, survives restart) then apply (in-memory
 /// tokens + the `_themeVN` notifier every tab listens to). Same two calls
@@ -3654,35 +3677,51 @@ class _DashboardPreviewState extends State<DashboardPreview>
               // already what the balance number's glow (below) is tinted
               // with, so the glow now blends into the surface it sits on
               // instead of being a color introduced just for this gradient).
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                // 2026-08-16 fix: the first version's top stop (0xFF190D38)
-                // was near-black — against dark mode's own black page
-                // background (no light backdrop to give it contrast, unlike
-                // the light-mode blue below) it visually fused with the
-                // content beneath the hero instead of reading as a purple
-                // block. Brightened so every stop stays clearly violet.
-                colors: _darkMode
-                    ? const [
+              gradient: _darkMode
+                  // 2026-08-16 fix: the first version's top stop (0xFF190D38)
+                  // was near-black — against dark mode's own black page
+                  // background (no light backdrop to give it contrast, unlike
+                  // the light-mode blue below) it visually fused with the
+                  // content beneath the hero instead of reading as a purple
+                  // block. Brightened so every stop stays clearly violet.
+                  ? const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
                         Color(0xFF3A1B7A), // deep but clearly violet, top
                         Color(0xFF6D3EE0), // _purpleDeep's dark-mode value
                         Color(0xFF8B5CF6), // _purple's own dark-mode value
-                      ]
-                    : const [
-                        Color(0xFF071A52),
-                        Color(0xFF0B2E9B),
-                        Color(0xFF1557E8),
                       ],
-              ),
+                    )
+                  // 2026-08-17: swapped for a RadialGradient sourced from the
+                  // top-left (bright cobalt, matching a mockup the user
+                  // picked) fading to deep navy — richer than the old flat
+                  // top-to-bottom LinearGradient without needing a blur
+                  // layer of its own.
+                  : const RadialGradient(
+                      center: Alignment(-0.6, -1.0),
+                      radius: 1.6,
+                      colors: [
+                        Color(0xFF3E63FF),
+                        Color(0xFF081A4D),
+                      ],
+                      stops: [0.0, 0.65],
+                    ),
             ),
       child: Stack(children: [
-        // v6 (2026-08-12): glow blobs removed entirely — three rounds of
-        // artifacts (a hard-edged blur block, then still-visible banding on
-        // the plain RadialGradient's own circular edge) and the plain
-        // gradient underneath already reads as rich/premium on its own.
-        // _previewGlow()/_glowBlob() are left defined but unused below, in
-        // case a cleaner glow approach is worth trying later.
+        // 2026-08-17: tried one soft glow blob here (bottom-right, light
+        // mode only) on top of the new RadialGradient — on device/simulator
+        // it painted a hard vertical edge running the hero's full height,
+        // not the soft circular falloff its own gradient stops should give
+        // it. Root cause not chased down; the plain RadialGradient alone
+        // already reads as rich/premium (v6 below reached the same
+        // conclusion for the old top-left cluster), so dropped rather than
+        // debugged further. _glowBlob() is left defined but unused.
+        // v6 (2026-08-12): the OLD top-left three-blob cluster was removed
+        // for the same reason — three rounds of artifacts (a hard-edged blur
+        // block, then still-visible banding on the plain RadialGradient's
+        // own circular edge). _previewGlow() is left defined but unused
+        // below, in case either cluster is worth revisiting later.
         Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4675,6 +4714,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     double? top,
     double? left,
     double? right,
+    double? bottom,
     required double size,
     required Color color,
     required double alpha,
@@ -4683,6 +4723,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       top: top,
       left: left,
       right: right,
+      bottom: bottom,
       child: IgnorePointer(
         child: Container(
           width: size,
@@ -5524,10 +5565,21 @@ class _DashboardPreviewState extends State<DashboardPreview>
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [_purpleDeep, _purple],
+              // 2026-08-17: same off-center RadialGradient logic as the
+              // hero's own background (see _topBanner) — a bright spot near
+              // one corner fading to a near-black anchor, clamped before the
+              // far edge, instead of a flat corner-to-corner LinearGradient.
+              // Built from _purple/_purpleDeep themselves (not hardcoded
+              // hex) so it keeps tracking dark mode automatically the same
+              // way the old gradient did.
+              gradient: RadialGradient(
+                center: const Alignment(-0.7, -0.6),
+                radius: 1.5,
+                colors: [
+                  _purple,
+                  Color.lerp(_purpleDeep, const Color(0xFF05050A), 0.4)!,
+                ],
+                stops: const [0.0, 0.75],
               ),
               boxShadow: [
                 BoxShadow(
@@ -5569,7 +5621,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800)),
                         const SizedBox(height: 4),
-                        Text(tr('Klausk manęs visko apie savo pinigus. Aš čia, kad padėčiau!'),
+                        Text(tr('Klausk manęs apie savo finansus.'),
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12.5,
@@ -5807,6 +5859,36 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ),
       );
 
+  // 2026-08-17: same off-center RadialGradient formula as the hero, the
+  // Finansų Agentas banner, and the Prenumeratos/Sąskaitos heroes (see
+  // _topBanner in this file) — a bright spot near one corner fading toward
+  // a deeper, richer version of the SAME hue, instead of a flat single-tone
+  // fill. Works for any category colour (green for food, blue for
+  // transport, etc.), not just the app's blue/violet brand tokens.
+  // 2026-08-17 v2: that off-center RadialGradient's tonal range, tuned for
+  // a big block, made a SINGLE category on a 15px-wide bar segment read as
+  // 2-3 different colours instead of one — "žalia sudaryta iš 3 skirtingų
+  // žalių atspalvių", impossible to tell how many categories a bar actually
+  // has. A bar segment needs to stay recognisably ONE colour with only a
+  // sheen, not a light-to-dark journey. Switched to a top-to-bottom
+  // LinearGradient (matches the segments' own stacking direction, unlike
+  // the off-center radial) and a narrow HSL lightness swing around the
+  // base colour (±10/8%, hue+saturation untouched) instead of blending
+  // toward black, which was what made it drift toward looking like a
+  // different, muddier hue at the dark end.
+  Gradient _premiumSwatch(Color base) {
+    final hsl = HSLColor.fromColor(base);
+    final light =
+        hsl.withLightness((hsl.lightness + 0.10).clamp(0.0, 1.0)).toColor();
+    final deep =
+        hsl.withLightness((hsl.lightness - 0.08).clamp(0.0, 1.0)).toColor();
+    return LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [light, deep],
+    );
+  }
+
   Widget _bar(Map<String, dynamic> d, double maxV, int i) {
     final cats = (d['cats'] as List).cast<Map<String, dynamic>>();
     // Bar height and the number above it are pure spending — the coloured
@@ -5852,7 +5934,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
                                   height: (ct['amount'] as num).toDouble() /
                                       tot *
                                       h,
-                                  color: _secColor[ct['color']] ?? _muted),
+                                  decoration: BoxDecoration(
+                                      gradient: _premiumSwatch(
+                                          _secColor[ct['color']] ?? _muted))),
                           ],
                         )
                       : Container(color: const Color(0xFFDDE0DD)),
@@ -12695,7 +12779,7 @@ class _DonutPainter extends CustomPainter {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = stroke
-            ..color = segments[0][1] as Color
+            ..shader = _premiumStroke(rect, segments[0][1] as Color)
             ..strokeCap = StrokeCap.round);
       return;
     }
@@ -12713,7 +12797,7 @@ class _DonutPainter extends CustomPainter {
             Paint()
               ..style = PaintingStyle.stroke
               ..strokeWidth = stroke
-              ..color = s[1] as Color
+              ..shader = _premiumStroke(rect, s[1] as Color)
               ..strokeCap = StrokeCap.round);
       }
       start += 2 * math.pi * frac;

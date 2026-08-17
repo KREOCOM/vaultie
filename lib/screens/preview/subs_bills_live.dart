@@ -420,8 +420,20 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   Widget _hero() => Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_blueDeep, _blue]),
+          // 2026-08-17: same off-center RadialGradient logic as Home's hero
+          // and the Finansų Agentas banner (see dashboard_preview.dart's
+          // _topBanner) — a bright spot near one corner fading toward a
+          // deeper (but still clearly blue, not near-black) tone, instead of
+          // a flat corner-to-corner LinearGradient.
+          gradient: RadialGradient(
+            center: const Alignment(-0.7, -0.6),
+            radius: 1.5,
+            colors: [
+              _blue,
+              Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!,
+            ],
+            stops: const [0.0, 0.75],
+          ),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(color: _blue.withValues(alpha: 0.28), blurRadius: 28, offset: const Offset(0, 12)),
@@ -508,8 +520,20 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   Widget _totalCard() => Container(
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_blueDeep, _blue]),
+          // 2026-08-17: same off-center RadialGradient logic as Home's hero
+          // and the Finansų Agentas banner (see dashboard_preview.dart's
+          // _topBanner) — a bright spot near one corner fading toward a
+          // deeper (but still clearly blue, not near-black) tone, instead of
+          // a flat corner-to-corner LinearGradient.
+          gradient: RadialGradient(
+            center: const Alignment(-0.7, -0.6),
+            radius: 1.5,
+            colors: [
+              _blue,
+              Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!,
+            ],
+            stops: const [0.0, 0.75],
+          ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(color: _blue.withValues(alpha: 0.28), blurRadius: 22, offset: const Offset(0, 10)),
