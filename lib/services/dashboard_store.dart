@@ -546,6 +546,24 @@ class DashboardStore {
     }
   }
 
+  /// The reverse of [markRecurringReviewed] — puts a sid back in the
+  /// review queue. Nothing in the real app's UI calls this today (there's
+  /// no "undo" for acknowledging a stream); it exists for the onboarding
+  /// preview's fake recurring catalogue (dashboard_preview.dart), which
+  /// needs some of its own sids to reliably read as still-pending across
+  /// repeated test runs on the same simulator/device — Hive persists this
+  /// set across app launches, so a sid marked reviewed by an EARLIER run
+  /// stays reviewed forever unless something explicitly clears it again.
+  static Future<void> unmarkRecurringReviewed(String sid) async {
+    if (sid.isEmpty) return;
+    final seen = recurringReviewed()..remove(sid);
+    try {
+      await _box.put(_kRecReviewed, jsonEncode(seen.toList()));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   // ── Recurring hidden (deleted from the list entirely) ─────────────────────
   // Turning a stream OFF (setRecurringOverride) keeps it in the manager so it can
   // be turned back on. DELETING it (trash icon) hides it from the list AND the

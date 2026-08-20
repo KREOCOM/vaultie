@@ -296,9 +296,16 @@ class LiveRecurringScreen extends StatefulWidget {
       required this.wantType,
       required this.title,
       this.itemsOverride,
-      this.allTransactions});
+      this.allTransactions,
+      this.demo = false});
   final String wantType; // 'subscription' | 'bill'
   final String title; // 'Prenumeratos' | 'Sąskaitos'
+  // Onboarding only: auto-opens "Rasti naują prenumeratą" a moment after
+  // landing here, holds it, then closes it again — so a viewer who never
+  // taps anything still sees that finding new subscriptions is a thing this
+  // screen does. Subscriptions only (wantType == 'subscription'); bills get
+  // no auto-behaviour here.
+  final bool demo;
   // When the caller already has the recurring items in memory (e.g. the
   // dashboard's own `_d`, which can be fresher than — or, in the design
   // preview, entirely separate from — DashboardStore's disk snapshot), pass
@@ -348,14 +355,27 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   double get _yearlyTotal => _monthlyTotal * 12;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.demo && _isSubs) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await Future.delayed(const Duration(milliseconds: 900));
+        if (mounted && _canOpenSort) {
+          await _openSort(autoCloseAfter: const Duration(milliseconds: 1800));
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _waveCtl.dispose();
     _ringsCtl.dispose();
     super.dispose();
   }
 
-  Future<void> _openSort() async {
-    await Navigator.of(context).push(MaterialPageRoute(
+  Future<void> _openSort({Duration? autoCloseAfter}) async {
+    final future = Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => _LiveSortScreen(
         items: _pending,
         wantType: widget.wantType,
@@ -374,6 +394,18 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
         onManualAdded: (raw) => setState(() => _all.add(_LiveItem(raw))),
       ),
     ));
+    // Onboarding only (see widget.demo) — closes the sort screen itself
+    // after a beat, so the OUTER demo tour's own timer (which closes THIS
+    // screen in turn) only ever has one route to pop, same as every other
+    // step it drives.
+    if (autoCloseAfter != null) {
+      Future.delayed(autoCloseAfter, () {
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+    }
+    await future;
     setState(() {});
   }
 

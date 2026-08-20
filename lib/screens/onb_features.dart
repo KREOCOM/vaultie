@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,80 +5,40 @@ import '../i18n.dart';
 import '../services/fx_rates.dart';
 import 'splash_screen.dart';
 
-/// The last page before the bank connect: everything the intro had no room to
-/// demonstrate.
+/// Onboarding page 6 — the last page before the bank connect: everything
+/// the intro had no room to demonstrate.
 ///
-/// Each line here is a feature that exists in the code — the budget
-/// (`AppPrefs.budget`), the lock (`AppLock`), the payment reminders
-/// (`NotificationService.scheduleFromRecurring`), the monthly recap
-/// (`RecapService`), the currency conversion (`FxRates`) and the light/dark
-/// choice (`AppPrefs.darkMode`). An intro that lists things the app cannot do is
-/// worse than an intro that lists fewer things.
+/// 2026-08-19: rebuilt on a supplied reference mockup — a plain ambient
+/// gradient field (page6_bg.png) with the mark, a two-tone headline, seven
+/// left-rule feature rows and a capability chip strip, all real Flutter
+/// text/widgets (the mockup's own text is baked into its OWN copy of the
+/// image and isn't reachable from code — page6_bg.png is deliberately the
+/// EMPTY version of that render, supplied separately, so every word here
+/// can still be localised/edited). Scrollable: seven rows plus the chip
+/// strip is more copy than any other page in the chain, and unlike a fixed
+/// cap-and-shrink artwork (the previous page's Android strategy) a plain
+/// static background never NEEDS the room back, so letting the copy scroll
+/// over it is the simplest thing that always fits.
 ///
-/// Laid out as rows rather than as a grid because the copy earns full sentences,
-/// and unlike every other page in the chain there is no phone to look at — the
-/// render puts its subject in the top quarter and leaves the rest to words.
-///
-/// iOS and Android built from ONE shared shell (colours, gradients, row
-/// widgets) but two different layout strategies below [build]. iOS was
-/// already correct on the build already submitted to App Review — full-width
-/// artwork, a Spacer pushing the copy to the bottom — so it is left exactly
-/// as it was, never touched by anything added for Android. Android needed a
-/// hard guarantee that the copy never rides onto the artwork or falls back
-/// on scrolling to fit, which iOS never needed and must not inherit.
-class OnbFeatures extends StatefulWidget {
+/// Each row is a feature that exists in the code — receipts (`ScanService`),
+/// the budget (`AppPrefs.budget`), bills/subscriptions (`LiveRecurringScreen`),
+/// the currency conversion (`FxRates`), CSV/PDF export, the lock (`AppLock`)
+/// and the language/theme choice (`AppPrefs.locale`/`darkMode`). An intro
+/// that lists things the app cannot do is worse than an intro that lists
+/// fewer things.
+class OnbFeatures extends StatelessWidget {
   const OnbFeatures({super.key, required this.next});
 
   final Widget next;
 
-  @override
-  State<OnbFeatures> createState() => _OnbFeaturesState();
-}
+  static const _deep = Color(0xFF030B24);
 
-class _OnbFeaturesState extends State<OnbFeatures> {
-  /// Sampled from the render's own foot (#010827), which is within a few units
-  /// of the `_deep` the rest of the chain settles on — so the page ends on the
-  /// same shade as its neighbours with no visible step.
-  static const _deep = Color(0xFF030E30);
-
-  /// Android only. Measured height of the copy block, the same way
-  /// [OnbScenePage] measures it. A fixed cap on the artwork's height stopped
-  /// it colliding with the copy, but a fixed cap can still leave less room
-  /// than the feature rows need on a short screen — the page scrolled
-  /// instead of the artwork making way. Shrinking the artwork to whatever is
-  /// left AFTER the copy's own measured height is the same guarantee
-  /// [OnbScenePage] uses: the copy always gets the room it needs first.
-  final GlobalKey _copyKey = GlobalKey();
-  double? _copyH;
-
-  void _measureCopy() {
-    final box = _copyKey.currentContext?.findRenderObject();
-    if (box is! RenderBox || !box.hasSize) return;
-    final h = box.size.height;
-    if (_copyH != null && (_copyH! - h).abs() < 0.5) return;
-    if (mounted) setState(() => _copyH = h);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    if (Platform.isAndroid) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _measureCopy());
-    }
-    final auto = kOnbAutoAdvance;
-    if (auto != null) {
-      Future<void>.delayed(auto, () {
-        if (mounted) _next();
-      });
-    }
-  }
-
-  void _next() {
+  void _next(BuildContext context) {
     HapticFeedback.lightImpact();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 200),
-        pageBuilder: (_, __, ___) => widget.next,
+        pageBuilder: (_, __, ___) => next,
         transitionsBuilder: (_, a, __, child) =>
             FadeTransition(opacity: a, child: child),
       ),
@@ -88,407 +46,233 @@ class _OnbFeaturesState extends State<OnbFeatures> {
   }
 
   @override
-  Widget build(BuildContext context) => wrapOnbStatusBar(
-      Platform.isAndroid ? _buildAndroid(context) : _buildIOS(context));
-
-  /// Unchanged from the build already submitted to App Review: full-width
-  /// artwork, a Spacer pushing the copy to the bottom. Do not "improve" this
-  /// to match Android — it was never broken here.
-  Widget _buildIOS(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _deep,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // The render's subject — the mark, a chart, a card, a bank — sits in
-          // the top quarter and the rest is empty field, so it is drawn from the
-          // top at full width and the copy takes everything below.
-          const Align(
-            alignment: Alignment.topCenter,
-            child: Image(
-              image: AssetImage('assets/onboarding/page_features.png'),
-              fit: BoxFit.fitWidth,
-              alignment: Alignment.topCenter,
-            ),
-          ),
-
-          // The render's own field already runs dark enough for white text; this
-          // only closes the last stretch onto _deep so the foot of the page
-          // matches the pages either side of it.
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x00030E30),
-                      Color(0x66030E30),
-                      Color(0xFF030E30),
-                    ],
-                    stops: [0.42, 0.66, 0.88],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: Column(
-              children: [
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(26, 0, 26, 20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 34,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF5B8CFF),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: 13),
-                      Text(
-                        tr('Pritaikyk\nVaultie sau'),
-                        style: const TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                          height: 1.12,
-                          letterSpacing: -0.9,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        tr('Kelios funkcijos, kurias nusistatai pagal save.'),
-                        style: TextStyle(
-                          fontSize: 14.5,
-                          height: 1.45,
-                          color: Colors.white.withValues(alpha: 0.9),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _row(
-                        Icons.savings_outlined,
-                        'Mėnesio biudžetas',
-                        'Nusistatyk ribą, o Vaultie kasdien rodys, kiek dar gali išleisti.',
-                      ),
-                      _row(
-                        Icons.lock_outline_rounded,
-                        'PIN kodas ir Face ID',
-                        'Uždaryta programėlė lieka užrakinta, net jei telefonas atrakintas.',
-                      ),
-                      _row(
-                        Icons.notifications_none_rounded,
-                        'Priminimai apie mokėjimus',
-                        'Pranešam prieš nurašymą, kad nė vienas neužkluptų netikėtai.',
-                      ),
-                      _row(
-                        Icons.calendar_today_rounded,
-                        'Mėnesio santrauka',
-                        'Mėnesiui pasibaigus — kur nukeliavo pinigai ir kiek sutaupei.',
-                      ),
-                      _row(
-                        Icons.public_rounded,
-                        'Kitos valiutos',
-                        '${kCurrencies.length} ${tr('valiutos — sąskaitos kitomis valiutomis suvedamos į vieną bendrą sumą.')}',
-                      ),
-                      _row(
-                        Icons.dark_mode_outlined,
-                        'Šviesus ir tamsus',
-                        'Programėlė prisitaiko prie tavęs, ne atvirkščiai.',
-                      ),
-                      const SizedBox(height: 14),
-                      GestureDetector(
-                        onTap: _next,
-                        child: Container(
-                          height: 54,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: const Color(0xFF001450)
-                                      .withValues(alpha: 0.45),
-                                  blurRadius: 22,
-                                  offset: const Offset(0, 10)),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(tr('Toliau'),
-                              style: const TextStyle(
-                                  fontSize: 16.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1846E6))),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Center(child: _dots()),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Android only. See the class doc: the artwork's height is capped and
-  /// then shrunk to whatever room the (measured) copy hasn't claimed, so
-  /// neither can collide with the other on the shorter/narrower screens this
-  /// was built for.
-  Widget _buildAndroid(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    // 185 is the ceiling — comfortably more than the render's real subject
-    // needs on every screen this was measured against. Once the copy below
-    // has been measured, the artwork shrinks to whatever is actually left
-    // over instead of holding that ceiling regardless, which is what let it
-    // outgrow the screen and push the copy into a scroll.
-    final imgH =
-        _copyH == null ? 185.0 : (size.height - _copyH!).clamp(0.0, 185.0);
-    return Scaffold(
-      backgroundColor: _deep,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // The render's subject — the mark, a chart, a card, a bank — sits in
-          // the top quarter and the rest is empty field. Six feature rows is
-          // more copy than any other page, so on a short screen "draw at full
-          // width, copy takes what's left" left no guaranteed room below the
-          // subject — the headline could land right on top of it. Capping
-          // the artwork's height and shrinking it to fit under the copy
-          // reserves the room instead of hoping there's some left over.
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: imgH,
-            child: Stack(
-              children: [
-                ClipRect(
-                  child: OverflowBox(
-                    maxHeight: double.infinity,
-                    alignment: Alignment.topCenter,
-                    child: Image.asset(
-                      'assets/onboarding/page_features.png',
-                      width: MediaQuery.of(context).size.width,
-                      fit: BoxFit.fitWidth,
-                      alignment: Alignment.topCenter,
-                    ),
-                  ),
-                ),
-                // The hard-capped box above gives the copy guaranteed room,
-                // but cropping the render at a fixed height leaves a visible
-                // straight edge where the artwork just stops — this fades
-                // the last stretch of it into the page colour instead, so
-                // the box reads as an intentional vignette rather than a cut.
-                const Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Color(0x00030E30),
-                            Color(0xFF030E30),
-                          ],
-                          stops: [0.55, 1.0],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // The render's own field already runs dark enough for white text; this
-          // only closes the last stretch onto _deep so the foot of the page
-          // matches the pages either side of it.
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x00030E30),
-                      Color(0x66030E30),
-                      Color(0xFF030E30),
-                    ],
-                    stops: [0.42, 0.66, 0.88],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // Measured the same way [OnbScenePage] measures its copy: the
-          // block bottom-aligns in the full page and reports its own
-          // rendered height, which is what [imgH] above shrinks the
-          // artwork to make room for. No scrolling needed — the artwork
-          // gives way instead.
-          SafeArea(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                key: _copyKey,
-                padding: const EdgeInsets.fromLTRB(26, 0, 26, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF5B8CFF),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(height: 13),
-                    Text(
-                      tr('Pritaikyk\nVaultie sau'),
-                      style: const TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w800,
-                        height: 1.12,
-                        letterSpacing: -0.9,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      tr('Kelios funkcijos, kurias nusistatai pagal save.'),
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        height: 1.45,
-                        color: Colors.white.withValues(alpha: 0.9),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _row(
-                      Icons.savings_outlined,
-                      'Mėnesio biudžetas',
-                      'Nusistatyk ribą, o Vaultie kasdien rodys, kiek dar gali išleisti.',
-                    ),
-                    _row(
-                      Icons.lock_outline_rounded,
-                      'PIN kodas ir Face ID',
-                      'Uždaryta programėlė lieka užrakinta, net jei telefonas atrakintas.',
-                    ),
-                    _row(
-                      Icons.notifications_none_rounded,
-                      'Priminimai apie mokėjimus',
-                      'Pranešam prieš nurašymą, kad nė vienas neužkluptų netikėtai.',
-                    ),
-                    _row(
-                      Icons.calendar_today_rounded,
-                      'Mėnesio santrauka',
-                      'Mėnesiui pasibaigus — kur nukeliavo pinigai ir kiek sutaupei.',
-                    ),
-                    _row(
-                      Icons.public_rounded,
-                      'Kitos valiutos',
-                      // The count comes from the catalogue, not from prose. It
-                      // used to name two currencies ("svarais ar doleriais")
-                      // while the app supports every one in kCurrencies —
-                      // understating the product, and a sentence that would
-                      // have gone stale the moment the list changed.
-                      //
-                      // Translated HERE, not by _row: _row runs its body
-                      // through tr(), and an interpolated string can never
-                      // match a translation key, so it would have stayed
-                      // Lithuanian in English. tr() on an already-translated
-                      // string falls through unchanged, so composing it first
-                      // is safe.
-                      '${kCurrencies.length} ${tr('valiutos — sąskaitos kitomis valiutomis suvedamos į vieną bendrą sumą.')}',
-                    ),
-                    const SizedBox(height: 14),
-                    GestureDetector(
-                      onTap: _next,
-                      child: Container(
-                        height: 54,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                                color: const Color(0xFF001450)
-                                    .withValues(alpha: 0.45),
-                                blurRadius: 22,
-                                offset: const Offset(0, 10)),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(tr('Toliau'),
-                            style: const TextStyle(
-                                fontSize: 16.5,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF1846E6))),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Center(child: _dots()),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _row(IconData icon, String title, String body) => Padding(
-        padding: const EdgeInsets.only(bottom: 11),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => wrapOnbStatusBar(Scaffold(
+        backgroundColor: _deep,
+        body: Stack(
+          fit: StackFit.expand,
           children: [
-            Container(
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0xFF2F6BFF).withValues(alpha: 0.26),
-                borderRadius: BorderRadius.circular(11),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+            const Positioned.fill(
+              child: Image(
+                image: AssetImage('assets/onboarding/page6_bg.png'),
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
               ),
-              child: Icon(icon, size: 17, color: const Color(0xFFDBE6FF)),
             ),
-            const SizedBox(width: 12),
-            Expanded(
+            SafeArea(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tr(title),
-                      style: const TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white)),
-                  const SizedBox(height: 2),
-                  Text(tr(body),
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          height: 1.35,
-                          color: Colors.white.withValues(alpha: 0.72))),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(26, 8, 26, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Same off-center RadialGradient formula as the
+                          // splash's own mark tile — a bright spot near one
+                          // corner fading to a deep navy anchor.
+                          Container(
+                            width: 46,
+                            height: 46,
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(13),
+                              gradient: const RadialGradient(
+                                center: Alignment(-0.6, -1.0),
+                                radius: 1.6,
+                                colors: [
+                                  Color(0xFF3E63FF),
+                                  Color(0xFF081A4D)
+                                ],
+                                stops: [0.0, 0.65],
+                              ),
+                            ),
+                            child: Image.asset('assets/icon/logo_mark.png',
+                                fit: BoxFit.contain),
+                          ),
+                          const SizedBox(height: 20),
+                          RichText(
+                            text: TextSpan(
+                              style: const TextStyle(
+                                fontSize: 29,
+                                fontWeight: FontWeight.w800,
+                                height: 1.16,
+                                letterSpacing: -0.8,
+                              ),
+                              children: [
+                                TextSpan(
+                                    text: tr('Daugiau funkcijų.\n'),
+                                    style:
+                                        const TextStyle(color: Colors.white)),
+                                TextSpan(
+                                    text: tr('Daugiau kontrolės.'),
+                                    style: const TextStyle(
+                                        color: Color(0xFF6E9CFF))),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            tr('Tvarkyk išlaidas, biudžetą, sąskaitas ir kasdienius pinigus vienoje aplikacijoje.'),
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              height: 1.45,
+                              color: Colors.white.withValues(alpha: 0.82),
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          _row(
+                            tr('Išlaidos ir kvitai'),
+                            tr('Skenuok kvitus ir automatiškai rūšiuok pirkinius į kategorijas.'),
+                          ),
+                          _row(
+                            tr('Biudžetas ir tikslai'),
+                            tr('Nustatyk biudžetus, stebėk išlaidas ir siek savo finansinių tikslų.'),
+                          ),
+                          _row(
+                            tr('Sąskaitos ir mokėjimai'),
+                            tr('Dalinkis sąskaitomis, valdyk mokėjimus ir gauk priminimus laiku.'),
+                          ),
+                          _row(
+                            tr('Bankai ir valiutos'),
+                            // The count comes from the catalogue, not from
+                            // prose — see _row's own note on why this is
+                            // composed here rather than passed as a literal.
+                            '${tr('Prijunk bankus, stebėk sąskaitas ir konvertuok')} ${kCurrencies.length} ${tr('skirtingų valiutų.')}',
+                          ),
+                          _row(
+                            tr('Eksportas ir atsarginės kopijos'),
+                            tr('Eksportuok duomenis į CSV arba PDF formatus ir turėk viską po ranka.'),
+                          ),
+                          _row(
+                            tr('Saugumas ir patogumas'),
+                            tr('Face ID, PIN kodas ir kiti saugumo sprendimai, kuriais gali pasitikėti.'),
+                          ),
+                          _row(
+                            tr('Pritaikyta tau'),
+                            tr('Pasirink kalbą (LT / EN) ir temą (šviesi / tamsi) taip, kaip tau patogiausia.'),
+                          ),
+                          const SizedBox(height: 18),
+                          _chips(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(26, 12, 26, 16),
+                    child: Column(
+                      children: [
+                        GestureDetector(
+                          onTap: () => _next(context),
+                          child: Container(
+                            height: 54,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: const Color(0xFF001450)
+                                        .withValues(alpha: 0.45),
+                                    blurRadius: 22,
+                                    offset: const Offset(0, 10)),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(tr('Toliau'),
+                                style: const TextStyle(
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF1846E6))),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _dots(),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ],
         ),
+      ));
+
+  Widget _row(String title, String body) => Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 2.5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3E63FF),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                    const SizedBox(height: 3),
+                    Text(body,
+                        style: TextStyle(
+                            fontSize: 13,
+                            height: 1.4,
+                            color: Colors.white.withValues(alpha: 0.68))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       );
+
+  /// The capability strip from the reference mockup — a quick, scannable
+  /// "yes, it really does all this" summary right under the feature rows.
+  Widget _chips() {
+    const items = [
+      'Face ID',
+      'PIN',
+      'CSV / PDF',
+      'LT / EN',
+      'Dark / Light',
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 10,
+        runSpacing: 8,
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              Text('•',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      fontSize: 13)),
+            Text(items[i],
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.9))),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _dots() => Row(
         mainAxisAlignment: MainAxisAlignment.center,

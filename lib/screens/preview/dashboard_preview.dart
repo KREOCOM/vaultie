@@ -183,6 +183,40 @@ Shader _premiumStroke(Rect rect, Color base) => RadialGradient(
       stops: const [0.0, 0.75],
     ).createShader(rect);
 
+/// A tolygus, blankus taškų tinklelis ant šviesaus fono — "tech/data" jausmas
+/// be jokio spalvos keitimo (2026-08-17, per baltas-fonas.html variantą 6,
+/// pasirinktą po dviejų gradiento bandymų, kurie buvo per silpni realiame
+/// ekrane — "niekas nepasikeitė"). Reads `_purple` at paint time (not a
+/// const field) so the dot colour keeps tracking the light-mode accent if
+/// that token ever changes; only `alpha` is fixed at construction.
+class _DotGridPainter extends CustomPainter {
+  const _DotGridPainter({this.alpha = 0.09, this.spacing = 16});
+  final double alpha;
+  final double spacing;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final points = <Offset>[];
+    for (double y = 0; y < size.height; y += spacing) {
+      for (double x = 0; x < size.width; x += spacing) {
+        points.add(Offset(x, y));
+      }
+    }
+    canvas.drawPoints(
+      ui.PointMode.points,
+      points,
+      Paint()
+        ..color = _purple.withValues(alpha: alpha)
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DotGridPainter old) =>
+      old.alpha != alpha || old.spacing != spacing;
+}
+
 /// The quick flip: persist (Hive, survives restart) then apply (in-memory
 /// tokens + the `_themeVN` notifier every tab listens to). Same two calls
 /// `_pickTheme`'s sheet makes for "Šviesi"/"Tamsi" — this is just the
@@ -860,7 +894,32 @@ String? _hm(Object? ts) {
 /// real signed-in user's actual synced data.
 Map<String, dynamic> _maybePatchPreviewRecurring(Map<String, dynamic> d) {
   if (!designPreviewFakeRecurring) return d;
-  Map<String, dynamic> item(String name, double amount, String type, int occ, String sid) => {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  // 2026-08-19: was "day X of LAST month" — predictedDueDate then rolls
+  // each item forward past today independently, and whether that lands in
+  // THIS month or NEXT month depends on whether X is before or after
+  // TODAY'S OWN day-of-month. Since _dueDateCalendar only draws dots for
+  // whichever month the EARLIEST due date falls in, items that happened to
+  // roll into a different month than the others silently lost their dot —
+  // "rodo kokias 5 sąskaitas bet kalendoriuje tik 1 diena pažymėta".
+  // Targeting each item at a fixed, small OFFSET FROM TODAY instead — all
+  // in the near future, so (bar an actual month-boundary week) they land
+  // in the same month regardless of what day "today" happens to be — then
+  // working out the lastCharge that predicts exactly that date is robust
+  // on any day this demo is ever opened, not just the day it was written.
+  String lastChargeFor(DateTime targetDue) {
+    final priorMonth = DateTime(targetDue.year, targetDue.month - 1, 1);
+    final clampedDay = targetDue.day
+        .clamp(1, DateTime(priorMonth.year, priorMonth.month + 1, 0).day);
+    return _DashboardPreviewState._ymd(
+        DateTime(priorMonth.year, priorMonth.month, clampedDay));
+  }
+
+  Map<String, dynamic> item(String name, double amount, String type, int occ,
+          String sid, int daysFromNow, {required bool reviewed}) =>
+      {
         'name': name,
         'monthly': amount,
         'cost': amount,
@@ -870,20 +929,65 @@ Map<String, dynamic> _maybePatchPreviewRecurring(Map<String, dynamic> d) {
         'type': type,
         'occ': occ,
         'sid': sid,
+        'lastCharge': lastChargeFor(today.add(Duration(days: daysFromNow))),
+        '_reviewed': reviewed, // read below, not by _LiveItem — see note
       };
   final subs = (d['subs'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-  subs['items'] = [
-    item('Netflix', 12.99, 'subscription', 5, 'pv_netflix'),
-    item('Spotify', 9.99, 'subscription', 6, 'pv_spotify'),
-    item('Google One', 2.99, 'subscription', 4, 'pv_google_one'),
-    item('Apple Music', 10.99, 'subscription', 5, 'pv_apple_music'),
-    item('Apple Pay', 4.99, 'subscription', 4, 'pv_apple_pay'),
-    item('SEB', 420.00, 'bill', 5, 'pv_seb'),
-    item('Ignitis', 45.20, 'bill', 6, 'pv_ignitis'),
-    item('Telia', 24.99, 'bill', 6, 'pv_telia'),
-    item('Vilniaus vandenys', 18.40, 'bill', 4, 'pv_vandenys'),
-    item('Lietuvos draudimas', 12.50, 'bill', 3, 'pv_ld'),
+  // _dueDateCalendar only draws a dot for a date landing in the SAME month
+  // as the group's own earliest due date — so each group (confirmed bills,
+  // confirmed subs) needs ALL its own offsets small enough that
+  // today.day + offset can't cross a month boundary on any day of the
+  // month this demo happens to run. Kept under 8 for exactly that reason;
+  // the pending items don't feed a calendar, so their offsets just keep
+  // them a little further out, no tight bound needed.
+  final items = [
+    // Confirmed — the list + calendar a viewer sees immediately.
+    item('Netflix', 12.99, 'subscription', 5, 'pv_netflix', 3, reviewed: true),
+    item('Spotify', 9.99, 'subscription', 6, 'pv_spotify', 5, reviewed: true),
+    item('Google One', 2.99, 'subscription', 4, 'pv_google_one', 7,
+        reviewed: true),
+    item('SEB', 420.00, 'bill', 5, 'pv_seb', 2, reviewed: true),
+    item('Ignitis', 45.20, 'bill', 6, 'pv_ignitis', 4, reviewed: true),
+    item('Telia', 24.99, 'bill', 6, 'pv_telia', 6, reviewed: true),
+    // Left unreviewed on purpose — "Rasti naują prenumeratą/sąskaitą" needs
+    // real candidates to show, or it opens on a blank list. Marking every
+    // fake item reviewed (the previous fix) solved the confirmed view but
+    // broke this one; some of each pool has to stay pending.
+    item('Apple Music', 10.99, 'subscription', 5, 'pv_apple_music', 10,
+        reviewed: false),
+    item('Apple Pay', 4.99, 'subscription', 4, 'pv_apple_pay', 12,
+        reviewed: false),
+    item('Vilniaus vandenys', 18.40, 'bill', 4, 'pv_vandenys', 9,
+        reviewed: false),
+    item('Lietuvos draudimas', 12.50, 'bill', 3, 'pv_ld', 11, reviewed: false),
   ];
+  // _LiveItem.reviewed (subs_bills_live.dart) reads DashboardStore's own
+  // persisted "reviewed" set, not anything on the raw item map — a fake
+  // sid nobody has ever actually reviewed reads as unreviewed forever,
+  // which is what put LiveRecurringScreen into its "Rask savo sąskaitas"
+  // candidate-review empty state instead of the real confirmed-list view
+  // every time the demo opened it. Marking the CONFIRMED half reviewed
+  // here — fire and forget, this is a local Hive write that only ever
+  // runs under designPreviewFakeRecurring — makes that half of the fake
+  // catalogue look like an account someone has actually used; the other
+  // half stays pending on purpose (see above). `_reviewed` was only ever
+  // this function's own marker — stripped back off before the items reach
+  // any real UI/storage code, none of which expects it.
+  for (final it in items) {
+    final sid = it['sid'] as String;
+    if (it.remove('_reviewed') == true) {
+      DashboardStore.markRecurringReviewed(sid);
+    } else {
+      // Explicitly cleared, not just left alone — an EARLIER run of this
+      // same demo (before a sid moved from the confirmed half to the
+      // pending half, or on a simulator/device that already ran an older
+      // build) may have marked it reviewed already, and Hive remembers
+      // that across launches. Without this, a sid meant to stay pending
+      // could keep reading as reviewed forever.
+      DashboardStore.unmarkRecurringReviewed(sid);
+    }
+  }
+  subs['items'] = items;
   d['subs'] = subs;
   return d;
 }
@@ -1299,26 +1403,73 @@ void _applyTxSplits(
 // 2026-08-16: shared by both scan entry points — the per-transaction
 // "Skenuoti kvitą" button inside _SplitTransactionScreen, and Home's
 // standalone _receiptScanBanner (which doesn't know which transaction it
-// is yet). Gallery only, no camera option — Apple's camera-usage review
-// bar is higher and there's no product need for live capture over an
-// existing photo (per request). Returns null on a cancelled/failed picker
-// (not an error, caller shows nothing); throws BankingException same as
-// every other BankingService call on a real network/server failure.
-Future<(List<Map<String, dynamic>>, double, String?)?> _pickAndScanReceipt() async {
-  XFile? file;
+// is yet).
+// 2026-08-17: was gallery-only, no camera option. Reversed per request —
+// unlike the profile photo (a "photograph yourself" flow, kept gallery-only
+// deliberately), photographing a RECEIPT is exactly what NSCameraUsageDescription
+// already in Info.plist describes ("kad nufotografuotum kvitą…") and is the
+// standard, App-Review-safe pattern every receipt/expense-scanning app uses.
+// `source` is chosen up front by _chooseReceiptSource's sheet. Returns null
+// on a cancelled/failed picker (not an error, caller shows nothing).
+// 2026-08-17: split off from the combined pick+scan function it used to be
+// — with ImageSource.camera, calling this WHILE the "Skenuojama…" dialog
+// was already on screen (the old order: show dialog, then pick) meant the
+// native camera view controller was being presented on top of an active
+// Flutter overlay route. On device that suppressed the system camera-
+// permission prompt entirely — tapping "Fotografuoti" visibly did nothing
+// ("neišmeta prašymo leidimo"). Picking now happens BEFORE any dialog is
+// shown; _scanReceiptFlow shows "Skenuojama…" only once a photo already
+// exists, wrapping just the backend OCR wait it was always meant for.
+Future<XFile?> _pickReceiptFile({required ImageSource source}) async {
   try {
-    file = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
+    return await ImagePicker()
+        .pickImage(source: source, maxWidth: 1600, imageQuality: 85);
   } catch (_) {
-    file = null;
+    return null;
   }
-  if (file == null) return null;
+}
+
+// The backend half of the old combined function — throws BankingException
+// same as every other BankingService call on a real network/server failure.
+// Not nullable: unlike the picker, BankingService.scanReceipt() always
+// either returns a result or throws.
+Future<(List<Map<String, dynamic>>, double, String?)> _scanReceiptFile(
+    XFile file) async {
   final bytes = await file.readAsBytes();
   final mediaType =
       file.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
   return BankingService.instance
       .scanReceipt(imageB64: base64Encode(bytes), mediaType: mediaType);
 }
+
+// Shared by every "Kvitas"/receipt-scan entry point (Home, Bill Split) — one
+// sheet, same two options everywhere. Returns null if the sheet is
+// dismissed without a choice, same "cancelled, not an error" contract as
+// _pickReceiptFile itself.
+Future<ImageSource?> _chooseReceiptSource(BuildContext context) =>
+    showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          ListTile(
+            leading: Icon(Icons.camera_alt_outlined, color: _purple),
+            title: Text(tr('Fotografuoti'), style: TextStyle(color: _ink)),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          ListTile(
+            leading: Icon(Icons.photo_outlined, color: _purple),
+            title: Text(tr('Pasirinkti iš galerijos'),
+                style: TextStyle(color: _ink)),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
 
 void _toastAt(BuildContext context, String m) =>
     ScaffoldMessenger.of(context)
@@ -1334,6 +1485,13 @@ void _toastAt(BuildContext context, String m) =>
 // user — the caller has nothing further to do in either case.
 Future<(List<Map<String, dynamic>>, double, String?)?> _scanReceiptFlow(
     BuildContext context) async {
+  final source = await _chooseReceiptSource(context);
+  if (source == null || !context.mounted) return null; // sheet dismissed
+  // Pick BEFORE showing the scanning dialog — see _pickReceiptFile's doc for
+  // why (a native camera view controller presented over an active Flutter
+  // dialog route suppressed iOS's own permission prompt on device).
+  final file = await _pickReceiptFile(source: source);
+  if (file == null || !context.mounted) return null; // picker cancelled
   // showGeneralDialog with an explicit fade (not plain showDialog) —
   // showDialog's default Material transition scales the card in from a
   // squashed rectangle, which read fine over Home's light backdrop but on
@@ -1359,12 +1517,7 @@ Future<(List<Map<String, dynamic>>, double, String?)?> _scanReceiptFlow(
   String? merchant;
   String? error;
   try {
-    final res = await _pickAndScanReceipt();
-    if (res == null) {
-      // Picker cancelled — close the loading dialog and stop quietly.
-      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-      return null;
-    }
+    final res = await _scanReceiptFile(file);
     items = res.$1;
     total = res.$2;
     merchant = res.$3;
@@ -1963,10 +2116,24 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (p != null && (last == null || p.isAfter(last))) last = p;
     }
     if (last == null) return d;
+    // 2026-08-18: was `floor(diff/7)*7` — a multiple of 7 (required: shifting
+    // by anything else would move a payday or a weekly pattern onto the
+    // wrong weekday), but rounding DOWN only guarantees landing somewhere in
+    // the trailing 6 days before today, which is a rolling window, not the
+    // calendar week "Šią savaitę išleista" actually reads (Monday..Sunday).
+    // Whenever that trailing window happened to cross back over last
+    // Monday, the shifted data landed entirely in LAST week and the chart
+    // opened empty — reproducible on some days, not others, which is what
+    // made it look broken rather than just occasionally stale. Aligning
+    // Monday-to-Monday instead of day-to-day still shifts by a whole number
+    // of weeks (same requirement), but guarantees the newest transaction
+    // lands inside the CURRENT Monday..Sunday, every day of the week.
     final now = DateTime.now();
-    final shift =
-        (DateTime(now.year, now.month, now.day).difference(last).inDays ~/ 7) *
-            7;
+    final today = DateTime(now.year, now.month, now.day);
+    final todayMonday = today.subtract(Duration(days: today.weekday - 1));
+    final lastDay = DateTime(last.year, last.month, last.day);
+    final lastMonday = lastDay.subtract(Duration(days: lastDay.weekday - 1));
+    final shift = todayMonday.difference(lastMonday).inDays;
     if (shift <= 0) return d;
     for (final t in all) {
       final p = DateTime.tryParse((t['d'] ?? '').toString());
@@ -2009,9 +2176,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   bool _deepening =
       false; // a fuller 12-month scan is still loading in the background
-  // The chat walkthrough opens ON the chat tab: its page should show the
-  // assistant from the first frame, not the home feed switching over to it.
-  late int _tab = widget.demo && widget.script == DemoScript.chat ? 2 : 0;
+  // The overview walkthrough opens ON its own tab: that page should show
+  // what it's actually about from the first frame, not the home feed
+  // switching over to it a moment later. The chat walkthrough opens on
+  // Home ON PURPOSE — it wants to show the "Tavo finansų agentas" banner
+  // actually being tapped, not skip straight past it.
+  late int _tab =
+      widget.demo && widget.script == DemoScript.overview ? 1 : 0;
   bool _hideBal = false;
 
   /// Whether every connected account is listed in the header, or just the
@@ -2059,7 +2230,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
   static const _demoTabs = <DemoScript, Set<int>>{
     DemoScript.home: <int>{},
     DemoScript.overview: {0},
-    DemoScript.chat: {1},
+    // Chat is reached by tapping the Home banner (a pushed route, its own
+    // fresh _AiChatTab) — the IndexedStack's own copy at tabNeeded index 1
+    // is never shown, so it doesn't need building either.
+    DemoScript.chat: <int>{},
     DemoScript.budget: {2, 3},
   };
 
@@ -2166,11 +2340,27 @@ class _DashboardPreviewState extends State<DashboardPreview>
   final GlobalKey _kRoot = GlobalKey(); // coordinate space for the pointer
   final GlobalKey _kEye = GlobalKey();
   final GlobalKey _kRec = GlobalKey();
+  final GlobalKey _kBills = GlobalKey(); // the Sąskaitos card on Home
+  final GlobalKey _kAgentBanner = GlobalKey(); // "Tavo finansų agentas" on Home
+  final GlobalKey _kNav0 = GlobalKey(); // the Pradžia tab button
   final GlobalKey _kNav1 = GlobalKey(); // the Apžvalga tab button
   final GlobalKey _kNav3 = GlobalKey(); // Planavimas
   final GlobalKey _kNav4 = GlobalKey(); // Paskyra
+  final GlobalKey _kNavTx = GlobalKey(); // the Transakcijos tab button
+  final GlobalKey _kShowOlder = GlobalKey(); // "Rodyti senesnius" in Transakcijos
+  final GlobalKey _kReview = GlobalKey(); // first month's "X apžvalga" card
+  final ScrollController _txScroll = ScrollController();
+  // Drives the pushed _MonthReviewScreen's own list during the home demo
+  // tour — only ever attached when widget.demo is true (see _openReviewFor).
+  final ScrollController _reviewScroll = ScrollController();
   AnimationController? _chartDraw;
-  VoidCallback? _demoOpenManager; // set by the recurring card during build
+  // 2026-08-18: the week bars' entrance — 0 = flat, 1 = fully risen. Set to
+  // 1 (pre-risen) in initState, same as _chartDraw — see there for why.
+  AnimationController? _barsRise;
+  VoidCallback? _demoOpenReview; // set by the first review card during build
+  VoidCallback? _demoOpenSubs; // set by the Prenumeratos card during build
+  VoidCallback? _demoOpenBills; // set by the Sąskaitos card during build
+  VoidCallback? _demoOpenChat; // set by the Finansų agentas banner during build
   bool _demoOn = false;
   Offset? _demoPointer; // null = pointer off screen
   Duration _demoGlide = const Duration(milliseconds: 620);
@@ -2209,8 +2399,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return _beat(settle);
   }
 
-  /// Overview tour: move to the Apžvalga tab, let its donuts land, then open
-  /// the savings-rate breakdown — the one number the page is selling.
+  /// Overview tour: move to the Apžvalga tab, let its donuts land, open the
+  /// savings-rate breakdown (the one number that page is selling) — then
+  /// back to Pradžia for Sąskaitos and Prenumeratos, the two card-shaped
+  /// managers Home itself sells. Each of the three opens the exact same
+  /// real screen a finger-tap would, and each closes again before the
+  /// next opens, so nothing is ever left stacked underneath.
   Future<void> _runOverviewDemo() async {
     if (!await _beat(900)) return;
     while (mounted && _demoOn) {
@@ -2223,24 +2417,61 @@ class _DashboardPreviewState extends State<DashboardPreview>
       setState(() => _demoPointer = null);
       if (!await _beat(1400)) return;
 
-      final open = _demoOpenSavings;
-      if (open != null) {
-        if (!await _demoTap(_kSavings, open, settle: 2600)) return;
+      final openSavings = _demoOpenSavings;
+      if (openSavings != null) {
+        if (!await _demoTap(_kSavings, openSavings, settle: 2600)) return;
         setState(() => _demoPointer = null);
-        final ctx = _kRoot.currentContext;
-        final nav = ctx != null && ctx.mounted ? Navigator.maybeOf(ctx) : null;
-        if (nav != null && nav.canPop()) nav.pop();
-        if (!await _beat(1500)) return;
+        if (!await _popDemoRoute()) return;
+        if (!await _beat(900)) return;
       } else {
         // The tab has not built yet on the first pass; come back around.
         if (!await _beat(700)) return;
+      }
+
+      // Back to Pradžia, then Sąskaitos, then Prenumeratos.
+      if (!await _demoTap(_kNav0, () => setState(() => _tab = 0),
+          settle: 1000)) {
+        return;
+      }
+      setState(() => _demoPointer = null);
+      if (!await _beat(700)) return;
+
+      final openBills = _demoOpenBills;
+      if (openBills != null) {
+        if (!await _demoTap(_kBills, openBills, settle: 2400)) return;
+        setState(() => _demoPointer = null);
+        if (!await _popDemoRoute()) return;
+        if (!await _beat(700)) return;
+      }
+
+      final openSubs = _demoOpenSubs;
+      if (openSubs != null) {
+        // Longer settle than Sąskaitos: LiveRecurringScreen itself opens
+        // and closes "Rasti naują prenumeratą" inside this window (see its
+        // own widget.demo) — needs room for both transitions plus a beat
+        // to actually read the candidate list, not just the base screen.
+        if (!await _demoTap(_kRec, openSubs, settle: 4200)) return;
+        setState(() => _demoPointer = null);
+        if (!await _popDemoRoute()) return;
       }
       if (!await _beat(900)) return;
     }
   }
 
-  /// Chat tour: the tab is already open (see [_tab]), so this just keeps the
-  /// conversation going — ask, answer, pause, ask something else.
+  /// Pops whatever the demo just opened, from [_kRoot]'s own Navigator —
+  /// shared by every tour that pushes a real screen and then closes it
+  /// again. Returns whether the demo is still meant to be running.
+  Future<bool> _popDemoRoute() async {
+    final ctx = _kRoot.currentContext;
+    final nav = ctx != null && ctx.mounted ? Navigator.maybeOf(ctx) : null;
+    if (nav != null && nav.canPop()) nav.pop();
+    return mounted && _demoOn;
+  }
+
+  /// Chat tour: tap "Tavo finansų agentas" on Home to open the chat (a
+  /// pushed route, not a tab — see _financeAgentBanner), let it answer a
+  /// starter question, then ask it something specific, then close it and
+  /// come back for the next lap. Kept snappy end to end, per request.
   Future<void> _runChatDemo() async {
     const exchanges = [
       [
@@ -2249,24 +2480,33 @@ class _DashboardPreviewState extends State<DashboardPreview>
             'nuo balandžio. Jas atsisakius liktų 68 € kas mėnesį.',
       ],
       [
-        'Ar šį mėnesį viršijau maisto biudžetą?',
-        'Ne — maistui išleidai 450 € iš 520 € biudžeto. Liko 70 €, '
-            'o mėnesio gale dar 5 dienos.',
+        'Kokia mano finansinė padėtis šiuo metu?',
+        'Šiuo metu esi teigiamoje pusėje: šį mėnesį uždirbai 2 957 €, '
+            'išleidai 1 828 €, o santaupų norma — 27 %.',
       ],
     ];
-    if (!await _beat(1200)) return;
-    // Asked once, not looped: a repeating conversation reads as a stuck
-    // recording, and the same question arriving twice is the first thing you
-    // notice. After the last answer the thread just sits there, which is what a
-    // real chat you have finished with looks like.
-    for (final e in exchanges) {
+    while (mounted && _demoOn) {
+      final openChat = _demoOpenChat;
+      if (openChat == null) return;
+      if (!await _demoTap(_kAgentBanner, openChat, settle: 900)) return;
+      setState(() => _demoPointer = null);
+
       var say = _demoChatSay;
-      while (say == null) {
-        if (!await _beat(500)) return; // tab not built yet — wait for it
+      var waited = 0;
+      while (say == null && waited < 4000) {
+        if (!await _beat(200)) return; // route not built yet — wait for it
         say = _demoChatSay;
+        waited += 200;
       }
-      await say(e[0], e[1]);
-      if (!await _beat(2600)) return;
+      if (say != null) {
+        for (final e in exchanges) {
+          await say(tr(e[0]), tr(e[1]));
+          if (!await _beat(1400)) return;
+        }
+      }
+
+      if (!await _popDemoRoute()) return;
+      if (!await _beat(900)) return;
     }
   }
 
@@ -2342,45 +2582,117 @@ class _DashboardPreviewState extends State<DashboardPreview>
     if (widget.script == DemoScript.chat) return _runChatDemo();
     if (widget.script == DemoScript.overview) return _runOverviewDemo();
     if (!await _beat(700)) return;
+    // 2026-08-19: was a 4-step tour — bars, an eye hide/show, the scroll,
+    // Transakcijos. The eye step is gone per request ("šito nereikia
+    // rodyti") — everything else unchanged.
     while (mounted && _demoOn) {
-      // 1 — hide the balance, then bring it back.
-      if (!await _demoTap(_kEye, () => setState(() => _hideBal = true))) return;
-      if (!await _beat(500)) return;
-      if (!await _demoTap(_kEye, () => setState(() => _hideBal = false)))
-        return;
-
-      // 2 — draw the balance line across the chart.
+      // 1 — the week bars rise, one after another.
       setState(() => _demoPointer = null);
-      if (!await _beat(300)) return;
-      _chartDraw?.forward(from: 0);
-      if (!await _beat(1900)) return;
+      _barsRise?.forward(from: 0);
+      if (!await _beat(1500)) return;
 
-      // 3 — scroll down through the payments, then back to the top.
+      // 2 — Home isn't only the hero and the week chart: scroll all the way
+      // down to "Kur išleidai daugiausiai" so that's part of the tour too.
+      // 2026-08-18: used to scroll straight back up to the top afterwards —
+      // reads as an unwanted bounce (down, then immediately back up) rather
+      // than a clean "show the donut, then move on". Home is put back at
+      // the top silently instead, with jumpTo while it's off-screen (see
+      // "Reset for the next lap" below), so nothing has to be seen twice.
+      //
+      // 2026-08-19: this used to need a silent jump-to-bottom-and-back
+      // "measure" pass first, because ListView(children: […]) only
+      // estimates anything below the fold until it's actually been laid
+      // out, and animating straight to the estimate overshot into space
+      // that didn't exist yet. The Home ListView now sets a generous
+      // cacheExtent in demo mode instead (see its own comment), which lays
+      // the whole list out up front — so maxScrollExtent is already the
+      // true figure here and a single clean scroll is enough. The old
+      // measure pass was itself visible as a flicker on a real device
+      // ("atrodo bando užkrauti kitą puslapį") — this removes it outright
+      // rather than trying to hide it better.
       if (_homeScroll.hasClients) {
-        await _homeScroll.animateTo(
-            (_homeScroll.position.maxScrollExtent).clamp(0.0, 760.0),
-            duration: const Duration(milliseconds: 1700),
+        await _homeScroll.animateTo(_homeScroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 1200),
             curve: Curves.easeInOutCubic);
-        if (!await _beat(1500)) return;
-        if (!mounted || !_demoOn) return;
-        await _homeScroll.animateTo(0,
-            duration: const Duration(milliseconds: 1000),
-            curve: Curves.easeInOutCubic);
+        if (!await _beat(1300)) return;
       }
-      if (!await _beat(500)) return;
 
-      // 4 — open the subscriptions + bills manager, sit on it, come back.
-      final open = _demoOpenManager;
-      if (open != null) {
-        if (!await _demoTap(_kRec, open, settle: 2400)) return;
+      // 4 — Transakcijos: open it already sitting on the first month's own
+      // "apžvalga" card (the hop-search itself stays silent/instant — the
+      // visible scroll belongs INSIDE the review, after it's tapped, not
+      // spent hunting for the card first), tap it, scroll that screen down
+      // a little, then go straight back to Pradžia instead of sitting back
+      // on Transakcijos first.
+      //
+      // The search still has to hop rather than jump straight to
+      // maxScrollExtent: ListView(children: […]) still virtualises through
+      // a sliver, which only keeps elements within ~250px of the viewport.
+      // Jumping to the very bottom of a 12–15k px list built the review
+      // card in passing and then DISPOSED it again by the time the jump
+      // landed, so ensureVisible(key.currentContext) always found nothing.
+      // Short, ~700px hops — checking for the card after each one — keep it
+      // in the built range the moment it's found rather than jumping past
+      // it. _shownPast already defaults to 2, so the card exists from the
+      // very first build; no "Rodyti senesnius" tap is needed first.
+      if (_txScroll.hasClients) {
+        for (var hop = 0; hop < 6; hop++) {
+          if (_kReview.currentContext != null) break;
+          if (!mounted || !_demoOn) return;
+          final max = _txScroll.position.maxScrollExtent;
+          final target = (_txScroll.offset + 700).clamp(0.0, max);
+          _txScroll.jumpTo(target);
+          if (!await _beat(30)) return;
+          if (target >= max) break;
+        }
+        final reviewCtx0 = _kReview.currentContext;
+        if (reviewCtx0 != null) {
+          await Scrollable.ensureVisible(reviewCtx0,
+              duration: Duration.zero, alignment: 0.3);
+        }
+      }
+
+      if (!await _demoTap(_kNavTx, () => setState(() => _tab = 5),
+          settle: 900)) {
+        return;
+      }
+      setState(() => _demoPointer = null);
+
+      final reviewCtx = _kReview.currentContext;
+      final openReview = _demoOpenReview;
+      if (reviewCtx != null && openReview != null) {
+        if (!await _demoTap(_kReview, openReview, settle: 700)) return;
         setState(() => _demoPointer = null);
+
+        // A gentle, smooth scroll down — NOT all the way to the bottom
+        // (that needs the silent-stabilise-first trick Home's own scroll
+        // uses; this one is short enough not to hit the virtualisation
+        // overshoot that trick exists for).
+        if (_reviewScroll.hasClients) {
+          await _reviewScroll.animateTo(620,
+              duration: const Duration(milliseconds: 1400),
+              curve: Curves.easeInOutCubic);
+          if (!await _beat(700)) return;
+        }
+
         final nav = _kRoot.currentContext != null
             ? Navigator.maybeOf(_kRoot.currentContext!)
             : null;
         if (nav != null && nav.canPop()) nav.pop();
-        if (!await _beat(1200)) return;
+        // Off-screen now — safe to reset silently for the next lap.
+        if (_reviewScroll.hasClients) _reviewScroll.jumpTo(0);
       }
-      setState(() => _demoPointer = null);
+
+      // Straight back to Pradžia — no lingering on Transakcijos first.
+      // Home gets put back at the top here too — silently (jumpTo, not
+      // animateTo) since it's off-screen right up until the _tab flip
+      // below, so the next lap's bars-rise opens on the hero exactly like
+      // this one did, with nothing visible in between.
+      if (_homeScroll.hasClients) _homeScroll.jumpTo(0);
+      if (_txScroll.hasClients) _txScroll.jumpTo(0);
+      setState(() {
+        _tab = 0;
+        _demoPointer = null;
+      });
       if (!await _beat(900)) return;
     }
   }
@@ -2447,6 +2759,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
       _chartDraw = AnimationController(
           vsync: this, duration: const Duration(milliseconds: 1500));
       _chartDraw!.value = 1;
+      // 2026-08-18: starts pre-risen (value 1), same as _chartDraw above —
+      // any script that shows Home without ever calling forward(from: 0)
+      // (overview, budget, chat, if they ever land there) must still show
+      // full bars, not a permanently flat chart. Only the home script's own
+      // tour explicitly replays the rise from 0 for its showcase moment.
+      _barsRise = AnimationController(
+          vsync: this, duration: const Duration(milliseconds: 1100));
+      _barsRise!.value = 1;
       _demoOn = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _runDemo());
       return;
@@ -2838,6 +3158,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       }
     }
     _chartDraw?.dispose();
+    _barsRise?.dispose();
     _agentWaveCtl.dispose();
     _heroCollapseCtl.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -2845,6 +3166,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
     AppPrefs.locale.removeListener(_onTheme);
     AppPrefs.currencyCode.removeListener(_onTheme);
     _homeScroll.dispose();
+    _txScroll.dispose();
+    _reviewScroll.dispose();
     if (_dashRefresh == _refreshFromAll) _dashRefresh = null;
     super.dispose();
   }
@@ -3011,6 +3334,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
               controller: _homeScroll,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 28),
+              // Demo only: lays out the WHOLE list up front instead of just
+              // what's near the viewport, so maxScrollExtent is the true
+              // content height from the very first frame — see the demo
+              // tour's own scroll-to-bottom step for why that matters (it
+              // used to need a silent jump-and-measure dance to get an
+              // accurate figure, which flickered visibly on a real device).
+              cacheExtent: widget.demo ? 6000 : null,
               children: [
                 // 2026-08-14: drag-to-collapse hero + grabber tried and
                 // reverted — the grabber's own row read as an unwanted gap/
@@ -3040,7 +3370,25 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
     final monthKeys = keys.toList()..sort((a, b) => b.compareTo(a));
     final shown = monthKeys.take(1 + _shownPast).toList();
+    // The demo (widget.demo) stores its own tap handler here the same way
+    // the recurring card does with _demoOpenSavings: only shown[1] — the
+    // month right after the newest, the first review card it can ever
+    // reach — gets the key, so there's exactly one unambiguous target to
+    // scroll to and tap. Re-keyed (and re-bound) on every build rather than
+    // once, the same as any other GlobalKey attached from a rebuildable list.
+    final monthBlocks = <Widget>[];
+    for (var i = 0; i < shown.length; i++) {
+      monthBlocks.add(_monthHeaderFor(shown[i]));
+      if (i > 0) {
+        final isDemoTarget = widget.demo && i == 1;
+        if (isDemoTarget) _demoOpenReview = () => _openReviewFor(shown[i]);
+        monthBlocks.add(
+            _reviewCardFor(shown[i], key: isDemoTarget ? _kReview : null));
+      }
+      monthBlocks.addAll(_monthFeed(shown[i]).map(_dayGroup));
+    }
     return ListView(
+      controller: widget.demo ? _txScroll : null,
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
         Padding(
@@ -3066,15 +3414,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
           ]),
         ),
         _filters(),
-        for (var i = 0; i < shown.length; i++) ...[
-          _monthHeaderFor(shown[i]),
-          if (i > 0) _reviewCardFor(shown[i]),
-          for (final dd in _monthFeed(shown[i])) _dayGroup(dd),
-        ],
+        ...monthBlocks,
         if (monthKeys.length > shown.length)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
             child: GestureDetector(
+              key: widget.demo ? _kShowOlder : null,
               onTap: () => setState(() => _shownPast += 2),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -3247,15 +3592,21 @@ class _DashboardPreviewState extends State<DashboardPreview>
                         stops: [0.0, 0.5, 1.0],
                       ),
                     )
-                  : const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Color(0xFFEDF1F9), Color(0xFFEAF0FB)],
-                      ),
-                    ),
+                  // 2026-08-17 v3: v1 (off-center corner glow) and v2 (top
+                  // vignette) were both too subtle to register against a
+                  // busy real screen — "niekas nepasikeitė". Flat base again
+                  // (matches [[vaultie-keep-light-mode-restrained]]); the
+                  // dot-grid painter below carries the "more interesting"
+                  // part now, texture rather than a colour gradient.
+                  : const BoxDecoration(color: Color(0xFFF4F5FA)),
             ),
           ),
+          if (!_darkMode)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: _DotGridPainter(alpha: 0.09)),
+              ),
+            ),
           if (!_darkMode) ..._frostMesh,
         ],
       );
@@ -3727,13 +4078,52 @@ class _DashboardPreviewState extends State<DashboardPreview>
         children: [
           // Title row sits on the page backdrop; colour follows the theme.
           Row(children: [
+            // 2026-08-17: the profile photo (see AppPrefs.profilePhotoPath),
+            // next to the greeting — only when one is actually set; an empty
+            // circle here when nobody has a photo would just be dead chrome.
+            if (designPreviewPalette)
+              ValueListenableBuilder<String>(
+                valueListenable: AppPrefs.profilePhotoPath,
+                builder: (_, path, __) {
+                  final file = path.isNotEmpty ? File(path) : null;
+                  final show = file != null && file.existsSync();
+                  if (!show) return const SizedBox.shrink();
+                  // 2026-08-17 fix: a 1.5px white border was added here to
+                  // stand out on the blue hero, but read as "the photo
+                  // doesn't fill the circle" — a thin white ring peeking
+                  // around every edge. Dropped; same plain circle (no
+                  // border) as the Account/Settings avatars, which fit
+                  // edge-to-edge with no complaint.
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: const BoxDecoration(shape: BoxShape.circle),
+                      child: Image.file(file,
+                          width: 32, height: 32, fit: BoxFit.cover),
+                    ),
+                  );
+                },
+              ),
             // 2026-08-16: PREVIEW-ONLY — a greeting instead of the bare tab
             // name. Name dropped per request (didn't read well); smaller
             // font than the old "Pradžia" title since "Sveiki sugrįžę" is a
             // longer phrase.
+            //
+            // 2026-08-18: blanked out in the onboarding demo specifically
+            // (widget.demo — only ever true there) — "Sveiki sugrįžę" reads
+            // oddly on a screen nobody has used yet. Still an Expanded Text,
+            // just empty, so the eye/theme icons after it don't shift; the
+            // real app keeps the greeting untouched.
             Expanded(
               child: Text(
-                  designPreviewPalette ? tr('Sveiki sugrįžę') : tr('Pradžia'),
+                  widget.demo
+                      ? ''
+                      : designPreviewPalette
+                          ? tr('Sveiki sugrįžę')
+                          : tr('Pradžia'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -4891,15 +5281,19 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 title: typeFilter == 'subscription' ? tr('Prenumeratos') : tr('Sąskaitos'),
                 itemsOverride: allItems,
                 allTransactions: (_d['all'] as List?)?.cast<Map>(),
+                demo: widget.demo,
               )));
       // Toggling a payment off in the manager has to reach Planning's copy of
       // the list too — it lives in the CACHED tab list, not this tab's state.
       if (mounted) setState(() => _otherTabs = null);
     }
 
-    // The demo taps this card by calling the very handler the card's own
+    // The demo taps these cards by calling the very handler each card's own
     // GestureDetector uses, so it can never drift from what a real tap does.
-    if (widget.demo) _demoOpenManager = () => openManager('subscription');
+    if (widget.demo) {
+      _demoOpenSubs = () => openManager('subscription');
+      _demoOpenBills = () => openManager('bill');
+    }
 
     Widget card(GlobalKey? key, String label, double sum, int n, Color dot,
             String typeFilter) =>
@@ -4937,8 +5331,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
         card(_kRec, tr('Prenumeratos'), subsSum, subsN,
             _catColors['entertainment']!, 'subscription'),
         const SizedBox(width: 12),
-        card(null, tr('Sąskaitos'), billsSum, billsN, _catColors['housing']!,
-            'bill'),
+        card(_kBills, tr('Sąskaitos'), billsSum, billsN,
+            _catColors['housing']!, 'bill'),
       ]),
     );
   }
@@ -5301,11 +5695,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Text(tr('Skenuoti kvitą'),
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15.5)),
+                      Flexible(
+                        child: Text(tr('Skenuoti kvitą'),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15.5)),
+                      ),
                       const SizedBox(width: 7),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -5385,11 +5782,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Text(tr('Dalybos'),
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15.5)),
+                      Flexible(
+                        child: Text(tr('Dalybos'),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15.5)),
+                      ),
                       const SizedBox(width: 7),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -5517,11 +5917,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
     ));
   }
 
-  Widget _financeAgentBanner() => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-        child: GestureDetector(
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => Scaffold(
+  Widget _financeAgentBanner() {
+    // The demo taps this the same way it does every other card: calling
+    // the very handler this GestureDetector's own onTap uses, so it can
+    // never drift from what a real tap does.
+    void openChat() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => Scaffold(
                     // Giving the AppBar the SAME flat colour as
                     // _frostBackdrop's top stop (tried first) still left a
                     // step: frostBackdrop also carries _frostMesh's glow
@@ -5546,21 +5947,33 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     // offset replaces what extendBodyBehindAppBar's OWN body
                     // inset would have been if it were false (SafeArea alone
                     // only clears the status bar/notch, not the AppBar's own
-                    // height) — trimmed below the full kToolbarHeight since
-                    // the back chevron sits top-left and doesn't need the
-                    // header row pushed a full toolbar's height below it.
+                    // height).
+                    // 2026-08-17: was kToolbarHeight - 20 (36) — with the
+                    // header now a visually heavy gradient card (not plain
+                    // text), that gap read as "the block sits too low" and
+                    // ate into the chat's own room below it. Trimmed to just
+                    // clear the back chevron.
                     body: Stack(children: [
                       Positioned.fill(child: _frostBackdrop()),
                       SafeArea(
                         child: Padding(
-                          padding: const EdgeInsets.only(top: kToolbarHeight - 20),
+                          padding: const EdgeInsets.only(top: 8),
                           child: _AiChatTab(data: _d, demo: widget.demo),
                         ),
                       ),
                     ]),
-                  ))),
-          behavior: HitTestBehavior.opaque,
-          child: Container(
+                  )),
+        );
+
+    if (widget.demo) _demoOpenChat = openChat;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: GestureDetector(
+        key: widget.demo ? _kAgentBanner : null,
+        onTap: openChat,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
             height: 120,
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
@@ -5646,6 +6059,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
           ),
         ),
       );
+  }
 
   Widget _recHalf(String label, double sum, int n, Color dot) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -5728,11 +6142,22 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
     monday ??= today.subtract(Duration(days: today.weekday - 1));
     final sunday = monday.add(const Duration(days: 6));
-    final int elapsed = today.isAfter(sunday)
+    // 2026-08-18: the demo dataset is a complete, already-happened week —
+    // every day already has a bar — just relabelled onto the current
+    // calendar dates for freshness (see _buildDemoDash's shift). Dividing
+    // by "days elapsed so far" assumes a week still in progress, which is
+    // the right question for a REAL account (most of whose future days
+    // genuinely have no transactions yet) but wrong here: with all 7 days
+    // already populated, "elapsed" could be as low as 1–2, inflating the
+    // average far above every individual bar and pinning the dashed line
+    // above all of them instead of through their middle.
+    final int elapsed = widget.demo
         ? 7
-        : today.isBefore(monday)
-            ? 1
-            : today.difference(monday).inDays + 1;
+        : today.isAfter(sunday)
+            ? 7
+            : today.isBefore(monday)
+                ? 1
+                : today.difference(monday).inDays + 1;
     final avg = total / elapsed;
     // 2026-08-15: browsable, same idea as the savings-rate month switcher —
     // 0 = this week, -1 = last week, older weeks get a "4–10 rugp." range
@@ -5752,8 +6177,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 Text(weekTitle,
                     style: TextStyle(
                         fontSize: 14.5,
-                        color: _muted,
-                        fontWeight: FontWeight.w500)),
+                        color: _ink,
+                        fontWeight: FontWeight.w700)),
                 const SizedBox(width: 4),
                 _weekNavBtn(
                     icon: Icons.chevron_left_rounded,
@@ -5822,12 +6247,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   ),
                   SizedBox(
                     height: 168,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        for (var i = 0; i < days.length; i++)
-                          _bar(days[i], maxV, i),
-                      ],
+                    child: AnimatedBuilder(
+                      animation: _barsRise ?? kAlwaysCompleteAnimation,
+                      builder: (_, __) => Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (var i = 0; i < days.length; i++)
+                            _bar(days[i], maxV, i, days.length,
+                                _barsRise?.value ?? 1),
+                        ],
+                      ),
                     ),
                   ),
                   if (sel != null)
@@ -5889,12 +6318,24 @@ class _DashboardPreviewState extends State<DashboardPreview>
     );
   }
 
-  Widget _bar(Map<String, dynamic> d, double maxV, int i) {
+  Widget _bar(Map<String, dynamic> d, double maxV, int i, int dayCount,
+      double reveal) {
     final cats = (d['cats'] as List).cast<Map<String, dynamic>>();
     // Bar height and the number above it are pure spending — the coloured
     // segments are spending by category and always add up to the total.
     final tot = (d['total'] as num).toDouble();
     final h = tot > 0 ? (_weekBarFrac(tot, maxV) * 118).clamp(3.0, 118.0) : 2.0;
+    // 2026-08-18: the onboarding demo's entrance — bars climb one after
+    // another instead of all appearing at once. Each bar gets an equal
+    // slice of the controller's run (1/dayCount), so bar 0 finishes
+    // rising before bar 1 starts, and so on; `reveal` is 1 outside the
+    // demo (kAlwaysCompleteAnimation, see _weekSection), so this is a
+    // no-op — full height immediately — for every real user.
+    final riseT = dayCount <= 0
+        ? 1.0
+        : (reveal * dayCount - i).clamp(0.0, 1.0);
+    final rise = Curves.easeOutCubic.transform(riseT);
+    final displayH = h * rise;
     final selected = _weekSel == i;
     return Expanded(
       child: GestureDetector(
@@ -5903,11 +6344,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text(tot > 0 ? _eur0(tot) : '',
-                style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? _purple : _muted)),
+            Opacity(
+              opacity: rise,
+              child: Text(tot > 0 ? _eur0(tot) : '',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? _purple : _muted)),
+            ),
             const SizedBox(height: 8),
             Opacity(
               opacity: (_weekSel == null || selected) ? 1 : 0.4,
@@ -5924,7 +6368,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     topLeft: Radius.circular(3), topRight: Radius.circular(3)),
                 child: SizedBox(
                   width: 15,
-                  height: h,
+                  height: displayH,
                   child: tot > 0
                       ? Column(
                           verticalDirection: VerticalDirection.up,
@@ -5933,7 +6377,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                               Container(
                                   height: (ct['amount'] as num).toDouble() /
                                       tot *
-                                      h,
+                                      displayH,
                                   decoration: BoxDecoration(
                                       gradient: _premiumSwatch(
                                           _secColor[ct['color']] ?? _muted))),
@@ -6249,14 +6693,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
           Navigator.of(context).pop();
           setState(() => _tab = 3);
         },
+        // Lets the home demo tour scroll this screen's own list once it's
+        // open — see _reviewScroll's own doc comment.
+        demoScrollController: widget.demo ? _reviewScroll : null,
       ),
     ));
   }
 
-  Widget _reviewCardFor(String mk) {
+  Widget _reviewCardFor(String mk, {Key? key}) {
     final m = _moInt(mk);
     final net = _monthNet(mk);
     return GestureDetector(
+      key: key,
       onTap: () => _openReviewFor(mk),
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
@@ -6383,13 +6831,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
               child: GestureDetector(
                 key: !widget.demo
                     ? null
-                    : i == 1
-                        ? _kNav1
-                        : i == 3
-                            ? _kNav3
-                            : i == 4
-                                ? _kNav4
-                                : null,
+                    : i == 0
+                        ? _kNav0
+                        : i == 1
+                            ? _kNav1
+                            : i == 2
+                                ? _kNavTx
+                                : i == 3
+                                    ? _kNav3
+                                    : i == 4
+                                        ? _kNav4
+                                        : null,
                 behavior: HitTestBehavior.opaque,
                 // Re-tapping the ALREADY-active tab scrolls it back to the top
                 // (the iOS convention), so you don't have to scroll up by hand.
@@ -9487,10 +9939,15 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
   // fixes with the exact same tools (add a line, "Priskirti likutį") as any
   // manual edit — never a silent, possibly-wrong auto-save.
   Future<void> _pickAndScan() async {
+    final source = await _chooseReceiptSource(context);
+    if (source == null || !mounted) return; // sheet dismissed
+    // Pick before the spinner goes up — same order as _scanReceiptFlow, see
+    // _pickReceiptFile's doc for why that matters for ImageSource.camera.
+    final file = await _pickReceiptFile(source: source);
+    if (file == null || !mounted) return; // picker cancelled — not an error
     setState(() => _scanning = true);
     try {
-      final res = await _pickAndScanReceipt();
-      if (res == null || !mounted) return; // picker cancelled — not an error
+      final res = await _scanReceiptFile(file);
       final (items, _, _) = res;
       if (items.isEmpty) {
         _toast(tr('Nepavyko atpažinti kvito — pabandyk dar kartą arba įvesk rankiniu būdu'));
@@ -11050,13 +11507,17 @@ class _MonthReviewScreen extends StatefulWidget {
       required this.month,
       required this.monthNom,
       required this.monthGen,
-      required this.onGoToBudgets});
+      required this.onGoToBudgets,
+      this.demoScrollController});
   final List<Map<String, dynamic>> all;
   final Map<String, dynamic> balance;
   final Map<String, dynamic> budgets;
   final Map<String, dynamic> subs;
   final String month, monthNom, monthGen;
   final VoidCallback onGoToBudgets;
+  // Non-null only for the onboarding demo — lets its own tour drive this
+  // screen's list the same way it drives Home's and Transakcijos'.
+  final ScrollController? demoScrollController;
   @override
   State<_MonthReviewScreen> createState() => _MonthReviewScreenState();
 }
@@ -11257,6 +11718,7 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
           _header(),
           Expanded(
             child: ListView(
+              controller: widget.demoScrollController,
               padding: const EdgeInsets.only(bottom: 56),
               children: [
                 const SizedBox(height: 14),
@@ -15769,12 +16231,28 @@ class _AccountTabState extends State<_AccountTab> {
                       fontWeight: FontWeight.w700,
                       color: _ink)),
               const Spacer(),
-              Container(
-                width: 40,
-                height: 40,
-                decoration:
-                    BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
-                child: Icon(Icons.person_rounded, size: 22, color: _purple),
+              // 2026-08-17: shows the same photo Settings lets you pick,
+              // instead of a generic person icon, whenever one is set — see
+              // AppPrefs.profilePhotoPath's own doc for why this needs the
+              // ValueListenableBuilder (a different, IndexedStack-kept-alive
+              // tab from where the photo is actually changed).
+              ValueListenableBuilder<String>(
+                valueListenable: AppPrefs.profilePhotoPath,
+                builder: (_, path, __) {
+                  final file =
+                      path.isNotEmpty ? File(path) : null;
+                  final show = file != null && file.existsSync();
+                  return Container(
+                    width: 40,
+                    height: 40,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                        color: _purpleSoft, shape: BoxShape.circle),
+                    child: show
+                        ? Image.file(file, width: 40, height: 40, fit: BoxFit.cover)
+                        : Icon(Icons.person_rounded, size: 22, color: _purple),
+                  );
+                },
               ),
             ]),
           ),
@@ -16567,7 +17045,7 @@ class _SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<_SettingsScreen> {
   String _name = AppPrefs.userName.isEmpty ? 'Vartotojas' : AppPrefs.userName;
-  String _photoPath = AppPrefs.profilePhotoPath;
+  String _photoPath = AppPrefs.profilePhotoPath.value;
   String _currency = _currencyLabel(AppPrefs.currencyCode.value);
   // A live getter, not a field set once at construction. The home header's
   // quick toggle can now flip dark mode while this screen sits cached in
@@ -16753,16 +17231,26 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       );
 
   // 2026-08-16: gallery-only, no camera option — same rule and same
-  // ImagePicker call shape as _pickAndScanReceipt (see that function's own
+  // ImagePicker call shape as _pickReceiptFile (see that function's own
   // doc): Apple's PHPicker (what ImagePicker uses for ImageSource.gallery
   // on iOS) runs out-of-process and hands back only the ONE photo picked,
   // so it needs no NSPhotoLibraryUsageDescription entry at all — no new
   // Info.plist permission, no new App Review privacy prompt. The photo
-  // itself never leaves the device: copied into the app's own documents
-  // directory under a fixed filename (overwriting any previous one, so
-  // storage never grows) and only its local path is persisted
+  // itself never leaves the device, and only its local path is persisted
   // (AppPrefs.profilePhotoPath) — same "nothing uploaded" rule as every
   // other piece of Vaultie's data.
+  // 2026-08-17 fix: was written to a FIXED filename ('profile_photo.jpg'),
+  // overwritten every pick — so changing the photo wrote new bytes to the
+  // same path string. AppPrefs.profilePhotoPath is now a ValueNotifier (see
+  // its own doc) and ValueNotifier.value only notifies when the new value
+  // actually DIFFERS — an identical path was a silent no-op, so every
+  // screen except the one you were standing on kept showing the first
+  // photo forever. A unique, timestamped filename per pick (old file
+  // deleted right after, so storage still doesn't grow) makes the path
+  // itself change, which is what the notifier needs to fire at all — and
+  // sidesteps Flutter's FileImage cache too, which keys on the path, not
+  // the file's actual bytes, so even the SAME screen could have kept
+  // showing stale image bytes for an unchanged path.
   Future<void> _pickProfilePhoto() async {
     if (_photoPath.isNotEmpty && File(_photoPath).existsSync()) {
       final choice = await showModalBottomSheet<String>(
@@ -16809,10 +17297,21 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     if (file == null || !mounted) return;
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final dest = File('${dir.path}/profile_photo.jpg');
+      // Unique, timestamped filename — see this function's own doc for why
+      // a fixed name silently broke both the cross-tab ValueNotifier update
+      // and Image.file's own cache. Old file deleted right after so storage
+      // still doesn't grow.
+      final dest = File(
+          '${dir.path}/profile_photo_${DateTime.now().millisecondsSinceEpoch}.jpg');
       await dest.writeAsBytes(await file.readAsBytes(), flush: true);
+      final old = _photoPath;
       await AppPrefs.setProfilePhotoPath(dest.path);
       if (mounted) setState(() => _photoPath = dest.path);
+      if (old.isNotEmpty && old != dest.path) {
+        try {
+          await File(old).delete();
+        } catch (_) {}
+      }
     } catch (_) {
       if (mounted) _snack(tr('Nepavyko įrašyti nuotraukos'));
     }
@@ -18422,14 +18921,11 @@ class _AiChatTabState extends State<_AiChatTab> {
   void initState() {
     super.initState();
     if (!widget.demo) return;
-    // Open with a conversation already in it, so the tab reads as something in
-    // use rather than an empty box with a prompt.
-    _msgs
-      ..add(_ChatMsg('user', tr('Kiek išleidau šį mėnesį?')))
-      ..add(_ChatMsg(
-          'assistant',
-          tr('Šį mėnesį išleidai 1 836 € — 32 % mažiau nei uždirbai. '
-              'Daugiausia nuėjo būstui (620 €) ir maistui (450 €).')));
+    // 2026-08-18: used to pre-seed one exchange so the tab never read as an
+    // empty box. The onboarding tour now opens this screen itself (tapping
+    // "Tavo finansų agentas" on Home) and wants the FIRST thing shown to be
+    // the real empty state — greeting + starter chips — same as any new
+    // user's actual first chat, so it starts empty here too.
     _demoChatSay = _demoSay;
   }
 
@@ -18557,36 +19053,65 @@ class _AiChatTabState extends State<_AiChatTab> {
         (widget.data['all'] as List?)?.isNotEmpty == true;
     return Column(
       children: [
+        // 2026-08-17: was a flat icon-square + plain text row on the page's
+        // own background — read as "basic". Same off-center RadialGradient
+        // premium treatment as the Home banner this header links from (see
+        // _financeAgentBanner in this file), so the two visually agree.
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 2, 20, 4),
-          child: Row(children: [
-            Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                  color: _purpleSoft, borderRadius: BorderRadius.circular(13)),
-              child: Icon(Icons.auto_awesome_rounded, color: _purple, size: 22),
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: RadialGradient(
+                center: const Alignment(-0.7, -0.6),
+                radius: 1.5,
+                colors: [
+                  _purple,
+                  Color.lerp(_purpleDeep, const Color(0xFF05050A), 0.4)!,
+                ],
+                stops: const [0.0, 0.75],
+              ),
+              boxShadow: [
+                BoxShadow(
+                    color: _purple.withValues(alpha: 0.28),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6)),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // The feature's name, not a description of the technology.
-                    // "AI pokalbis" says what it is built from; "Tavo finansų
-                    // agentas" says what it does for you, which is what the tab is
-                    // for. The nav label is the short form of the same name.
-                    Text(tr('Tavo finansų agentas'),
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: _ink)),
-                    Text(tr('Klausk apie savo pinigus'),
-                        style: TextStyle(fontSize: 13, color: _muted)),
-                  ]),
-            ),
-          ]),
+            child: Row(children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(13)),
+                child: const Icon(Icons.auto_awesome_rounded,
+                    color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // The feature's name, not a description of the technology.
+                      // "AI pokalbis" says what it is built from; "Tavo finansų
+                      // agentas" says what it does for you, which is what the tab is
+                      // for. The nav label is the short form of the same name.
+                      Text(tr('Tavo finansų agentas'),
+                          style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white)),
+                      Text(tr('Klausk apie savo pinigus'),
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white.withValues(alpha: 0.75))),
+                    ]),
+              ),
+            ]),
+          ),
         ),
         Expanded(
           child: _msgs.isEmpty
@@ -18626,44 +19151,26 @@ class _AiChatTabState extends State<_AiChatTab> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                  color: _purpleSoft, borderRadius: BorderRadius.circular(11)),
-              child: Icon(Icons.auto_awesome_rounded, color: _purple, size: 17),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                decoration: BoxDecoration(
-                  color: _card,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(4),
-                    topRight: Radius.circular(16),
-                    bottomLeft: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
-                  ),
-                  border: Border.all(color: _hair),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4))
-                  ],
-                ),
-                child: Text(
-                    tr('Labas 👋 Galiu padėti suprasti, kur keliauja tavo pinigai. Ko norėtum paklausti?'),
-                    style: TextStyle(fontSize: 15.5, height: 1.5, color: _ink)),
-              ),
-            ),
-          ],
+        // 2026-08-17: the small sparkle avatar that sat left of this bubble
+        // was removed per request — the bubble now stands alone, evenly
+        // rounded on all four corners instead of the tail-corner shape that
+        // used to point at the (now gone) avatar.
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _hair),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4))
+            ],
+          ),
+          child: Text(
+              tr('Labas 👋 Galiu padėti suprasti, kur keliauja tavo pinigai. Ko norėtum paklausti?'),
+              style: TextStyle(fontSize: 15.5, height: 1.5, color: _ink)),
         ),
         const SizedBox(height: 14),
         Padding(

@@ -36,6 +36,27 @@ const Map<String, String> _en = {
   'Kortelės sąskaita': 'Card account',
   'Paskolos sąskaita': 'Loan account',
 
+  // ── Missing entries found 2026-08-19 auditing dashboard_preview.dart
+  // (the live-embedded Home/hero screen the onboarding chain shows) against
+  // this map — an English-locale device saw these still in Lithuanian. ──
+  'Dalybos': 'Split',
+  'Klausk manęs apie savo finansus.': 'Ask me about your finances.',
+  'Fotografuoti': 'Take photo',
+  'Keisti nuotrauką': 'Change photo',
+  'Pasirinkti iš galerijos': 'Choose from gallery',
+  'Pašalinti nuotrauką': 'Remove photo',
+  'Nepavyko įrašyti nuotraukos': "Couldn't save the photo",
+  'Prenumeratos kainuoja 106 € per mėnesį, o dvi iš jų nenaudotos '
+          'nuo balandžio. Jas atsisakius liktų 68 € kas mėnesį.':
+      'Subscriptions cost €106 a month, and two of them haven’t been '
+          'used since April. Cancelling those would leave €68 a month.',
+  'Kokia mano finansinė padėtis šiuo metu?':
+      'What’s my financial situation right now?',
+  'Šiuo metu esi teigiamoje pusėje: šį mėnesį uždirbai 2 957 €, '
+          'išleidai 1 828 €, o santaupų norma — 27 %.':
+      'You’re in good shape right now: this month you earned €2,957, '
+          'spent €1,828, and your savings rate is 27%.',
+
   // ── Home / balance hero ──
   'Sveiki sugrįžę': 'Welcome back',
   'Bendras likutis': 'Total balance',
@@ -933,6 +954,67 @@ const Map<String, String> _en = {
       'A few features you set up your own way.',
   'Prieigą\nkontroliuoji tu': 'You control\nthe access',
   '2500+ bankų visoje Europoje': '2500+ banks across Europe',
+
+  // ── Onboarding chain 2026-08-19 redesign (onb_intro/banks/month/overview/
+  // ai_chat/features/connect.dart) — audited every current tr() key in that
+  // chain against this map on 2026-08-19 and found most of it missing, so an
+  // English-locale device fell straight through to Lithuanian on nearly
+  // every page — the exact bug the "pages 2–7" section above was written to
+  // catch, just for copy that was rewritten after that audit ran.
+  'Suprask savo\nfinansus aiškiau': 'Understand your\nfinances more clearly',
+  'Jungiame 2 700+ bankų\nvisoje Europoje': 'Connecting 2,700+\nbanks across Europe',
+  'Visi tavo bankai, visos tavo sąskaitos vienoje vietoje.':
+      'All your banks, all your accounts, in one place.',
+  'Matyk visą finansų vaizdą': 'See your whole financial picture',
+  'Balansai, išlaidos, pajamos, biudžetas vienoje aiškioje vietoje':
+      'Balances, spending, income and budget in one clear place',
+  'Stebėk, kur gali sutaupyti': 'Track where you can save',
+  'Atrask prenumeratas, sąskaitas ir sek savo santaupų normą.':
+      'Discover subscriptions, bills, and track your savings rate.',
+  'Klausk agento apie savo finansus': 'Ask the agent about your finances',
+  'Gauk atsakymus, paremtus tavo realiais finansiniais duomenimis.':
+      'Get answers based on your real financial data.',
+  'Daugiau funkcijų.\n': 'More features.\n',
+  'Daugiau kontrolės.': 'More control.',
+  'Tvarkyk išlaidas, biudžetą, sąskaitas ir kasdienius pinigus vienoje aplikacijoje.':
+      'Manage spending, budgets, bills and everyday money in one app.',
+  'Išlaidos ir kvitai': 'Expenses and receipts',
+  'Skenuok kvitus ir automatiškai rūšiuok pirkinius į kategorijas.':
+      'Scan receipts and automatically sort purchases into categories.',
+  'Biudžetas ir tikslai': 'Budget and goals',
+  'Nustatyk biudžetus, stebėk išlaidas ir siek savo finansinių tikslų.':
+      'Set budgets, track spending and work toward your financial goals.',
+  'Sąskaitos ir mokėjimai': 'Bills and payments',
+  'Dalinkis sąskaitomis, valdyk mokėjimus ir gauk priminimus laiku.':
+      'Split bills, manage payments and get reminders on time.',
+  'Bankai ir valiutos': 'Banks and currencies',
+  'Prijunk bankus, stebėk sąskaitas ir konvertuok':
+      'Connect banks, track accounts and convert',
+  'skirtingų valiutų.': 'different currencies.',
+  'Eksportas ir atsarginės kopijos': 'Export and backups',
+  'Eksportuok duomenis į CSV arba PDF formatus ir turėk viską po ranka.':
+      'Export your data to CSV or PDF and keep everything on hand.',
+  'Saugumas ir patogumas': 'Security and convenience',
+  'Face ID, PIN kodas ir kiti saugumo sprendimai, kuriais gali pasitikėti.':
+      'Face ID, a PIN code and other security features you can rely on.',
+  'Pritaikyta tau': 'Made for you',
+  'Pasirink kalbą (LT / EN) ir temą (šviesi / tamsi) taip, kaip tau patogiausia.':
+      'Choose your language (LT / EN) and theme (light / dark) — whatever suits you.',
+  'Prijunk savo banką\n': 'Connect your bank\n',
+  'saugiai ir greitai': 'safely and quickly',
+  'Prisijunk prie banko per savo banko sistemą. Vaultie niekada nemato tavo prisijungimo duomenų.':
+      'Sign in through your own bank’s system. Vaultie never sees your login details.',
+  'Tu kontroliuoji prieigą': 'You control access',
+  'Tu nusprendi, kokius duomenis bendrinti ir kada atšaukti prieigą.':
+      'You decide what data to share and when to revoke access.',
+  'Saugumas pirmoje vietoje': 'Security comes first',
+  'Jungiamės per licencijuotą Open Banking infrastruktūrą pagal PSD2 standartą.':
+      'We connect through licensed Open Banking infrastructure under the PSD2 standard.',
+  'Mes galime tik skaityti tavo duomenis. Mokėjimų neatliekame.':
+      'We can only read your data. We never make payments.',
+  'Tavo duomenys – tavo nuosavybė': 'Your data is yours',
+  'Duomenys yra apsaugoti ir naudojami tik tavo Vaultie patirčiai pagerinti.':
+      'Your data is protected and only ever used to improve your Vaultie experience.',
 
   // ── Paywall ──
   'Visos funkcijos vienoje vietoje.': 'Every feature in one place.',

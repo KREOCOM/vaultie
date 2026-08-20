@@ -1,60 +1,232 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import 'onb_scene_page.dart';
-import 'preview/showcase.dart';
+import '../i18n.dart';
+import 'preview/dashboard_preview.dart';
+import 'splash_screen.dart';
 
-/// Onboarding page 5 — the AI assistant. The phone opens already ON the chat
-/// tab with a conversation in it, then asks another question and answers it.
+/// Onboarding page 5 — the AI assistant, shown inside the empty phone drawn
+/// into the background photo itself (page5_bg.png — a standing phone with a
+/// glowing neon rim against a dark faceted-crystal wall).
 ///
-/// The artwork's own screen shows the Overview, not a chat, so letting it stand
-/// in while the live screen builds would show one screen turning into a
-/// different one — the thing that read as "a picture first, then the app".
-/// Mounting instantly fixed that but put the whole build inside the entry
-/// transition, which is worse: a stutter here costs more than a blank moment.
-/// So the glass is filled with the app's own background until the chat lands.
+/// Same technique as [OnbMonth]/[OnbOverview]: a REAL [DashboardPreview]
+/// runs live inside the glass, its own `DemoScript.chat` tour driving it —
+/// opens ON Home (so the "Tavo finansų agentas" banner is actually seen
+/// being tapped, not skipped past), then answers a starter question and a
+/// specific one — with a nested Navigator so both the chat screen itself
+/// and anything it's part of stay confined to the phone.
 ///
-/// Geometry measured off page5_scene.png (1023×1537): glass x 330→684,
-/// y 336→1189, corner a circle of r=45.7 (fitted, mse 0.42). The status-bar
-/// glyphs end 41px down and the artwork's own header starts at 77, so the ink
-/// stamp runs to 58 — past the corner curve, clear of the header.
-class OnbAiChat extends StatelessWidget {
+/// Geometry measured off page5_bg.png (853×1844) via pixel sampling
+/// (ImageMagick row/column scans at three different heights, not
+/// eyeballed): screen glass left=211, top=343, right=630, bottom=1317.
+class OnbAiChat extends StatefulWidget {
   const OnbAiChat({super.key, required this.next});
 
   final Widget next;
 
-  static const _geometry = SceneGeometry(
-    imgW: 1023,
-    imgH: 1537,
-    glassL: 330,
-    glassT: 336,
-    glassR: 684,
-    glassB: 1189,
-    corner: 46,
-    stampH: 58,
-    statusH: 62,
-    ringB: 1235,
-  );
+  static const double _imgW = 853, _imgH = 1844;
+  // Shrunk 3px inward on every side past the measured edge, same reasoning
+  // as the other live-embed pages: the photo's own bezel/glow isn't a
+  // perfectly straight line, so sitting exactly on the measured edge risks
+  // a sliver of content hiding under it.
+  static const double _glassL = 214, _glassT = 346, _glassR = 627, _glassB = 1314;
+  static const double _corner = 46;
+
+  /// See OnbMonth's own doc comment on this constant — same reasoning here.
+  static const double _vw = 390;
+  static double get _vh => _vw * (_glassB - _glassT) / (_glassR - _glassL);
 
   @override
-  Widget build(BuildContext context) => OnbScenePage(
-        next: next,
-        sceneAsset: 'assets/onboarding/page5_scene.png',
-        stampAsset: 'assets/onboarding/page5_statusbar.png',
-        geometry: _geometry,
-        kind: ShowcaseKind.chat,
-        blankUntilLive: showcaseBg,
-        badgeIcon: Icons.auto_awesome_rounded,
-        badge: 'Klausk apie savo pinigus',
-        headline: 'Paklausk.\nGauk atsakymą.',
-        sub:
-            'Paklausk apie savo finansus paprastais žodžiais, o Vaultie atsakys pagal tavo tikrus duomenis.',
-        bullets: [
-          'Atsako pagal tavo operacijas',
-          'Jokie duomenys nenaudojami AI mokymui',
-          'Privatumas išlieka tavo rankose',
+  State<OnbAiChat> createState() => _OnbAiChatState();
+}
+
+class _OnbAiChatState extends State<OnbAiChat> {
+  /// 2026-08-18: see OnbMonth's own doc comment on this field — same fix,
+  /// same reason (the deferred-mount wait itself read as a bare black
+  /// rectangle on a real device).
+  bool _live = true;
+
+  void _nextPage() {
+    HapticFeedback.lightImpact();
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 200),
+        pageBuilder: (_, __, ___) => widget.next,
+        transitionsBuilder: (_, a, __, child) =>
+            FadeTransition(opacity: a, child: child),
+      ),
+    );
+  }
+
+  Widget _liveDashboard() => FittedBox(
+        fit: BoxFit.cover,
+        clipBehavior: Clip.hardEdge,
+        child: SizedBox(
+          width: OnbAiChat._vw,
+          height: OnbAiChat._vh,
+          child: MediaQuery(
+            data: MediaQueryData(
+              size: Size(OnbAiChat._vw, OnbAiChat._vh),
+              devicePixelRatio: 3,
+              textScaler: const TextScaler.linear(1),
+            ),
+            child: IgnorePointer(
+              child: Navigator(
+                onGenerateRoute: (_) => MaterialPageRoute(
+                  builder: (_) =>
+                      const DashboardPreview(demo: true, script: DemoScript.chat),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    final imgH = w * OnbAiChat._imgH / OnbAiChat._imgW;
+    final scale = w / OnbAiChat._imgW;
+
+    return wrapOnbStatusBar(Scaffold(
+      backgroundColor: const Color(0xFF020818),
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            width: w,
+            height: imgH,
+            child: const Image(
+              image: AssetImage('assets/onboarding/page5_bg.png'),
+              fit: BoxFit.fill,
+            ),
+          ),
+
+          // ── The phone's glass: the REAL app, running its own hands-free
+          // tour (tap the agent banner, ask a question, ask another),
+          // scaled to the glass's own aspect so it fills it exactly. ──
+          Positioned(
+            left: OnbAiChat._glassL * scale,
+            top: OnbAiChat._glassT * scale,
+            width: (OnbAiChat._glassR - OnbAiChat._glassL) * scale,
+            height: (OnbAiChat._glassB - OnbAiChat._glassT) * scale,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(OnbAiChat._corner * scale),
+              child: Stack(
+                children: [
+                  const Positioned.fill(
+                    child: ColoredBox(color: Color(0xFF01021A)),
+                  ),
+                  Positioned.fill(
+                    child: AnimatedOpacity(
+                      opacity: _live ? 1 : 0,
+                      duration: const Duration(milliseconds: 260),
+                      child: _live ? _liveDashboard() : const SizedBox.shrink(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Copy block: bottom, plain text (no card) — a card read as
+          // not fitting this particular photo, so it's just the words
+          // themselves, kept legible with a soft drop shadow, sized to sit
+          // above the button without needing to touch the photo at all. ──
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(30, 0, 30, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      tr('Klausk agento apie savo finansus'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.w800,
+                        height: 1.15,
+                        letterSpacing: -0.4,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                              color: Color(0xB3000000),
+                              blurRadius: 14,
+                              offset: Offset(0, 3)),
+                          Shadow(color: Color(0x66000000), blurRadius: 30),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      tr('Gauk atsakymus, paremtus tavo realiais finansiniais duomenimis.'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.35,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                              color: Color(0xB3000000),
+                              blurRadius: 10,
+                              offset: Offset(0, 2)),
+                          Shadow(color: Color(0x66000000), blurRadius: 22),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: _nextPage,
+                      child: Container(
+                        height: 54,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                                color: const Color(0xFF001450)
+                                    .withValues(alpha: 0.45),
+                                blurRadius: 22,
+                                offset: const Offset(0, 10)),
+                          ],
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(tr('Toliau'),
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1846E6))),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(width: double.infinity, child: _dots()),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
-        dotIndex: 3,
-        dotCount: 6,
-        warmNext: 'assets/onboarding/page6_scene.png',
+      ),
+    ));
+  }
+
+  Widget _dots() => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < 6; i++)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: i == 4 ? 18 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: i == 4 ? 1 : 0.35),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+        ],
       );
 }

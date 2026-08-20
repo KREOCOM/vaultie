@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +10,7 @@ import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'login_screen.dart';
 import 'onb_ai_chat.dart';
-import 'onb_budget.dart';
+import 'onb_banks.dart';
 import 'onb_connect.dart';
 import 'onb_features.dart';
 import 'onb_intro.dart';
@@ -87,15 +88,31 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
+  static const _wordmark = 'Vaultie';
+
+  // 2026-08-17 v2: v1 typed "Vaultie" out letter by letter — didn't land
+  // ("nelabai patiko"). This instead lets the whole word MATERIALISE out of
+  // a dim, unfocused state into full brightness/sharpness ("iš
+  // prieblandos") — opacity and blur both ease from "barely there" to
+  // clear together, rather than characters appearing one at a time.
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: const Duration(milliseconds: 1700),
   )..forward();
 
-  // Subtle fade-in for the logo + wordmark as the splash appears.
-  late final Animation<double> _fade = CurvedAnimation(
+  late final Animation<double> _logoFade = CurvedAnimation(
     parent: _controller,
-    curve: Curves.easeOut,
+    curve: const Interval(0.0, 0.22, curve: Curves.easeOut),
+  );
+
+  late final Animation<double> _wordmarkReveal = CurvedAnimation(
+    parent: _controller,
+    curve: const Interval(0.22, 0.7, curve: Curves.easeOut),
+  );
+
+  late final Animation<double> _taglineFade = CurvedAnimation(
+    parent: _controller,
+    curve: const Interval(0.8, 1.0, curve: Curves.easeOut),
   );
 
   Timer? _timer;
@@ -103,8 +120,9 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    // Hold the splash for 2s, then fade-transition to the next screen.
-    _timer = Timer(const Duration(seconds: 2), _goNext);
+    // Hold the splash for 2.4s (the typing animation alone takes ~1.7s),
+    // then fade-transition to the next screen.
+    _timer = Timer(const Duration(milliseconds: 2400), _goNext);
   }
 
   Future<void> _goNext() async {
@@ -159,13 +177,17 @@ class _SplashScreenState extends State<SplashScreen>
       // screen itself is left in the tree, unreferenced, because something else
       // is going into that slot.
       next = const OnbIntro(
-        next: OnbMonth(
-          next: OnbOverview(
-            next: OnbAiChat(
-              next: OnbBudget(
-                // Everything the intro had no room to demonstrate — budget,
-                // lock, reminders, recap, currencies — immediately before the
-                // ask, while the person is still deciding.
+        // 2026-08-17: bank-coverage page inserted here — see onb_banks.dart's
+        // own doc for why every page after it bumped its own dotIndex by one.
+        // 2026-08-18: OnbBudget ("Nepraleisk nė vienos prenumeratos") removed
+        // from the chain entirely — dotCount is 6 throughout again.
+        next: OnbBanks(
+          next: OnbMonth(
+            next: OnbOverview(
+              next: OnbAiChat(
+                // Everything the intro had no room to demonstrate — the
+                // budget, the lock, reminders, recap, currencies —
+                // immediately before the ask, while still deciding.
                 next: OnbFeatures(next: OnbConnect(next: LoginScreen())),
               ),
             ),
@@ -200,45 +222,67 @@ class _SplashScreenState extends State<SplashScreen>
     // follows the app's language.
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
     return Scaffold(
-      // Brand blue, taken from the logo itself (#0144FB), with a lighter glow
-      // behind the mark. The previous deep green was left over from an older
-      // identity and clashed with both the new logo and the blue used across
-      // onboarding and the dashboard.
-      backgroundColor: const Color(0xFF0736C9),
+      // 2026-08-17: same off-center RadialGradient formula as Home's hero
+      // and the Finansų Agentas banner (see dashboard_preview.dart's
+      // _topBanner) — a bright spot near one corner fading toward a deep
+      // navy, in place of the old centred glow-on-flat-blue. Confirmed live
+      // on device as the "prabangu" look; see the [[vaultie-hero-gradient-premium]]
+      // memory for the full formula/rationale.
+      backgroundColor: const Color(0xFF081A4D),
       body: Container(
         decoration: const BoxDecoration(
           gradient: RadialGradient(
-            center: Alignment(0, -0.35),
-            radius: 0.95,
-            colors: [Color(0xFF0144FB), Color(0x000736C9)],
-            stops: [0.0, 0.78],
+            center: Alignment(-0.6, -1.0),
+            radius: 1.6,
+            colors: [Color(0xFF3E63FF), Color(0xFF081A4D)],
+            stops: [0.0, 0.65],
           ),
         ),
         child: Center(
-          child: FadeTransition(
-            opacity: _fade,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // The mark alone, on transparent — the full icon would put a
-                // blue tile on a blue field and disappear into it.
-                Image.asset(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // The mark alone, on transparent — the full icon would put a
+              // blue tile on a blue field and disappear into it.
+              FadeTransition(
+                opacity: _logoFade,
+                child: Image.asset(
                   'assets/icon/logo_mark.png',
                   width: 132,
                   height: 132,
                   fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 28),
-                const Text(
-                  'Vaultie',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
+              ),
+              const SizedBox(height: 28),
+              // Materialises out of a dim, unfocused state into full
+              // brightness/sharpness together — opacity and blur ease in on
+              // the same curve, so it reads as the word coming into focus
+              // "iš prieblandos" rather than being typed or just fading in.
+              AnimatedBuilder(
+                animation: _wordmarkReveal,
+                builder: (_, __) {
+                  final t = _wordmarkReveal.value;
+                  return Opacity(
+                    opacity: t,
+                    child: ImageFiltered(
+                      imageFilter:
+                          ui.ImageFilter.blur(sigmaX: (1 - t) * 7, sigmaY: (1 - t) * 7),
+                      child: const Text(
+                        _wordmark,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 36,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              FadeTransition(
+                opacity: _taglineFade,
+                child: Text(
                   isLt ? 'Išmanesni pinigų įpročiai' : 'Smarter money habits',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.6),
@@ -246,8 +290,8 @@ class _SplashScreenState extends State<SplashScreen>
                     fontWeight: FontWeight.w400,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

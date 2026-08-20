@@ -101,142 +101,79 @@ class _OnbIntroState extends State<OnbIntro> {
         fit: StackFit.expand,
         children: [
           // ── Full-bleed artwork ──
-          // A night-city lifestyle photo (852×1846): the subject sits in the
-          // lower-right two-thirds, and the top ~38% is clear dark-blue sky —
-          // that empty band is deliberately where the copy block below sits,
-          // no scrim needed there since the sky is already near-black-blue.
+          // 2026-08-17 v4: a woman on a balcony at night, reading her phone,
+          // a lit bank-tower skyline (HSBC, Citi) behind her — same 853×1844
+          // aspect as v2/v3, same composition logic: clear dark sky top-left
+          // is where the copy block below sits, no scrim needed there.
           const Positioned.fill(
             child: Image(
-              image: AssetImage('assets/onboarding/page1_v2.png'),
+              image: AssetImage('assets/onboarding/page1_v4.png'),
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
             ),
           ),
 
-          // ── Bottom wash ──
-          // Grounds the button/dots strip to the same #030E30 every later page
-          // opens on, same reasoning as before — just a shorter fade since this
-          // render is already dark near its own bottom edge.
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x00030E30),
-                      Color(0xCC030E30),
-                      Color(0xFF030E30),
-                    ],
-                    stops: [0.78, 0.9, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // ── Top scrim ──
-          // The "sky is already dark" assumption above holds on the render
-          // this was tuned against, but longer translated copy — or just
-          // Android's taller line-height metrics — can push the text block
-          // past that ~38% sky band onto the brighter subject below. This
-          // guarantees contrast regardless of exactly how tall the copy
-          // block ends up; it is invisible where the sky is already dark.
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xCC030E30),
-                      Color(0x00030E30),
-                    ],
-                    stops: [0.0, 0.5],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          // ── Bottom wash / Top scrim, removed for v3 ──
+          // 2026-08-17: per request, the photo shows exactly as supplied —
+          // no darkening layered on top of it. v2's still needed both (the
+          // "sky is already dark" assumption didn't always hold once
+          // translated copy or Android's taller line-height pushed the text
+          // block onto the brighter subject below, and the button/dots
+          // strip needed grounding to the next page's #030E30). If v3 ever
+          // shows a real contrast problem, that's worth solving directly —
+          // just not by quietly recolouring the photo again.
 
           // ── Copy block: centred horizontally, near the top, on the clear
-          // sky — no side elements, just the words (matches the approved
-          // HTML mockup exactly: no floating cards, no numbers). ──
+          // sky. 2026-08-19 v2: the solid gradient card didn't fit every
+          // photo in the chain — plain text with a soft drop shadow reads
+          // clean against all of them instead. ──
           SafeArea(
             child: Align(
               alignment: Alignment.topCenter,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(28, 40 * scale, 28, 0),
+                padding: EdgeInsets.fromLTRB(30, 40 * scale, 30, 0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 34,
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF5B8CFF),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    SizedBox(height: 13 * scale),
                     Text(
-                      tr('Suprask savo\nfinansus geriau'),
+                      tr('Suprask savo\nfinansus aiškiau'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 30 * scale,
                         fontWeight: FontWeight.w800,
                         height: 1.15,
-                        letterSpacing: -0.9,
+                        letterSpacing: -0.7,
                         color: Colors.white,
+                        shadows: const [
+                          Shadow(
+                              color: Color(0xB3000000),
+                              blurRadius: 14,
+                              offset: Offset(0, 3)),
+                          Shadow(color: Color(0x66000000), blurRadius: 30),
+                        ],
                       ),
                     ),
-                    SizedBox(height: 11 * scale),
+                    SizedBox(height: 8 * scale),
                     Text(
                       tr('Vaultie padeda aiškiau matyti, kur keliauja tavo pinigai, priimti geresnius sprendimus ir viską stebėti vienoje vietoje.'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 14.5 * scale,
-                        height: 1.5,
-                        color: Colors.white.withValues(alpha: 0.92),
+                        fontSize: 15.5 * scale,
+                        height: 1.4,
+                        color: Colors.white,
+                        shadows: const [
+                          Shadow(
+                              color: Color(0xB3000000),
+                              blurRadius: 10,
+                              offset: Offset(0, 2)),
+                          Shadow(color: Color(0x66000000), blurRadius: 22),
+                        ],
                       ),
                     ),
-                    SizedBox(height: 18 * scale),
-                    // Outline-only, no fill — sits on the clear sky without
-                    // reading as a UI card on top of the photo. Wraps to a
-                    // second line on its own (no nowrap) instead of ever
-                    // touching the screen edges on a narrower phone.
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 9 * scale),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.55),
-                            width: 1.5),
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: Text.rich(
-                        TextSpan(
-                          style: TextStyle(
-                            fontSize: 12.5 * scale,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white.withValues(alpha: 0.95),
-                          ),
-                          children: [
-                            TextSpan(text: tr('Jungiame prie ')),
-                            TextSpan(
-                              text: tr('2 500+ bankų'),
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                            TextSpan(text: tr(' visoje Europoje')),
-                          ],
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                    // 2026-08-17: the "Jungiame prie 2 500+ bankų visoje
+                    // Europoje" badge that sat here was removed — the bank-
+                    // connect coverage gets its own page next in the chain,
+                    // this one shouldn't say it first and then say it again.
                   ],
                 ),
               ),

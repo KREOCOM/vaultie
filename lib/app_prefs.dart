@@ -66,6 +66,8 @@ class AppPrefs {
     // chose dark.
     final dm = _box.get(_kDarkMode);
     darkMode.value = dm is bool ? dm : false;
+    final pp = _box.get(_kProfilePhotoPath);
+    profilePhotoPath.value = pp is String ? pp : '';
   }
 
   static Future<void> setDarkMode(bool value) async {
@@ -250,11 +252,16 @@ class AppPrefs {
   // avatar. See dashboard_preview.dart's _SettingsScreenState._pickProfilePhoto.
   static const _kProfilePhotoPath = 'profilePhotoPath';
 
-  static String get profilePhotoPath => Hive.isBoxOpen(HiveBoxes.settings)
-      ? _strOr(_kProfilePhotoPath, '')
-      : '';
+  // 2026-08-17: was a plain static getter — Home's hero and the Paskyra tab's
+  // own settings-row avatar (both separate widget subtrees kept alive by the
+  // tab IndexedStack) never rebuilt when the photo changed in Settings, a
+  // third subtree entirely. A ValueNotifier, same pattern as [darkMode],
+  // makes every reader update the instant the photo changes regardless of
+  // which tab is on screen or whether anything triggered a rebuild.
+  static final ValueNotifier<String> profilePhotoPath = ValueNotifier<String>('');
 
   static Future<void> setProfilePhotoPath(String value) async {
+    profilePhotoPath.value = value;
     await _box.put(_kProfilePhotoPath, value);
   }
 
