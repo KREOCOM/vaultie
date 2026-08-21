@@ -297,7 +297,8 @@ class LiveRecurringScreen extends StatefulWidget {
       required this.title,
       this.itemsOverride,
       this.allTransactions,
-      this.demo = false});
+      this.demo = false,
+      this.onDueDateChanged});
   final String wantType; // 'subscription' | 'bill'
   final String title; // 'Prenumeratos' | 'Sąskaitos'
   // Onboarding only: auto-opens "Rasti naują prenumeratą" a moment after
@@ -320,6 +321,21 @@ class LiveRecurringScreen extends StatefulWidget {
   // recurring candidate at all (so it can't be in itemsOverride either).
   // Null on the standalone entry point, same as itemsOverride.
   final List<Map>? allTransactions;
+
+  // 2026-08-21: this screen's own _editDueDay sheet writes a due-day
+  // override straight to DashboardStore, but this file has no access to
+  // the caller's excluded/included/consentExpiry/budget context that
+  // NotificationService.scheduleFromRecurring() needs to rebuild the
+  // reminder schedule — that context lives in dashboard_preview.dart's
+  // `_d`/DashboardStore-derived state. Without this callback, correcting a
+  // due date here only reached the calendar/list display; the actual local
+  // reminder kept firing off the OLD predicted date until the next
+  // auto-sync happened to run _rescheduleReminders on its own (which could
+  // be hours away, or never, if the account is stale). The caller wires
+  // this to its own _rescheduleReminders(_d) — see `openManager` in
+  // dashboard_preview.dart's `_subsCard`. Null on the standalone entry
+  // point, same as the other caller-supplied fields above.
+  final VoidCallback? onDueDateChanged;
 
   @override
   State<LiveRecurringScreen> createState() => _LiveRecurringScreenState();
@@ -436,7 +452,24 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
               children: [
                 if (_confirmed.isEmpty) _hero() else ...[
                   _totalCard(),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
+                  // 2026-08-21 per request: nothing below the hero explained
+                  // WHY this list already has entries the very first time a
+                  // bank connects — read as if the app just made them up.
+                  // One line sets the expectation before the cards do.
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 10),
+                    child: Row(children: [
+                      Icon(Icons.auto_awesome_rounded, size: 14, color: _subtle),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                            tr('Radome automatiškai iš tavo banko duomenų — pašalink, jei kas netinka'),
+                            style: TextStyle(
+                                fontSize: 12.5, fontWeight: FontWeight.w600, color: _subtle)),
+                      ),
+                    ]),
+                  ),
                   for (final it in _confirmed) ...[
                     _tile(it),
                     const SizedBox(height: 10),
@@ -457,13 +490,17 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           // _topBanner) — a bright spot near one corner fading toward a
           // deeper (but still clearly blue, not near-black) tone, instead of
           // a flat corner-to-corner LinearGradient.
+          // 2026-08-20: dark mode's stops used to be _blue/_blueDeep lerped
+          // toward near-black at a flat 0.4 — a middling purple that read as
+          // faded next to the richer, genuinely-near-black deep stop the
+          // light-mode blue gets. Matches Home hero's own dark-mode fix now —
+          // same two hardcoded stops, no lerp.
           gradient: RadialGradient(
             center: const Alignment(-0.7, -0.6),
             radius: 1.5,
-            colors: [
-              _blue,
-              Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!,
-            ],
+            colors: AppPrefs.darkMode.value
+                ? const [Color(0xFFA855F7), Color(0xFF1E0B3D)]
+                : [_blue, Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!],
             stops: const [0.0, 0.75],
           ),
           borderRadius: BorderRadius.circular(24),
@@ -557,13 +594,17 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           // _topBanner) — a bright spot near one corner fading toward a
           // deeper (but still clearly blue, not near-black) tone, instead of
           // a flat corner-to-corner LinearGradient.
+          // 2026-08-20: dark mode's stops used to be _blue/_blueDeep lerped
+          // toward near-black at a flat 0.4 — a middling purple that read as
+          // faded next to the richer, genuinely-near-black deep stop the
+          // light-mode blue gets. Matches Home hero's own dark-mode fix now —
+          // same two hardcoded stops, no lerp.
           gradient: RadialGradient(
             center: const Alignment(-0.7, -0.6),
             radius: 1.5,
-            colors: [
-              _blue,
-              Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!,
-            ],
+            colors: AppPrefs.darkMode.value
+                ? const [Color(0xFFA855F7), Color(0xFF1E0B3D)]
+                : [_blue, Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!],
             stops: const [0.0, 0.75],
           ),
           borderRadius: BorderRadius.circular(20),
@@ -762,6 +803,12 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
     if (saved == null || !mounted) return;
     await DashboardStore.setRecurringDueDay(it.sid, saved == -1 ? null : saved);
     setState(() {});
+    // See widget.onDueDateChanged's own doc comment — the reminder
+    // notification has to be rebuilt now, not left to whenever the next
+    // auto-sync happens to run. Never in the onboarding demo — same rule as
+    // every other write in this app: the demo tour is decoration and must
+    // not touch a real signed-in user's actual notification schedule.
+    if (!widget.demo) widget.onDueDateChanged?.call();
   }
 
   Widget _dueDateCalendar() {
@@ -823,8 +870,16 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
               // 2026-08-16: bumped from 0.08/0.4 — computed contrast on the
               // blue card was ~2.5:1, below WCAG AA (4.5:1). Still visibly
               // dimmer than a filled day, just no longer hard to read.
+              // 2026-08-20: a WHITE tint lightens whatever's under it — fine
+              // over the old card's darker half, but the radial gradient's
+              // bright hotspot (top-left) is already close to white, so
+              // cells there barely darkened at all and read almost as
+              // bright as a filled day ("per šviesu ant kalendoriaus kai
+              // nuo kairės pusės prasideda"). A BLACK tint recedes into the
+              // gradient instead of fighting it, so it reads evenly dim
+              // across the whole card, hotspot included.
               color: colors.isEmpty
-                  ? Colors.white.withValues(alpha: 0.12)
+                  ? Colors.black.withValues(alpha: 0.32)
                   : (colors.length == 1 ? colors.first : null),
               alignment: Alignment.center,
               child: Stack(
@@ -1156,6 +1211,54 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
   // widget.existingNames (fixed at screen-open time) to somehow know about it.
   final Set<String> _manuallyAdded = {};
 
+  // 2026-08-21: a bank's own description ("Apple Pay", a generic card-rail
+  // label) is what _txMatches searches and groups by — exactly right for
+  // FINDING the transaction, wrong as the name saved to Prenumeratos/
+  // Sąskaitos (every Apple Pay purchase would show that instead of the real
+  // merchant). Keyed by the ORIGINAL match identity (name+amount, never the
+  // edited text) so a rename doesn't break re-matching this same search
+  // result across rebuilds.
+  final Map<String, String> _renamed = {};
+  String _matchKey(_TxMatch m) => _nameAmountKey(m.name, m.avgAmount);
+  String _displayNameFor(_TxMatch m) => _renamed[_matchKey(m)] ?? m.name;
+
+  Future<void> _renamePrompt(_TxMatch m) async {
+    final ctrl = TextEditingController(text: _displayNameFor(m));
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(tr('Pervadinti'),
+            style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          style: TextStyle(color: _ink),
+          decoration: InputDecoration(
+            hintText: m.name,
+            hintStyle: TextStyle(color: _subtle),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(tr('Atšaukti'), style: TextStyle(color: _subtle))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text),
+              child: Text(tr('Išsaugoti'),
+                  style: TextStyle(color: _blue, fontWeight: FontWeight.w800))),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    final trimmed = result?.trim();
+    if (trimmed == null || trimmed.isEmpty || !mounted) return;
+    setState(() => _renamed[_matchKey(m)] = trimmed);
+  }
+
   List<_LiveItem> get _visible {
     if (_query.trim().isEmpty) return _items;
     final q = _query.trim().toLowerCase();
@@ -1241,9 +1344,10 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
     // add, so the second one silently overwrote the first instead of
     // becoming its own tracked stream.
     final sid = 'manual:${_nameAmountKey(m.name, m.avgAmount)}';
+    final displayName = _displayNameFor(m);
     final raw = <String, dynamic>{
       'sid': sid,
-      'name': m.name,
+      'name': displayName,
       'monthly': m.avgAmount,
       'cost': m.avgAmount,
       'cycle': 'monthly',
@@ -1272,7 +1376,7 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
-            SnackBar(content: Text('„${m.name}" ${tr('pridėta')}'),
+            SnackBar(content: Text('„$displayName" ${tr('pridėta')}'),
                 duration: const Duration(seconds: 2)));
     }
   }
@@ -1409,6 +1513,7 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
   }
 
   Widget _manualRow(_TxMatch m) {
+    final displayName = _displayNameFor(m);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1419,13 +1524,13 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
               icon: widget.wantType == 'subscription' ? Icons.autorenew_rounded : Icons.receipt_long_rounded,
               color: _blue,
               size: 40,
-              merchant: m.name),
+              merchant: displayName),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(m.name,
+                Text(displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
@@ -1436,6 +1541,17 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
               ],
             ),
           ),
+          // A bank's own description ("Apple Pay", "Grzn*Anthropic Pbc") is
+          // what got matched — rename here to the merchant it's ACTUALLY
+          // for before saving, so Prenumeratos shows "Claude", not the
+          // payment rail. Edits _renamed, not `m` itself (const, and the
+          // raw description stays what re-matching future syncs keys on).
+          IconButton(
+              onPressed: () => _renamePrompt(m),
+              icon: Icon(Icons.edit_outlined, size: 19, color: _subtle),
+              tooltip: tr('Pervadinti'),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34)),
         ]),
         const SizedBox(height: 10),
         // The "Pridėti" button gets its OWN full-width row below, not

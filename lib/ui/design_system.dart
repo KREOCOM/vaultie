@@ -1,6 +1,7 @@
 import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../services/logo_service.dart';
 
@@ -141,17 +142,33 @@ class AppType {
       letterSpacing: 0.6);
 }
 
-/// Formats money the Lithuanian way — grouped integer, comma decimals, trailing
-/// euro. Always 2 decimals, tabular-safe. Optional leading sign.
+/// Formats money for display — Lithuanian style (grouped integer, comma
+/// decimals, trailing symbol) when the UI language is Lithuanian, English
+/// style (comma-grouped, period decimals, leading symbol) otherwise. Always
+/// 2 decimals, tabular-safe. Optional leading sign.
 class Money {
   Money._();
   // Display currency. Amounts are stored in EUR; multiply by [rate] (EUR → base)
   // and show [symbol] to present the user's chosen base currency. Default = EUR.
   static double rate = 1.0;
   static String symbol = '€';
+  // Kept in lockstep with [rate]/[symbol] by AppPrefs.applyDisplayCurrency()
+  // — same reasoning as those two: this class can't import app_prefs.dart
+  // itself (app_prefs.dart already imports THIS file, and Dart doesn't allow
+  // the cycle), so the UI language is pushed in from outside rather than
+  // read here. Was missing entirely, so every MoneyText stayed Lithuanian-
+  // formatted ("1 234,56 €") even in English, while formatMoney()
+  // (app_prefs.dart) correctly localized — the two disagreed everywhere.
+  static bool isLt = true;
   static String format(double v, {bool signed = false}) {
     v = v * rate;
     final sign = signed ? (v < 0 ? '−' : '+') : (v < 0 ? '−' : '');
+    if (!isLt) {
+      final amount = NumberFormat.currency(
+              locale: 'en', symbol: symbol, decimalDigits: 2)
+          .format(v.abs());
+      return '$sign$amount';
+    }
     // Round to whole cents FIRST, then split — otherwise a value like 12.999
     // rounds its fractional part to 100 and prints "12,100 €" instead of 13,00.
     final totalCents = (v.abs() * 100).round();

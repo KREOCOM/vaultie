@@ -46,6 +46,9 @@ const Map<String, String> _en = {
   'Pasirinkti iš galerijos': 'Choose from gallery',
   'Pašalinti nuotrauką': 'Remove photo',
   'Nepavyko įrašyti nuotraukos': "Couldn't save the photo",
+  'Priminimai išjungti': 'Reminders are off',
+  'Įjunk pranešimus telefono nustatymuose, kad negautum vėluojančių mokėjimų priminimų.':
+      "Turn on notifications in your phone's settings so you don't miss payment reminders.",
   'Prenumeratos kainuoja 106 € per mėnesį, o dvi iš jų nenaudotos '
           'nuo balandžio. Jas atsisakius liktų 68 € kas mėnesį.':
       'Subscriptions cost €106 a month, and two of them haven’t been '
@@ -229,6 +232,9 @@ const Map<String, String> _en = {
   'Šis mėnuo': 'This month',
   'Atšaukti': 'Cancel',
   'Išsaugoti': 'Save',
+  'Pervadinti': 'Rename',
+  'Radome automatiškai iš tavo banko duomenų — pašalink, jei kas netinka':
+      'Found automatically from your bank data — remove anything that doesn\'t belong',
   'Gerai': 'OK',
   'Ištrinti': 'Delete',
   'Redaguoti': 'Edit',
@@ -236,6 +242,8 @@ const Map<String, String> _en = {
   'Skaidyti': 'Split',
   'Skaidyti operaciją': 'Split transaction',
   'Anuliuoti skaidymą': 'Undo split',
+  'Išskaidytas sandoris': 'Split transaction',
+  'Išskaidyta į': 'Split into',
   'Pridėti eilutę': 'Add line',
   'Pasirink kategoriją': 'Pick a category',
   'Paskirstyta viskas': 'Fully allocated',
@@ -564,6 +572,7 @@ const Map<String, String> _en = {
   'Nustatymai': 'Settings',
   'Privatumas': 'Privacy',
   'PIN kodas': 'PIN code',
+  'Atrakink Vaultie': 'Unlock Vaultie',
   'Atrakink Vaultie su PIN': 'Unlock Vaultie with a PIN',
   'Face ID atrakinimas': 'Face ID unlock',
   'Atrakink Vaultie veidu': 'Unlock Vaultie with your face',
@@ -953,7 +962,7 @@ const Map<String, String> _en = {
   'Kelios funkcijos, kurias nusistatai pagal save.':
       'A few features you set up your own way.',
   'Prieigą\nkontroliuoji tu': 'You control\nthe access',
-  '2500+ bankų visoje Europoje': '2500+ banks across Europe',
+  '2 700+ bankų visoje Europoje': '2,700+ banks across Europe',
 
   // ── Onboarding chain 2026-08-19 redesign (onb_intro/banks/month/overview/
   // ai_chat/features/connect.dart) — audited every current tr() key in that
@@ -966,8 +975,8 @@ const Map<String, String> _en = {
   'Visi tavo bankai, visos tavo sąskaitos vienoje vietoje.':
       'All your banks, all your accounts, in one place.',
   'Matyk visą finansų vaizdą': 'See your whole financial picture',
-  'Balansai, išlaidos, pajamos, biudžetas vienoje aiškioje vietoje':
-      'Balances, spending, income and budget in one clear place',
+  'Balansai, išlaidos, pajamos, biudžetas vienoje aiškioje vietoje.':
+      'Balances, spending, income and budget in one clear place.',
   'Stebėk, kur gali sutaupyti': 'Track where you can save',
   'Atrask prenumeratas, sąskaitas ir sek savo santaupų normą.':
       'Discover subscriptions, bills, and track your savings rate.',
@@ -990,7 +999,7 @@ const Map<String, String> _en = {
   'Bankai ir valiutos': 'Banks and currencies',
   'Prijunk bankus, stebėk sąskaitas ir konvertuok':
       'Connect banks, track accounts and convert',
-  'skirtingų valiutų.': 'different currencies.',
+  'skirtingas valiutas.': 'different currencies.',
   'Eksportas ir atsarginės kopijos': 'Export and backups',
   'Eksportuok duomenis į CSV arba PDF formatus ir turėk viską po ranka.':
       'Export your data to CSV or PDF and keep everything on hand.',
@@ -1217,13 +1226,13 @@ const Map<String, String> _en = {
   // English chrome (title, Continue button) around fully-Lithuanian body
   // text. 2026-08-03.
   'Pasirink savo banką': 'Choose your bank',
-  'Iš 2 500+ Europos bankų sąrašo.': 'From a list of 2,500+ European banks.',
-  'Patvirtink savo banke': 'Confirm at your bank',
+  'Iš 2 700+ Europos bankų sąrašo.': 'From a list of 2,700+ European banks.',
+  'Patvirtink prieigą banke': 'Confirm access at your bank',
   'Nukreipsim į tavo banko programėlę ar svetainę. Prisijungi ir patvirtini prieigą — taip pat, kaip prisijungdamas prie savo banko. Vaultie tavo prisijungimo duomenų nemato.':
       "We'll take you to your bank's app or website. You sign in and confirm access — just like signing in to your bank normally. Vaultie never sees your login details.",
   'Grįžk į Vaultie': 'Back to Vaultie',
-  'Kai patvirtinsi, automatiškai grįši atgal, o tavo operacijos susitvarkys pačios.':
-      "Once you confirm, you'll return automatically, and your transactions will sort themselves out.",
+  'Kai patvirtinsi, grįši į Vaultie — kai kurie bankai grąžina automatiškai, kiti paprašys tiesiog grįžti pačiam. Tavo operacijos susitvarkys pačios.':
+      "Once you confirm, you'll be back in Vaultie — some banks return you automatically, others just ask you to switch back. Your transactions will sort themselves out.",
   'Kodėl tai saugu': 'Why this is safe',
   'Jungiamės per Enable Banking — licencijuotą ES atvirosios bankininkystės tiekėją (PSD2). Prieiga tik skaitymo. Atšaukti gali bet kada.':
       'We connect through Enable Banking — a licensed EU open banking provider (PSD2). Read-only access. Cancel anytime.',

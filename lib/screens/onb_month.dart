@@ -62,7 +62,7 @@ class _OnbMonthState extends State<OnbMonth> {
   /// inside the phone for a beat, which read far worse than the stutter it
   /// was avoiding. Starts live immediately now; still fades in over 260ms
   /// (see the AnimatedOpacity below) so the first frame isn't a hard cut.
-  bool _live = true;
+  final bool _live = true;
 
   void _nextPage() {
     HapticFeedback.lightImpact();
@@ -190,7 +190,7 @@ class _OnbMonthState extends State<OnbMonth> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      tr('Balansai, išlaidos, pajamos, biudžetas vienoje aiškioje vietoje'),
+                      tr('Balansai, išlaidos, pajamos, biudžetas vienoje aiškioje vietoje.'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 17,

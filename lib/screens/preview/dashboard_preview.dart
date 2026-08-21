@@ -227,24 +227,29 @@ void _toggleTheme() {
   _applyTheme(next);
 }
 
+// 2026-08-21: deepened per request ("padaryk prabangesnes") — same hues,
+// richer/darker values (picked as "Variant A" from a 3-way HTML comparison)
+// instead of the brighter, more cartoonish originals. Single source of
+// truth for every category swatch in the app (feed rows, category detail
+// hero, budgets, donut) — see _colOf.
 const _catColors = <String, Color>{
-  'food': Color(0xFF46AE4B),
-  'fuel': Color(0xFF5866F0),
-  'transport': Color(0xFF5866F0),
-  'vehicle': Color(0xFF5866F0),
-  'shopping': Color(0xFF00897B),
-  'housing': Color(0xFF98B00D),
-  'taxes': Color(0xFFE0574F),
-  'transfer': Color(0xFF6E6E86),
-  'invest': Color(0xFFE0574F),
-  'income': Color(0xFFF0A322),
+  'food': Color(0xFF1F8A54),
+  'fuel': Color(0xFF4453C9),
+  'transport': Color(0xFF4453C9),
+  'vehicle': Color(0xFF4453C9),
+  'shopping': Color(0xFF0B7A6E),
+  'housing': Color(0xFF6E8A16),
+  'taxes': Color(0xFFC2453D),
+  'transfer': Color(0xFF5B5B72),
+  'invest': Color(0xFFC2453D),
+  'income': Color(0xFFD68F1E),
   // section-level keys the backend also emits (were falling back to grey)
-  'health': Color(0xFFEE7A3A),
-  'fitness': Color(0xFFEE7A3A),
-  'entertainment': Color(0xFF2E9BE6),
-  'finance': Color(0xFFE0574F),
-  'edu': Color(0xFF7C5CD6),
-  'other': Color(0xFF6E6E86),
+  'health': Color(0xFFD1652A),
+  'fitness': Color(0xFFD1652A),
+  'entertainment': Color(0xFF2571C4),
+  'finance': Color(0xFFC2453D),
+  'edu': Color(0xFF6A48C2),
+  'other': Color(0xFF5B5B72),
 };
 const _catIcons = <String, IconData>{
   'cart': Icons.shopping_cart_rounded,
@@ -1383,7 +1388,21 @@ void _applyTxSplits(
         ...base,
         'mkey': '${base['mkey']}__split$i',
         'nm': it['label'] ?? base['nm'],
+        // The merchant name BEFORE the per-item override above — kept so the
+        // feed can collapse all of this receipt's children back into one row
+        // showing "Rimi -8,51 €" instead of every product as its own row
+        // (see _monthFeed's day-merge, keyed by splitGroup for these rows).
+        'splitMerchant': base['nm'],
         'a': it['amt'],
+        // 'raw'/'cur' are the ORIGINAL (pre-split) bank transaction's own
+        // native-currency figure, inherited from `...base` above. _eurTx
+        // prefers 'raw'/'cur' over 'a' whenever 'cur' matches the display
+        // currency — so left as-is, every split child showed the PARENT's
+        // full receipt total instead of its own item price (every row on a
+        // split receipt rendering identically, at the pre-split total).
+        // Nulled here so _eurTx always falls back to the per-item 'a'.
+        'raw': null,
+        'cur': null,
         'cat': it['cat'],
         'sec': it['sec'],
         'secc': it['secc'],
@@ -1974,11 +1993,23 @@ class _WavePainter extends CustomPainter {
 
 class _DashboardPreviewState extends State<DashboardPreview>
     with WidgetsBindingObserver, TickerProviderStateMixin {
-  late Map<String, dynamic> _d = _maybePatchPreviewRecurring(_normalizeDash(widget.demo
-      ? _demoDash()
-      : widget.data ??
+  // 2026-08-20: _maybePatchPreviewRecurring's own doc comment says it "never
+  // touches a real signed-in user's actual synced data" — but that was only
+  // true as long as designPreviewFakeRecurring stayed off outside a demo
+  // build. main_onboarding_preview.dart's bootstrap sets it for the WHOLE
+  // app session (onboarding pages need it live-embedded), and this line
+  // used to call the patch unconditionally on whatever _d resolved to —
+  // so a REAL user's REAL post-bank-connect dashboard (widget.demo false,
+  // widget.data the real synced payload) got the fake Netflix/SEB/Ignitis/
+  // Vilniaus vandenys catalogue patched straight into it, and their sids
+  // marked "reviewed" in the same real local Hive box. Only ever the demo
+  // tour's own live-embedded phone (widget.demo true) should see the fake
+  // catalogue — never a real dashboard, real sample, or App Review sample.
+  late Map<String, dynamic> _d = widget.demo
+      ? _maybePatchPreviewRecurring(_normalizeDash(_demoDash()))
+      : _normalizeDash(widget.data ??
           jsonDecode(utf8.decode(base64Decode(_dashB64)))
-              as Map<String, dynamic>));
+              as Map<String, dynamic>);
 
   /// The baked sample data with every date rolled forward by whole weeks, so
   /// the demo reads as current: "this week" is anchored to today's Monday, and
@@ -2176,6 +2207,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
 
   bool _deepening =
       false; // a fuller 12-month scan is still loading in the background
+  // True once the OS notification permission has been asked (see
+  // AppPrefs.notifIntroShown) AND come back denied — checked once in
+  // initState, drives _notifPermissionBanner(). The class this reads,
+  // NotificationService.isPermissionDenied(), existed with no consumer at
+  // all after the screen that used to show this banner was deleted in the
+  // 2026-08 redesign — every reminder scheduled since then has been
+  // silently dropped by iOS for anyone who ever tapped "Don't Allow", with
+  // nothing in the app ever telling them.
+  bool _notifDenied = false;
   // The overview walkthrough opens ON its own tab: that page should show
   // what it's actually about from the first frame, not the home feed
   // switching over to it a moment later. The chat walkthrough opens on
@@ -2737,8 +2777,26 @@ class _DashboardPreviewState extends State<DashboardPreview>
     super.initState();
     // Sync the dashboard's colour tokens to the saved theme on every launch —
     // otherwise they'd sit at their light defaults until the user toggled.
-    _applyTheme(AppPrefs.darkMode.value);
-    if (designPreviewPalette) _applyPreviewPalette();
+    // 2026-08-20: the onboarding demo (widget.demo) is a fixed presentation,
+    // not a live account — it must always show LIGHT, the look every
+    // marketing screenshot/photo was designed against, regardless of
+    // whatever dark/light mode the real account happens to be left on. This
+    // used to read the real AppPrefs.darkMode unconditionally, so testing
+    // dark mode in the real app and then reopening onboarding silently
+    // carried dark mode into every onboarding page's live-embedded phone too.
+    final dark = widget.demo ? false : AppPrefs.darkMode.value;
+    _applyTheme(dark);
+    // _applyPreviewPalette's OWN doc comment says "never touches dark mode"
+    // — it unconditionally overwrites _card/_bg/_hair/_ink/etc with LIGHT-
+    // only values, but this call was never actually guarded on `dark`, so a
+    // dark-mode launch got _applyTheme(true)'s correct dark tokens
+    // immediately clobbered back to light ones by this line — the hero
+    // (a separate RadialGradient literal, not one of these tokens) stayed
+    // correctly dark, while the cards under it (which DO read _card) came
+    // out white-on-dark-page ("balti blokai nesimato užrašų"). Manually
+    // flipping the theme toggle afterward "fixed" it only because THAT path
+    // calls _applyTheme alone, without this line re-running behind it.
+    if (designPreviewPalette && !dark) _applyPreviewPalette();
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     AppPrefs.locale.addListener(_onTheme); // ...and when the language changes
@@ -2807,6 +2865,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
       // Opened from the persisted dashboard (not a fresh connect) → auto-sync in
       // the background if the data is stale.
       WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoSync());
+    }
+    // Only ever check after the OS has actually been asked once (see
+    // AppPrefs.notifIntroShown's own doc comment) — checking earlier would
+    // read a brand-new install's "not determined" state as denied.
+    if (AppPrefs.notifIntroShown) {
+      NotificationService.instance.isPermissionDenied().then((denied) {
+        if (mounted) setState(() => _notifDenied = denied);
+      });
     }
   }
 
@@ -3282,6 +3348,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // still one tap away via _financeAgentBanner, just not its own tab
     // anymore). Home stays the "at a glance" summary.
     final contentChildren = [
+      if (_notifDenied && !AppPrefs.notifBannerDismissed) _notifPermissionBanner(),
       // 2026-08-16: these two used to live here as standalone banners
       // ("žmogui nereikia toli eiti" — shouldn't have to dig into a
       // transaction's own detail screen to discover this exists). Moved
@@ -3713,12 +3780,24 @@ class _DashboardPreviewState extends State<DashboardPreview>
       final dayTx = byDate[d]!;
       final merged = <String, Map<String, dynamic>>{};
       for (final t in dayTx) {
-        final k = t['mkey'] as String;
+        // A split receipt's children (Rimi maišas, Atvirukas, ...) each get a
+        // UNIQUE mkey (see _applyTxSplits) so they'd never merge under the
+        // usual same-mkey rule — every product would flood the feed as its
+        // own row. 2026-08-21 per request ("pasiklys tarp transakciju"):
+        // group them by their shared splitGroup instead, back into ONE row
+        // showing the merchant + full total, same as before the split. The
+        // itemised breakdown moves into _TxDetailScreen (_splitItemsCard),
+        // reached by tapping this row — _underlying resolves it back to the
+        // real per-item rows via splitGroup.
+        final isSplit = t['splitGroup'] != null;
+        final k = isSplit ? t['splitGroup'] as String : t['mkey'] as String;
         final m = merged.putIfAbsent(
             k,
             () => {
-                  'nm': t['nm'], 'cat': t['cat'], 'ic': t['ic'],
-                  'col': t['col'],
+                  'nm': isSplit ? (t['splitMerchant'] ?? t['nm']) : t['nm'],
+                  'cat': t['cat'],
+                  'ic': isSplit ? 'doc' : t['ic'],
+                  'col': isSplit ? 'other' : t['col'],
                   'a': 0.0, 'count': 0, 'badges': t['badges'], 'amb': t['amb'],
                   'pos': t['pos'],
                   // identity + fields so the detail screen can find/edit/delete the
@@ -3730,6 +3809,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   // before, so every merged row (even a "merge" of one) lost them
                   // and _eurTx always fell back to the EUR round-trip, ~6% off.
                   'raw': 0.0, 'cur': t['cur'],
+                  'splitGroup': isSplit ? k : null,
+                  'isSplitGroup': isSplit,
                 });
         if (t['star'] == true) m['star'] = true;
         m['a'] = (m['a'] as double) + _aOf(t).toDouble();
@@ -4028,27 +4109,26 @@ class _DashboardPreviewState extends State<DashboardPreview>
               // already what the balance number's glow (below) is tinted
               // with, so the glow now blends into the surface it sits on
               // instead of being a color introduced just for this gradient).
+              // 2026-08-20: dark mode now gets the SAME off-center RadialGradient
+              // recipe as light mode's blue below — a bright hotspot fading to a
+              // genuinely dark, near-black deep stop — instead of the old flat
+              // top-to-bottom LinearGradient, which read as muted/faded next to
+              // it. Picked from an HTML mockup of 4 candidates ("warmer
+              // magenta-violet"); the near-black deep stop reads fine here
+              // (unlike the 2026-08-16 LinearGradient attempt) because the
+              // RadialGradient's bright hotspot still dominates the card at this
+              // radius — it never fuses with the page background the way a flat
+              // gradient's own dark top stop did.
               gradient: _darkMode
-                  // 2026-08-16 fix: the first version's top stop (0xFF190D38)
-                  // was near-black — against dark mode's own black page
-                  // background (no light backdrop to give it contrast, unlike
-                  // the light-mode blue below) it visually fused with the
-                  // content beneath the hero instead of reading as a purple
-                  // block. Brightened so every stop stays clearly violet.
-                  ? const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+                  ? const RadialGradient(
+                      center: Alignment(-0.6, -1.0),
+                      radius: 1.6,
                       colors: [
-                        Color(0xFF3A1B7A), // deep but clearly violet, top
-                        Color(0xFF6D3EE0), // _purpleDeep's dark-mode value
-                        Color(0xFF8B5CF6), // _purple's own dark-mode value
+                        Color(0xFFA855F7),
+                        Color(0xFF1E0B3D),
                       ],
+                      stops: [0.0, 0.65],
                     )
-                  // 2026-08-17: swapped for a RadialGradient sourced from the
-                  // top-left (bright cobalt, matching a mockup the user
-                  // picked) fading to deep navy — richer than the old flat
-                  // top-to-bottom LinearGradient without needing a blur
-                  // layer of its own.
                   : const RadialGradient(
                       center: Alignment(-0.6, -1.0),
                       radius: 1.6,
@@ -5282,6 +5362,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 itemsOverride: allItems,
                 allTransactions: (_d['all'] as List?)?.cast<Map>(),
                 demo: widget.demo,
+                // 2026-08-21: a due-day correction made inside the manager
+                // (LiveRecurringScreen._editDueDay) used to only update the
+                // calendar/list there — the actual local reminder kept
+                // firing off the OLD predicted date until the next
+                // auto-sync happened to call _rescheduleReminders on its
+                // own, which could be hours away. Rebuild it immediately.
+                onDueDateChanged: () => _rescheduleReminders(_d),
               )));
       // Toggling a payment off in the manager has to reach Planning's copy of
       // the list too — it lives in the CACHED tab list, not this tab's state.
@@ -5650,6 +5737,73 @@ class _DashboardPreviewState extends State<DashboardPreview>
       ]),
     );
   }
+
+  /// "Reminders are off" — resurfaces NotificationService.isPermissionDenied(),
+  /// which had no consumer at all after the screen that used to show this
+  /// banner was deleted in the redesign. Dismissible, and never shown again
+  /// once dismissed (AppPrefs.notifBannerDismissed) — this is a one-time
+  /// nudge, not a nag on every launch. Tapping it opens the OS Settings
+  /// page directly (app-settings: — the same well-known iOS URL scheme,
+  /// no extra package needed) since there is no in-app way to re-request a
+  /// permission the user already answered once.
+  Widget _notifPermissionBanner() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 13, 8, 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: const Color(0xFFB45309).withValues(alpha: 0.14),
+            border:
+                Border.all(color: const Color(0xFFB45309).withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                margin: const EdgeInsets.only(top: 1),
+                decoration: BoxDecoration(
+                    color: const Color(0xFFB45309).withValues(alpha: 0.18),
+                    shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: const Icon(Icons.notifications_off_outlined,
+                    color: Color(0xFFB45309), size: 19),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => launchUrl(Uri.parse('app-settings:'),
+                      mode: LaunchMode.externalApplication),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('Priminimai išjungti'),
+                          style: TextStyle(
+                              color: _ink,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14)),
+                      const SizedBox(height: 2),
+                      Text(
+                          tr('Įjunk pranešimus telefono nustatymuose, kad negautum vėluojančių mokėjimų priminimų.'),
+                          style: TextStyle(
+                              color: _faint, fontSize: 12, height: 1.35)),
+                    ],
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close_rounded, size: 18, color: _faint),
+                onPressed: () async {
+                  await AppPrefs.setNotifBannerDismissed(true);
+                  if (mounted) setState(() {});
+                },
+              ),
+            ],
+          ),
+        ),
+      );
 
   // 2026-08-16: standalone entry point for receipt scanning, separate from
   // the per-transaction "Skaidyti" flow (_TxDetailScreenState) — this one
@@ -6074,10 +6228,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
             child: Text(label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
-                    color: Colors.black)),
+                    color: _ink)),
           ),
         ]),
         const SizedBox(height: 7),
@@ -8755,12 +8909,25 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   bool get isPos => tx['pos'] == true;
   String get merchant => _txDisplayName(tx);
 
+  // True for the single collapsed feed row standing in for a whole split
+  // receipt (see _monthFeed's day-merge) — its own 'ic'/'col' are the
+  // generic 'doc'/'other' set there, never a real category.
+  bool get _isSplitGroup => tx['isSplitGroup'] == true;
+
   // The row(s) in `_d['all']` this detail represents. A merged N× feed row
-  // shares (mkey, date); a single/manual/search row is itself.
+  // shares (mkey, date); a split-group row shares splitGroup instead (each
+  // child has its OWN unique mkey, by design — see _applyTxSplits); a
+  // single/manual/search row is itself.
   List<Map<String, dynamic>> get _underlying {
     // Single-row mode (search): the tapped `tx` IS a real `all` element, so act
     // only on that exact instance — never the whole (mkey, date) group.
     if (widget.single) return [tx];
+    final splitGroup = tx['splitGroup'];
+    if (splitGroup != null) {
+      final rows =
+          widget.all.where((r) => r['splitGroup'] == splitGroup).toList();
+      return rows.isEmpty ? [tx] : rows;
+    }
     final mkey = tx['mkey'];
     final d = tx['d'];
     if (mkey == null || d == null) return [tx];
@@ -9172,7 +9339,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
               child: ListView(
                 padding: const EdgeInsets.only(top: 14, bottom: 30),
                 children: [
-                  _categoryCard(),
+                  _isSplitGroup ? _splitItemsCard() : _categoryCard(),
                   _detailsBox(),
                   _actions(),
                   if (budgetLimit != null) _budgetCard(budgetLimit),
@@ -9198,9 +9365,11 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                   size: 20, color: _ink)),
           Expanded(
             child: Text(
-                _isTransfer
-                    ? tr('Vidinis pervedimas')
-                    : tr('Įprastas sandoris'),
+                _isSplitGroup
+                    ? tr('Išskaidytas sandoris')
+                    : (_isTransfer
+                        ? tr('Vidinis pervedimas')
+                        : tr('Įprastas sandoris')),
                 style: TextStyle(
                     fontSize: 18, fontWeight: FontWeight.w700, color: _ink)),
           ),
@@ -9214,9 +9383,13 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                   _starred ? Icons.star_rounded : Icons.star_border_rounded,
                   size: 24,
                   color: _starred ? const Color(0xFFF5B301) : _muted)),
-          IconButton(
-              onPressed: _edit,
-              icon: Icon(Icons.edit_outlined, size: 21, color: _purple)),
+          // A split group has no single name/category to rename — the edit
+          // sheet only takes one of each. See _splitItemsCard's own affordance
+          // for touching individual items instead.
+          if (!_isSplitGroup)
+            IconButton(
+                onPressed: _edit,
+                icon: Icon(Icons.edit_outlined, size: 21, color: _purple)),
         ],
       ),
     );
@@ -9261,6 +9434,70 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                   fontWeight: FontWeight.w700,
                   color: isPos ? _good : _ink)),
         ],
+      ),
+    );
+  }
+
+  // The itemised breakdown of a collapsed split-receipt row — replaces
+  // _categoryCard() (a single category/amount doesn't apply to a purchase
+  // spanning several). Each row is one real underlying `all` entry, so its
+  // own 'col'/'ic'/'cat' and (post-2026-08-21 fix) correctly individualised
+  // 'a' render exactly as they do everywhere else split items appear.
+  Widget _splitItemsCard() {
+    final items = _underlying
+      ..sort((a, b) => ((a['splitIndex'] as int?) ?? 0)
+          .compareTo((b['splitIndex'] as int?) ?? 0));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: AppCard(
+        color: _card,
+        border: _hair,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${tr('Išskaidyta į')} ${items.length}',
+                style: TextStyle(
+                    fontSize: 12.5, color: _muted, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            for (final it in items) ...[
+              Row(
+                children: [
+                  CategoryIcon(
+                      icon: _iconOf(it['ic'] as String?),
+                      color: _colOf(it['col'] as String?),
+                      size: 34),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text((it['nm'] as String?) ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w600,
+                                color: _ink)),
+                        Text(tr((it['cat'] as String?) ?? ''),
+                            style: TextStyle(fontSize: 12, color: _muted)),
+                      ],
+                    ),
+                  ),
+                  Text(_eurTx(it, signed: true),
+                      style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: _ink)),
+                ],
+              ),
+              if (it != items.last)
+                Divider(height: 20, color: _hair)
+              else
+                const SizedBox(height: 10),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -9386,17 +9623,21 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
 
   Widget _actions() {
     final chips = <List<dynamic>>[
-      [Icons.edit_outlined, tr('Redaguoti'), _edit],
+      // A split group has no single name/category/flow to rename or convert —
+      // _edit/_convertTransfer/_addToRecurring all act on the WHOLE group via
+      // _underlying, which would silently overwrite every item's own category.
+      if (!_isSplitGroup) [Icons.edit_outlined, tr('Redaguoti'), _edit],
       // 2026-08-16: removed — the star icon in the AppBar (onPressed:
       // _toggleStar, ~line 8649) already does this exact thing; having it
       // twice (icon up top, "Žyma" text button down here) was one control
       // shown in two places for no reason.
-      [
-        Icons.swap_horiz_rounded,
-        _isTransfer ? tr('Į įprastą') : tr('Į vidinį pervedimą'),
-        _convertTransfer
-      ],
-      if (!_isTransfer && !isPos)
+      if (!_isSplitGroup)
+        [
+          Icons.swap_horiz_rounded,
+          _isTransfer ? tr('Į įprastą') : tr('Į vidinį pervedimą'),
+          _convertTransfer
+        ],
+      if (!_isSplitGroup && !_isTransfer && !isPos)
         [
           Icons.repeat_rounded,
           tr('Pridėti prie pasikartojančių'),
@@ -13364,33 +13605,49 @@ class _CategoryDetailScreen extends StatelessWidget {
                   border: _hair,
                   child: Column(children: [
                     for (var i = 0; i < subList.length; i++) ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 13),
-                        child: Row(children: [
-                          CategoryIcon(
-                              icon: _iconOf(subList[i].value[1] as String?),
-                              color: section.color,
-                              size: 40),
-                          const SizedBox(width: 13),
-                          Expanded(
-                              child: Text(tr(subList[i].key),
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: _ink))),
-                          Text(
-                              _eur(subList[i].value[0] as double, signed: true),
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: (subList[i].value[0] as double) >= 0
-                                      ? _good
-                                      : _ink,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures()
-                                  ])),
-                        ]),
+                      InkWell(
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => _SubcategoryDetailScreen(
+                            label: tr(subList[i].key),
+                            color: section.color,
+                            icon: _iconOf(subList[i].value[1] as String?),
+                            rows: rows
+                                .where((t) => t['cat'] == subList[i].key)
+                                .toList(),
+                          ),
+                        )),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 13),
+                          child: Row(children: [
+                            CategoryIcon(
+                                icon: _iconOf(subList[i].value[1] as String?),
+                                color: section.color,
+                                size: 40),
+                            const SizedBox(width: 13),
+                            Expanded(
+                                child: Text(tr(subList[i].key),
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: _ink))),
+                            Text(
+                                _eur(subList[i].value[0] as double,
+                                    signed: true),
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: (subList[i].value[0] as double) >= 0
+                                        ? _good
+                                        : _ink,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures()
+                                    ])),
+                            const SizedBox(width: 4),
+                            Icon(Icons.chevron_right_rounded,
+                                size: 18, color: _faint),
+                          ]),
+                        ),
                       ),
                       if (i != subList.length - 1) const RowDivider(indent: 66),
                     ],
@@ -13425,6 +13682,115 @@ class _CategoryDetailScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "21 rugpjūčio" / "Aug 21" — a short, locale-aware date for a line-item row.
+String _shortDate(String iso) {
+  final d = DateTime.tryParse(iso);
+  if (d == null) return iso;
+  final mon = _monGen[d.month - 1];
+  return _enUi ? '${mon.substring(0, 3)} ${d.day}' : '${d.day} ${mon.toLowerCase()}';
+}
+
+/// The actual line-item list behind one subcategory's total — the drill-down
+/// that used to be missing. _CategoryDetailScreen showed subcategory SUMS
+/// with no way to see which real charges (including individual receipt-split
+/// items, which each carry their own 'cat') made up that number; a person
+/// wanting to know exactly where a euro went inside e.g. "Namų prekės →
+/// Kvapai" had nowhere to look. `rows` is already filtered to this one
+/// subcategory by the caller — every row here genuinely belongs to it.
+class _SubcategoryDetailScreen extends StatelessWidget {
+  const _SubcategoryDetailScreen(
+      {required this.label,
+      required this.color,
+      required this.icon,
+      required this.rows});
+  final String label;
+  final Color color;
+  final IconData icon;
+  final List<Map<String, dynamic>> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...rows]..sort((a, b) => _dOf(b).compareTo(_dOf(a)));
+    final total = rows.fold(0.0, (s, t) => s + _aOf(t).toDouble());
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: _bg,
+        surfaceTintColor: _bg,
+        elevation: 0,
+        title: Text(label, style: TextStyle(color: _ink, fontWeight: FontWeight.w700)),
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
+          children: [
+            Row(children: [
+              CategoryIcon(icon: icon, color: color, size: 44),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                    _enUi
+                        ? '${sorted.length} ${sorted.length == 1 ? 'transaction' : 'transactions'}'
+                        : '${sorted.length} ${sorted.length == 1 ? 'operacija' : 'operacijos'}',
+                    style: TextStyle(fontSize: 14, color: _muted)),
+              ),
+              Text(_eur(total, signed: true),
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: total >= 0 ? _good : _ink,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+            ]),
+            const SizedBox(height: 14),
+            AppCard(
+              color: _card,
+              border: _hair,
+              child: Column(children: [
+                for (var i = 0; i < sorted.length; i++) ...[
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_txDisplayName(sorted[i]),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: _ink)),
+                            const SizedBox(height: 2),
+                            Text(_shortDate(_dOf(sorted[i])),
+                                style: TextStyle(fontSize: 12.5, color: _muted)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(_eurTx(sorted[i], signed: true),
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: _aOf(sorted[i]) >= 0 ? _good : _ink,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ])),
+                    ]),
+                  ),
+                  if (i != sorted.length - 1) const RowDivider(indent: 14),
+                ],
+              ]),
+            ),
+          ],
+        ),
       ),
     );
   }

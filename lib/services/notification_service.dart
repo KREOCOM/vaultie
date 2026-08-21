@@ -256,6 +256,18 @@ class NotificationService {
     await _scheduleBudgetWarning(now, spent, budget, isLithuanian);
     final today = DateTime(now.year, now.month, now.day);
     final seen = <String>{};
+
+    // First pass: filter down to the real candidates and their due dates,
+    // without scheduling anything yet — the actual scheduling order below
+    // needs every candidate's due date known up front (soonest first), not
+    // whatever order `items` happens to arrive in.
+    final candidates = <({
+      String key,
+      String name,
+      double charge,
+      String cycle,
+      DateTime due
+    })>[];
     for (final it in items) {
       final name = (it['name'] as String? ?? '').trim();
       if (name.isEmpty) continue;
@@ -284,6 +296,29 @@ class NotificationService {
       // 120 € left the account. The amount in a reminder about money has to be
       // the amount that moves.
       final charge = chargeFor(monthly, cycle);
+      candidates.add(
+          (key: key, name: name, charge: charge, cycle: cycle, due: due));
+    }
+
+    // iOS caps an app at 64 pending local notifications total — silently
+    // drops anything scheduled past that, with no error and no signal back
+    // to the app. _scheduleMonthlyReport alone reserves 12 (a year of
+    // 1st-of-month reports), consent-expiry up to 2, budget up to 1 — 15
+    // worst-case — so the remaining per-bill budget is capped here rather
+    // than firing zonedSchedule for every tracked bill/subscription and
+    // hoping the count never crosses 64. Soonest-due first, so if the cap
+    // does bind, what gets dropped is the reminder furthest away — the one
+    // there's the most other opportunity (a later app open, a later sync)
+    // to still catch.
+    const iosPendingCap = 64;
+    const reservedForScheduleWide = 15; // 12 report + 2 consent + 1 budget
+    const perBillBudget = iosPendingCap - reservedForScheduleWide;
+    candidates.sort((a, b) => a.due.compareTo(b.due));
+
+    var used = 0;
+    for (final c in candidates) {
+      if (used >= perBillBudget) break;
+      final (:key, :name, :charge, :cycle, :due) = c;
 
       final remindDay = due.subtract(const Duration(days: 2));
       final scheduled = tz.TZDateTime(
@@ -299,6 +334,7 @@ class NotificationService {
               ? '$name · ${formatMoney(charge)} – mokėjimas po 2 d.'
               : '$name · ${formatMoney(charge)} – due in 2 days',
         );
+        used++;
       }
 
       // A big, infrequent charge needs more than two days' notice. Two days is
@@ -307,7 +343,7 @@ class NotificationService {
       // effect before the year renews. This is the reminder that actually saves
       // somebody money, so it is the one with room to act on.
       final infrequent = cycle == 'yearly' || cycle == 'semiannual';
-      if (infrequent && charge >= _bigChargeThreshold) {
+      if (infrequent && charge >= _bigChargeThreshold && used < perBillBudget) {
         final earlyDay = due.subtract(const Duration(days: 7));
         final early = tz.TZDateTime(
             tz.local, earlyDay.year, earlyDay.month, earlyDay.day, _remindHour);
@@ -322,6 +358,7 @@ class NotificationService {
                 ? '$name · ${formatMoney(charge)} atsinaujina po 7 d. — dar spėji atšaukti.'
                 : '$name · ${formatMoney(charge)} renews in 7 days — still time to cancel.',
           );
+          used++;
         }
       }
     }

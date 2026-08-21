@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../app_prefs.dart';
 import '../content_theme.dart';
 import '../i18n.dart';
+import '../main.dart' show VaultieColors;
 import '../services/dashboard_store.dart';
 import 'bank_connect_screen.dart';
 import 'bank_how_it_works.dart';
@@ -261,8 +262,8 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
             const SizedBox(height: 10),
             Text(
               _isLt
-                  ? 'Užbaigiame prijungimą ir tvarkome tavo operacijas — ieškome pasikartojančių mokėjimų, prenumeratų ir kategorijų.'
-                  : "We're finishing the connection and sorting your transactions — looking for recurring payments, subscriptions and categories.",
+                  ? 'Užbaigiame prijungimą ir tvarkome tavo operacijas — skaičiuojame balansus, rūšiuojame išlaidas į kategorijas ir surandame pasikartojančius mokėjimus.'
+                  : "We're finishing the connection and processing your transactions — calculating balances, sorting spending into categories and finding recurring payments.",
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 14.5, height: 1.5, color: cxSubtle),
             ),
@@ -322,7 +323,12 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                 decoration: BoxDecoration(
-                  color: cAccent,
+                  // Fixed brand blue, not the adaptive content-theme cAccent —
+                  // this whole flow stays deep navy regardless of the light/
+                  // dark toggle (see cxBg's own doc in bank_how_it_works.dart);
+                  // cAccent would have quietly shifted this one button's shade
+                  // with the system theme while everything around it didn't.
+                  color: VaultieColors.primary,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(tr('Prijungti banką'),

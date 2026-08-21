@@ -386,22 +386,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Spacer(flex: 2),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _markTile(
-                child: Image.asset('assets/icon/app_icon.png',
-                    width: 64, height: 64, fit: BoxFit.cover),
-                padded: false,
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14),
-                child: Icon(Icons.arrow_forward_rounded,
-                    size: 22, color: Color(0xFF9FB0D8)),
-              ),
-              _bankLogoLarge(bank),
-            ],
-          ),
+          _bridgeLockup(bank),
           const SizedBox(height: 26),
           Text(
             lt ? 'Nukreipiame į ${bank.name}' : 'Taking you to ${bank.name}',
@@ -416,8 +401,8 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
           const SizedBox(height: 12),
           Text(
             lt
-                ? 'Dabar trumpam paliksi Vaultie ir atsidursi savo banke. Ten prisijungi ir patvirtini prieigą prie sąskaitos. Kai baigsi — automatiškai grįši atgal.'
-                : "You'll leave Vaultie for a moment and land in your bank. Sign in there and approve access to your account. When you're done you'll come straight back.",
+                ? 'Dabar trumpam paliksi Vaultie ir atsidursi savo banke. Ten prisijungi ir patvirtini prieigą prie sąskaitos. Kai baigsi — kai kurie bankai grąžina automatiškai, kiti paprašys tiesiog grįžti pačiam.'
+                : "You'll leave Vaultie for a moment and land in your bank. Sign in there and approve access to your account. When you're done, some banks bring you straight back — others will just ask you to switch back yourself.",
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 14.5, height: 1.5, color: cxSubtle),
           ),
@@ -471,6 +456,70 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       ),
     );
   }
+
+  /// The Vaultie ↔ bank pairing, done as a guarded connection rather than a
+  /// plain "icon → arrow → icon" row: a glowing beam runs behind both tiles
+  /// through a small shield badge at the midpoint, echoing the same
+  /// bank–shield–Vaultie motif already used on the trust screens earlier in
+  /// this flow (see page7_bg.png / the onboarding "connect" page), just
+  /// rendered live so it can show THIS bank's own logo each time.
+  Widget _bridgeLockup(Bank bank) => SizedBox(
+        height: 76,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 150,
+              height: 2,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    cxSubtle.withValues(alpha: 0),
+                    cxSubtle.withValues(alpha: 0.55),
+                    cxSubtle.withValues(alpha: 0.55),
+                    cxSubtle.withValues(alpha: 0),
+                  ],
+                  stops: const [0, 0.28, 0.72, 1],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                      color: cxSubtle.withValues(alpha: 0.35), blurRadius: 12),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _markTile(
+                  child: Image.asset('assets/icon/app_icon.png',
+                      width: 64, height: 64, fit: BoxFit.cover),
+                  padded: false,
+                ),
+                const SizedBox(width: 84),
+                _bankLogoLarge(bank),
+              ],
+            ),
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: cxBg,
+                border:
+                    Border.all(color: cxSubtle.withValues(alpha: 0.55), width: 1.4),
+                boxShadow: [
+                  BoxShadow(color: cxBg, blurRadius: 0, spreadRadius: 6),
+                  BoxShadow(
+                      color: cxSubtle.withValues(alpha: 0.3), blurRadius: 14),
+                ],
+              ),
+              child: const Icon(Icons.shield_rounded,
+                  size: 15, color: cxSubtle),
+            ),
+          ],
+        ),
+      );
 
   Widget _markTile({required Widget child, bool padded = true}) => Container(
         width: 64,
@@ -627,9 +676,6 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // From the bank list / error, "back" returns to country selection rather
-    // than leaving the flow entirely.
-    final dark = _phase == _Phase.redirect || _phase == _Phase.intro;
     final atRoot = _phase == _Phase.country;
     // Reached in two contexts: during onboarding the stack is empty (nowhere to
     // pop to — the old dead-end), while the in-app "+ add bank" flow pushes this
@@ -638,12 +684,14 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     return Theme(
       data: contentTheme(Theme.of(context)),
       child: Scaffold(
-        // The trust screens are deep navy in BOTH themes (see cxBg): white copy
-        // on the light theme's white background would be invisible.
-        backgroundColor: dark ? cxBg : cBg,
+        // The whole connect flow keeps the brand's deep navy, not just the
+        // trust screens (redirect/intro) — see cxBg's own doc comment. Was
+        // conditional on phase, leaving the country/list/error/loading
+        // phases on the app's plain light-mode background instead.
+        backgroundColor: cxBg,
         appBar: AppBar(
-          backgroundColor: dark ? cxBg : null,
-          foregroundColor: dark ? cxInk : null,
+          backgroundColor: cxBg,
+          foregroundColor: cxInk,
           leading: atRoot
               ? (canPop
                   ? IconButton(
@@ -721,8 +769,8 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                 message,
                 key: ValueKey(message),
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: cInk, fontSize: 16, fontWeight: FontWeight.w600, height: 1.4),
+                style: const TextStyle(
+                    color: cxInk, fontSize: 16, fontWeight: FontWeight.w600, height: 1.4),
               ),
             ),
             if (hint != null) ...[
@@ -730,7 +778,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               Text(
                 hint,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+                style: const TextStyle(color: cxSubtle, fontSize: 13, height: 1.4),
               ),
             ],
           ],
@@ -752,7 +800,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             Text(
               _error ?? (_isLt ? 'Įvyko klaida.' : 'Something went wrong.'),
               textAlign: TextAlign.center,
-              style: TextStyle(color: cInk, fontSize: 15, height: 1.4),
+              style: const TextStyle(color: cxInk, fontSize: 15, height: 1.4),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -777,7 +825,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             _isLt
                 ? 'Kurioje šalyje tavo bankas? Rodysim tos šalies bankus.'
                 : 'Which country is your bank in? We\'ll show that country\'s banks.',
-            style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+            style: const TextStyle(color: cxSubtle, fontSize: 13, height: 1.4),
           ),
         ),
         Padding(
@@ -785,10 +833,27 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
           child: TextField(
             controller: _countrySearch,
             onChanged: (_) => setState(() {}),
+            style: const TextStyle(color: cxInk),
+            cursorColor: cxInk,
             decoration: InputDecoration(
-              prefixIcon: Icon(Icons.search_rounded, color: cSubtle, size: 20),
+              prefixIcon: const Icon(Icons.search_rounded, color: cxSubtle, size: 20),
               hintText: _isLt ? 'Ieškoti šalies' : 'Search country',
+              hintStyle: const TextStyle(color: cxSubtle),
               isDense: true,
+              filled: true,
+              fillColor: cxCard,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: cxLine),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: cxLine),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: cxSubtle),
+              ),
             ),
           ),
         ),
@@ -796,7 +861,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
           child: list.isEmpty
               ? Center(
                   child: Text(_isLt ? 'Nerasta.' : 'No matches.',
-                      style: TextStyle(color: cSubtle)))
+                      style: const TextStyle(color: cxSubtle)))
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                   itemCount: list.length,
@@ -817,9 +882,9 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: cCard,
+            color: cxCard,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: cLine),
+            border: Border.all(color: cxLine),
           ),
           child: Row(
             children: [
@@ -828,11 +893,11 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               Expanded(
                 child: Text(
                   _isLt ? c.lt : c.en,
-                  style: TextStyle(
-                      color: cInk, fontSize: 15, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      color: cxInk, fontSize: 15, fontWeight: FontWeight.w600),
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded, color: cSubtle, size: 16),
+              const Icon(Icons.arrow_forward_ios_rounded, color: cxSubtle, size: 16),
             ],
           ),
         ),
@@ -858,14 +923,14 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                   Text(_country.flag, style: const TextStyle(fontSize: 18)),
                   const SizedBox(width: 8),
                   Text(_isLt ? _country.lt : _country.en,
-                      style: TextStyle(
-                          color: cInk,
+                      style: const TextStyle(
+                          color: cxInk,
                           fontSize: 14,
                           fontWeight: FontWeight.w700)),
                   const SizedBox(width: 8),
                   Text(_isLt ? '· Keisti' : '· Change',
                       style: const TextStyle(
-                          color: VaultieColors.primary,
+                          color: Color(0xFF8FB6FF),
                           fontSize: 13,
                           fontWeight: FontWeight.w600)),
                 ],
@@ -879,7 +944,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             _isLt
                 ? 'Pasirink savo banką. Prisijungsi saugiai banko puslapyje — mes niekada nematome tavo slaptažodžio.'
                 : 'Pick your bank. You sign in securely on the bank\'s own page — we never see your password.',
-            style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+            style: const TextStyle(color: cxSubtle, fontSize: 13, height: 1.4),
           ),
         ),
         Expanded(
@@ -887,7 +952,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               ? Center(
                   child: Text(
                     _isLt ? 'Šioje šalyje bankų nerasta.' : 'No banks found here.',
-                    style: TextStyle(color: cSubtle),
+                    style: const TextStyle(color: cxSubtle),
                   ),
                 )
               : ListView.separated(
@@ -913,14 +978,14 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.lock_outline_rounded, size: 14, color: cSubtle),
+            const Icon(Icons.lock_outline_rounded, size: 14, color: cxSubtle),
             const SizedBox(width: 7),
             Expanded(
               child: Text(
                 _isLt
                     ? 'Duomenys saugomi tik tavo telefone · Sutikimas galioja 90 dienų'
                     : 'Data is stored only on your phone · Consent lasts 90 days',
-                style: TextStyle(color: cSubtle, fontSize: 11.5, height: 1.35),
+                style: const TextStyle(color: cxSubtle, fontSize: 11.5, height: 1.35),
               ),
             ),
           ],
@@ -936,9 +1001,9 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: cCard,
+            color: cxCard,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: cLine),
+            border: Border.all(color: cxLine),
           ),
           child: Row(
             children: [
@@ -947,8 +1012,8 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               Expanded(
                 child: Text(
                   bank.name,
-                  style: TextStyle(
-                    color: cInk,
+                  style: const TextStyle(
+                    color: cxInk,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -959,16 +1024,16 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
-                    color: cHiBg,
+                    color: cxSubtle.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(tr('TESTAS'),
-                      style: TextStyle(
-                          color: cSubtle,
+                      style: const TextStyle(
+                          color: cxSubtle,
                           fontWeight: FontWeight.w700,
                           fontSize: 10)),
                 ),
-              Icon(Icons.arrow_forward_ios_rounded, color: cSubtle, size: 16),
+              const Icon(Icons.arrow_forward_ios_rounded, color: cxSubtle, size: 16),
             ],
           ),
         ),

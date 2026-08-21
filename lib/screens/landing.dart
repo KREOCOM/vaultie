@@ -47,8 +47,15 @@ Widget landingAfterAuth() {
   if (!PurchaseService.instance.isPremium) {
     return const OnbPaywall(next: BankConnectScreen());
   }
+  // 2026-08-20: was gated on the saved blob's mere presence. That blob and
+  // the actual bank connections it came from (`bankCount`) are written
+  // together by completeBankConnection() but nothing enforces they can
+  // never drift apart — someone who paid, was sent to connect a bank, and
+  // quit before finishing, must land back on BankConnectScreen next time,
+  // not on a dashboard built from a leftover/partial blob with zero real
+  // connections behind it.
   final saved = DashboardStore.load();
-  return saved != null
+  return (saved != null && DashboardStore.bankCount > 0)
       ? DashboardPreview(data: saved)
       : const BankConnectScreen();
 }

@@ -137,7 +137,9 @@ class OnbFeatures extends StatelessWidget {
                             // The count comes from the catalogue, not from
                             // prose — see _row's own note on why this is
                             // composed here rather than passed as a literal.
-                            '${tr('Prijunk bankus, stebėk sąskaitas ir konvertuok')} ${kCurrencies.length} ${tr('skirtingų valiutų.')}',
+                            // 'valiutas' (accusative) — direct object of "konvertuok",
+                            // not the genitive 'valiutų' this used to read.
+                            '${tr('Prijunk bankus, stebėk sąskaitas ir konvertuok')} ${kCurrencies.length} ${tr('skirtingas valiutas.')}',
                           ),
                           _row(
                             tr('Eksportas ir atsarginės kopijos'),

@@ -196,7 +196,7 @@ class OnbConnect extends StatelessWidget {
                                 color: Colors.white.withValues(alpha: 0.62)),
                             const SizedBox(width: 6),
                             Text(
-                              tr('2500+ bankų visoje Europoje'),
+                              tr('2 700+ bankų visoje Europoje'),
                               style: TextStyle(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w600,

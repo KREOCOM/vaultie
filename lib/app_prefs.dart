@@ -95,6 +95,11 @@ class AppPrefs {
   static Future<void> setLocale(Locale? value) async {
     locale.value = value;
     await _box.put(_kLocale, value?.languageCode ?? '');
+    // Re-point Money at the new language's number format immediately —
+    // otherwise every MoneyText on screen stays in the OLD language's style
+    // until something else happens to trigger applyDisplayCurrency() (a
+    // currency change, or a fresh FX table landing).
+    applyDisplayCurrency();
   }
 
   static Future<void> setCurrency(String symbol) async {
@@ -130,6 +135,7 @@ class AppPrefs {
         info.code, info.symbol, FxRates.instance.rates.value);
     Money.rate = d.rate;
     Money.symbol = d.symbol;
+    Money.isLt = effectiveLocale().languageCode == 'lt';
     // Report whether the choice actually applied, so no screen has to re-derive
     // it and a currency change can never silently do nothing.
     displayConverted.value = d.converted;
@@ -336,18 +342,25 @@ Locale localeForRegion() {
 /// otherwise the region-based default.
 Locale effectiveLocale() => AppPrefs.locale.value ?? localeForRegion();
 
-/// Formats [value] as money using the selected currency symbol and the app's
-/// active language for grouping/decimal separators and symbol placement — e.g.
-/// "€1,234.56" in English but "1 234,56 €" in Lithuanian. Without a locale,
-/// intl would always use en_US-style formatting regardless of the UI language.
+/// Formats [value] — a stored amount, always in EUR — as money using the
+/// selected display currency and the app's active language for
+/// grouping/decimal separators and symbol placement — e.g. "€1,234.56" in
+/// English but "1 234,56 €" in Lithuanian. Without a locale, intl would always
+/// use en_US-style formatting regardless of the UI language.
 String formatMoney(num value) {
   final code = effectiveLocale().languageCode;
   // The app only ships English and Lithuanian; map anything else to English so
   // an unrelated device locale can't produce a surprising format.
   final localeTag = code == 'lt' ? 'lt' : 'en';
+  // Apply the EUR → display-currency rate before formatting. This used to
+  // format the raw EUR figure under whatever symbol was chosen — e.g. a
+  // subscription stored as 45 EUR, with the display currency set to USD,
+  // printed "$45.00" instead of the converted "$48.94". [Money.rate] is kept
+  // in lockstep with [Money.symbol] by [AppPrefs.applyDisplayCurrency], the
+  // same source every other money display in the app already converts through.
   return NumberFormat.currency(
     locale: localeTag,
     symbol: AppPrefs.currency.value,
     decimalDigits: 2,
-  ).format(value);
+  ).format(value * Money.rate);
 }

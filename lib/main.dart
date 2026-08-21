@@ -545,6 +545,14 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       _wasBackgrounded = true;
+      // Cover real content the instant the app leaves the foreground, not on
+      // return. Locking only on resume left the entire backgrounded interval —
+      // and the OS app-switcher snapshot taken during it — showing whatever
+      // screen (real transactions, balances) was on screen when it was
+      // backgrounded.
+      if (_shouldLock && !_locked) {
+        setState(() => _locked = true);
+      }
     } else if (state == AppLifecycleState.resumed) {
       // The biometric sheet backgrounds the app while it is up. Re-locking on
       // that resume would undo the unlock that just happened and prompt again.

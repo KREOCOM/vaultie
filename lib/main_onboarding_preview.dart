@@ -18,10 +18,14 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_prefs.dart';
 import 'firebase_options.dart';
-import 'main.dart' show HiveBoxes;
+import 'l10n/app_localizations.dart';
+import 'main.dart' show HiveBoxes, navigatorKey;
 import 'models/subscription.dart';
+import 'services/banking_deep_links.dart';
+import 'services/feature_flags.dart';
 import 'services/fx_rates.dart';
 import 'services/local_crypto.dart';
+import 'services/purchase_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/onb_ai_chat.dart';
 import 'screens/onb_banks.dart';
@@ -79,6 +83,36 @@ Future<void> main() async {
   designPreviewPalette = true;
   designPreviewFakeRecurring = true;
 
+  // 2026-08-20: this trimmed bootstrap used to stop at the onboarding
+  // chain's own last screen — going past it (real sign-in → real paywall →
+  // real bank connect) hit three gaps main.dart's boot normally covers:
+  //
+  //   1. PurchaseService was never initialised, so `isPremium` stayed at
+  //      its constructor default (false) regardless of the signed-in
+  //      account's real entitlement — harmless for the paywall itself
+  //      (it's just shown), but see BankConnectScreen's own gate below.
+  //   2. FeatureFlags was never loaded, so `bankingEnabled` stayed at its
+  //      hard-coded default (false) and BankConnectScreen refused to
+  //      connect anything ("Bank connection is temporarily unavailable").
+  //   3. BankingDeepLinks was never wired to a navigatorKey. Most banks'
+  //      OAuth consent returns inside the same ASWebAuthenticationSession
+  //      and never needed this — but a bank that hands off to its own app
+  //      (SEB, Swedbank — see banking_deep_links.dart's own doc comment)
+  //      relaunches Vaultie via the vaultie:// / universal-link callback
+  //      instead, and with nothing listening for it here, that callback's
+  //      single-use code was just dropped — the user lands back on
+  //      whatever the OS put them on (their bank's app, or Safari) with no
+  //      route back into Vaultie. That's the "ismeta mane iš appso" bug.
+  //
+  // Real (not mocked) PurchaseService, so a real signed-in account's real
+  // entitlement resolves exactly as it does live.
+  try {
+    await PurchaseService.instance.init().timeout(const Duration(seconds: 4));
+  } catch (_) {}
+  FeatureFlags.instance.loadCached();
+  FeatureFlags.instance.init();
+  BankingDeepLinks.instance.init(navigatorKey);
+
   runApp(const _OnboardingPreviewApp());
 }
 
@@ -87,13 +121,24 @@ class _OnboardingPreviewApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
+      // Without these, Flutter's OWN Localizations.localeOf(context) — what
+      // real screens past onboarding read via `_isLt`-style checks, e.g.
+      // BankConnectScreen — falls back to the device's raw system language
+      // instead of AppPrefs/tr()'s resolved one. That's how onboarding (all
+      // tr()) read correctly in Lithuanian while "Connect your bank" (an
+      // `_isLt` check) still showed English on the exact same run — main.dart
+      // sets these on its own MaterialApp for the same reason.
+      locale: effectiveLocale(),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       // Same chain SplashScreen._goNext() builds for a brand-new user, all
       // the way through to the paywall entry point (LoginScreen — the
       // paywall itself sits behind a real/demo sign-in, same as it does
       // live).
-      home: OnbIntro(
+      home: const OnbIntro(
         next: OnbBanks(
           next: OnbMonth(
             next: OnbOverview(

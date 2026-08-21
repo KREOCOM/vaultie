@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:local_auth/local_auth.dart';
 
+import '../i18n.dart';
 import '../main.dart';
 
 /// App lock: an optional PIN (with optional Face ID / Touch ID) that gates the
@@ -129,7 +130,7 @@ class AppLock {
     biometricInFlight = true;
     try {
       return await _auth.authenticate(
-        localizedReason: 'Atrakink Vaultie',
+        localizedReason: tr('Atrakink Vaultie'),
         biometricOnly: true,
         persistAcrossBackgrounding: true,
       );

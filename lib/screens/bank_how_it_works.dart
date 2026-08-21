@@ -14,6 +14,7 @@ const cxBg = Color(0xFF0A1533);
 const cxCard = Color(0xFF14224A);
 const cxInk = Color(0xFFFFFFFF);
 const cxSubtle = Color(0xFFA9BCEC);
+const cxLine = Color(0x332E56C8);
 
 /// What happens when you connect a bank, shown BEFORE the bank list.
 ///
@@ -65,11 +66,11 @@ class BankHowItWorks extends StatelessWidget {
               _Step(
                 n: '1',
                 title: tr('Pasirink savo banką'),
-                body: tr('Iš 2 500+ Europos bankų sąrašo.'),
+                body: tr('Iš 2 700+ Europos bankų sąrašo.'),
               ),
               _Step(
                 n: '2',
-                title: tr('Patvirtink savo banke'),
+                title: tr('Patvirtink prieigą banke'),
                 body: tr('Nukreipsim į tavo banko programėlę ar svetainę. '
                     'Prisijungi ir patvirtini prieigą — taip pat, kaip '
                     'prisijungdamas prie savo banko. Vaultie tavo prisijungimo '
@@ -78,8 +79,9 @@ class BankHowItWorks extends StatelessWidget {
               _Step(
                 n: '3',
                 title: tr('Grįžk į Vaultie'),
-                body: tr('Kai patvirtinsi, automatiškai grįši atgal, o tavo '
-                    'operacijos susitvarkys pačios.'),
+                body: tr('Kai patvirtinsi, grįši į Vaultie — kai kurie bankai '
+                    'grąžina automatiškai, kiti paprašys tiesiog grįžti pačiam. '
+                    'Tavo operacijos susitvarkys pačios.'),
                 last: true,
               ),
               SizedBox(height: gap),
