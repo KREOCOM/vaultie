@@ -495,14 +495,20 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           // faded next to the richer, genuinely-near-black deep stop the
           // light-mode blue gets. Matches Home hero's own dark-mode fix now —
           // same two hardcoded stops, no lerp.
-          gradient: RadialGradient(
-            center: const Alignment(-0.7, -0.6),
-            radius: 1.5,
-            colors: AppPrefs.darkMode.value
-                ? const [Color(0xFFA855F7), Color(0xFF1E0B3D)]
-                : [_blue, Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!],
-            stops: const [0.0, 0.75],
-          ),
+          // 2026-08-29: dark mode's purple RadialGradient replaced with a
+          // flat fill in the page's own dark background colour — same "try
+          // black instead of purple" request as Home's hero, applied here
+          // too since this card uses the identical gradient recipe. Light
+          // mode keeps its original blue RadialGradient untouched.
+          color: AppPrefs.darkMode.value ? _bg : null,
+          gradient: AppPrefs.darkMode.value
+              ? null
+              : RadialGradient(
+                  center: const Alignment(-0.7, -0.6),
+                  radius: 1.5,
+                  colors: [_blue, Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!],
+                  stops: const [0.0, 0.75],
+                ),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(color: _blue.withValues(alpha: 0.28), blurRadius: 28, offset: const Offset(0, 12)),
@@ -599,14 +605,16 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           // faded next to the richer, genuinely-near-black deep stop the
           // light-mode blue gets. Matches Home hero's own dark-mode fix now —
           // same two hardcoded stops, no lerp.
-          gradient: RadialGradient(
-            center: const Alignment(-0.7, -0.6),
-            radius: 1.5,
-            colors: AppPrefs.darkMode.value
-                ? const [Color(0xFFA855F7), Color(0xFF1E0B3D)]
-                : [_blue, Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!],
-            stops: const [0.0, 0.75],
-          ),
+          // 2026-08-29: same flat-black-in-dark-mode swap as _hero() above.
+          color: AppPrefs.darkMode.value ? _bg : null,
+          gradient: AppPrefs.darkMode.value
+              ? null
+              : RadialGradient(
+                  center: const Alignment(-0.7, -0.6),
+                  radius: 1.5,
+                  colors: [_blue, Color.lerp(_blueDeep, const Color(0xFF05050A), 0.4)!],
+                  stops: const [0.0, 0.75],
+                ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(color: _blue.withValues(alpha: 0.28), blurRadius: 22, offset: const Offset(0, 10)),
@@ -859,28 +867,29 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
         itemBuilder: (_, i) {
           final day = i + 1;
           final colors = colorsFor(day);
+          // 2026-08-29: the card's background is now flat near-black in dark
+          // mode (see _totalCard's own doc) instead of the old purple/blue
+          // gradient — the previous BLACK tint for an empty day ("recedes
+          // into the gradient") now tints black-on-black, i.e. no visible
+          // cell at all, just a bare number floating on the card
+          // ("skaičiai... plaukiotų juodam fone", reported). A light tint +
+          // a faint border gives the cell an actual edge to read as a grid
+          // square again; the old dark-tint-on-gradient look is unchanged
+          // for light mode, which still has the blue gradient card.
+          final onBlack = AppPrefs.darkMode.value;
           return ClipRRect(
             borderRadius: BorderRadius.circular(7),
             child: Container(
-              // 2026-08-16 bug: only handled 0 colors (dim) and 2+ (split
-              // Row below) — the single most common case, exactly ONE bill
-              // due that day, fell through to neither and painted no fill
-              // at all, just a bare number over the plain card ("visi
-              // kvadratukai su juodais skaičiais", "kitos spalvos nebuvo").
-              // 2026-08-16: bumped from 0.08/0.4 — computed contrast on the
-              // blue card was ~2.5:1, below WCAG AA (4.5:1). Still visibly
-              // dimmer than a filled day, just no longer hard to read.
-              // 2026-08-20: a WHITE tint lightens whatever's under it — fine
-              // over the old card's darker half, but the radial gradient's
-              // bright hotspot (top-left) is already close to white, so
-              // cells there barely darkened at all and read almost as
-              // bright as a filled day ("per šviesu ant kalendoriaus kai
-              // nuo kairės pusės prasideda"). A BLACK tint recedes into the
-              // gradient instead of fighting it, so it reads evenly dim
-              // across the whole card, hotspot included.
-              color: colors.isEmpty
-                  ? Colors.black.withValues(alpha: 0.32)
-                  : (colors.length == 1 ? colors.first : null),
+              decoration: BoxDecoration(
+                color: colors.isEmpty
+                    ? (onBlack
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : Colors.black.withValues(alpha: 0.32))
+                    : (colors.length == 1 ? colors.first : null),
+                border: colors.isEmpty && onBlack
+                    ? Border.all(color: Colors.white.withValues(alpha: 0.12))
+                    : null,
+              ),
               alignment: Alignment.center,
               child: Stack(
                 alignment: Alignment.center,

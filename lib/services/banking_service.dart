@@ -360,6 +360,35 @@ class BankingService {
     }
   }
 
+  /// Revokes every connected bank's consent (at Enable Banking, not just
+  /// locally) and forgets them all. Same revoke-then-wipe sequence
+  /// dashboard_preview.dart's own "Atjungti bankus" UI flow uses per bank,
+  /// factored out here (no BuildContext, no dialogs) so it can also run
+  /// headless — see PurchaseService's lapsed-subscription listener.
+  ///
+  /// Enable Banking bills per connected Account for every calendar month it
+  /// was reachable in, prorated by neither days nor subscription cycle — a
+  /// churned trial user whose bank stays connected keeps costing real money
+  /// until the ~90-day PSD2 consent ceiling, with nothing to make them come
+  /// back and disconnect it themselves. Best-effort per bank, same as
+  /// [disconnectBank]: a revoke failing must never block the local wipe.
+  Future<void> disconnectAllConnectedBanks() async {
+    for (final c in DashboardStore.connections()) {
+      final sessionIds = [
+        if ((c['sessionId'] as String?)?.isNotEmpty ?? false)
+          c['sessionId'] as String,
+      ];
+      final accountUids = ((c['accounts'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((a) => (a['uid'] as String?) ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (sessionIds.isEmpty && accountUids.isEmpty) continue;
+      await disconnectBank(sessionIds: sessionIds, accountUids: accountUids);
+    }
+    await DashboardStore.disconnectAllBanks();
+  }
+
   Future<int> deleteUserData(List<String> sessionIds) async {
     try {
       return await _call<int>('delete_user_data', {'sessionIds': sessionIds},

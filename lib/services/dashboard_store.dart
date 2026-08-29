@@ -812,6 +812,55 @@ class DashboardStore {
     return out;
   }
 
+  static const _kSavingsGoal = 'savingsGoal';
+
+  /// {'monthlyGoal': double, 'totalGoal': double, 'startDate': ISO8601} or
+  /// null if the user has never set one. Same local-only, JSON-in-Hive
+  /// pattern as budgets — no server involved.
+  static Map<String, dynamic>? savingsGoal() {
+    try {
+      final raw = _box.get(_kSavingsGoal) as String?;
+      if (raw == null) return null;
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> setSavingsGoal(Map<String, dynamic> goal) async {
+    try {
+      await _box.put(_kSavingsGoal, jsonEncode(goal));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  static const _kInvestments = 'investments';
+
+  /// Manually-entered stock holdings for the Investavimas tab — PROTOTYPE
+  /// (2026-08-27), see investing_tab.dart's own doc. One record per holding:
+  /// {'symbol', 'name', 'domain', 'shares', 'addedAt'}. Same local-only,
+  /// JSON-in-Hive pattern as budgets/savingsGoal — nothing server-side.
+  static List<Map<String, dynamic>> investments() {
+    try {
+      final raw = _box.get(_kInvestments) as String?;
+      if (raw == null) return [];
+      return (jsonDecode(raw) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> setInvestments(List<Map<String, dynamic>> items) async {
+    try {
+      await _box.put(_kInvestments, jsonEncode(items));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
   // ── Subscription aliases (user-given names for anonymous recurring series) ──
   // Maps a recurring series id (sid, from the dashboard payload) → a display
   // name, e.g. an unnameable "APPLE.COM/BILL" stream → "ChatGPT". Attached to the

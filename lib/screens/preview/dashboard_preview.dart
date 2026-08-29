@@ -36,6 +36,7 @@ import '../lock_screen.dart';
 import '../login_screen.dart';
 import '../../widgets/subscription_avatar.dart';
 import 'subs_bills_live.dart' show LiveRecurringScreen;
+import 'investing_tab.dart' show InvestingTab;
 
 /// Bilance-style Dashboard preview, on the user's REAL computed Revolut data.
 ///
@@ -1957,6 +1958,38 @@ class _HeroShapeClipper extends CustomClipper<Path> {
       old.grooveWidth != grooveWidth;
 }
 
+/// Traces `clipper`'s own path as a stroke instead of a clip — see the hero's
+/// dark-mode build() for why: the fill no longer contrasts against the page
+/// behind it, so the spiked-corner/shelf silhouette needs its own visible
+/// edge instead of relying on a colour boundary that isn't there anymore.
+class _HeroShapeBorderPainter extends CustomPainter {
+  _HeroShapeBorderPainter(
+      {required this.clipper, required this.color, required this.strokeWidth});
+  final _HeroShapeClipper clipper;
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawPath(
+      clipper.getClip(size),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _HeroShapeBorderPainter old) =>
+      old.clipper.legDepth != clipper.legDepth ||
+      old.clipper.shelfInset != clipper.shelfInset ||
+      old.clipper.grooveDepth != clipper.grooveDepth ||
+      old.clipper.grooveWidth != clipper.grooveWidth ||
+      old.color != color ||
+      old.strokeWidth != strokeWidth;
+}
+
 /// Two slow, translucent sine bands drifting near a hero's top edge — plain
 /// Path fills (no ImageFilter.blur, which produced artifacts in earlier
 /// passes). Used on the Finansų Agentas banner so its gradient doesn't read
@@ -2319,6 +2352,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
         // were. Not gated by _tabNeeded — the auto-demo tour never selects
         // it, so it has nothing to hide during a script run.
         _transactionsTab(),
+        // index 5 — "Investavimas" (2026-08-27 prototype, see
+        // investing_tab.dart's own doc for isolation/removal). Appended for
+        // the same reason as Transakcijos above — never gated by
+        // _tabNeeded, the demo tour doesn't know about it.
+        const InvestingTab(),
       ];
 
   // A theme flip OR a language change must rebuild the cached tabs.
@@ -3318,7 +3356,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     Stack(
                       children: [
                         Positioned.fill(child: _frostBackdrop()),
-                        SafeArea(bottom: false, child: w),
+                        // Investavimas paints its own full-bleed hero photo behind
+                        // the status bar (same edge-to-edge idea as the home banner
+                        // above) — an outer top SafeArea would otherwise show this
+                        // frost backdrop as a light strip behind the clock/battery
+                        // icons instead of the photo. It applies its own top inset
+                        // internally where it actually needs one.
+                        w is InvestingTab ? w : SafeArea(bottom: false, child: w),
                       ],
                     ),
                 ],
@@ -4109,26 +4153,20 @@ class _DashboardPreviewState extends State<DashboardPreview>
               // already what the balance number's glow (below) is tinted
               // with, so the glow now blends into the surface it sits on
               // instead of being a color introduced just for this gradient).
-              // 2026-08-20: dark mode now gets the SAME off-center RadialGradient
-              // recipe as light mode's blue below — a bright hotspot fading to a
-              // genuinely dark, near-black deep stop — instead of the old flat
-              // top-to-bottom LinearGradient, which read as muted/faded next to
-              // it. Picked from an HTML mockup of 4 candidates ("warmer
-              // magenta-violet"); the near-black deep stop reads fine here
-              // (unlike the 2026-08-16 LinearGradient attempt) because the
-              // RadialGradient's bright hotspot still dominates the card at this
-              // radius — it never fuses with the page background the way a flat
-              // gradient's own dark top stop did.
+              // 2026-08-29: dark mode's purple RadialGradient replaced with
+              // NO fill at all — tried a flat `_bg` colour first, but `_bg`
+              // is a single fixed value while the page behind it
+              // (_frostBackdrop, in _dashboard()) is a top-to-bottom
+              // LinearGradient — a flat colour can only match that gradient
+              // at one exact height, so the hero read as a visibly different
+              // shade from the content just below it (reported, real). Fully
+              // transparent instead: the SAME gradient layer shows through
+              // the hero's own clipped shape, so there's no seam by
+              // construction, not by approximating a colour. Light mode
+              // keeps its original blue RadialGradient untouched.
+              color: null,
               gradient: _darkMode
-                  ? const RadialGradient(
-                      center: Alignment(-0.6, -1.0),
-                      radius: 1.6,
-                      colors: [
-                        Color(0xFFA855F7),
-                        Color(0xFF1E0B3D),
-                      ],
-                      stops: [0.0, 0.65],
-                    )
+                  ? null
                   : const RadialGradient(
                       center: Alignment(-0.6, -1.0),
                       radius: 1.6,
@@ -4207,7 +4245,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      fontSize: designPreviewPalette ? 19 : 26,
+                      fontSize: designPreviewPalette ? 16 : 26,
                       fontWeight: FontWeight.w800,
                       color: _heroInk,
                       letterSpacing: -0.4)),
@@ -4310,11 +4348,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
                           // Bigger and tighter than the rest of the block. It was
                           // the same weight as the labels around it and sank into
                           // them — this is the number the screen exists for.
-                          // Bigger in light mode: it was the same weight as the
-                          // labels around it and sank into them.
-                          fontSize: designPreviewPalette
-                              ? (_darkMode ? 40 : 48)
-                              : (_darkMode ? 34 : 40),
+                          // 2026-08-29: used to be a different size per theme
+                          // (40 dark / 48 light) — toggling the moon icon made
+                          // the whole hero look like it resized, since this is
+                          // the single biggest element in it. Same size in
+                          // both now; only colour should change with theme.
+                          fontSize: designPreviewPalette ? 44 : (_darkMode ? 34 : 40),
                           fontWeight: FontWeight.w800,
                           color: _heroInk,
                           letterSpacing: -1.2,
@@ -4693,15 +4732,35 @@ class _DashboardPreviewState extends State<DashboardPreview>
       ]),
     );
     if (!designPreviewPalette) return hero;
-    return ClipPath(
-      clipper: _HeroShapeClipper(
-        legDepth: _heroLegDepth,
-        shelfInset: MediaQuery.of(context).size.width * 0.15,
-        grooveDepth: _heroGrooveDepth,
-        grooveWidth: 64,
-      ),
-      child: hero,
+    final heroClipper = _HeroShapeClipper(
+      legDepth: _heroLegDepth,
+      shelfInset: MediaQuery.of(context).size.width * 0.15,
+      grooveDepth: _heroGrooveDepth,
+      grooveWidth: 64,
     );
+    return Stack(children: [
+      ClipPath(clipper: heroClipper, child: hero),
+      // 2026-08-29: dark mode's fill now matches the page background exactly
+      // (see the hero's own decoration doc) — so the spiked-corner/shelf
+      // silhouette that reads clearly in light mode (a blue shape against a
+      // lighter page) became invisible, and toggling themes looked like the
+      // whole block changed proportions rather than just colour. A faint
+      // traced outline keeps the same fold/shelf shape visible in dark mode
+      // too, at the same shape and position, so the silhouette doesn't
+      // depend on a contrast that dark mode no longer has.
+      if (_darkMode)
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: _HeroShapeBorderPainter(
+                clipper: heroClipper,
+                color: Colors.white.withValues(alpha: 0.10),
+                strokeWidth: 1.4,
+              ),
+            ),
+          ),
+        ),
+    ]);
   }
 
   // 2026-08-16: shares storage with Paskyra's "Grynasis turtas" list
@@ -5010,7 +5069,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
               _hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
               style: TextStyle(
                   fontSize: 13,
-                  color: _purpleDeep,
+                  // 2026-08-29: was a hardcoded _purpleDeep regardless of
+                  // theme — read fine on light mode's white card, but showed
+                  // as an unrelated purple accent sitting in an otherwise
+                  // purple-free dark card (reported, real). Green in dark
+                  // mode instead — a balance figure reads as "money", not
+                  // as an accent colour borrowed from somewhere else.
+                  color: _darkMode ? _good : _purpleDeep,
                   fontWeight: FontWeight.w800,
                   fontFeatures: const [FontFeature.tabularFigures()])),
           if (!_hideBal && acctTotal > 0) ...[
@@ -5100,8 +5165,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // banku prideti 3 funkcijas kad zmones galetu lengviau pasiekti", in the
   // order asked: kvito skenavimas, transakcijos (per vidury), Bill Split.
   // Reuses the exact handlers the old standalone banners called
-  // (_startReceiptScan / _startBillSplit) plus the same tab-jump the bottom
-  // nav's "Transakcijos" item uses (see _navBar's navTarget: index 5).
+  // (_startReceiptScan / _startBillSplit).
+  //
+  // 2026-08-28 per explicit request: the middle slot (was "Transakcijos",
+  // jumping to IndexedStack index 5) is now "Investicijos" (index 6) —
+  // Transakcijos already has its own bottom-nav tab, so this row and the
+  // bottom nav were both offering the exact same destination. Investavimas
+  // moved OUT of the bottom nav entirely (see _navBar, back to its original
+  // 5 items) so it isn't offered in two places either.
   Widget _heroQuickActions() => Row(
         children: [
           Expanded(
@@ -5113,9 +5184,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
           ),
           Expanded(
             child: _heroActionButton(
-              icon: Icons.receipt_long_rounded,
-              label: tr('Transakcijos'),
-              onTap: () => setState(() => _tab = 5),
+              icon: Icons.show_chart_rounded,
+              label: tr('Investicijos'),
+              onTap: () => setState(() => _tab = 6),
             ),
           ),
           Expanded(
@@ -5510,6 +5581,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                 earnedOf: _sumIncome,
                 rowsOf: (mk) => _rowsForMonth(mk).toList(),
                 initialKey: shownMk,
+                all: _feedAll.toList(),
               ))),
       behavior: HitTestBehavior.opaque,
       child: Container(
@@ -6132,25 +6204,33 @@ class _DashboardPreviewState extends State<DashboardPreview>
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              // 2026-08-17: same off-center RadialGradient logic as the
-              // hero's own background (see _topBanner) — a bright spot near
-              // one corner fading to a near-black anchor, clamped before the
-              // far edge, instead of a flat corner-to-corner LinearGradient.
-              // Built from _purple/_purpleDeep themselves (not hardcoded
-              // hex) so it keeps tracking dark mode automatically the same
-              // way the old gradient did.
-              gradient: RadialGradient(
-                center: const Alignment(-0.7, -0.6),
-                radius: 1.5,
-                colors: [
-                  _purple,
-                  Color.lerp(_purpleDeep, const Color(0xFF05050A), 0.4)!,
-                ],
-                stops: const [0.0, 0.75],
-              ),
+              // 2026-08-29: dark mode no longer fills this with the purple
+              // gradient — one purple block too many next to the hero,
+              // Prenumeratos/Sąskaitos etc, all switched to dark already.
+              // Kept distinct on purpose (explicit request: "tamsu, bet kad
+              // išskirtų") via a faint purple-tinted card colour, a thin
+              // purple-ish border and the same purple glow shadow the
+              // gradient version had — the AI feature still reads as its own
+              // thing, just as a dark card with a purple accent instead of a
+              // whole purple block. Light mode keeps its original gradient.
+              color: _darkMode ? Color.lerp(_card, _purple, 0.07) : null,
+              gradient: _darkMode
+                  ? null
+                  : RadialGradient(
+                      center: const Alignment(-0.7, -0.6),
+                      radius: 1.5,
+                      colors: [
+                        _purple,
+                        Color.lerp(_purpleDeep, const Color(0xFF05050A), 0.4)!,
+                      ],
+                      stops: const [0.0, 0.75],
+                    ),
+              border: _darkMode
+                  ? Border.all(color: _purple.withValues(alpha: 0.35))
+                  : null,
               boxShadow: [
                 BoxShadow(
-                    color: _purple.withValues(alpha: 0.28),
+                    color: _purple.withValues(alpha: _darkMode ? 0.20 : 0.28),
                     blurRadius: 20,
                     offset: const Offset(0, 8)),
               ],
@@ -6370,11 +6450,14 @@ class _DashboardPreviewState extends State<DashboardPreview>
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           padding: const EdgeInsets.fromLTRB(10, 16, 10, 10),
           decoration: BoxDecoration(
-            // PREVIEW-ONLY: this card wants to look "recessed" against its
-            // OWN white parent card — _bg used to be a pale grey that did
-            // that; now that _bg is the page's own vivid blue, reusing it
-            // here painted the chart blue instead of leaving it white.
-            color: designPreviewPalette ? _soft : _bg,
+            // 2026-08-29: was `_soft` — a shade meant to look "recessed"
+            // against a white PARENT card that this section never actually
+            // renders (no visible outer card here, just this one panel), so
+            // it just read as a different tone from the Prenumeratos/
+            // Sąskaitos cards right below it (reported, real — most visible
+            // in dark mode where _soft/_card are further apart). Matches
+            // those cards' own `_card` now.
+            color: designPreviewPalette ? _card : _bg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _hair),
           ),
@@ -6963,7 +7046,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // that moved out of Home — the feed lives at IndexedStack index 5
     // (appended, not swapped in — see _buildOtherTabs), so this row's real
     // target differs from its on-screen position; every other row still
-    // targets its own index.
+    // targets its own index. Investavimas (IndexedStack index 6) is NOT in
+    // this bar at all — 2026-08-28 per request, it moved to the Home hero's
+    // own quick-action row instead (_heroQuickActions), so it isn't offered
+    // in two places.
     int navTarget(int i) => i == 2 ? 5 : i;
     final bottomPad = MediaQuery.of(context).padding.bottom;
     // The 10 fallback (no system inset reported — gesture-nav devices that
@@ -11988,8 +12074,13 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
   }
 
   Widget _header() {
+    // 2026-08-29: was a flat _purpleDeep bar in both themes — one more
+    // purple block on a screen that's otherwise gone dark (reported, real —
+    // applies to ANY month's review, not just July's). Dark mode matches
+    // the Scaffold's own `_bg` instead, so the header melts into the page
+    // with no visible bar at all. Light mode keeps its original purple bar.
     return Container(
-      color: _purpleDeep,
+      color: _darkMode ? _bg : _purpleDeep,
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -11998,14 +12089,14 @@ class _MonthReviewScreenState extends State<_MonthReviewScreen> {
             children: [
               IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                      size: 20, color: Colors.white)),
+                  icon: Icon(Icons.arrow_back_ios_new_rounded,
+                      size: 20, color: _darkMode ? _ink : Colors.white)),
               Expanded(
                   child: Text('${widget.monthGen} ${tr('apžvalga')}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white))),
+                          color: _darkMode ? _ink : Colors.white))),
             ],
           ),
         ),
@@ -13951,7 +14042,8 @@ class _OverviewTabState extends State<_OverviewTab> {
             savingsOf: _savingsOf,
             earnedOf: _earnedOf,
             rowsOf: _rowsOf,
-            initialKey: _curKey),
+            initialKey: _curKey,
+            all: widget.all),
       ));
 
   // 2026-08-15: was `.clamp(0, 100)` — a month you overspent rounded to a
@@ -14724,7 +14816,8 @@ class _SavingsRateScreen extends StatefulWidget {
       required this.savingsOf,
       required this.earnedOf,
       required this.rowsOf,
-      required this.initialKey});
+      required this.initialKey,
+      required this.all});
   final List<String> monthKeys;
   final int Function(List<Map<String, dynamic>>) savingsOf;
   final double Function(List<Map<String, dynamic>>) earnedOf;
@@ -14735,6 +14828,10 @@ class _SavingsRateScreen extends StatefulWidget {
   // dropped you onto June's figures every time, no matter which month you'd
   // actually tapped from.
   final String initialKey;
+  // 2026-08-27: the flat, unfiltered feed — the goal tracker below the rate
+  // chart (Taupymo tikslas) needs raw dated rows for its own exact-date math,
+  // which the rate chart's own month-bucketed callbacks above don't give it.
+  final List<Map<String, dynamic>> all;
 
   @override
   State<_SavingsRateScreen> createState() => _SavingsRateScreenState();
@@ -14759,6 +14856,380 @@ class _SavingsRateScreenState extends State<_SavingsRateScreen> {
         : (widget.monthKeys.isNotEmpty
             ? widget.monthKeys.last
             : widget.initialKey);
+    _savingsGoal = DashboardStore.savingsGoal();
+  }
+
+  // ── savings goal tracker ────────────────────────────────────────────────
+  //
+  // 2026-08-27: lives here (not a separate tab) per explicit request — this
+  // screen already IS "where savings live" (the % club/streak card above),
+  // so a goal-with-a-target belongs beside it rather than off in Planavimas
+  // where nothing else about it connects. Does not touch monthKeys/savingsOf/
+  // earnedOf/rowsOf or the chart built from them above — this section reads
+  // widget.all directly and keeps its own entirely separate date math.
+  //
+  // Rework, per explicit correction: the first version bucketed by CALENDAR
+  // month, so picking "today" as the start still summed the whole month —
+  // including days of spending that happened BEFORE the goal existed.
+  // Everything below filters by the exact start DATE (like a budget's own
+  // "Nuo šiandien"), and buckets progress into rolling 30-day periods
+  // anchored to that date, so day 1 already counts and the first period
+  // completes ~30 days after starting — not at the next calendar 1st.
+  Map<String, dynamic>? _savingsGoal;
+
+  DateTime get _goalStart {
+    final raw = _savingsGoal?['startDate'] as String?;
+    return (raw != null ? DateTime.tryParse(raw) : null) ?? DateTime.now();
+  }
+
+  DateTime? _rowDate(Map t) => DateTime.tryParse(_dOf(t));
+
+  /// Every real row dated on/after the goal's start — the ONLY rows any
+  /// savings figure below is allowed to touch.
+  List<Map<String, dynamic>> get _savingsRows {
+    final start = DateTime(_goalStart.year, _goalStart.month, _goalStart.day);
+    return widget.all.where((t) {
+      final d = _rowDate(t);
+      return d != null && !d.isBefore(start);
+    }).toList();
+  }
+
+  /// Total saved from the exact start date through now.
+  double get _totalSaved {
+    final rows = _savingsRows;
+    return _sumIncome(rows) - _sumExpenses(rows);
+  }
+
+  int get _daysSinceStart =>
+      DateTime.now().difference(_goalStart).inDays.clamp(0, 1 << 30);
+
+  static const _periodDays = 30;
+  int get _completedPeriods => _daysSinceStart ~/ _periodDays;
+
+  /// Net saved in one completed 30-day period since start (index 0 = the
+  /// first 30 days). Only ever called for i < _completedPeriods.
+  double _periodNet(int i) {
+    final from = _goalStart.add(Duration(days: i * _periodDays));
+    final to = _goalStart.add(Duration(days: (i + 1) * _periodDays));
+    final rows = widget.all.where((t) {
+      final d = _rowDate(t);
+      return d != null && !d.isBefore(from) && d.isBefore(to);
+    }).toList();
+    return _sumIncome(rows) - _sumExpenses(rows);
+  }
+
+  /// Net saved so far in the CURRENT, still-running period — what the
+  /// monthly-goal progress bar shows, so it moves from day 1 of that period
+  /// rather than sitting at 0 until the period finishes.
+  double get _currentPeriodNet {
+    final from = _goalStart.add(Duration(days: _completedPeriods * _periodDays));
+    final rows = widget.all.where((t) {
+      final d = _rowDate(t);
+      return d != null && !d.isBefore(from);
+    }).toList();
+    return _sumIncome(rows) - _sumExpenses(rows);
+  }
+
+  DateTime get _nextPeriodEnd =>
+      _goalStart.add(Duration(days: (_completedPeriods + 1) * _periodDays));
+
+  /// % of income saved, over completed periods (up to the last 6).
+  double get _savingsGoalRate6mo {
+    final n = _completedPeriods;
+    if (n == 0) return 0;
+    final from = n >= 6 ? n - 6 : 0;
+    var income = 0.0, net = 0.0;
+    for (var i = from; i < n; i++) {
+      final periodFrom = _goalStart.add(Duration(days: i * _periodDays));
+      final periodTo = _goalStart.add(Duration(days: (i + 1) * _periodDays));
+      final rows = widget.all.where((t) {
+        final d = _rowDate(t);
+        return d != null && !d.isBefore(periodFrom) && d.isBefore(periodTo);
+      }).toList();
+      income += _sumIncome(rows);
+      net += _sumIncome(rows) - _sumExpenses(rows);
+    }
+    return income > 0 ? (net / income * 100) : 0;
+  }
+
+  Future<void> _editSavingsGoal() async {
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _SavingsGoalSheet(existing: _savingsGoal),
+    );
+    if (result == null) return;
+    setState(() => _savingsGoal = result);
+    await DashboardStore.setSavingsGoal(result);
+  }
+
+  Widget _savingsGoalSection() {
+    if (_savingsGoal == null) return _savingsGoalEmpty();
+    return Column(children: [
+      _savingsGoalHero(),
+      const SizedBox(height: 12),
+      _savingsGoalTrendCard(),
+      const SizedBox(height: 12),
+      _savingsGoalCard(),
+    ]);
+  }
+
+  Widget _savingsGoalEmpty() => Container(
+        decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _hair),
+            boxShadow: DS.e1),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tr('Matyk, kiek realiai sutaupai'),
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: _ink,
+                      height: 1.25)),
+              const SizedBox(height: 8),
+              Text(
+                  tr('Nustatyk mėnesio ir bendrą taupymo tikslą — skaičiuosime iš tavo realių pajamų ir išlaidų.'),
+                  style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
+            ]),
+          ),
+          Divider(height: 1, thickness: 1, color: _hair),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+            child: Column(children: [
+              Container(
+                width: 52,
+                height: 52,
+                alignment: Alignment.center,
+                decoration:
+                    BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
+                child: Icon(Icons.savings_outlined, size: 26, color: _purple),
+              ),
+              const SizedBox(height: 12),
+              Text(tr('Dar neturi taupymo tikslo'),
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: _editSavingsGoal,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                  decoration: BoxDecoration(
+                      color: _purple, borderRadius: BorderRadius.circular(14)),
+                  child: Text(tr('Nustatyti tikslą'),
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white)),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      );
+
+  // Same off-center RadialGradient the Home hero and the agent banner use
+  // (built from _purple/_purpleDeep, so it tracks dark mode automatically —
+  // see _topBanner's own doc) so this reads as the same app, not a bolted-on
+  // feature with its own colour language.
+  //
+  // 2026-08-27: the headline number used to be the LIVE running total from
+  // day 1 — right after setting a goal it often read as a scary negative
+  // (today's coffee already logged, no salary landed yet), which looks like
+  // a verdict but isn't one; a single day is never representative. Per
+  // explicit correction: this is a look-BACK number, not something to
+  // watch tick during the day, so it only appears once the first 30-day
+  // period has actually closed. The goal progress bars below stay live —
+  // those are framed as "how far in", not "the result".
+  Widget _savingsGoalHero() {
+    final hasResult = _completedPeriods > 0;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        // 2026-08-29: same dark-mode treatment as the Home hero/agent
+        // banner — a dark, faintly purple-tinted card instead of the full
+        // gradient (one purple block too many, reported). Light mode keeps
+        // its original gradient.
+        color: _darkMode ? Color.lerp(_card, _purple, 0.07) : null,
+        gradient: _darkMode
+            ? null
+            : RadialGradient(
+                center: const Alignment(-0.7, -0.6),
+                radius: 1.5,
+                colors: [
+                  _purple,
+                  Color.lerp(_purpleDeep, const Color(0xFF05050A), 0.4)!,
+                ],
+                stops: const [0.0, 0.75],
+              ),
+        border: _darkMode
+            ? Border.all(color: _purple.withValues(alpha: 0.35))
+            : null,
+        boxShadow: [
+          BoxShadow(
+              color: _purple.withValues(alpha: _darkMode ? 0.20 : 0.28),
+              blurRadius: 20,
+              offset: const Offset(0, 10)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.savings_rounded,
+              size: 18, color: Colors.white.withValues(alpha: 0.85)),
+          const SizedBox(width: 7),
+          Text(
+              '${tr('Sutaupei nuo')} ${_shortDate(_goalStart.toIso8601String())}',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.85))),
+        ]),
+        const SizedBox(height: 10),
+        if (hasResult) ...[
+          Text(_eur(_totalSaved),
+              style: const TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -0.6)),
+          const SizedBox(height: 6),
+          Text(
+              '${tr('Taupai')} ${_savingsGoalRate6mo.clamp(-999, 999).toStringAsFixed(1)}% ${tr('pajamų per pastaruosius 6 mėn.')}',
+              style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.85))),
+        ] else ...[
+          Text(tr('Kaupiame pirmuosius duomenis'),
+              style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -0.3)),
+          const SizedBox(height: 6),
+          Text(
+              '${tr('Pirmas rezultatas')} ${_shortDate(_nextPeriodEnd.toIso8601String())}',
+              style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.85))),
+        ],
+      ]),
+    );
+  }
+
+  Widget _savingsGoalTrendCard() {
+    final n = _completedPeriods;
+    // Up to the last 8 completed 30-day periods since the goal's own start —
+    // never calendar months, so a chart legitimately appears the day the
+    // FIRST period closes (~30 days in), not "whenever the next 1st is".
+    final from = n > 8 ? n - 8 : 0;
+    final points = [for (var i = from; i < n; i++) _periodNet(i)];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: DS.e1),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(tr('Taupymo tendencija'),
+            style: TextStyle(
+                fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 100,
+          child: points.isEmpty
+              ? Center(
+                  child: Text(
+                      '${tr('Pirmas laikotarpis baigsis')} ${_shortDate(_nextPeriodEnd.toIso8601String())} — ${tr('tada atsiras grafikas')}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12.5, color: _muted)))
+              : CustomPaint(
+                  size: Size.infinite,
+                  painter: _SavingsGoalTrendPainter(points, _purple)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _savingsGoalRowUi(
+      {required String label, required double current, required double goal}) {
+    final frac = goal > 0 ? (current / goal).clamp(0.0, 1.0) : 0.0;
+    final pct = goal > 0 ? (current / goal * 100).round() : 0;
+    final over = goal > 0 && current >= goal;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 13.5, fontWeight: FontWeight.w600, color: _muted)),
+        const Spacer(),
+        Text('${tr('Įvykdyta')} $pct%',
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: over ? _good : _purple)),
+      ]),
+      const SizedBox(height: 8),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: LinearProgressIndicator(
+          value: frac,
+          minHeight: 8,
+          backgroundColor: _hair,
+          valueColor: AlwaysStoppedAnimation(over ? _good : _purple),
+        ),
+      ),
+      const SizedBox(height: 6),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(_eur0(current), style: TextStyle(fontSize: 13, color: _ink)),
+        Text('${tr('Tikslas')} ${_eur0(goal)}',
+            style: TextStyle(fontSize: 12.5, color: _muted)),
+      ]),
+    ]);
+  }
+
+  Widget _savingsGoalCard() {
+    final goal = _savingsGoal!;
+    final monthlyGoal = (goal['monthlyGoal'] as num?)?.toDouble() ?? 0;
+    final totalGoal = (goal['totalGoal'] as num?)?.toDouble() ?? 0;
+    final thisPeriod = _currentPeriodNet.clamp(0, double.infinity).toDouble();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: DS.e1),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text(tr('Taupymo tikslas'),
+              style: TextStyle(
+                  fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
+          const Spacer(),
+          GestureDetector(
+            onTap: _editSavingsGoal,
+            child: Icon(Icons.edit_outlined, size: 18, color: _purple),
+          ),
+        ]),
+        const SizedBox(height: 16),
+        if (monthlyGoal > 0) ...[
+          _savingsGoalRowUi(
+              label: tr('Mėnesio tikslas'), current: thisPeriod, goal: monthlyGoal),
+          const SizedBox(height: 18),
+        ],
+        if (totalGoal > 0)
+          _savingsGoalRowUi(
+              label: tr('Bendras tikslas'), current: _totalSaved, goal: totalGoal),
+      ]),
+    );
   }
 
   @override
@@ -14834,7 +15305,11 @@ class _SavingsRateScreenState extends State<_SavingsRateScreen> {
                   padding: const EdgeInsets.all(16),
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
-                      color: _purpleSoft,
+                      // 2026-08-29: was _purpleSoft in both themes — a
+                      // violet-tinted card next to otherwise-plain dark cards
+                      // (reported, real). Plain `_card` in dark mode; light
+                      // mode keeps its original soft-purple tint.
+                      color: _darkMode ? _card : _purpleSoft,
                       borderRadius: BorderRadius.circular(16)),
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -14934,9 +15409,11 @@ class _SavingsRateScreenState extends State<_SavingsRateScreen> {
                       // _card every other card uses — this one carries the
                       // gauge, so it gets its own tint to read as a distinct
                       // "hero" surface on the page.
-                      color: _darkMode
-                          ? const Color(0xFF1B2540)
-                          : const Color(0xFFEAF1FF),
+                      // 2026-08-29: dark mode's tint (0xFF1B2540) read as an
+                      // unrelated blue/violet card next to the now-plain-dark
+                      // cards around it (reported, real) — plain `_card` in
+                      // dark mode instead. Light mode keeps its tint.
+                      color: _darkMode ? _card : const Color(0xFFEAF1FF),
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: _hair)),
                   child: Column(
@@ -15167,6 +15644,17 @@ class _SavingsRateScreenState extends State<_SavingsRateScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 28),
+                Divider(height: 1, thickness: 1, color: _hair),
+                const SizedBox(height: 20),
+                Text(tr('Taupymo tikslas'),
+                    style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: _ink,
+                        letterSpacing: -0.3)),
+                const SizedBox(height: 12),
+                _savingsGoalSection(),
               ],
             ),
           ),
@@ -15526,6 +16014,10 @@ class _PlanningTabState extends State<_PlanningTab> {
         padding: const EdgeInsets.only(bottom: 28),
         children: [
           _header(),
+          // Taupymo tikslas moved out to _SavingsRateScreen (2026-08-27, per
+          // request) — same screen the existing "Santaupų norma" % club/
+          // streak card already opens, so both savings-related things live
+          // in one place instead of split across two tabs.
           _monthFilter(),
           _sectionTitle('Biudžetai'),
           if (_budgets.isEmpty)
@@ -16157,6 +16649,260 @@ class _PlanningTabState extends State<_PlanningTab> {
           _saveBudgets();
         },
       ),
+    );
+  }
+}
+
+// Simple line + gradient-area chart of one value per month — same visual
+// language as _BudgetProjPainter (solid line, soft gradient fill under it)
+// but over month buckets instead of days, and tolerant of negative months
+// (a month spent more than earned dips below the zero baseline).
+class _SavingsGoalTrendPainter extends CustomPainter {
+  _SavingsGoalTrendPainter(this.values, this.color);
+  final List<double> values;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2) return;
+    final maxV = values.reduce((a, b) => a > b ? a : b);
+    final minV = values.reduce((a, b) => a < b ? a : b);
+    // Zero always sits inside the range so the baseline is meaningful even
+    // when every month happens to be positive (or every month negative).
+    final top = (maxV > 0 ? maxV : 0) * 1.15;
+    final bottom = (minV < 0 ? minV : 0) * 1.15;
+    final range = (top - bottom).abs() < 1e-6 ? 1.0 : top - bottom;
+
+    double xOf(int i) => i / (values.length - 1) * size.width;
+    double yOf(double v) => size.height - (v - bottom) / range * size.height;
+
+    final zeroY = yOf(0);
+    if (bottom < 0) {
+      final zp = Paint()
+        ..color = _faint.withValues(alpha: 0.6)
+        ..strokeWidth = 1;
+      canvas.drawLine(Offset(0, zeroY), Offset(size.width, zeroY), zp);
+    }
+
+    final line = Path()..moveTo(xOf(0), yOf(values[0]));
+    for (var i = 1; i < values.length; i++) {
+      line.lineTo(xOf(i), yOf(values[i]));
+    }
+    final area = Path.from(line)
+      ..lineTo(xOf(values.length - 1), zeroY)
+      ..lineTo(xOf(0), zeroY)
+      ..close();
+    canvas.drawPath(
+      area,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: 0.22), color.withValues(alpha: 0.02)],
+        ).createShader(Offset.zero & size),
+    );
+    canvas.drawPath(
+      line,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.6
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = color,
+    );
+    // Endpoint dot on the latest month, same touch _BudgetProjPainter uses.
+    final last = Offset(xOf(values.length - 1), yOf(values.last));
+    canvas.drawCircle(last, 4, Paint()..color = color);
+    canvas.drawCircle(
+        last,
+        4,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SavingsGoalTrendPainter old) =>
+      old.values != values || old.color != color;
+}
+
+// Set-the-goal sheet: monthly amount, total amount, start date. Both amounts
+// optional independently (a user chasing only a total goal, or only a
+// monthly habit, is a real use case — _savingsGoalCard only renders a row
+// for whichever is > 0).
+class _SavingsGoalSheet extends StatefulWidget {
+  const _SavingsGoalSheet({this.existing});
+  final Map<String, dynamic>? existing;
+  @override
+  State<_SavingsGoalSheet> createState() => _SavingsGoalSheetState();
+}
+
+class _SavingsGoalSheetState extends State<_SavingsGoalSheet> {
+  late final TextEditingController _monthlyCtl = TextEditingController(
+      text: ((widget.existing?['monthlyGoal'] as num?)?.toDouble() ?? 0) > 0
+          ? (((widget.existing!['monthlyGoal'] as num).toDouble()) * Money.rate)
+              .round()
+              .toString()
+          : '');
+  late final TextEditingController _totalCtl = TextEditingController(
+      text: ((widget.existing?['totalGoal'] as num?)?.toDouble() ?? 0) > 0
+          ? (((widget.existing!['totalGoal'] as num).toDouble()) * Money.rate)
+              .round()
+              .toString()
+          : '');
+  late DateTime _startDate = () {
+    final raw = widget.existing?['startDate'] as String?;
+    return (raw != null ? DateTime.tryParse(raw) : null) ?? DateTime.now();
+  }();
+
+  @override
+  void dispose() {
+    _monthlyCtl.dispose();
+    _totalCtl.dispose();
+    super.dispose();
+  }
+
+  Widget _amountField(String label, String hint, TextEditingController ctl) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label,
+          style: TextStyle(
+              fontSize: 13.5, color: _muted, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 3),
+      Text(hint, style: TextStyle(fontSize: 12, color: _faint, height: 1.3)),
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+            color: _soft,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _hair)),
+        child: Row(children: [
+          Expanded(
+            child: TextField(
+              controller: ctl,
+              keyboardType: TextInputType.number,
+              style: TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.w800, color: _ink),
+              decoration: const InputDecoration(
+                  border: InputBorder.none, hintText: '0'),
+            ),
+          ),
+          Text(Money.symbol,
+              style: TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.w700, color: _muted)),
+        ]),
+      ),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const SizedBox(height: 10),
+        Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+                color: _faint, borderRadius: BorderRadius.circular(3))),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+          child: Row(children: [
+            Text(tr('Taupymo tikslas'),
+                style: TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
+            const Spacer(),
+            GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Icon(Icons.close_rounded, color: _faint)),
+          ]),
+        ),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 6, 18, 18),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _amountField(
+                  tr('Mėnesio taupymo tikslas'),
+                  tr('Kiek nori sutaupyti per kas 30 dienų nuo pradžios datos.'),
+                  _monthlyCtl),
+              const SizedBox(height: 18),
+              _amountField(
+                  tr('Bendras taupymo tikslas'),
+                  tr('Kiek iš viso nori sutaupyti nuo pradžios datos.'),
+                  _totalCtl),
+              const SizedBox(height: 18),
+              Text(tr('Nuo kada skaičiuoti?'),
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      color: _muted,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _startDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) setState(() => _startDate = picked);
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 13),
+                  decoration: BoxDecoration(
+                      color: _soft,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _hair)),
+                  child: Row(children: [
+                    Icon(Icons.calendar_today_rounded, size: 16, color: _purple),
+                    const SizedBox(width: 10),
+                    Text(
+                        _enUi
+                            ? '${_monGen[_startDate.month - 1].substring(0, 3)} ${_startDate.day}, ${_startDate.year}'
+                            : '${_startDate.day} ${_monGen[_startDate.month - 1].toLowerCase()} ${_startDate.year}',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: _ink)),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 22),
+              GestureDetector(
+                onTap: () {
+                  final monthly =
+                      double.tryParse(_monthlyCtl.text.replaceAll(',', '.')) ?? 0;
+                  final total =
+                      double.tryParse(_totalCtl.text.replaceAll(',', '.')) ?? 0;
+                  if (monthly <= 0 && total <= 0) return;
+                  Navigator.pop(context, {
+                    'monthlyGoal': monthly > 0 ? monthly / Money.rate : 0.0,
+                    'totalGoal': total > 0 ? total / Money.rate : 0.0,
+                    'startDate': _startDate.toIso8601String(),
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                      color: _purple, borderRadius: BorderRadius.circular(14)),
+                  child: Text(tr('Išsaugoti'),
+                      style: const TextStyle(
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white)),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -17283,25 +18029,10 @@ class _AccountTabState extends State<_AccountTab> {
     // bank_links record was untouched, and the very next scan (a fresh
     // connect, or just an ordinary refresh) pulled the "disconnected" bank's
     // data straight back in — indistinguishable from disconnect having done
-    // nothing at all. Mirrors what _disconnectOneBank already does per bank,
-    // just for all of them in one pass. Best-effort per bank, same as the
-    // single-bank path: a revoke failing must not block the local wipe, or a
-    // flaky network turns "start over" into "stuck with what's there".
-    for (final c in DashboardStore.connections()) {
-      final sessionIds = [
-        if ((c['sessionId'] as String?)?.isNotEmpty ?? false)
-          c['sessionId'] as String,
-      ];
-      final accountUids = ((c['accounts'] as List?) ?? const [])
-          .whereType<Map>()
-          .map((a) => (a['uid'] as String?) ?? '')
-          .where((s) => s.isNotEmpty)
-          .toList();
-      if (sessionIds.isEmpty && accountUids.isEmpty) continue;
-      await BankingService.instance
-          .disconnectBank(sessionIds: sessionIds, accountUids: accountUids);
-    }
-    await DashboardStore.disconnectAllBanks();
+    // nothing at all. Factored out to BankingService.disconnectAllConnectedBanks
+    // (2026-08-25) so PurchaseService's lapsed-subscription listener can run
+    // the exact same revoke-then-wipe sequence headlessly, no BuildContext.
+    await BankingService.instance.disconnectAllConnectedBanks();
     // The first-bank-connect flow (completeBankConnection in
     // bank_connect_screen.dart) switches the display currency away from EUR
     // when that first bank's accounts are majority non-EUR (a Norwegian
@@ -19429,18 +20160,28 @@ class _AiChatTabState extends State<_AiChatTab> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              gradient: RadialGradient(
-                center: const Alignment(-0.7, -0.6),
-                radius: 1.5,
-                colors: [
-                  _purple,
-                  Color.lerp(_purpleDeep, const Color(0xFF05050A), 0.4)!,
-                ],
-                stops: const [0.0, 0.75],
-              ),
+              // 2026-08-29: same dark-mode treatment as _financeAgentBanner
+              // (the Home card this header agrees with) — a dark, faintly
+              // purple-tinted card instead of the full gradient. Light mode
+              // keeps its original gradient.
+              color: _darkMode ? Color.lerp(_card, _purple, 0.07) : null,
+              gradient: _darkMode
+                  ? null
+                  : RadialGradient(
+                      center: const Alignment(-0.7, -0.6),
+                      radius: 1.5,
+                      colors: [
+                        _purple,
+                        Color.lerp(_purpleDeep, const Color(0xFF05050A), 0.4)!,
+                      ],
+                      stops: const [0.0, 0.75],
+                    ),
+              border: _darkMode
+                  ? Border.all(color: _purple.withValues(alpha: 0.35))
+                  : null,
               boxShadow: [
                 BoxShadow(
-                    color: _purple.withValues(alpha: 0.28),
+                    color: _purple.withValues(alpha: _darkMode ? 0.20 : 0.28),
                     blurRadius: 16,
                     offset: const Offset(0, 6)),
               ],
@@ -19581,11 +20322,21 @@ class _AiChatTabState extends State<_AiChatTab> {
           decoration: BoxDecoration(
             color: _card,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _purple, width: 1.3),
+            // 2026-08-29: text was _purple in both themes — fine on light
+            // mode's white card, but one more purple accent in a now
+            // dark-not-purple chat screen (reported, explicit "balta
+            // spalva daryk" request). White text in dark mode; the border
+            // stays a faint purple accent so the chip still reads as
+            // "AI suggestion", not a plain outline button.
+            border: Border.all(
+                color: _darkMode ? _purple.withValues(alpha: 0.4) : _purple,
+                width: 1.3),
           ),
           child: Text(tr(s),
               style: TextStyle(
-                  fontSize: 14.5, fontWeight: FontWeight.w700, color: _purple)),
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                  color: _darkMode ? Colors.white : _purple)),
         ),
       );
 

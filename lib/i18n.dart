@@ -235,6 +235,77 @@ const Map<String, String> _en = {
   'Pervadinti': 'Rename',
   'Radome automatiškai iš tavo banko duomenų — pašalink, jei kas netinka':
       'Found automatically from your bank data — remove anything that doesn\'t belong',
+  'Taupymo tikslas': 'Savings goal',
+  'Matyk, kiek realiai sutaupai': 'See how much you\'re really saving',
+  'Nustatyk mėnesio ir bendrą taupymo tikslą — skaičiuosime iš tavo realių pajamų ir išlaidų.':
+      'Set a monthly and total savings goal — we\'ll calculate it from your real income and expenses.',
+  'Dar neturi taupymo tikslo': 'No savings goal yet',
+  'Nustatyti tikslą': 'Set a goal',
+  'Sutaupei nuo': 'Saved since',
+  'Taupai': 'You\'re saving',
+  'pajamų per pastaruosius 6 mėn.': 'of your income over the last 6 months',
+  'Taupymo tendencija': 'Savings trend',
+  'Reikia bent 2 mėnesių duomenų grafikui': 'Need at least 2 months of data for a chart',
+  'Pirmas laikotarpis baigsis': 'Your first period ends',
+  'Kaupiame pirmuosius duomenis': 'Gathering your first data',
+  'Pirmas rezultatas': 'First result on',
+  'tada atsiras grafikas': 'then the chart will appear',
+  'Kiek nori sutaupyti per kas 30 dienų nuo pradžios datos.':
+      'How much you want to save every 30 days from the start date.',
+  'Kiek iš viso nori sutaupyti nuo pradžios datos.':
+      'How much you want to save in total from the start date.',
+  'Įvykdyta': 'Complete',
+  'Tikslas': 'Goal',
+  'Mėnesio tikslas': 'Monthly goal',
+  'Bendras tikslas': 'Total goal',
+  'Mėnesio taupymo tikslas': 'Monthly savings goal',
+  'Bendras taupymo tikslas': 'Total savings goal',
+  'Nuo kada skaičiuoti?': 'Count from when?',
+  'Investavimas': 'Investing',
+  'Sek savo investicijas': 'Track your investments',
+  'Įvesk akciją ir kiek jos turi — parodysime tikrą dabartinę kainą ir kiek uždirbai ar praradai.':
+      'Add a stock and how much you have — we\'ll show the real current price and what you\'ve gained or lost.',
+  'Pridėti akciją': 'Add a stock',
+  'Portfelio vertė': 'Portfolio value',
+  'šiandien': 'today',
+  'vnt.': 'shares',
+  'Bandyti vėl': 'Try again',
+  'Kiek turi?': 'How much do you have?',
+  'Ieškok pvz. Tesla, Apple...': 'Search e.g. Tesla, Apple...',
+  'Nerasta — kol kas turime tik populiariausias akcijas.':
+      'Not found — for now we only cover the most popular stocks.',
+  'Keisti': 'Change',
+  'Kiek akcijų turi?': 'How many shares do you have?',
+  'Kaina per pastarąsias dienas': 'Price over the last few days',
+  'Kiek turi': 'You have',
+  'Kaina už 1 vnt.': 'Price per share',
+  'Vakarykštė kaina': 'Yesterday\'s price',
+  'Nepavyko įkelti kainų — patikrink ryšį ir bandyk vėl.':
+      'Couldn\'t load prices — check your connection and try again.',
+  'Kiekis': 'Quantity',
+  'Suma (€)': 'Amount (€)',
+  'Už kiek pirkai?': 'How much did you pay?',
+  'Kraunama kaina...': 'Loading price...',
+  'Nepavyko gauti dabartinės kainos.': 'Couldn\'t get the current price.',
+  'Dabartinė kaina': 'Current price',
+  'Netrukus — kol kas turime tik šiandienos kainą.':
+      'Coming soon — for now we only have today\'s price.',
+  'Kaina — praėjusios dienos uždarymo kursas, ne gyva realaus laiko rinka.':
+      'Price is yesterday\'s closing price, not a live real-time market feed.',
+  'Kaina gali vėluoti kelias minutes nuo tikros rinkos kainos.':
+      'The price may lag the real market by a few minutes.',
+  'Turi investavęs į kryptovaliutą ar akcijas?':
+      'Do you hold crypto or stocks?',
+  'Sek savo akcijas bei kriptovaliutą ir matyk jų pokyčius realiu laiku.':
+      'Track your stocks and crypto and see their moves in real time.',
+  'Pridėti pirmą investiciją': 'Add your first investment',
+  'Tikros rinkos kainos, konvertuotos į eurus':
+      'Real market prices, converted to euros',
+  'Tik sekimas — jokių sujungimų su brokeriu':
+      'Tracking only — no broker connections',
+  'Tinka ir akcijoms, ir kriptovaliutai': 'Works for both stocks and crypto',
+  'Viskas vienoje vietoje su tavo finansais':
+      'Everything in one place with your finances',
   'Gerai': 'OK',
   'Ištrinti': 'Delete',
   'Redaguoti': 'Edit',

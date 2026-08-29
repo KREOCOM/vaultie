@@ -36,6 +36,9 @@ import normalize
 from receipt_scan import scan as _scan_receipt
 from recurring import detect_recurring
 from seed_merchants import seed as _run_seed
+from stock_quote import profile as _stock_profile
+from stock_quote import quote as _stock_quote
+from stock_quote import search as _stock_search
 
 # Cloud Run leaves the root logger at WARNING, so every logging.info() below —
 # including the per-scan "accounts=… txns=… scan_diag=…" line that is the only
@@ -56,6 +59,11 @@ ENABLE_BANKING_PRIVATE_KEY = SecretParam("ENABLE_BANKING_PRIVATE_KEY")
 # One-time admin token guarding the seed endpoint.
 # Set with:  firebase functions:secrets:set SEED_TOKEN
 SEED_TOKEN = SecretParam("SEED_TOKEN")
+
+# Investavimas tab prototype (2026-08-28) — see stock_quote.py's own doc.
+# Free tier: 60 req/min, covers quote + symbol search + company profile.
+# Set with:  firebase functions:secrets:set FINNHUB_API_KEY
+FINNHUB_API_KEY = SecretParam("FINNHUB_API_KEY")
 
 # Stage-3 AI merchant classification (opt-in only). Used solely to classify
 # unresolved BUSINESS merchant names — never amounts/IBANs/identifiers/people.
@@ -890,6 +898,59 @@ def list_banks(req: https_fn.CallableRequest) -> dict:
         if a.get("name")
     ]
     return {"banks": banks}
+
+
+# PROTOTYPE (2026-08-27) — see stock_quote.py's own docstring. Isolated on
+# purpose: this function, that module, and investing_tab.dart are the whole
+# feature's surface, so it can be deleted cleanly (this one registration
+# line included, plus stock_search/stock_profile below) if the feature
+# doesn't work out.
+#
+# 2026-08-28: deliberately NOT behind _require_auth, unlike every other
+# function here. A ticker's public market price isn't this user's data the
+# way a bank balance is — there's nothing to protect. Requiring auth anyway
+# caused the real bug this comment replaced: any build without a real signed-
+# in session (the design-preview sandbox, tested live) got UNAUTHENTICATED
+# on every single quote, and _totalCard's spinner had no "all failed" state
+# to fall back to — it just spun forever, reading as "broken" rather than
+# "rejected". Confirmed directly against the deployed endpoint (curl, no
+# token) that UNAUTHENTICATED came back in 150ms, not a hang — so the fix
+# belongs here, not in a timeout.
+@https_fn.on_call(region=_REGION, secrets=[FINNHUB_API_KEY])
+def stock_quote(req: https_fn.CallableRequest) -> dict:
+    """Current price + previous close for one ticker symbol."""
+    symbol = str((req.data or {}).get("symbol") or "").strip()
+    if not symbol:
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+            message="Missing symbol.",
+        )
+    result = _stock_quote(symbol, FINNHUB_API_KEY.value)
+    if result is None:
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.NOT_FOUND,
+            message="Could not fetch a price for that symbol.",
+        )
+    return result
+
+
+@https_fn.on_call(region=_REGION, secrets=[FINNHUB_API_KEY])
+def stock_search(req: https_fn.CallableRequest) -> dict:
+    """Live ticker search (any global stock, not a fixed list) — see
+    stock_quote.py's search() for why results are filtered to bare US
+    listings. Same no-auth reasoning as stock_quote: public data."""
+    query = str((req.data or {}).get("query") or "").strip()
+    return {"results": _stock_search(query, FINNHUB_API_KEY.value)}
+
+
+@https_fn.on_call(region=_REGION, secrets=[FINNHUB_API_KEY])
+def stock_profile(req: https_fn.CallableRequest) -> dict:
+    """The one extra call made when a user PICKS a search result (not per
+    row) — resolves a real brand domain for CategoryIcon's existing
+    merchant-logo proxy to fetch a logo from."""
+    symbol = str((req.data or {}).get("symbol") or "").strip()
+    result = _stock_profile(symbol, FINNHUB_API_KEY.value)
+    return result or {}
 
 
 @https_fn.on_call(region=_REGION, secrets=[ENABLE_BANKING_PRIVATE_KEY])

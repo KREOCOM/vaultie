@@ -5,6 +5,7 @@ import 'package:purchases_flutter/purchases_flutter.dart' as rc;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
+import 'banking_service.dart';
 
 /// Free users may track this many subscriptions before hitting the paywall.
 const int kFreeSubscriptionLimit = 5;
@@ -380,8 +381,22 @@ class RevenueCatPurchaseService implements PurchaseService {
   /// the next cold start knows the answer before the network responds.
   void _applyCustomerInfo(rc.CustomerInfo info) {
     final active = info.entitlements.active.containsKey(_entitlementId);
+    final wasActive = _premium.value;
     _premium.value = active;
     _box.put(_premiumKey, active);
+    // 2026-08-25: a trial/subscription that lapses (expires, is cancelled,
+    // a chargeback) used to leave any connected bank untouched — nothing
+    // ever prompted a churned user to go disconnect it themselves, so it
+    // stayed billable at Enable Banking (per calendar month, not prorated —
+    // see the AISP agreement's Annex 2) until the ~90-day PSD2 consent
+    // ceiling. Fires exactly once per true→false transition: the next
+    // update already has wasActive == false, so this doesn't repeat on
+    // every subsequent CustomerInfo push while lapsed. Not awaited —
+    // best-effort, same as disconnectBank itself; must never block or fail
+    // this listener.
+    if (wasActive && !active) {
+      BankingService.instance.disconnectAllConnectedBanks();
+    }
   }
 
   @override
