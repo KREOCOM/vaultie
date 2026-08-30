@@ -266,12 +266,14 @@ const Map<String, String> _en = {
   'Įvesk akciją ir kiek jos turi — parodysime tikrą dabartinę kainą ir kiek uždirbai ar praradai.':
       'Add a stock and how much you have — we\'ll show the real current price and what you\'ve gained or lost.',
   'Pridėti akciją': 'Add a stock',
+  'Pridėti akciją, kriptovaliutą': 'Add a stock, crypto',
   'Portfelio vertė': 'Portfolio value',
   'šiandien': 'today',
   'vnt.': 'shares',
   'Bandyti vėl': 'Try again',
   'Kiek turi?': 'How much do you have?',
   'Ieškok pvz. Tesla, Apple...': 'Search e.g. Tesla, Apple...',
+  'Populiariausios': 'Most popular',
   'Nerasta — kol kas turime tik populiariausias akcijas.':
       'Not found — for now we only cover the most popular stocks.',
   'Keisti': 'Change',
@@ -299,6 +301,8 @@ const Map<String, String> _en = {
   'Sek savo akcijas bei kriptovaliutą ir matyk jų pokyčius realiu laiku.':
       'Track your stocks and crypto and see their moves in real time.',
   'Pridėti pirmą investiciją': 'Add your first investment',
+  '+ Pridėti': '+ Add',
+  'Bankai': 'Banks',
   'Tikros rinkos kainos, konvertuotos į eurus':
       'Real market prices, converted to euros',
   'Tik sekimas — jokių sujungimų su brokeriu':
@@ -547,6 +551,8 @@ const Map<String, String> _en = {
   'Nusistatyti biudžetą': 'Set a budget',
   'prekybininkai': 'merchants',
   'Laikotarpis': 'Period',
+  'Visas laikotarpis': 'Whole period',
+  'Šiuo laikotarpiu operacijų nerasta.': 'No transactions found for this period.',
   'Pasirink mėnesį': 'Pick a month',
   'Biudžetai padeda suvaldyti išlaidas': 'Budgets help you control spending',
   'Susikurk biudžetą kategorijai — limitą pasiūlysime pagal tavo realų mėnesių vidurkį.':

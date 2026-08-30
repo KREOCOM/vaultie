@@ -28,6 +28,7 @@ import '../../services/dashboard_store.dart';
 import '../../services/logo_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/purchase_service.dart';
+import '../../services/stock_service.dart';
 import '../../ui/design_system.dart';
 import '../../user_session.dart';
 import '../bank_connect_screen.dart';
@@ -2261,6 +2262,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// Whether every connected account is listed in the header, or just the
   /// largest one plus a "+N" chip.
   bool _acctsOpen = false;
+  // 2026-08-29: "Kur išleidai daugiausiai" used to always draw from the
+  // WHOLE synced history (however many months that happens to be) with no
+  // way to narrow it — explicit request to let a specific month be picked
+  // instead. null = the original "all history" behaviour, unchanged.
+  String? _topMerchantsMonthKey;
+  // 2026-08-29: read-only echo of the Investing tab's own total (see
+  // investing_tab.dart) for the hero's "Investicijos" pill — see
+  // _loadInvestTotal's own doc for why this is the one place Home reaches
+  // into that otherwise-isolated feature's data.
+  double? _investTotal;
+  final Map<String, double> _investQuoteCache = {};
   int? _weekSel; // tapped weekday bar
   // 2026-08-15: which week _weekSection shows — 0 = this week, -1 = last
   // week, etc. Never positive: you can't browse into the future.
@@ -2835,6 +2847,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // flipping the theme toggle afterward "fixed" it only because THAT path
     // calls _applyTheme alone, without this line re-running behind it.
     if (designPreviewPalette && !dark) _applyPreviewPalette();
+    _loadInvestTotal();
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     AppPrefs.locale.addListener(_onTheme); // ...and when the language changes
@@ -4572,12 +4585,31 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   designPreviewPalette && _acctsOpen
                       ? Column(
                           mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            _acctSectionLabel(tr('Bankai')),
+                            const SizedBox(height: 6),
                             for (final a in accounts) ...[
                               _expandedAcctChip(a, acctTotal),
                               const SizedBox(height: 8),
                             ],
-                            _acctsToggleChip(accounts),
+                            // 2026-08-29: Grynieji + Investicijos — same row
+                            // styling as the bank list above so the two
+                            // groups visually agree, but under their OWN
+                            // section label with real space above it
+                            // (reported: everything crammed into one list
+                            // read as a jumble, not two organised groups).
+                            const SizedBox(height: 12),
+                            _acctSectionLabel(tr('Kita')),
+                            const SizedBox(height: 6),
+                            _cashListRow(),
+                            const SizedBox(height: 8),
+                            _investListRow(),
+                            // "Suskleisti" stays centered, below EVERYTHING
+                            // (both groups) — it collapses the whole
+                            // section, not just the bank list above it.
+                            const SizedBox(height: 14),
+                            Center(child: _acctsToggleChip(accounts)),
                           ],
                         )
                       : Wrap(
@@ -4763,6 +4795,36 @@ class _DashboardPreviewState extends State<DashboardPreview>
     ]);
   }
 
+  // 2026-08-29: live total for the hero's "Investicijos" pill — explicit
+  // request to echo the Investing tab's own number on Home, NOT a second
+  // input (investments are only ever added from the Investing tab itself;
+  // this is read-only). Fetches whatever isn't already cached, same
+  // quote/EUR-conversion logic as investing_tab.dart's own _totalCard, then
+  // sums. Re-run from build() (via the quickAction/pill's own read of
+  // DashboardStore.investments()) whenever the holdings list changes size —
+  // cheap, since already-cached symbols short-circuit without a network hit.
+  Future<void> _loadInvestTotal() async {
+    final holdings = DashboardStore.investments();
+    if (holdings.isEmpty) {
+      if (mounted) setState(() => _investTotal = 0);
+      return;
+    }
+    final rate = FxRates.instance.rateFor('USD');
+    for (final h in holdings) {
+      final symbol = h['symbol'] as String;
+      if (_investQuoteCache.containsKey(symbol)) continue;
+      final q = await StockService.instance.quote(symbol);
+      final price = (q?['price'] as num?)?.toDouble();
+      if (price != null && rate > 0) _investQuoteCache[symbol] = price / rate;
+    }
+    var total = 0.0;
+    for (final h in holdings) {
+      final shares = (h['shares'] as num).toDouble();
+      total += shares * (_investQuoteCache[h['symbol'] as String] ?? 0);
+    }
+    if (mounted) setState(() => _investTotal = total);
+  }
+
   // 2026-08-16: shares storage with Paskyra's "Grynasis turtas" list
   // (DashboardStore.manualAssets) instead of its own key — adding cash here
   // and adding it in Paskyra used to be two different numbers that never
@@ -4837,9 +4899,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ),
       );
 
-  // delta: +1 = "Gavau" (add), -1 = "Išleidau" (subtract), 0 = first-time set.
+  // delta: +1 = "Gavau" (add), -1 = "Išleidau" (subtract), 0 = first-time set
+  // (also re-used for every later edit — it's a plain overwrite, not a
+  // running ledger, so re-opening it to type a SMALLER number already
+  // reduces the total; see below for the explicit remove/zero paths).
   Future<void> _promptCash({required int delta}) async {
     final ctl = TextEditingController();
+    final hadCash = delta == 0 && _cashAsset != null;
     final title = delta == 0
         ? tr('Kiek turi grynųjų?')
         : delta > 0
@@ -4900,7 +4966,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
               GestureDetector(
                 onTap: () {
                   final n = double.tryParse(ctl.text.replaceAll(',', '.'));
-                  if (n == null || n <= 0) return;
+                  // 2026-08-29: was `n <= 0` — typing 0 (or leaving it, on a
+                  // decrease) silently did nothing, with no other way to
+                  // clear the amount either (reported, real gap). 0 is now a
+                  // valid save — handled below as "remove the entry" so the
+                  // row goes back to its "+ Pridėti" ghost state.
+                  if (n == null || n < 0) return;
                   Navigator.pop(ctx, n / Money.rate);
                 },
                 child: Container(
@@ -4915,6 +4986,24 @@ class _DashboardPreviewState extends State<DashboardPreview>
                           color: Colors.white)),
                 ),
               ),
+              // 2026-08-29: explicit remove link — editing an EXISTING
+              // amount only offered "save a new number", with no way to
+              // clear it if the cash was spent and there's nothing left to
+              // track (reported, real gap). Pops a sentinel (-1, never a
+              // real amount) the handler below treats as "delete".
+              if (hadCash) ...[
+                const SizedBox(height: 14),
+                Center(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(ctx, -1.0),
+                    child: Text(tr('Pašalinti'),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: DS.danger)),
+                  ),
+                ),
+              ],
             ]),
       ),
     );
@@ -4922,6 +5011,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final list = DashboardStore.manualAssets();
     final idx = list
         .indexWhere((a) => ((a['label'] as String?) ?? '').trim() == 'Grynieji');
+    if (v < 0) {
+      // Explicit "Pašalinti" tap.
+      if (idx >= 0) {
+        final updated = [...list]..removeAt(idx);
+        await DashboardStore.setManualAssets(updated);
+        setState(() {});
+      }
+      return;
+    }
     final current =
         idx >= 0 ? ((list[idx]['amount'] as num?)?.toDouble() ?? 0) : 0.0;
     final next = delta == 0
@@ -4929,6 +5027,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
         : delta > 0
             ? current + v
             : (current - v).clamp(0.0, double.infinity);
+    // Typed/reduced down to exactly 0 — same outcome as "Pašalinti": drop
+    // the entry entirely rather than persisting a hollow "€0" row.
+    if (next <= 0) {
+      if (idx >= 0) {
+        final updated = [...list]..removeAt(idx);
+        await DashboardStore.setManualAssets(updated);
+        setState(() {});
+      }
+      return;
+    }
     final updated = [...list];
     final entry = {
       'id': idx >= 0
@@ -5030,6 +5138,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
         onTap: () => _showBalance(a.cast<String, dynamic>()),
         behavior: HitTestBehavior.opaque,
         child: Container(
+        // 2026-08-29: was content-sized (mainAxisSize.min, no Expanded) —
+        // next to the Grynieji/Investicijos rows below it (full width by
+        // design, see those widgets) that made the whole list read as
+        // uneven card widths (reported, real). Full width + Expanded on the
+        // name here too, so every row in this list — banks, Grynieji,
+        // Investicijos — lines up identically.
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: _card,
@@ -5037,33 +5152,41 @@ class _DashboardPreviewState extends State<DashboardPreview>
           border: Border.all(color: _hair),
           boxShadow: DS.e1,
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
+        child: Row(children: [
           _acctGlyph(a, diameter: 24, fontSize: 11),
           const SizedBox(width: 8),
-          Text((a['bank'] ?? a['name'] ?? acctFallbackName()).toString(),
-              style: TextStyle(
-                  fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
-          if (a['sub'] != null) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                  // 2026-08-16: this chip's own card background (_card)
-                  // already goes near-black in dark mode — a fixed cream
-                  // badge inside it read as visibly inconsistent with the
-                  // SAME badge on the collapsed hero chip a few lines up,
-                  // which already branches on _darkMode. Matched here too.
-                  color: _darkMode
-                      ? Colors.white.withValues(alpha: 0.14)
-                      : const Color(0xFFFBF1DE),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Text(tr(a['sub'] as String),
-                  style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: _darkMode ? _ink : const Color(0xFF9C6B0A))),
-            ),
-          ],
+          Expanded(
+            child: Row(children: [
+              Flexible(
+                child: Text((a['bank'] ?? a['name'] ?? acctFallbackName()).toString(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
+              ),
+              if (a['sub'] != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                      // 2026-08-16: this chip's own card background (_card)
+                      // already goes near-black in dark mode — a fixed cream
+                      // badge inside it read as visibly inconsistent with the
+                      // SAME badge on the collapsed hero chip a few lines up,
+                      // which already branches on _darkMode. Matched here too.
+                      color: _darkMode
+                          ? Colors.white.withValues(alpha: 0.14)
+                          : const Color(0xFFFBF1DE),
+                      borderRadius: BorderRadius.circular(8)),
+                  child: Text(tr(a['sub'] as String),
+                      style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: _darkMode ? _ink : const Color(0xFF9C6B0A))),
+                ),
+              ],
+            ]),
+          ),
           const SizedBox(width: 8),
           Text(
               _hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
@@ -5087,6 +5210,121 @@ class _DashboardPreviewState extends State<DashboardPreview>
           ],
         ]),
         ),
+      );
+
+  /// Small icon-circle for the Grynieji/Investicijos rows below — same 24px
+  /// size as _acctGlyph (the bank logo circle) so all three row types in
+  /// this list line up identically, just a plain tinted icon instead of a
+  /// fetched bank logo (neither of these has one).
+  Widget _rowGlyph(IconData icon) => Container(
+        width: 24,
+        height: 24,
+        alignment: Alignment.center,
+        decoration:
+            BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
+        child: Icon(icon, size: 13, color: _purple),
+      );
+
+  /// "Grynieji" row in the expanded Sąskaitos list — same card styling as
+  /// _expandedAcctChip so the two read as one organised list, not a bank
+  /// list plus something bolted on. Tap sets/overwrites cash on hand
+  /// (reuses _promptCash/_cashAsset, the SAME storage Paskyra's "Grynasis
+  /// turtas" list already reads/writes) — deliberately a plain SET, not a
+  /// running +/− ledger.
+  Widget _cashListRow() {
+    final cash = (_cashAsset?['amount'] as num?)?.toDouble();
+    return GestureDetector(
+      onTap: () => _promptCash(delta: 0),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _hair),
+          boxShadow: DS.e1,
+        ),
+        child: Row(children: [
+          _rowGlyph(Icons.payments_rounded),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(tr('Grynieji'),
+                style: TextStyle(
+                    fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
+          ),
+          if (cash != null)
+            Text(_eur0(cash),
+                style: TextStyle(
+                    fontSize: 13,
+                    color: _darkMode ? _good : _purpleDeep,
+                    fontWeight: FontWeight.w800,
+                    fontFeatures: const [FontFeature.tabularFigures()]))
+          else
+            Text(tr('+ Pridėti'),
+                style: TextStyle(
+                    fontSize: 13, color: _purple, fontWeight: FontWeight.w700)),
+        ]),
+      ),
+    );
+  }
+
+  /// "Investicijos" row in the expanded Sąskaitos list — same card styling.
+  /// Always taps through to the Investing tab (empty or not); the amount
+  /// itself is READ-ONLY here, an echo of that tab's own total
+  /// (_loadInvestTotal) — investments are only ever added from that tab.
+  Widget _investListRow() {
+    final holdings = DashboardStore.investments();
+    final total = _investTotal;
+    return GestureDetector(
+      onTap: () => setState(() => _tab = 6),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _hair),
+          boxShadow: DS.e1,
+        ),
+        child: Row(children: [
+          _rowGlyph(Icons.show_chart_rounded),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(tr('Investicijos'),
+                style: TextStyle(
+                    fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
+          ),
+          if (holdings.isNotEmpty && total != null) ...[
+            Text(_eur0(total),
+                style: TextStyle(
+                    fontSize: 13,
+                    color: _darkMode ? _good : _purpleDeep,
+                    fontWeight: FontWeight.w800,
+                    fontFeatures: const [FontFeature.tabularFigures()])),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, size: 16, color: _faint),
+          ] else
+            Text(tr('+ Pridėti'),
+                style: TextStyle(
+                    fontSize: 13, color: _purple, fontWeight: FontWeight.w700)),
+        ]),
+      ),
+    );
+  }
+
+  /// Small caps label separating "Bankai" from "Kita" (Grynieji/Investicijos)
+  /// in the expanded Sąskaitos list — explicit request to make the two
+  /// groups read as organised sections, not one flat pile of chips.
+  Widget _acctSectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(left: 2),
+        child: Text(text.toUpperCase(),
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+                color: _heroInk.withValues(alpha: 0.55))),
       );
 
   Widget _acctsToggleChip(List<Map> accounts) => GestureDetector(
@@ -5658,8 +5896,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // the canonical _spendOf rule (refunds net down, transfers excluded), same
   // as every other spend figure in the app.
   List<({String name, double amt, int count, String? cat})> _topMerchants(
-      {int limit = 6}) {
-    final rows = (_d['all'] as List?)?.cast<Map>() ?? const [];
+      {int limit = 6, String? monthKey}) {
+    final allRows = (_d['all'] as List?)?.cast<Map>() ?? const [];
+    // monthKey == null keeps the original "whole synced history" behaviour;
+    // a specific 'YYYY-MM' narrows to just that month.
+    final rows = monthKey == null
+        ? allRows
+        : allRows.where((t) => _ymOf(t) == monthKey).toList();
     final byKey = <String, ({String name, double amt, int count, String? cat})>{};
     for (final t in rows) {
       final spend = _spendOf(t);
@@ -5703,9 +5946,139 @@ class _DashboardPreviewState extends State<DashboardPreview>
         '(${_monNom[earliest.month - 1]}–${_monNom[latest.month - 1]})';
   }
 
+  /// Distinct 'YYYY-MM' keys present in the whole synced history, newest
+  /// first — the list _pickTopMerchantsMonth's sheet offers alongside "Visi".
+  List<String> get _topMerchantsMonthKeys {
+    final rows = (_d['all'] as List?)?.cast<Map>() ?? const [];
+    final keys = <String>{for (final t in rows) _ymOf(t)};
+    return keys.toList()..sort((a, b) => b.compareTo(a));
+  }
+
+  void _pickTopMerchantsMonth() {
+    final keys = _topMerchantsMonthKeys;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 12),
+          Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: _faint, borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+            child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(tr('Laikotarpis'),
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: _ink))),
+          ),
+          Flexible(
+            child: ListView(shrinkWrap: true, children: [
+              InkWell(
+                onTap: () {
+                  setState(() => _topMerchantsMonthKey = null);
+                  Navigator.pop(ctx);
+                },
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  child: Row(children: [
+                    Expanded(
+                      child: Text(tr('Visas laikotarpis'),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: _ink)),
+                    ),
+                    if (_topMerchantsMonthKey == null)
+                      Icon(Icons.check_rounded, size: 22, color: _purple),
+                  ]),
+                ),
+              ),
+              for (final k in keys)
+                InkWell(
+                  onTap: () {
+                    setState(() => _topMerchantsMonthKey = k);
+                    Navigator.pop(ctx);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 14),
+                    child: Row(children: [
+                      Expanded(
+                        child: Text(
+                          '${_monNom[_moInt(k) - 1]} ${k.substring(0, 4)}',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: _ink),
+                        ),
+                      ),
+                      if (k == _topMerchantsMonthKey)
+                        Icon(Icons.check_rounded, size: 22, color: _purple),
+                    ]),
+                  ),
+                ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ]),
+      ),
+    );
+  }
+
+  Widget _topMerchantsFilterChip() => GestureDetector(
+        onTap: _pickTopMerchantsMonth,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: _soft,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _hair),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(
+                _topMerchantsMonthKey == null
+                    ? tr('Visas laikotarpis')
+                    : '${_monNom[_moInt(_topMerchantsMonthKey) - 1]} ${_topMerchantsMonthKey!.substring(0, 4)}',
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
+            const SizedBox(width: 3),
+            Icon(Icons.expand_more_rounded, size: 16, color: _faint),
+          ]),
+        ),
+      );
+
   Widget _topMerchantsSection() {
-    final top = _topMerchants(limit: 6);
-    if (top.isEmpty) return const SizedBox.shrink();
+    final top = _topMerchants(limit: 6, monthKey: _topMerchantsMonthKey);
+    // A month with zero spend still shows the header + filter chip, so the
+    // user can switch back to "Visas laikotarpis" without the whole section
+    // disappearing out from under them.
+    if (top.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text(tr('Kur išleidai daugiausiai'),
+                  style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+            ),
+            _topMerchantsFilterChip(),
+          ]),
+          const SizedBox(height: 14),
+          Text(tr('Šiuo laikotarpiu operacijų nerasta.'),
+              style: TextStyle(fontSize: 13, color: _faint)),
+        ]),
+      );
+    }
     final total = top.fold(0.0, (s, m) => s + m.amt);
     const size = 208.0, stroke = 24.0, r = (size - stroke) / 2;
     final segments = [for (final m in top) [m.amt, SubscriptionAvatar.colorFor(m.name)]];
@@ -5743,12 +6116,22 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(tr('Kur išleidai daugiausiai'),
-            style: TextStyle(
-                fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+        Row(children: [
+          Expanded(
+            child: Text(tr('Kur išleidai daugiausiai'),
+                style: TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w800, color: _ink)),
+          ),
+          // 2026-08-29: explicit request — this used to always draw from the
+          // WHOLE synced history with no way to narrow it to one month.
+          _topMerchantsFilterChip(),
+        ]),
         const SizedBox(height: 2),
-        Text(_historySpanLabel(),
-            style: TextStyle(fontSize: 12, color: _faint)),
+        // Only the "whole history" label needs computing (earliest→latest
+        // span) — a specific month already names itself in the chip above,
+        // so no second, redundant caption is shown for that case.
+        if (_topMerchantsMonthKey == null)
+          Text(_historySpanLabel(), style: TextStyle(fontSize: 12, color: _faint)),
         const SizedBox(height: 18),
         Center(
           child: SizedBox(
@@ -7095,6 +7478,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     }
                   } else {
                     setState(() => _tab = target);
+                    // Refreshes the hero's "Investicijos" pill on the way
+                    // back to Home — the only place the Investing tab's own
+                    // holdings could have just changed.
+                    if (target == 0) _loadInvestTotal();
                   }
                 },
                 child: Column(

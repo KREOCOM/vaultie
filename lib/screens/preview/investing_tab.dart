@@ -387,14 +387,23 @@ class _InvestingTabState extends State<InvestingTab> {
               ),
               DecoratedBox(
                 decoration: BoxDecoration(
+                  // 2026-08-29: was darkening from as early as 22% down,
+                  // reaching 90% opacity by 38% — right where the bull/bear
+                  // art itself sits, so the whole photo read as washed-out
+                  // and dim next to the crisp, saturated original (reported,
+                  // real — a side-by-side comparison against the source
+                  // file). Now stays almost fully bright through 30% (only
+                  // a light 12% tint), then ramps fast into solid right
+                  // before the text starts at 46%, so the art keeps its own
+                  // vividness and only the text's own backdrop gets dark.
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.22, 0.38, 0.46, 1.0],
+                    stops: const [0.0, 0.30, 0.40, 0.46, 1.0],
                     colors: [
                       p.bg.withValues(alpha: 0),
-                      p.bg.withValues(alpha: 0.30),
-                      p.bg.withValues(alpha: 0.90),
+                      p.bg.withValues(alpha: 0.12),
+                      p.bg.withValues(alpha: 0.85),
                       p.bg,
                       p.bg,
                     ],
@@ -626,7 +635,7 @@ class _InvestingTabState extends State<InvestingTab> {
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(Icons.add_rounded, size: 21, color: p.blue),
               const SizedBox(width: 8),
-              Text(tr('Pridėti akciją'),
+              Text(tr('Pridėti akciją, kriptovaliutą'),
                   style: TextStyle(
                       fontSize: 15.5, fontWeight: FontWeight.w700, color: p.blue)),
             ]),
@@ -902,7 +911,7 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
             child: Row(children: [
-              Text(_picked == null ? tr('Pridėti akciją') : tr('Kiek turi?'),
+              Text(_picked == null ? tr('Pridėti akciją, kriptovaliutą') : tr('Kiek turi?'),
                   style: TextStyle(
                       fontSize: 20, fontWeight: FontWeight.w800, color: p.ink)),
               const Spacer(),
@@ -961,7 +970,7 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
                     contentPadding: EdgeInsets.zero,
                     // 2026-08-28: live global search now (any stock, not a
                     // fixed list) — see stock_search in functions/main.py.
-                    hintText: tr('Ieškok pvz. Tesla, SLS, Apple...'),
+                    hintText: tr('Ieškok pvz. Tesla, Apple...'),
                     hintStyle: TextStyle(color: p.faint)),
               ),
             ),
