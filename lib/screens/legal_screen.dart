@@ -44,7 +44,7 @@ class LegalScreen extends StatelessWidget {
   factory LegalScreen.privacy(bool isLt) {
     return LegalScreen(
       title: isLt ? 'Privatumo politika' : 'Privacy Policy',
-      updated: isLt ? 'Atnaujinta: 2026-07-27' : 'Last updated: 2026-07-27',
+      updated: isLt ? 'Atnaujinta: 2026-09-01' : 'Last updated: 2026-09-01',
       intro: isLt
           ? 'Vaultie gerbia tavo privatumą. Ši politika paaiškina, kokius duomenis renkame, kaip juos naudojame ir kokias teises turi.'
           : 'Vaultie respects your privacy. This policy explains what data we collect, how we use it, and the choices you have.',
@@ -178,36 +178,51 @@ class LegalScreen extends StatelessWidget {
         LegalSection(
           isLt ? 'AI funkcijos' : 'AI features',
           isLt
-              ? 'AI pokalbis ir mėnesio santraukos naudoja „Anthropic" AI paslaugą. '
+              ? 'AI pokalbis, mėnesio santraukos, kvito skenavimas ir prekybininkų '
+                  'kategorizavimas naudoja „Anthropic" AI paslaugą — visos keturios '
+                  'funkcijos NUMATYTAI IŠJUNGTOS ir įsijungia TIK po to, kai '
+                  'programėlėje aiškiai ir sąmoningai sutinki: langas įvardina '
+                  '„Anthropic" ir tiksliai aprašo, kas bus siunčiama, PRIEŠ '
+                  'pradedant siųsti.\n\n'
                   'Kad atsakytų į klausimus ar parašytų santrauką, siunčiame TIK '
                   'suvestinę: banko likučius, išlaidas pagal kategoriją ir tavo '
                   'pasikartojančių mokėjimų pavadinimus (pvz. „Netflix"). '
                   'NESIUNČIAME atskirų sandorių, IBAN‑ų ar kortelių numerių. '
-                  'AI pokalbis įjungiamas tik po tavo aiškaus sutikimo. „Anthropic" '
-                  'nenaudoja šių duomenų dirbtinio intelekto treniravimui, o mes '
-                  'jų nesaugome — jie egzistuoja tik tos vienos užklausos metu. '
-                  'Prekybininkų kategorizavimui, kai prijungtas bankas, verslo '
-                  'prekybininkų pavadinimus (pvz. parduotuvės) siunčiame AI, kad '
-                  'atpažintume kategoriją. Ši funkcija įjungta pagal nutylėjimą ir '
-                  'gali būti išjungta nustatymuose. Siunčiami TIK verslo pavadinimai '
-                  '— niekada žmonių vardai, sumos, datos ar IBAN‑ai (veikia žmonių '
-                  'vardų filtras). Rezultatas išsaugomas mūsų serveryje pakartotiniam '
-                  'naudojimui, kad tas pats prekybininkas nebūtų siunčiamas antrą kartą.'
-              : 'The AI chat and monthly summaries use the Anthropic AI service. '
+                  'Šių duomenų nesaugome — jie egzistuoja tik tos vienos užklausos '
+                  'metu.\n\n'
+                  'Kvito skenavimui siunčiame nufotografuotą kvitą — jis '
+                  'panaudojamas prekėms ir sumai atpažinti ir NIEKUR neišsaugomas.\n\n'
+                  'Prekybininkų kategorizavimui, kai prijungtas bankas IR esi tai '
+                  'įjungęs, verslo prekybininkų pavadinimus (pvz. parduotuvės) '
+                  'siunčiame AI, kad atpažintume kategoriją. Siunčiami TIK verslo '
+                  'pavadinimai — niekada žmonių vardai, sumos, datos ar IBAN‑ai '
+                  '(veikia žmonių vardų filtras). Rezultatas išsaugomas mūsų '
+                  'serveryje pakartotiniam naudojimui, kad tas pats prekybininkas '
+                  'nebūtų siunčiamas antrą kartą.\n\n'
+                  '„Anthropic" nenaudoja šių duomenų dirbtinio intelekto '
+                  'treniravimui. Bet kurią iš šių funkcijų gali bet kada išjungti '
+                  'Nustatymuose.'
+              : 'The AI chat, monthly summaries, receipt scanning, and merchant '
+                  'categorisation all use the Anthropic AI service — and all four '
+                  'are OFF by default and only ever activate after you give '
+                  'explicit, informed consent in the app, naming Anthropic and '
+                  'describing exactly what is sent, before anything is shared.\n\n'
                   'To answer questions or write a summary we send ONLY a summary: '
                   'bank balances, spending by category, and the names of your '
                   'recurring payments (e.g. "Netflix"). We do NOT send individual '
-                  'transactions, IBANs, or card numbers. The AI chat is enabled '
-                  'only after your explicit consent. Anthropic does not use this '
-                  'data to train AI models, and we do not store it — it exists only '
-                  'for that single request. If you connect a bank, you may '
-                  'For merchant categorisation, when a bank is connected, we send '
-                  'business merchant names (e.g. a shop) to the AI to recognise the '
-                  'category. This is on by default and can be turned off in Settings. '
-                  'Only business names are sent — never people\'s names, amounts, '
-                  'dates, or IBANs (a person-name filter applies). The result is '
-                  'stored on our server for reuse, so the same merchant is never sent '
-                  'twice.',
+                  'transactions, IBANs, or card numbers. We do not store this data '
+                  '— it exists only for that single request.\n\n'
+                  'For receipt scanning we send the photographed receipt itself — '
+                  'used to recognise the items and total, and never stored '
+                  'anywhere.\n\n'
+                  'For merchant categorisation, when a bank is connected and you '
+                  'have turned this on, we send business merchant names (e.g. a '
+                  'shop) to the AI to recognise the category. Only business names '
+                  'are sent — never people\'s names, amounts, dates, or IBANs (a '
+                  'person-name filter applies). The result is stored on our '
+                  'server for reuse, so the same merchant is never sent twice.\n\n'
+                  'Anthropic does not use this data to train AI models. You can '
+                  'turn any of these features off at any time in Settings.',
         ),
         LegalSection(
           isLt ? 'Pranešimai' : 'Notifications',
