@@ -329,6 +329,9 @@ const Map<String, String> _en = {
   'Skenuoti kvitą': 'Scan receipt',
   // ── "Kvitas"/"Grynieji" hero quick-action first-use explainers ──
   'Nuskenuok kvitą': 'Scan the receipt',
+  'Kvito skenavimas': 'Receipt scanning',
+  'Kad atpažintų prekes ir sumą, „Vaultie" siunčia NUFOTOGRAFUOTĄ kvitą mūsų AI tiekėjui (Anthropic).\n\n• Nuotrauka NIEKUR neišsaugoma — panaudota atpažinimui ir iškart pašalinama.\n• Siunčiama tik pati kvito nuotrauka, jokių kitų tavo duomenų.':
+      'To recognise the items and total, "Vaultie" sends the PHOTOGRAPHED receipt to our AI provider (Anthropic).\n\n• The photo is never stored anywhere — it\'s used for recognition and discarded immediately.\n• Only the receipt photo itself is sent, none of your other data.',
   'Atpažinsime prekes ir sumą, sutikrinsime su banko operacija arba, jei mokėjai grynais, pridėsime kaip naują įrašą.':
       'We\'ll recognise the items and total, match it to a bank transaction, or — if you paid cash — add it as a new entry.',
   'Automatiškai suras atitinkančią banko operaciją':

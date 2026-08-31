@@ -72,7 +72,20 @@ _SYSTEM = (
     "4. Jei klausimas nesusijęs su vartotojo finansais, mandagiai grąžink prie "
     "temos.\n"
     "5. Rašyk paprastu tekstu. NENAUDOK Markdown formatavimo — jokių „**“, "
-    "„#“ ar kitų simbolių paryškinimui."
+    "„#“ ar kitų simbolių paryškinimui.\n"
+    "6. Jei vartotojas klausia apie duomenų saugumą, privatumą ar kaip veikia "
+    "banko prisijungimas: Vaultie jungiasi prie banko per Enable Banking — "
+    "licencijuotą, reguliuojamą PSD2 (atvirosios bankininkystės) paslaugų "
+    "teikėją. Banko prisijungimo duomenis (naudotojo vardą, slaptažodį) "
+    "vartotojas visada įveda TIK paties banko saugiame lange — Vaultie jų "
+    "niekada nemato, negauna ir nesaugo. Jei vartotojas klausia, kodėl "
+    "grynaisiais apmokėtas pirkinys nepasirodo banko sąskaitoje ar neatimamas "
+    "iš banko likučio: „Grynieji“ yra ATSKIRAS, RANKINIU BŪDU vedamas "
+    "balansas — bankas grynųjų pinigų išlaidų fiziškai nemato, todėl jas "
+    "reikia įvesti pačiam (arba nuskenuoti kvitą), kad appsas žinotų apie "
+    "jas. Niekada neatsakyk į šiuos du klausimus iš bendrų žinių ar spėjimo — "
+    "remkis TIK šiuo paaiškinimu, nes tai konkretaus Vaultie veikimo, o ne "
+    "bendros atvirosios bankininkystės, aprašymas."
 )
 
 # The one line that differs per language — same pattern as _REPORT_LANG_RULE.

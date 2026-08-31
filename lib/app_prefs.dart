@@ -240,6 +240,22 @@ class AppPrefs {
     await _box.put(_kAiChatConsent, value);
   }
 
+  // 2026-09-01: real gap, found in audit — receipt scanning sends the photo
+  // to the AI provider (Anthropic, see functions/receipt_scan.py) to read
+  // it, but unlike aiEnrichment/aiChatConsent above, nothing gated that
+  // behind an explicit disclosure — it just happened the first time someone
+  // tapped "Skenuoti kvitą". Same shape as aiChatConsent: a one-time
+  // disclosure dialog before the FIRST scan, gates every scan after.
+  static const _kReceiptScanConsent = 'receiptScanConsent';
+
+  static bool get receiptScanConsent => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _boolOr(_kReceiptScanConsent, false)
+      : false;
+
+  static Future<void> setReceiptScanConsent(bool value) async {
+    await _box.put(_kReceiptScanConsent, value);
+  }
+
   // The user's display name (Settings → profile). Persisted so it survives
   // reopening the app (was a local field that reset to "Vartotojas").
   static const _kUserName = 'userName';

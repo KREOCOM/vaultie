@@ -1842,6 +1842,49 @@ class _FeatureIntroScreenState extends State<_FeatureIntroScreen> {
       );
 }
 
+// 2026-09-01: real gap, found in audit — a scanned receipt photo is sent to
+// Anthropic (functions/receipt_scan.py) to read it, but unlike the app's
+// other two uses of the same AI provider (chat, merchant categorisation —
+// both gated behind an explicit one-time disclosure dialog, see
+// _ensureAiChatConsent-equivalent above / _toggleAiCat), scanning had no
+// disclosure at all. Same shape, same one-time dialog pattern, gates every
+// scan (not just the first successful one — declining here must actually
+// stop the scan from happening).
+Future<bool> _ensureReceiptScanConsent(BuildContext context) async {
+  if (AppPrefs.receiptScanConsent) return true;
+  final ok = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: _card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      title: Text(tr('Kvito skenavimas'),
+          style:
+              TextStyle(fontWeight: FontWeight.w800, color: _ink, fontSize: 19)),
+      content: Text(
+        tr('Kad atpažintų prekes ir sumą, „Vaultie" siunčia NUFOTOGRAFUOTĄ kvitą '
+            'mūsų AI tiekėjui (Anthropic).\n\n'
+            '• Nuotrauka NIEKUR neišsaugoma — panaudota atpažinimui ir iškart pašalinama.\n'
+            '• Siunčiama tik pati kvito nuotrauka, jokių kitų tavo duomenų.'),
+        style: TextStyle(color: _muted, height: 1.5, fontSize: 14.5),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(tr('Atšaukti'), style: TextStyle(color: _muted)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(tr('Sutinku ir tęsiu'),
+              style: TextStyle(color: _purple, fontWeight: FontWeight.w800)),
+        ),
+      ],
+    ),
+  );
+  if (ok == true) await AppPrefs.setReceiptScanConsent(true);
+  return ok == true;
+}
+
 // Top-level (not tied to _DashboardPreviewState) so both Home's own
 // "Skenuoti kvitą" and Bill Split's entry (_BillSplitHomeScreen, a
 // different screen entirely) share ONE implementation of "show the
@@ -1850,6 +1893,8 @@ class _FeatureIntroScreenState extends State<_FeatureIntroScreen> {
 // user — the caller has nothing further to do in either case.
 Future<(List<Map<String, dynamic>>, double, String?)?> _scanReceiptFlow(
     BuildContext context) async {
+  if (!await _ensureReceiptScanConsent(context)) return null;
+  if (!context.mounted) return null;
   final source = await _chooseReceiptSource(context);
   if (source == null || !context.mounted) return null; // sheet dismissed
   // Pick BEFORE showing the scanning dialog — see _pickReceiptFile's doc for
@@ -11599,6 +11644,8 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
   // fixes with the exact same tools (add a line, "Priskirti likutį") as any
   // manual edit — never a silent, possibly-wrong auto-save.
   Future<void> _pickAndScan() async {
+    if (!await _ensureReceiptScanConsent(context)) return;
+    if (!mounted) return;
     final source = await _chooseReceiptSource(context);
     if (source == null || !mounted) return; // sheet dismissed
     // Pick before the spinner goes up — same order as _scanReceiptFlow, see
