@@ -831,8 +831,20 @@ class _InvestingTabState extends State<InvestingTab> {
     );
   }
 
-  static String _fmtShares(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+  // 2026-09-01: real bug, found in audit — a fractional share count (e.g.
+  // buying "100€" of a "3€/share" asset in Suma mode) went through plain
+  // `toString()`, which for a value like 33.333333333333336 prints every
+  // one of those digits verbatim, or for a very small count can even print
+  // scientific notation ("1.6e-6"). Fixed to 6 decimals (plenty of
+  // precision for a share count) with trailing zeros trimmed, same
+  // "readable, not raw" idea as Money.format applies to currency.
+  static String _fmtShares(double v) {
+    if (v == v.roundToDouble()) return v.toStringAsFixed(0);
+    var s = v.toStringAsFixed(6);
+    s = s.replaceFirst(RegExp(r'0+$'), '');
+    s = s.replaceFirst(RegExp(r'\.$'), '');
+    return s;
+  }
 }
 
 // ── add-holding sheet: pick from the catalog, enter share count ────────────

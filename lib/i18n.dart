@@ -231,6 +231,8 @@ const Map<String, String> _en = {
   'per mėn': 'per mo',
   'Šis mėnuo': 'This month',
   'Atšaukti': 'Cancel',
+  'Ryšys su serveriu užtruko per ilgai. Patikrink interneto ryšį ir bandyk dar kartą.':
+      'The connection to the server took too long. Check your internet connection and try again.',
   'Išsaugoti': 'Save',
   'Pervadinti': 'Rename',
   'Radome automatiškai iš tavo banko duomenų — pašalink, jei kas netinka':
