@@ -528,6 +528,17 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
 
   bool _locked = _shouldLock;
   bool _wasBackgrounded = false;
+  // 2026-09-01: real bug, found in audit — iOS captures the app-switcher
+  // (multitasking UI) snapshot around the `inactive` transition, which
+  // fires BEFORE `paused`/`hidden` below ever does (resumed → inactive →
+  // hidden → paused when backgrounding). Real balances/transactions on
+  // screen at that instant could be captured in the OS thumbnail before
+  // the actual PIN/Face ID lock screen ever mounted. This is a lightweight
+  // VISUAL cover only, not a second lock — it can't misfire on a transient
+  // `inactive` that isn't real backgrounding (Control Center, a system
+  // alert), since it just blanks the screen for that instant and un-blanks
+  // the moment focus returns, with no re-authentication involved either way.
+  bool _privacyCover = false;
 
   @override
   void initState() {
@@ -543,6 +554,17 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive) {
+      // See _privacyCover's own doc — a lightweight visual-only cover for
+      // the instant the OS takes its app-switcher snapshot, ahead of the
+      // real lock below. Skipped once `_locked` is already showing (the
+      // PIN/Face ID screen already covers everything, including its own
+      // biometric prompt, which also passes through `inactive`).
+      if (_shouldLock && !_locked && !_privacyCover) {
+        setState(() => _privacyCover = true);
+      }
+      return;
+    }
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       _wasBackgrounded = true;
       // Cover real content the instant the app leaves the foreground, not on
@@ -558,10 +580,15 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
       // that resume would undo the unlock that just happened and prompt again.
       if (AppLock.biometricInFlight) {
         _wasBackgrounded = false;
+        if (_privacyCover) setState(() => _privacyCover = false);
         return;
       }
-      if (_wasBackgrounded && _shouldLock && !_locked) {
-        setState(() => _locked = true);
+      final needsLock = _wasBackgrounded && _shouldLock && !_locked;
+      if (needsLock || _privacyCover) {
+        setState(() {
+          if (needsLock) _locked = true;
+          _privacyCover = false;
+        });
       }
       _wasBackgrounded = false;
     }
@@ -572,6 +599,8 @@ class _LockGateState extends State<_LockGate> with WidgetsBindingObserver {
     return Stack(
       children: [
         widget.child,
+        if (_privacyCover)
+          const Positioned.fill(child: ColoredBox(color: Color(0xFF081A4D))),
         if (_locked)
           LockScreen(onUnlocked: () => setState(() => _locked = false)),
       ],
