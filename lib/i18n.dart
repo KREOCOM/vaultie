@@ -327,6 +327,46 @@ const Map<String, String> _en = {
   'Pataisyti paskutinę eilutę': 'Fix the last line',
   'Išsaugoti skaidymą': 'Save split',
   'Skenuoti kvitą': 'Scan receipt',
+  // ── "Kvitas"/"Grynieji" hero quick-action first-use explainers ──
+  'Nuskenuok kvitą': 'Scan the receipt',
+  'Atpažinsime prekes ir sumą, sutikrinsime su banko operacija arba, jei mokėjai grynais, pridėsime kaip naują įrašą.':
+      'We\'ll recognise the items and total, match it to a bank transaction, or — if you paid cash — add it as a new entry.',
+  'Automatiškai suras atitinkančią banko operaciją':
+      'Automatically finds the matching bank transaction',
+  'Gali padalinti kvitą į kelias kategorijas':
+      'You can split the receipt into several categories',
+  'Jei mokėjai grynais — pridėsime be papildomų žingsnių':
+      'If you paid cash — we\'ll add it with no extra steps',
+  'Sumokėjai grynais?': 'Paid with cash?',
+  'Bankas grynųjų operacijų nemato — pridėk jas pats, kad Bendras likutis liktų tikslus.':
+      'The bank can\'t see cash transactions — add them yourself so your Total balance stays accurate.',
+  'Nufotografuok kvitą — automatiškai atpažinsime sumą':
+      'Photograph the receipt — we\'ll recognise the total automatically',
+  'Arba įvesk sumą ranka per kelias sekundes':
+      'Or enter the amount by hand in a few seconds',
+  'Grynųjų likutis atsinaujins iš karto': 'Your cash balance updates instantly',
+  'Supratau, tęsti': 'Got it, continue',
+  'Įvesk sumą ir pasirink kategoriją per kelias sekundes':
+      'Enter the amount and pick a category in a few seconds',
+  'Arba nuskenuok kvitą — tik jei apmokėjai grynaisiais':
+      'Or scan the receipt — only if you paid in cash',
+  'Tik jeigu kvitas apmokėtas grynaisiais pinigais':
+      'Only if the receipt was paid in cash',
+  'Moki grynais?': 'Paying with cash?',
+  'Bankas nemato tavo grynųjų išlaidų — pridėk jas pats, kad likutis būtų tikslus.':
+      'The bank can\'t see your cash spending — add it yourself so the balance stays accurate.',
+  'Įvesk sumą ir pasirink kategoriją': 'Enter the amount and pick a category',
+  'Nuskenuok kvitą, jei mokėjai grynais':
+      'Scan the receipt, if you paid in cash',
+  'Grynieji likučiai atsinaujins iš karto': 'Your cash balance updates instantly',
+  'Atpažinsime prekes ir sumą bei susiesime kvitą su atitinkama banko operacija.':
+      'We\'ll recognise the items and total, and link the receipt to the matching bank transaction.',
+  'Automatiškai surasime atitinkančią banko operaciją':
+      'We\'ll automatically find the matching bank transaction',
+  'Kvitą galėsi padalinti į kelias kategorijas':
+      'You\'ll be able to split the receipt into several categories',
+  'Išlaidas priskirsime pagal kvite esančią informaciją':
+      'We\'ll assign the spending based on what\'s on the receipt',
   'Dar nėra išsaugotų skaidymų.': 'No saved splits yet.',
   'Naujas skaidymas': 'New split',
   'Anksčiau išsaugoti': 'Previously saved',
@@ -553,6 +593,23 @@ const Map<String, String> _en = {
   'Laikotarpis': 'Period',
   'Visas laikotarpis': 'Whole period',
   'Šiuo laikotarpiu operacijų nerasta.': 'No transactions found for this period.',
+  'Išleidau grynais': 'Cash expense',
+  'Apmokėta grynais': 'Paid in cash',
+  'Filtruota': 'Filtered',
+  'Rodoma tik': 'Showing only',
+  'Mokėjau grynais': 'Paid with cash',
+  'Nenurodei, kiek turi grynųjų': 'You haven\'t said how much cash you have',
+  'Ši išlaida jau įskaičiuota į kategorijas, bet neatimta iš jokio balanso — dar nesi nurodęs, kiek grynųjų turi iš viso.':
+      'This expense already counts in your categories, but wasn\'t deducted from any balance — you haven\'t said how much cash you have in total yet.',
+  'Praleisti': 'Skip',
+  'Nurodyti dabar': 'Set it now',
+  'Tai ne banko operacija — pridėsime kaip naują grynųjų įrašą.':
+      'Not a bank transaction — we\'ll add it as a new cash entry.',
+  'Grynųjų pirkinys': 'Cash purchase',
+  'Nerasta panašios banko operacijos per pastarąsias dienas.':
+      'No matching bank transaction found in the last few days.',
+  'Atrodo, kad tai grynųjų išėmimas.': 'This looks like a cash withdrawal.',
+  'prie sekamų grynųjų?': 'to your tracked cash?',
   'Pasirink mėnesį': 'Pick a month',
   'Biudžetai padeda suvaldyti išlaidas': 'Budgets help you control spending',
   'Susikurk biudžetą kategorijai — limitą pasiūlysime pagal tavo realų mėnesių vidurkį.':

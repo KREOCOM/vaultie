@@ -224,7 +224,13 @@ class _PortfolioTodayChartPainter extends CustomPainter {
 }
 
 class InvestingTab extends StatefulWidget {
-  const InvestingTab({super.key});
+  const InvestingTab({super.key, required this.onExit});
+  // 2026-08-31: the empty welcome screen hides the app's own bottom nav bar
+  // (see dashboard_preview.dart's bottomNavigationBar condition) so it reads
+  // as a full-bleed screen, same as the Grynieji/Kvitas intro. With the nav
+  // bar gone there is no other way back to Home, so the welcome screen's own
+  // close (X) button calls this to switch the outer tab back itself.
+  final VoidCallback onExit;
   @override
   State<InvestingTab> createState() => _InvestingTabState();
 }
@@ -378,10 +384,17 @@ class _InvestingTabState extends State<InvestingTab> {
               // strip it exposes at the bottom is the SAME flat black,
               // covered by the gradient/background below anyway.
               Positioned(
+                // 2026-08-31: was `height: h` — left the box's bottom edge
+                // 15% short of the screen's own bottom, exposing a solid
+                // block of the raw background there. That gap used to sit
+                // behind the bottom nav bar (invisible), which is now hidden
+                // on this screen (see dashboard_preview.dart's
+                // bottomNavigationBar condition) — so the gap itself needed
+                // fixing, not just something that happened to hide it.
                 top: -h * 0.15,
                 left: 0,
                 right: 0,
-                height: h,
+                height: h * 1.15,
                 child: Image.asset('assets/onboarding/investing_intro_bg.png',
                     fit: BoxFit.cover),
               ),
@@ -407,6 +420,30 @@ class _InvestingTabState extends State<InvestingTab> {
                       p.bg,
                       p.bg,
                     ],
+                  ),
+                ),
+              ),
+              // 2026-08-31: with the outer bottom nav bar now hidden while
+              // this welcome screen shows (see dashboard_preview.dart), this
+              // is the ONLY way back to Home — kept bright red specifically
+              // so it reads as "the way out", not just a generic dismiss.
+              Positioned(
+                top: 8,
+                right: 12,
+                child: SafeArea(
+                  bottom: false,
+                  child: GestureDetector(
+                    onTap: widget.onExit,
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE0334D),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          size: 18, color: Colors.white),
+                    ),
                   ),
                 ),
               ),

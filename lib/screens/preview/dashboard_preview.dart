@@ -579,6 +579,52 @@ int _moInt(String? key) {
   return (n ?? 1).clamp(1, 12);
 }
 
+// 2026-08-30: the tracked "Grynieji" cash-on-hand balance (DashboardStore.
+// manualAssets, matched by label — see _DashboardPreviewState._cashAsset's
+// own doc) needs the SAME add/subtract logic from two unrelated screens:
+// _openCashExpense (logging a cash expense — subtract) and _TxDetailScreen's
+// ATM-withdrawal card (confirming a bank withdrawal became cash-on-hand —
+// add). Top-level, not a method on either screen's State class, so both can
+// call the exact same code instead of two hand-copies drifting apart.
+Future<void> _deductFromCashAsset(double amountEur) async {
+  final list = DashboardStore.manualAssets();
+  final idx = list
+      .indexWhere((a) => ((a['label'] as String?) ?? '').trim() == 'Grynieji');
+  if (idx < 0) return; // nothing tracked yet — nothing to deduct from
+  final current = (list[idx]['amount'] as num?)?.toDouble() ?? 0;
+  final next = (current - amountEur).clamp(0.0, double.infinity);
+  final updated = [...list];
+  // Same "remove rather than persist a hollow €0 row" rule the manual
+  // Grynieji-edit sheet's own save path uses (_promptCash).
+  if (next <= 0) {
+    updated.removeAt(idx);
+  } else {
+    updated[idx] = {...list[idx], 'amount': next};
+  }
+  await DashboardStore.setManualAssets(updated);
+}
+
+Future<void> _addToCashAsset(double amountEur) async {
+  final list = DashboardStore.manualAssets();
+  final idx = list
+      .indexWhere((a) => ((a['label'] as String?) ?? '').trim() == 'Grynieji');
+  final current = idx >= 0 ? ((list[idx]['amount'] as num?)?.toDouble() ?? 0) : 0.0;
+  final updated = [...list];
+  final entry = {
+    'id': idx >= 0
+        ? updated[idx]['id']
+        : DateTime.now().microsecondsSinceEpoch.toString(),
+    'label': 'Grynieji',
+    'amount': current + amountEur,
+  };
+  if (idx >= 0) {
+    updated[idx] = entry;
+  } else {
+    updated.add(entry);
+  }
+  await DashboardStore.setManualAssets(updated);
+}
+
 // Safe YEAR from a "YYYY-MM"/"YYYY-MM-DD" key. A blank or short month key made a
 // bare `int.parse(month.substring(0,4))` throw (FormatException/RangeError) and
 // red-screen the month review + Overview calendar; the month half was already
@@ -1498,6 +1544,304 @@ void _toastAt(BuildContext context, String m) =>
       ..showSnackBar(SnackBar(
           content: Text(m), duration: const Duration(milliseconds: 3300)));
 
+// 2026-08-31: TEMPORARY, while the "Grynieji"/"Kvitas" explainer screens'
+// photos/copy are still being iterated on — real users should only ever see
+// each one once (that's what DashboardStore.seenCashIntro/seenReceiptIntro
+// is for), but that same one-time-only behaviour makes it impossible to
+// re-check a design change without resetting persisted state by hand. Set to
+// false before submission so the real "seen it once" gating takes over.
+const bool _kAlwaysShowFeatureIntro = true;
+
+// 2026-08-31: real bug, reported — _FeatureIntroScreen's darkening overlay
+// used the app's own theme-switchable `_bg`, which in LIGHT mode is a
+// near-white colour (0xFFEEF1F7). Since that overlay goes fully OPAQUE for
+// the bottom half of the screen (by design — same gradient shape as
+// investing_tab.dart's _emptyIntro, so the photo has a solid backdrop for
+// the white text), light mode painted a solid white block over most of the
+// photo. This screen is always a dark full-bleed photo with light text,
+// independent of the app's own theme — same reasoning as investing_tab.dart
+// keeping its own _Pal permanently dark regardless of _darkMode — so it
+// needs a FIXED dark colour here, never the theme variable.
+const Color _kIntroBg = Color(0xFF0A0A0F);
+
+// 2026-08-31: real bug, reported — `_purple` is a theme-switchable variable
+// (see _applyTheme) that happens to already BE blue in light mode
+// (0xFF2F6BFF) but turns genuinely purple in dark mode (0xFF8B5CF6) — so
+// these screens looked fine in light mode purely by coincidence and went
+// visibly purple in dark mode. Investing's own welcome screen never has
+// this problem because investing_tab.dart's whole _Pal is a fixed, always-
+// dark palette with its OWN always-blue accent (p.blue, 0xFF2F7CF6),
+// independent of app theme entirely. Matching that exact value here so both
+// screens read as the same accent regardless of theme, same reasoning as
+// _kIntroBg above.
+const Color _kIntroAccent = Color(0xFF2F7CF6);
+
+// Shared full-screen "what does this button do" explainer — same full-bleed
+// photo + darkened-bottom-text layout as the Investing tab's own welcome
+// screen (investing_tab.dart's _emptyIntro), reused here for the Home hero's
+// "Kvitas"/"Grynieji" quick actions so a first-ever tap explains itself
+// instead of dropping straight into a picker or a bottom sheet. Pops `true`
+// on the CTA (caller proceeds with the real action), `false` if dismissed
+// via the close button (caller stops — the user just wanted to read it).
+//
+// `asset` is allowed to not exist yet on disk: errorBuilder falls back to a
+// plain tinted gradient so the flow (and the flags in DashboardStore) can be
+// built/tested before the real photo is dropped into assets/onboarding/.
+class _FeatureIntroScreen extends StatefulWidget {
+  const _FeatureIntroScreen({
+    required this.asset,
+    required this.accent,
+    this.eyebrow = '',
+    this.headline = '',
+    this.subtitle = '',
+    this.trustRows = const [],
+    this.ctaLabel = '',
+    this.imageShiftFraction = 0,
+    this.showText = true,
+  });
+
+  final String asset;
+  final String eyebrow;
+  final Color accent;
+  final String headline;
+  final String subtitle;
+  final List<(IconData, String)> trustRows;
+  final String ctaLabel;
+  // Fraction of the screen height to shift the photo UP by (crops more off
+  // the top, exposes more of the photo's own bottom) — tune per-photo since
+  // where the actual subject sits varies image to image.
+  final double imageShiftFraction;
+  // 2026-08-31: TEMPORARY — while the design is being built up step by step,
+  // plain `false` shows just the photo with no text/darkening at all (tap
+  // anywhere to continue). Flip back on once there's copy to show again.
+  final bool showText;
+
+  @override
+  State<_FeatureIntroScreen> createState() => _FeatureIntroScreenState();
+}
+
+class _FeatureIntroScreenState extends State<_FeatureIntroScreen> {
+  // 2026-08-31: real bug, reported — the CTA button sits close to where the
+  // hero button that opened this screen was tapped, and this route replaces
+  // the previous one instantly (no async gap). That let the SAME tap the
+  // user was still completing land on the new screen's own CTA a frame
+  // later, "skipping" the explainer before it was ever actually seen — the
+  // user tapped "Grynieji" and landed straight on the chooser sheet with no
+  // perceptible pause. Ignoring all input for a short beat after this screen
+  // first appears makes that impossible regardless of tap speed or position.
+  var _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) setState(() => _ready = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: _kIntroBg,
+        body: IgnorePointer(
+          ignoring: !_ready,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final h = constraints.maxHeight;
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned(
+                    // Bug, reported — a plain `top: -h*shift` with the SAME
+                    // height `h` leaves the box's BOTTOM edge short of the
+                    // screen's own bottom by exactly the shift amount,
+                    // exposing the raw Scaffold background as a solid block
+                    // there. Extending the height by the same shift keeps
+                    // the bottom pinned to the screen edge while the top
+                    // still moves up — the photo now always reaches both
+                    // edges regardless of shift.
+                    top: -h * widget.imageShiftFraction,
+                    left: 0,
+                    right: 0,
+                    height: h * (1 + widget.imageShiftFraction),
+                    child: Image.asset(
+                      widget.asset,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color.lerp(_kIntroBg, widget.accent, 0.22)!,
+                              _kIntroBg
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (!widget.showText)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _ready
+                            ? () => Navigator.of(context).pop(true)
+                            : null,
+                      ),
+                    ),
+                  // 2026-08-31: a full-height scrim dimmed the photo itself
+                  // (one hand went nearly invisible) — removed once, then
+                  // asked back but ONLY behind the text, with a clear
+                  // handoff point so the hands stay completely untouched.
+                  // 0.44 ≈ right where THIS photo's hand content ends (see
+                  // the imageShiftFraction math in the Positioned above) —
+                  // fully transparent up to there, then ramps to a dark
+                  // backdrop by 0.54, just before the text block starts.
+                  if (widget.showText)
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: const [0.0, 0.44, 0.54, 1.0],
+                          colors: [
+                            _kIntroBg.withValues(alpha: 0),
+                            _kIntroBg.withValues(alpha: 0),
+                            _kIntroBg.withValues(alpha: 0.90),
+                            _kIntroBg.withValues(alpha: 0.97),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    top: 8,
+                    right: 12,
+                    child: SafeArea(
+                      bottom: false,
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context).pop(false),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE0334D),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close_rounded,
+                              size: 18, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // 2026-08-31: top AND bottom both pinned (not just bottom)
+                  // — the child gets a FIXED height (from right after the
+                  // hand content down to the screen edge), and the Column
+                  // below fills it with mainAxisAlignment.spaceEvenly. That
+                  // spreads the three content groups across the whole zone
+                  // by construction, so it always "fills the screen" with no
+                  // dead gap above or below, regardless of exact copy length
+                  // — no more guessing a font size big enough to do that.
+                  if (widget.showText)
+                    Positioned(
+                      top: h * 0.46,
+                      left: 24,
+                      right: 24,
+                      bottom: 0,
+                      child: SafeArea(
+                        top: false,
+                        minimum: const EdgeInsets.only(bottom: 18),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.max,
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(widget.eyebrow,
+                                    style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.2,
+                                        color: widget.accent)),
+                                const SizedBox(height: 8),
+                                Text(widget.headline,
+                                    style: const TextStyle(
+                                        fontSize: 30,
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.16,
+                                        letterSpacing: -0.3,
+                                        color: Colors.white)),
+                                const SizedBox(height: 10),
+                                Text(widget.subtitle,
+                                    style: const TextStyle(
+                                        fontSize: 17,
+                                        height: 1.4,
+                                        color: Color(0xFFC9C6D6))),
+                              ],
+                            ),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                for (final row in widget.trustRows)
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 12),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(row.$1,
+                                            size: 20, color: widget.accent),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(row.$2,
+                                              style: const TextStyle(
+                                                  fontSize: 16,
+                                                  height: 1.32,
+                                                  color: Color(0xFFC9C6D6))),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _ready
+                                    ? () => Navigator.of(context).pop(true)
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: widget.accent,
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor: widget.accent,
+                                  disabledForegroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 18),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16)),
+                                  textStyle: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 17.5),
+                                ),
+                                child: Text(widget.ctaLabel),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+}
+
 // Top-level (not tied to _DashboardPreviewState) so both Home's own
 // "Skenuoti kvitą" and Bill Split's entry (_BillSplitHomeScreen, a
 // different screen entirely) share ONE implementation of "show the
@@ -2262,17 +2606,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// Whether every connected account is listed in the header, or just the
   /// largest one plus a "+N" chip.
   bool _acctsOpen = false;
+  // 2026-08-30: which group the expanded Sąskaitos panel shows — 0 Bankai,
+  // 1 Grynieji. Replaced the earlier "Bankai" then "Kita" stacked-sections
+  // layout (reported as not distinct enough) with real segmented tabs,
+  // picked from an HTML comparison round. Investicijos was tried here too,
+  // then dropped per explicit request — it already has its own dedicated
+  // tab, so showing its number here just duplicated it.
+  int _acctsTab = 0;
   // 2026-08-29: "Kur išleidai daugiausiai" used to always draw from the
   // WHOLE synced history (however many months that happens to be) with no
   // way to narrow it — explicit request to let a specific month be picked
   // instead. null = the original "all history" behaviour, unchanged.
   String? _topMerchantsMonthKey;
-  // 2026-08-29: read-only echo of the Investing tab's own total (see
-  // investing_tab.dart) for the hero's "Investicijos" pill — see
-  // _loadInvestTotal's own doc for why this is the one place Home reaches
-  // into that otherwise-isolated feature's data.
-  double? _investTotal;
-  final Map<String, double> _investQuoteCache = {};
   int? _weekSel; // tapped weekday bar
   // 2026-08-15: which week _weekSection shows — 0 = this week, -1 = last
   // week, etc. Never positive: you can't browse into the future.
@@ -2368,7 +2713,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
         // investing_tab.dart's own doc for isolation/removal). Appended for
         // the same reason as Transakcijos above — never gated by
         // _tabNeeded, the demo tour doesn't know about it.
-        const InvestingTab(),
+        InvestingTab(onExit: () => setState(() => _tab = 0)),
       ];
 
   // A theme flip OR a language change must rebuild the cached tabs.
@@ -2847,7 +3192,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // flipping the theme toggle afterward "fixed" it only because THAT path
     // calls _applyTheme alone, without this line re-running behind it.
     if (designPreviewPalette && !dark) _applyPreviewPalette();
-    _loadInvestTotal();
     WidgetsBinding.instance.addObserver(this); // auto-sync on resume
     _themeVN.addListener(_onTheme); // rebuild the whole tree when theme flips
     AppPrefs.locale.addListener(_onTheme); // ...and when the language changes
@@ -3301,10 +3645,18 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final deleted = DashboardStore.txDeleted();
     final salaryRefs = DashboardStore.salaryRefs();
     final splits = DashboardStore.txSplits();
+    // 2026-08-31: real bug, reported — a manually-logged cash transaction
+    // (no corresponding bank row at all) only ever lived in the in-memory
+    // `all` list; a fresh sync replaces that list wholesale from the bank's
+    // own data, which can never contain a row the bank never saw, so the
+    // manual row silently vanished on the very next sync (every app
+    // relaunch). Re-applied here exactly like edits/splits already are.
+    final manual = DashboardStore.manualTxs();
     if (edits.isEmpty &&
         deleted.isEmpty &&
         salaryRefs.isEmpty &&
-        splits.isEmpty) return;
+        splits.isEmpty &&
+        manual.isEmpty) return;
     final rawAll = fresh['all'];
     if (rawAll is! List) return;
     final all =
@@ -3312,6 +3664,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
     DashboardStore.applyTxOverrides(all, edits, deleted);
     if (salaryRefs.isNotEmpty) _applySalaryRefs(all, salaryRefs);
     if (splits.isNotEmpty) _applyTxSplits(all, splits);
+    if (manual.isNotEmpty) {
+      final existingKeys = all.map((r) => r['mkey'] as String?).toSet();
+      for (final tx in manual.values) {
+        final mkey = tx['mkey'] as String?;
+        if (mkey != null && !existingKeys.contains(mkey)) {
+          all.add(Map<String, dynamic>.from(tx));
+        }
+      }
+    }
     fresh['all'] = all;
     fresh
         .remove('totals'); // month/day headers recompute canonically from `all`
@@ -3384,7 +3745,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
             if (widget.demo) _demoPointerLayer(),
           ]),
         ),
-        bottomNavigationBar: _navBar(),
+        // 2026-08-31: the Investing tab's empty welcome screen reads as a
+        // full-bleed screen (same idea as the Grynieji/Kvitas intro) — the
+        // bottom nav bar underneath it was reported as visual clutter, so
+        // it's hidden specifically for that one state. investments() is a
+        // synchronous local read (no async gap), safe to call at build time.
+        bottomNavigationBar:
+            (_tab == 6 && DashboardStore.investments().isEmpty)
+                ? null
+                : _navBar(),
       ),
     );
   }
@@ -3861,6 +4230,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   // underlying row(s): a group shares (mkey, date).
                   'mkey': k, 'd': d, 'sec': t['sec'], 'secc': t['secc'],
                   'star': t['star'] == true,
+                  // 2026-08-31: real bug, reported — this reconstruction
+                  // whitelist dropped 'cashSrc' entirely, so the cash badge
+                  // (_txRow) never showed here even for a single, un-merged
+                  // manual cash row — every row in the Transactions feed
+                  // goes through this same putIfAbsent regardless of
+                  // whether it ends up merging with anything else.
+                  'cashSrc': t['cashSrc'] == true,
                   'ts': t['ts'],
                   // raw/cur (the bank's own pre-conversion figure) — dropped here
                   // before, so every merged row (even a "merge" of one) lost them
@@ -3928,17 +4304,52 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // / Planavimas tabs — a placeholder chip here only duplicated that.
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      child: Row(children: [
-        GestureDetector(
-          onTap: _openDashFilter,
-          child: _Chip(
-            icon: Icons.tune_rounded,
-            label: _txFilter.active
-                ? '${tr('Filtras')} · ${_txFilter.count}'
-                : tr('Filtras'),
-            active: _txFilter.active,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          GestureDetector(
+            onTap: _openDashFilter,
+            child: _Chip(
+              icon: Icons.tune_rounded,
+              label: _txFilter.active
+                  ? '${tr('Filtras')} · ${_txFilter.count}'
+                  : tr('Filtras'),
+              active: _txFilter.active,
+            ),
           ),
-        ),
+          // 2026-08-30: instant clear right next to the chip — the sheet's
+          // own "Išvalyti" link already did this, but required opening the
+          // whole sheet first just to turn the filter back off.
+          if (_txFilter.active) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _clearTxFilter,
+              child: Icon(Icons.close_rounded, size: 20, color: _muted),
+            ),
+          ],
+          const SizedBox(width: 8),
+          // 2026-08-30: was a bare, unlabelled icon up in the header —
+          // reported real gap: nothing told a new user it existed, let alone
+          // what it did. A labelled chip, right next to Filtras (a pattern
+          // this screen already teaches — "chips here are tappable
+          // controls"), reads immediately as its own action instead of
+          // decoration. `active: true` gives it a permanent accent tint
+          // (unlike Filtras, which is only tinted when a filter is ON) —
+          // this one is always "ready to tap", not a state to toggle.
+          GestureDetector(
+            onTap: _openCashExpense,
+            child: _Chip(
+              icon: Icons.payments_outlined,
+              label: tr('Mokėjau grynais'),
+              active: true,
+            ),
+          ),
+        ]),
+        if (_txFilter.active)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('${tr('Rodoma tik')}: ${_txFilterSummary()}',
+                style: TextStyle(fontSize: 12, color: _muted)),
+          ),
       ]),
     );
   }
@@ -4587,28 +4998,35 @@ class _DashboardPreviewState extends State<DashboardPreview>
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _acctSectionLabel(tr('Bankai')),
-                            const SizedBox(height: 6),
-                            for (final a in accounts) ...[
-                              _expandedAcctChip(a, acctTotal),
-                              const SizedBox(height: 8),
-                            ],
-                            // 2026-08-29: Grynieji + Investicijos — same row
-                            // styling as the bank list above so the two
-                            // groups visually agree, but under their OWN
-                            // section label with real space above it
-                            // (reported: everything crammed into one list
-                            // read as a jumble, not two organised groups).
-                            const SizedBox(height: 12),
-                            _acctSectionLabel(tr('Kita')),
-                            const SizedBox(height: 6),
-                            _cashListRow(),
-                            const SizedBox(height: 8),
-                            _investListRow(),
-                            // "Suskleisti" stays centered, below EVERYTHING
-                            // (both groups) — it collapses the whole
-                            // section, not just the bank list above it.
-                            const SizedBox(height: 14),
+                            _acctsSegmented(),
+                            const SizedBox(height: 4),
+                            // 2026-08-30: Investicijos dropped from this
+                            // panel entirely, per explicit request — it
+                            // already has its own dedicated tab; repeating
+                            // its number here just crowded the dashboard
+                            // with the same figure twice. Only Bankai and
+                            // Grynieji remain (see _acctsSegmented).
+                            //
+                            // Both card-based attempts (a full-width row,
+                            // then a 2-up card grid) read as "opaque white
+                            // boxes on a blue background" — didn't belong on
+                            // the hero visually and ate more space than the
+                            // numbers needed. Flat, borderless rows directly
+                            // on the hero (picked "B variantas" from an HTML
+                            // comparison round) fixes both: no card colour to
+                            // clash with the background, and a single-line
+                            // row per item is the most compact shape there
+                            // is.
+                            if (_acctsTab == 0)
+                              for (var i = 0; i < accounts.length; i++)
+                                _flatAcctRow(accounts[i], acctTotal,
+                                    isLast: i == accounts.length - 1)
+                            else
+                              _cashFlatRow(),
+                            // "Suskleisti" stays centered, below the active
+                            // tab's content — it collapses the whole panel,
+                            // not just one group.
+                            const SizedBox(height: 10),
                             Center(child: _acctsToggleChip(accounts)),
                           ],
                         )
@@ -4795,36 +5213,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
     ]);
   }
 
-  // 2026-08-29: live total for the hero's "Investicijos" pill — explicit
-  // request to echo the Investing tab's own number on Home, NOT a second
-  // input (investments are only ever added from the Investing tab itself;
-  // this is read-only). Fetches whatever isn't already cached, same
-  // quote/EUR-conversion logic as investing_tab.dart's own _totalCard, then
-  // sums. Re-run from build() (via the quickAction/pill's own read of
-  // DashboardStore.investments()) whenever the holdings list changes size —
-  // cheap, since already-cached symbols short-circuit without a network hit.
-  Future<void> _loadInvestTotal() async {
-    final holdings = DashboardStore.investments();
-    if (holdings.isEmpty) {
-      if (mounted) setState(() => _investTotal = 0);
-      return;
-    }
-    final rate = FxRates.instance.rateFor('USD');
-    for (final h in holdings) {
-      final symbol = h['symbol'] as String;
-      if (_investQuoteCache.containsKey(symbol)) continue;
-      final q = await StockService.instance.quote(symbol);
-      final price = (q?['price'] as num?)?.toDouble();
-      if (price != null && rate > 0) _investQuoteCache[symbol] = price / rate;
-    }
-    var total = 0.0;
-    for (final h in holdings) {
-      final shares = (h['shares'] as num).toDouble();
-      total += shares * (_investQuoteCache[h['symbol'] as String] ?? 0);
-    }
-    if (mounted) setState(() => _investTotal = total);
-  }
-
   // 2026-08-16: shares storage with Paskyra's "Grynasis turtas" list
   // (DashboardStore.manualAssets) instead of its own key — adding cash here
   // and adding it in Paskyra used to be two different numbers that never
@@ -4838,6 +5226,66 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (((a['label'] as String?) ?? '').trim() == 'Grynieji') return a;
     }
     return null;
+  }
+
+  // 2026-08-30: "Išleidau grynais" — a manually-logged cash expense, kept
+  // categorised exactly like a bank transaction (same category list, same
+  // 'cat'/'sec'/'col'/'ic' fields — see _ManualCat/_catsFor) so it flows
+  // into every existing category/month/budget/top-merchants view for free,
+  // tagged only with 'cashSrc': true so it can be told apart where that
+  // matters (see _TxDetailScreen's "Apmokėta grynais" label). This is the
+  // fix for the real gap a cash-only spender has today: bank categorisation
+  // sees nothing when €50 leaves your pocket at a restaurant, so it either
+  // goes untracked or gets lumped into one opaque "Grynieji" withdrawal
+  // total with no idea WHERE it went.
+  Future<void> _openCashExpense() async {
+    final tx = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+          builder: (_) => const _ManualTxScreen(kind: 'expense', cash: true)),
+    );
+    if (tx == null || !mounted) return;
+    (_d['all'] as List).add(tx);
+    await DashboardStore.addManualTx(tx);
+    final hadCashTracked = _cashAsset != null;
+    await _deductFromCashAsset((tx['a'] as num).abs().toDouble());
+    _refreshFromAll();
+    // 2026-08-30: explicit question — "if nothing was ever entered for
+    // Grynieji, what happens when someone logs a cash expense?" Answer
+    // before this fix: nothing visible — the expense saved fine (it still
+    // counts in categories/budgets), but silently had no balance to deduct
+    // from, with no indication that was even a thing. Ask once, right at
+    // the moment it matters, instead of leaving it unexplained.
+    if (!hadCashTracked && mounted) await _nudgeSetCashIfMissing();
+  }
+
+  /// Shown right after a cash expense/receipt is logged with no starting
+  /// "Grynieji" balance on record — see _openCashExpense's own doc for why.
+  /// Purely informational + a shortcut; skipping it changes nothing (the
+  /// expense already saved either way).
+  Future<void> _nudgeSetCashIfMissing() async {
+    if (_cashAsset != null || !mounted) return;
+    final setNow = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(tr('Nenurodei, kiek turi grynųjų'),
+            style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        content: Text(
+            tr('Ši išlaida jau įskaičiuota į kategorijas, bet neatimta iš jokio balanso — dar nesi nurodęs, kiek grynųjų turi iš viso.'),
+            style: TextStyle(color: _muted, height: 1.4)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Praleisti'), style: TextStyle(color: _muted))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Nurodyti dabar'),
+                  style: TextStyle(color: _purple, fontWeight: FontWeight.w800))),
+        ],
+      ),
+    );
+    if (setNow == true && mounted) await _promptCash(delta: 0);
   }
 
   // 2026-08-16: PREVIEW-ONLY — cash on hand. No card, no fill: one line of
@@ -4899,6 +5347,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ),
       );
 
+
   // delta: +1 = "Gavau" (add), -1 = "Išleidau" (subtract), 0 = first-time set
   // (also re-used for every later edit — it's a plain overwrite, not a
   // running ledger, so re-opening it to type a SMALLER number already
@@ -4906,6 +5355,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
   Future<void> _promptCash({required int delta}) async {
     final ctl = TextEditingController();
     final hadCash = delta == 0 && _cashAsset != null;
+    // 2026-08-30: pre-fill the CURRENT total when correcting it (delta==0,
+    // already set) — an always-empty field made this read as "type a brand
+    // new amount" rather than "fix the existing one" (reported gap: no
+    // obvious way to adjust/correct a typo). The +/− quick actions (see
+    // _cashListRow) cover the common "spent/received cash" case; this
+    // covers "I mistyped the total itself".
+    if (hadCash) {
+      final cur = (_cashAsset!['amount'] as num).toDouble() * Money.rate;
+      ctl.text = cur == cur.roundToDouble() ? cur.toStringAsFixed(0) : cur.toStringAsFixed(2);
+    }
     final title = delta == 0
         ? tr('Kiek turi grynųjų?')
         : delta > 0
@@ -4956,7 +5415,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
                               fontWeight: FontWeight.w800,
                               color: _ink),
                           decoration: const InputDecoration(
-                              border: InputBorder.none, hintText: '0'))),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              hintText: '0'))),
                   Text(Money.symbol,
                       style: TextStyle(
                           fontSize: 22, fontWeight: FontWeight.w700, color: _muted)),
@@ -5134,27 +5596,30 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // SEB and Revolut opened the exact same chart. Tapping the plain blue
   // background still does that (nothing here intercepts it); this chip
   // now intercepts ITS OWN tap first.
-  Widget _expandedAcctChip(Map a, double acctTotal) => GestureDetector(
-        onTap: () => _showBalance(a.cast<String, dynamic>()),
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-        // 2026-08-29: was content-sized (mainAxisSize.min, no Expanded) —
-        // next to the Grynieji/Investicijos rows below it (full width by
-        // design, see those widgets) that made the whole list read as
-        // uneven card widths (reported, real). Full width + Expanded on the
-        // name here too, so every row in this list — banks, Grynieji,
-        // Investicijos — lines up identically.
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+  /// One bank, one line — flat and borderless, directly on the hero's own
+  /// blue background (picked "B variantas"). Two earlier attempts (a
+  /// full-width row, then a 2-up card grid) both put an opaque `_card`
+  /// colour behind the row, which read as a white box sitting ON the blue
+  /// hero rather than belonging to it, and either wasted width (empty
+  /// middle) or added visual weight the number didn't need. No card
+  /// colour at all here — just a hairline divider between rows, same
+  /// convention a native "Accounts" list uses.
+  Widget _flatAcctRow(Map a, double acctTotal, {required bool isLast}) {
+    final amt = ((a['amount'] ?? 0) as num).toDouble();
+    final pct = acctTotal > 0 ? (amt / acctTotal * 100).round() : 0;
+    return GestureDetector(
+      onTap: () => _showBalance(a.cast<String, dynamic>()),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _hair),
-          boxShadow: DS.e1,
+          border: isLast
+              ? null
+              : Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.14))),
         ),
         child: Row(children: [
-          _acctGlyph(a, diameter: 24, fontSize: 11),
-          const SizedBox(width: 8),
+          _acctGlyph(a, diameter: 26, fontSize: 11),
+          const SizedBox(width: 10),
           Expanded(
             child: Row(children: [
               Flexible(
@@ -5162,170 +5627,141 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
+                        fontSize: 13, color: _heroInk, fontWeight: FontWeight.w700)),
               ),
               if (a['sub'] != null) ...[
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                      // 2026-08-16: this chip's own card background (_card)
-                      // already goes near-black in dark mode — a fixed cream
-                      // badge inside it read as visibly inconsistent with the
-                      // SAME badge on the collapsed hero chip a few lines up,
-                      // which already branches on _darkMode. Matched here too.
-                      color: _darkMode
-                          ? Colors.white.withValues(alpha: 0.14)
-                          : const Color(0xFFFBF1DE),
-                      borderRadius: BorderRadius.circular(8)),
+                      color: Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(7)),
                   child: Text(tr(a['sub'] as String),
                       style: TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 9.5,
                           fontWeight: FontWeight.w700,
-                          color: _darkMode ? _ink : const Color(0xFF9C6B0A))),
+                          color: _heroInk)),
                 ),
               ],
             ]),
           ),
-          const SizedBox(width: 8),
-          Text(
-              _hideBal ? '••••' : _eur0(((a['amount'] ?? 0) as num).toDouble()),
+          if (!_hideBal && acctTotal > 0) ...[
+            Text('$pct%',
+                style: TextStyle(
+                    fontSize: 10.5, color: _heroInk.withValues(alpha: 0.55))),
+            const SizedBox(width: 8),
+          ],
+          Text(_hideBal ? '••••' : _eur0(amt),
               style: TextStyle(
-                  fontSize: 13,
-                  // 2026-08-29: was a hardcoded _purpleDeep regardless of
-                  // theme — read fine on light mode's white card, but showed
-                  // as an unrelated purple accent sitting in an otherwise
-                  // purple-free dark card (reported, real). Green in dark
-                  // mode instead — a balance figure reads as "money", not
-                  // as an accent colour borrowed from somewhere else.
-                  color: _darkMode ? _good : _purpleDeep,
+                  fontSize: 13.5,
+                  color: _good,
                   fontWeight: FontWeight.w800,
                   fontFeatures: const [FontFeature.tabularFigures()])),
-          if (!_hideBal && acctTotal > 0) ...[
-            const SizedBox(width: 5),
-            Text(
-                '${(((a['amount'] ?? 0) as num).toDouble() / acctTotal * 100).round()}%',
-                style: TextStyle(
-                    fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
-          ],
-        ]),
-        ),
-      );
-
-  /// Small icon-circle for the Grynieji/Investicijos rows below — same 24px
-  /// size as _acctGlyph (the bank logo circle) so all three row types in
-  /// this list line up identically, just a plain tinted icon instead of a
-  /// fetched bank logo (neither of these has one).
-  Widget _rowGlyph(IconData icon) => Container(
-        width: 24,
-        height: 24,
-        alignment: Alignment.center,
-        decoration:
-            BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
-        child: Icon(icon, size: 13, color: _purple),
-      );
-
-  /// "Grynieji" row in the expanded Sąskaitos list — same card styling as
-  /// _expandedAcctChip so the two read as one organised list, not a bank
-  /// list plus something bolted on. Tap sets/overwrites cash on hand
-  /// (reuses _promptCash/_cashAsset, the SAME storage Paskyra's "Grynasis
-  /// turtas" list already reads/writes) — deliberately a plain SET, not a
-  /// running +/− ledger.
-  Widget _cashListRow() {
-    final cash = (_cashAsset?['amount'] as num?)?.toDouble();
-    return GestureDetector(
-      onTap: () => _promptCash(delta: 0),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _hair),
-          boxShadow: DS.e1,
-        ),
-        child: Row(children: [
-          _rowGlyph(Icons.payments_rounded),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(tr('Grynieji'),
-                style: TextStyle(
-                    fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
-          ),
-          if (cash != null)
-            Text(_eur0(cash),
-                style: TextStyle(
-                    fontSize: 13,
-                    color: _darkMode ? _good : _purpleDeep,
-                    fontWeight: FontWeight.w800,
-                    fontFeatures: const [FontFeature.tabularFigures()]))
-          else
-            Text(tr('+ Pridėti'),
-                style: TextStyle(
-                    fontSize: 13, color: _purple, fontWeight: FontWeight.w700)),
         ]),
       ),
     );
   }
 
-  /// "Investicijos" row in the expanded Sąskaitos list — same card styling.
-  /// Always taps through to the Investing tab (empty or not); the amount
-  /// itself is READ-ONLY here, an echo of that tab's own total
-  /// (_loadInvestTotal) — investments are only ever added from that tab.
-  Widget _investListRow() {
-    final holdings = DashboardStore.investments();
-    final total = _investTotal;
-    return GestureDetector(
-      onTap: () => setState(() => _tab = 6),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _hair),
-          boxShadow: DS.e1,
+  /// "Grynieji" row in the expanded Sąskaitos list — same flat, borderless
+  /// shape as _flatAcctRow (see its own doc for why: no card colour to
+  /// clash with the hero's blue background). Tapping the row/amount opens
+  /// the exact-total editor (_promptCash, pre-filled when correcting an
+  /// existing amount); the +/− icons are the explicit relative adjust —
+  /// reported real gap: no obvious way to just subtract a spent/mistaken
+  /// amount without retyping the whole total.
+  Widget _cashFlatRow() {
+    final cash = (_cashAsset?['amount'] as num?)?.toDouble();
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      child: Row(children: [
+        Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration:
+              BoxDecoration(color: Colors.white.withValues(alpha: 0.16), shape: BoxShape.circle),
+          child: Icon(Icons.payments_rounded, size: 13, color: Colors.white),
         ),
-        child: Row(children: [
-          _rowGlyph(Icons.show_chart_rounded),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () => _promptCash(delta: 0),
+          behavior: HitTestBehavior.opaque,
+          child: Text(tr('Grynieji'),
+              style: TextStyle(fontSize: 13, color: _heroInk, fontWeight: FontWeight.w700)),
+        ),
+        const Spacer(),
+        if (cash != null) ...[
+          _cashStepBtn(Icons.remove_rounded, () => _promptCash(delta: -1)),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(tr('Investicijos'),
+          _cashStepBtn(Icons.add_rounded, () => _promptCash(delta: 1)),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: () => _promptCash(delta: 0),
+            child: Text(_eur0(cash),
                 style: TextStyle(
-                    fontSize: 13, color: _ink, fontWeight: FontWeight.w700)),
-          ),
-          if (holdings.isNotEmpty && total != null) ...[
-            Text(_eur0(total),
-                style: TextStyle(
-                    fontSize: 13,
-                    color: _darkMode ? _good : _purpleDeep,
+                    fontSize: 13.5,
+                    color: _good,
                     fontWeight: FontWeight.w800,
                     fontFeatures: const [FontFeature.tabularFigures()])),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded, size: 16, color: _faint),
-          ] else
-            Text(tr('+ Pridėti'),
-                style: TextStyle(
-                    fontSize: 13, color: _purple, fontWeight: FontWeight.w700)),
-        ]),
-      ),
+          ),
+        ] else
+          GestureDetector(
+            onTap: () => _promptCash(delta: 0),
+            child: Text(tr('+ Pridėti'),
+                style: const TextStyle(
+                    fontSize: 13, color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+      ]),
     );
   }
 
-  /// Small caps label separating "Bankai" from "Kita" (Grynieji/Investicijos)
-  /// in the expanded Sąskaitos list — explicit request to make the two
-  /// groups read as organised sections, not one flat pile of chips.
-  Widget _acctSectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(left: 2),
-        child: Text(text.toUpperCase(),
-            style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-                color: _heroInk.withValues(alpha: 0.55))),
-      );
+  /// Real segmented tabs (Bankai / Grynieji) for the expanded Sąskaitos
+  /// panel — picked ("B variantas") from an HTML comparison round. Only the
+  /// active tab's group is ever visible, so bank money and cash can never
+  /// blend together the way a single scrolling list did. Investicijos was
+  /// dropped from this panel per explicit request — it already has its own
+  /// dedicated tab; repeating its number here just duplicated it.
+  Widget _acctsSegmented() {
+    final tabs = [tr('Bankai'), tr('Grynieji')];
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Row(children: [
+        for (var i = 0; i < tabs.length; i++)
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _acctsTab = i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _acctsTab == i ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                // Bold, uppercase, letter-spaced — explicit request to make
+                // the tab words themselves stand out more (the sorting
+                // itself was already fine, just read as too quiet).
+                child: Text(tabs[i].toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                        color: _acctsTab == i
+                            ? _previewPageBlue
+                            : Colors.white.withValues(alpha: 0.62))),
+              ),
+            ),
+          ),
+      ]),
+    );
+  }
 
   Widget _acctsToggleChip(List<Map> accounts) => GestureDetector(
         onTap: () => setState(() => _acctsOpen = !_acctsOpen),
@@ -5417,7 +5853,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
             child: _heroActionButton(
               icon: Icons.document_scanner_outlined,
               label: tr('Kvitas'),
-              onTap: _startReceiptScan,
+              onTap: _openReceiptQuickAction,
             ),
           ),
           Expanded(
@@ -5429,13 +5865,151 @@ class _DashboardPreviewState extends State<DashboardPreview>
           ),
           Expanded(
             child: _heroActionButton(
-              icon: Icons.groups_rounded,
-              label: tr('Dalybos'),
-              onTap: _startBillSplit,
+              icon: Icons.payments_rounded,
+              label: tr('Grynieji'),
+              onTap: _chooseCashEntry,
             ),
           ),
         ],
       );
+
+  // Shows the shared first-use explainer (see _FeatureIntroScreen) exactly
+  // once per feature, then runs the real action — same "seen it, don't
+  // repeat it" contract as everything else in DashboardStore.
+  Future<bool> _showFeatureIntro({
+    required String asset,
+    required Color accent,
+    String eyebrow = '',
+    String headline = '',
+    String subtitle = '',
+    List<(IconData, String)> trustRows = const [],
+    String ctaLabel = '',
+    double imageShiftFraction = 0,
+    bool showText = true,
+  }) async {
+    final proceed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _FeatureIntroScreen(
+          asset: asset,
+          eyebrow: eyebrow,
+          accent: accent,
+          headline: headline,
+          subtitle: subtitle,
+          trustRows: trustRows,
+          ctaLabel: ctaLabel,
+          imageShiftFraction: imageShiftFraction,
+          showText: showText,
+        ),
+      ),
+    );
+    return proceed == true;
+  }
+
+  // The "Kvitas" hero quick action, wrapped: first ever tap explains what
+  // scanning does (bank-match OR cash-only) before dropping into the picker.
+  Future<void> _openReceiptQuickAction() async {
+    if (_kAlwaysShowFeatureIntro || !DashboardStore.seenReceiptIntro) {
+      final proceed = await _showFeatureIntro(
+        asset: 'assets/onboarding/receipt_intro_bg.png',
+        imageShiftFraction: 0.08,
+        eyebrow: tr('Kvitas'),
+        accent: _kIntroAccent,
+        headline: tr('Nuskenuok kvitą'),
+        subtitle: tr(
+            'Atpažinsime prekes ir sumą bei susiesime kvitą su atitinkama banko operacija.'),
+        trustRows: [
+          (Icons.search_rounded,
+              tr('Automatiškai surasime atitinkančią banko operaciją')),
+          (Icons.call_split_rounded,
+              tr('Kvitą galėsi padalinti į kelias kategorijas')),
+          (Icons.receipt_long_rounded,
+              tr('Išlaidas priskirsime pagal kvite esančią informaciją')),
+        ],
+        ctaLabel: tr('Skenuoti kvitą'),
+      );
+      await DashboardStore.markReceiptIntroSeen();
+      if (!proceed || !mounted) return;
+    }
+    await _startReceiptScan();
+  }
+
+  // 2026-08-31: replaces the old "Dalybos" (bill split) quick action — per
+  // explicit request, that feature wasn't earning its slot. This button is
+  // the front door for "I paid with cash" specifically: it just offers the
+  // two cash-capture paths that already existed but were buried (a filter
+  // chip in Transactions) — scan the receipt (handles both a bank-match and
+  // a cash-only outcome on its own) or skip straight to manual entry.
+  Future<void> _chooseCashEntry() async {
+    if (_kAlwaysShowFeatureIntro || !DashboardStore.seenCashIntro) {
+      final proceed = await _showFeatureIntro(
+        asset: 'assets/onboarding/cash_intro_bg.png',
+        imageShiftFraction: 0.30,
+        eyebrow: tr('Grynieji'),
+        accent: _kIntroAccent,
+        headline: tr('Moki grynais?'),
+        subtitle: tr(
+            'Bankas nemato tavo grynųjų išlaidų — pridėk jas pats, kad likutis būtų tikslus.'),
+        trustRows: [
+          (Icons.edit_outlined, tr('Įvesk sumą ir pasirink kategoriją')),
+          (Icons.document_scanner_outlined,
+              tr('Nuskenuok kvitą, jei mokėjai grynais')),
+          (Icons.payments_rounded,
+              tr('Grynieji likučiai atsinaujins iš karto')),
+        ],
+        ctaLabel: tr('Supratau, tęsti'),
+      );
+      await DashboardStore.markCashIntroSeen();
+      if (!proceed || !mounted) return;
+    }
+    final choice = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          ListTile(
+            leading: Icon(Icons.document_scanner_outlined, color: _purple),
+            title:
+                Text(tr('Skenuoti kvitą'), style: TextStyle(color: _ink)),
+            subtitle: Text(tr('Tik jeigu kvitas apmokėtas grynaisiais pinigais'),
+                style: TextStyle(fontSize: 11.5, color: _faint)),
+            onTap: () => Navigator.pop(ctx, 0),
+          ),
+          ListTile(
+            leading: Icon(Icons.edit_outlined, color: _purple),
+            title: Text(tr('Pradėti rankiniu būdu'),
+                style: TextStyle(color: _ink)),
+            onTap: () => Navigator.pop(ctx, 1),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 0) {
+      await _scanCashReceipt();
+    } else if (choice == 1) {
+      await _openCashExpense();
+    }
+  }
+
+  // Reached ONLY from the "Grynieji" cash-entry chooser above — the user has
+  // already told us this specific receipt was paid IN CASH, so unlike the
+  // general "Kvitas" quick action (_startReceiptScan), this never searches
+  // bank transactions for a match. Doing that here risked surfacing an
+  // unrelated CARD-paid transaction (e.g. a genuine Rimi purchase paid by
+  // card) as a "candidate" — reported concern: the user could get confused
+  // and merge a cash receipt's items into a real bank row that has nothing
+  // to do with it. Skips straight to the cash-only split flow instead.
+  Future<void> _scanCashReceipt() async {
+    final res = await _scanReceiptFlow(context);
+    if (res == null || !mounted) return;
+    final (items, total, _) = res;
+    await _createCashReceiptSplit(items, total);
+  }
 
   Widget _heroActionButton({
     required IconData icon,
@@ -6452,11 +7026,26 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // flat €1 — still forgives a missed item on a big receipt, no longer
   // swallows an unrelated transaction that merely happens to be close in
   // absolute euros.
-  List<Map<String, dynamic>> _matchReceiptCandidates(double scannedTotal) {
+  List<Map<String, dynamic>> _matchReceiptCandidates(double scannedTotal,
+      {String? merchant}) {
     final all = (_d['all'] as List?)?.cast<Map>() ?? const [];
     final now = DateTime.now();
     final tolerance =
         scannedTotal > 0 ? math.max(scannedTotal * 0.05, 1.0) : 1.0;
+    // 2026-08-30: real, reported risk — this used to match on AMOUNT alone
+    // (±5%, last 45 days), with no merchant check at all. A cash receipt
+    // whose total happened to land within 5% of ANY unrelated recent bank
+    // transaction (a genuinely common coincidence — round numbers, similar
+    // grocery runs) got offered as a "match", and picking it would have
+    // overwritten that unrelated transaction's real category breakdown with
+    // the cash receipt's items. Now requires the SAME merchant (via
+    // _merchantKey, the same fuzzy-name matching split-feed merging already
+    // uses) whenever OCR actually recognised one on the receipt — amount
+    // alone is only trusted when no merchant was recognised at all, so this
+    // never becomes STRICTER than the original behaviour, only safer when
+    // there's a name to check against.
+    final scanKey =
+        (merchant != null && merchant.trim().isNotEmpty) ? _merchantKey(merchant) : null;
     final scored = <MapEntry<double, Map<String, dynamic>>>[];
     for (final t in all) {
       if (t['splitGroup'] != null) continue; // already split
@@ -6468,6 +7057,12 @@ class _DashboardPreviewState extends State<DashboardPreview>
       if (d == null || now.difference(d).inDays > 45) continue;
       final diff = (amt - scannedTotal).abs();
       if (diff > tolerance) continue;
+      if (scanKey != null) {
+        final tKey = _merchantKey(_txDisplayName(t));
+        if (tKey.isEmpty || !(tKey.contains(scanKey) || scanKey.contains(tKey))) {
+          continue;
+        }
+      }
       scored.add(MapEntry(diff, t.cast<String, dynamic>()));
     }
     scored.sort((a, b) => a.key.compareTo(b.key));
@@ -6482,14 +7077,21 @@ class _DashboardPreviewState extends State<DashboardPreview>
   Future<void> _startReceiptScan() async {
     final res = await _scanReceiptFlow(context);
     if (res == null || !mounted) return;
-    final (items, total, _) = res;
-    final candidates = _matchReceiptCandidates(total);
+    final (items, total, merchant) = res;
+    final candidates = _matchReceiptCandidates(total, merchant: merchant);
     final chosen = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
           builder: (_) => _ReceiptMatchScreen(
               candidates: candidates, scannedTotal: total)),
     );
     if (chosen == null || !mounted) return;
+    // 2026-08-30: explicit "this wasn't a bank transaction" escape — see
+    // _ReceiptMatchScreen's own doc for why it exists (real risk: attaching
+    // a cash receipt's items to an unrelated bank row).
+    if (chosen['cashOnly'] == true) {
+      await _createCashReceiptSplit(items, total);
+      return;
+    }
     final cat = (chosen['cat'] as String?) ?? 'Kita';
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => _SplitTransactionScreen(
@@ -6503,6 +7105,74 @@ class _DashboardPreviewState extends State<DashboardPreview>
       ),
     ));
     if (mounted) _refreshFromAll();
+  }
+
+  /// The scanned receipt wasn't a bank transaction at all — opens the SAME
+  /// split editor a real bank transaction would, against a candidate manual
+  /// cash row that ISN'T created (and no cash gets deducted) unless the
+  /// split is actually saved.
+  ///
+  /// 2026-08-30: real bug, reported — the first version created the row and
+  /// deducted the cash total IMMEDIATELY, before the split editor even
+  /// opened. Pressing the editor's own "X"/back (never saving) still left
+  /// that row sitting in Transactions and the cash balance already reduced
+  /// — "Atšaukti" didn't actually cancel anything. The per-transaction split
+  /// entry point (_TxDetailScreenState._openSplit) already gets this right
+  /// for REAL bank rows — `push<bool>` and only act `if (saved == true)` —
+  /// this now follows the exact same rule; the only difference here is that
+  /// the row itself is also conjured up only at that point, not before.
+  Future<void> _createCashReceiptSplit(
+      List<Map<String, dynamic>> items, double scannedTotal) async {
+    final now = DateTime.now();
+    final mkey = 'manual-${now.microsecondsSinceEpoch}';
+    final d = _DashboardPreviewState._ymd(now);
+    final tx = <String, dynamic>{
+      'nm': tr('Grynųjų pirkinys'),
+      'mkey': mkey,
+      'd': d,
+      'md': '${_monGen[now.month - 1]} ${now.day}',
+      'wd': _wdShort[now.weekday - 1],
+      'cat': 'Kita',
+      'col': 'other',
+      'ic': 'swap',
+      'sec': 'Kita',
+      'secc': 'indigo',
+      // scannedTotal is already EUR (same assumption _matchReceiptCandidates
+      // already made comparing it directly against stored EUR amounts) — no
+      // Money.rate conversion, unlike _ManualTxScreen's typed-in-display-
+      // currency amount.
+      'a': double.parse((-scannedTotal.abs()).toStringAsFixed(2)),
+      'amb': false,
+      'badges': <String>[],
+      'pos': false,
+      'count': 0,
+      'manual': true,
+      'cashSrc': true,
+    };
+    final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => _SplitTransactionScreen(
+        splitKey: 'grp:$mkey|$d',
+        merchant: tx['nm'] as String,
+        total: scannedTotal,
+        initialCat: 'Kita',
+        initialMeta: null,
+        parentSnapshot: Map<String, dynamic>.from(tx),
+        prefilledItems: items,
+      ),
+    ));
+    if (saved != true || !mounted) return; // cancelled — nothing was ever created
+    (_d['all'] as List).add(tx);
+    // Persists the PARENT row (not the split children — those come from
+    // DashboardStore.txSplits(), already saved by _SplitTransactionScreen
+    // itself). Without this, the parent that _applyTxSplits needs to find
+    // and expand on the next sync simply wouldn't exist, and the split
+    // would silently stop showing at all — same root bug as the plain cash
+    // expense case just above, for the exact same reason.
+    await DashboardStore.addManualTx(tx);
+    final hadCashTracked = _cashAsset != null;
+    await _deductFromCashAsset(scannedTotal);
+    _refreshFromAll();
+    if (!hadCashTracked && mounted) await _nudgeSetCashIfMissing();
   }
 
   // 2026-08-16: Bill Split's OWN entry point — a separate feature from
@@ -6723,6 +7393,66 @@ class _DashboardPreviewState extends State<DashboardPreview>
         Text(_activeLabel(n), style: TextStyle(fontSize: 11.5, color: _faint)),
       ]);
 
+  // 2026-08-30: a filter picked in Transactions silently narrows Home's own
+  // "Šią savaitę išleista" card too (both read _feedAll) — reported as a
+  // real, confusing bug ("sistema lūžo") when a filter matching nothing this
+  // week made the card read €0,00 with zero indication why. The chip in
+  // _filters() already changes colour when active, but that chip only shows
+  // on the Transactions tab — Home had NO visible sign a filter was even on.
+  String _txFilterSummary() {
+    final parts = <String>[];
+    if (_txFilter.type != 'all') {
+      parts.add(tr(_txFilter.type == 'expense'
+          ? 'Išlaidos'
+          : _txFilter.type == 'income'
+              ? 'Pajamos'
+              : 'Pervedimai'));
+    }
+    if (_txFilter.secs.isNotEmpty) parts.add(_txFilter.secs.map(tr).join(', '));
+    return parts.join(' · ');
+  }
+
+  void _clearTxFilter() => setState(() {
+        _txFilter.type = 'all';
+        _txFilter.secs.clear();
+      });
+
+  Widget _activeFilterBanner() {
+    if (!_txFilter.active) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+      child: GestureDetector(
+        onTap: _clearTxFilter,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: _purpleSoft,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _purple.withValues(alpha: 0.45)),
+          ),
+          child: Row(children: [
+            Icon(Icons.filter_alt_rounded, size: 15, color: _purple),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text('${tr('Filtruota')}: ${_txFilterSummary()}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _purple)),
+            ),
+            const SizedBox(width: 6),
+            Text(tr('Išvalyti'),
+                style:
+                    TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: _purple)),
+            const SizedBox(width: 3),
+            Icon(Icons.close_rounded, size: 15, color: _purple),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Widget _weekSection() {
     // When a filter is active, or a past week is being browsed, recompute
     // the chart instead of using the cached current-week map — the cache
@@ -6786,6 +7516,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
             : '${monday.day}–${sunday.day} ${_monGen[monday.month - 1]} ${tr('išleista')}';
     return Column(
       children: [
+        _activeFilterBanner(),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -7269,6 +8000,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
               ),
             ),
             const SizedBox(width: 10),
+            // 2026-08-31: moved here from the category row, right before
+            // the amount — see the doc that used to sit here: a manually-
+            // logged cash expense otherwise looks identical to a bank row
+            // in the feed. Purple, not the green used for income, since
+            // this is usually a negative/expense amount — a green mark next
+            // to it would read as "this is money coming in", which it isn't.
+            if (t['cashSrc'] == true) ...[
+              Icon(Icons.payments_rounded, size: 13, color: _purple),
+              const SizedBox(width: 4),
+            ],
             Text(_eurTx(t, signed: true),
                 style: TextStyle(
                     fontSize: 15,
@@ -7478,10 +8219,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     }
                   } else {
                     setState(() => _tab = target);
-                    // Refreshes the hero's "Investicijos" pill on the way
-                    // back to Home — the only place the Investing tab's own
-                    // holdings could have just changed.
-                    if (target == 0) _loadInvestTotal();
                   }
                 },
                 child: Column(
@@ -7933,9 +8670,15 @@ Color _kindColor(String kind) => kind == 'income'
 // The manual-entry form (amount + category + date + note). Also used to EDIT an
 // existing transaction when [initial] is passed (prefills the fields).
 class _ManualTxScreen extends StatefulWidget {
-  const _ManualTxScreen({required this.kind, this.initial});
+  const _ManualTxScreen({required this.kind, this.initial, this.cash = false});
   final String kind; // 'expense' | 'income' | 'transfer'
   final Map<String, dynamic>? initial; // when set → edit mode
+  // 2026-08-30: "Išleidau grynais" (see _DashboardPreviewState._openCashExpense)
+  // reuses this exact screen — same amount/category/date/note fields a bank
+  // transaction's own edit screen already has — instead of building a second,
+  // near-identical form. Only changes the title and stamps the saved row with
+  // 'cashSrc': true (see _save) so it can be told apart from a bank row later.
+  final bool cash;
   @override
   State<_ManualTxScreen> createState() => _ManualTxScreenState();
 }
@@ -8123,6 +8866,7 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
       'pos': signed > 0,
       'count': 0,
       'manual': true,
+      if (widget.cash) 'cashSrc': true,
     };
     Navigator.of(context).pop(tx);
   }
@@ -8152,7 +8896,11 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                     onPressed: () => Navigator.of(context).pop()),
                 Expanded(
                     child: Text(
-                        _isEdit ? tr('Redaguoti') : tr(_kindTitle(widget.kind)),
+                        widget.cash
+                            ? tr('Išleidau grynais')
+                            : _isEdit
+                                ? tr('Redaguoti')
+                                : tr(_kindTitle(widget.kind)),
                         style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -9440,9 +10188,81 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     );
     if (ok != true) return;
     final targets = _underlying;
+    // 2026-08-31: real bug, found in audit — deleting a SPLIT transaction
+    // (or one of its line items) via this generic "Ištrinti" button only
+    // tombstoned the synthetic split-child identities (mkey__split0|...).
+    // Those identities never match the RAW, unsplit bank row that comes
+    // back from the next sync — so _applyTxSplits (see its own doc)
+    // regenerated the exact same "deleted" children right back from the
+    // split record still sitting in DashboardStore.txSplits(), which this
+    // never removed. The visible rows vanished for one screen, then came
+    // back on the next background sync — a zombie delete. Splitting has
+    // its own explicit undo ("Anuliuoti skaidymą", _undoSplit) that already
+    // calls removeTxSplit correctly; this generic delete just never mirrored
+    // that when the thing being deleted HAPPENED to be a split.
+    final splitGroups = <String>{
+      for (final r in targets)
+        if (r['splitGroup'] is String) r['splitGroup'] as String,
+    };
+    for (final g in splitGroups) {
+      await DashboardStore.removeTxSplit(g);
+    }
     // Tombstone each deleted transaction so a background sync re-removes it.
     for (final r in targets) {
       DashboardStore.addTxDeleted(DashboardStore.txIdentity(r));
+    }
+    // removeTxSplit alone stops the SPLIT CHILDREN from regenerating, but
+    // the RAW, pre-split bank row (one lump sum, e.g. "Rimi -8,51 €") no
+    // longer exists anywhere in `all` to tombstone directly either — split
+    // children replace it entirely (see _applyTxSplits' own toRemove/toAdd).
+    // Reconstruct its real identity from a child's own mkey (always
+    // '<raw mkey>__split<i>', see _applyTxSplits) and the sum of every
+    // child's amount (== the original total by construction — _canSave
+    // enforces lines sum to the full amount before a split can even be
+    // saved), so the raw transaction is ALSO tombstoned — otherwise the next
+    // sync would still bring it back as one un-split row, which is not what
+    // "Ištrinti" on a split transaction means to a user.
+    for (final g in splitGroups) {
+      final children = targets.where((r) => r['splitGroup'] == g).toList();
+      if (children.isEmpty) continue;
+      final childMkey = children.first['mkey'] as String;
+      final cut = childMkey.lastIndexOf('__split');
+      final rawMkey = cut >= 0 ? childMkey.substring(0, cut) : childMkey;
+      final rawAmount =
+          children.fold(0.0, (s, r) => s + ((r['a'] as num?)?.toDouble() ?? 0));
+      DashboardStore.addTxDeleted(DashboardStore.txIdentity({
+        'mkey': rawMkey,
+        'd': children.first['d'],
+        'a': rawAmount,
+      }));
+      // 2026-08-31: same zombie-row failure mode as splits themselves, for
+      // the same reason — a cash-receipt-split's PARENT row is a manual
+      // entry (see DashboardStore.manualTxs' own doc), and children inherit
+      // 'manual': true from it via _applyTxSplits' `...base` spread. Without
+      // this, the parent would reappear from manualTxs() on the next sync
+      // and get re-split right back into the "deleted" children.
+      if (children.first['manual'] == true) {
+        await DashboardStore.removeManualTx(rawMkey);
+      }
+    }
+    // 2026-08-31: same audit finding as the edit-time reconciliation above
+    // (_edit) — deleting a cash-sourced expense never gave the deducted
+    // amount back to the tracked "Grynieji" balance, permanently
+    // understating it by however much was ever deleted. Give it back
+    // whenever a deleted row (or, for a split receipt, its raw total) was
+    // cash-sourced.
+    for (final r in targets) {
+      if (r['cashSrc'] == true) {
+        await _addToCashAsset(_aOf(r).abs().toDouble());
+      }
+      // A plain (non-split) manual row, e.g. a cash expense logged via
+      // _openCashExpense — same reasoning as the split parent above: leaving
+      // it in DashboardStore.manualTxs() would bring it right back on the
+      // next sync even though "Ištrinti" was tapped.
+      if (r['splitGroup'] == null && r['manual'] == true) {
+        final mkey = r['mkey'] as String?;
+        if (mkey != null) await DashboardStore.removeManualTx(mkey);
+      }
     }
     widget.all.removeWhere(targets.contains);
     _dashRefresh?.call();
@@ -9475,6 +10295,16 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       'secc': edited['secc'],
       'pos': edited['pos'],
     };
+    // 2026-08-31: real bug, found in audit — a cash-sourced expense
+    // (_openCashExpense/_createCashReceiptSplit) deducts from the tracked
+    // "Grynieji" balance exactly ONCE, at creation. Editing its amount
+    // afterward (e.g. fixing a typo) updated the category totals correctly
+    // but left the cash balance silently wrong forever after — it never
+    // re-deducted the difference. Captured BEFORE `tx['a']` is overwritten
+    // below, so the reconciliation always compares the true old vs new
+    // amount regardless of the amount widget's own current display state.
+    final cashAdjust =
+        (single && tx['cashSrc'] == true) ? _aOf(tx).abs().toDouble() : null;
     for (var i = 0; i < rows.length; i++) {
       final r = rows[i];
       shared.forEach((k, v) => r[k] = v);
@@ -9487,6 +10317,15 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
       }
       // Persist the edit so a background sync re-applies it instead of wiping it.
       DashboardStore.setTxEdit(ids[i], ov);
+    }
+    if (cashAdjust != null) {
+      final newAbs = ((edited['a'] as num).toDouble()).abs();
+      final delta = newAbs - cashAdjust; // >0 spent MORE now, <0 spent LESS
+      if (delta > 0) {
+        await _deductFromCashAsset(delta);
+      } else if (delta < 0) {
+        await _addToCashAsset(-delta);
+      }
     }
     // Reflect on the display object too.
     tx['nm'] = edited['nm'];
@@ -9813,6 +10652,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                 padding: const EdgeInsets.only(top: 14, bottom: 30),
                 children: [
                   _isSplitGroup ? _splitItemsCard() : _categoryCard(),
+                  _cashWithdrawalCard(),
                   _detailsBox(),
                   _actions(),
                   if (budgetLimit != null) _budgetCard(budgetLimit),
@@ -9990,6 +10830,83 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
     );
   }
 
+  // 2026-08-30: a real bank-sourced ATM/cash withdrawal — the backend
+  // already keeps these OUT of spend totals (cat 'Grynieji', sec
+  // 'Pervedimai' — see functions/dashboard.py's _CASH_CODES), which is
+  // correct: withdrawing €100 isn't an expense, it's money changing form.
+  // But that also means it silently vanishes from view — the money that
+  // just left the bank account never appears in the tracked "Grynieji"
+  // (cash-on-hand) balance either, unless the user remembers to type it in
+  // themselves. This card closes that gap with one tap, exactly at the
+  // moment it's relevant (looking at the withdrawal itself).
+  Widget _cashWithdrawalCard() {
+    if (_isSplitGroup) return const SizedBox.shrink();
+    if (_cat != 'Grynieji') return const SizedBox.shrink();
+    if (tx['pos'] == true) return const SizedBox.shrink(); // only money OUT
+    // A manually-logged cash EXPENSE (_ManualTxScreen(cash: true)) never
+    // actually carries cat 'Grynieji' (that category isn't offered for
+    // expenses — see _expenseCats vs _transferCats), but guarded anyway:
+    // this card only ever means "a bank withdrawal", never "cash you spent".
+    if (tx['cashSrc'] == true) return const SizedBox.shrink();
+    if (tx['cashAdded'] == true) return const SizedBox.shrink(); // already actioned
+    final amt = amount.abs();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: AppCard(
+        color: _card,
+        border: _hair,
+        padding: const EdgeInsets.all(14),
+        child: Row(children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
+            child: Icon(Icons.savings_outlined, size: 20, color: _purple),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tr('Atrodo, kad tai grynųjų išėmimas.'),
+                  style:
+                      TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _ink)),
+              const SizedBox(height: 2),
+              Text('${tr('Pridėti')} ${_eur0(amt)} ${tr('prie sekamų grynųjų?')}',
+                  style: TextStyle(fontSize: 12.5, color: _muted)),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () async {
+              // 2026-08-31: audit finding — a rapid double-tap could fire
+              // this twice before the first tap's setState/rebuild ever
+              // removed the button, crediting the withdrawal to Grynieji
+              // twice. Flipping `tx['cashAdded']` (a plain, synchronous
+              // mutation on the SAME map instance both taps read) and
+              // bailing immediately on the second closes the race — no
+              // `await` runs before this check.
+              if (tx['cashAdded'] == true) return;
+              tx['cashAdded'] = true;
+              if (mounted) setState(() {});
+              await _addToCashAsset(amt);
+              DashboardStore.setTxEdit(
+                  DashboardStore.txIdentity(tx), {'cashAdded': true});
+              _dashRefresh?.call();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration:
+                  BoxDecoration(color: _purple, borderRadius: BorderRadius.circular(12)),
+              child: Text(tr('Pridėti'),
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
   Widget _categoryCard() {
     final pt = _ptype(tx);
     return Padding(
@@ -10020,9 +10937,17 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
                           Row(children: [
                             Flexible(
                                 child: Text(
-                                    widget.tx['manual'] == true
-                                        ? tr('Įvesta ranka')
-                                        : tr('Kategorizuota automatiškai'),
+                                    // 2026-08-30: cashSrc (a manually-logged
+                                    // cash expense, see _ManualTxScreen's own
+                                    // doc) takes priority over the generic
+                                    // manual/auto label — "grynieji" is the
+                                    // more useful fact here, and it's already
+                                    // implied to be hand-entered anyway.
+                                    widget.tx['cashSrc'] == true
+                                        ? tr('Apmokėta grynais')
+                                        : widget.tx['manual'] == true
+                                            ? tr('Įvesta ranka')
+                                            : tr('Kategorizuota automatiškai'),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -10871,7 +11796,10 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
       const Spacer(),
       if (line.name.isEmpty)
         SizedBox(
-          width: 90,
+          // 2026-08-30: widened to match the other amount field's fix (see
+          // its own doc) — same clipped-last-digit risk, same box-plus-
+          // suffix width problem.
+          width: 100,
           child: TextField(
             controller: line.amtCtrl,
             keyboardType:
@@ -10924,7 +11852,14 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
                           color: _ink)),
                 ),
                 SizedBox(
-                  width: 84,
+                  // 2026-08-30: was 84 — reported real bug, the number's
+                  // own last digit was cut off/hidden behind the "€" suffix
+                  // (e.g. "0,55" rendered as "0,5€"). 84px fit a plain 4-char
+                  // amount at this font size but not that PLUS the suffix
+                  // text in the same box — widened enough for both, matching
+                  // the OTHER amount field a few lines up (the no-name/
+                  // catRow variant), which already used 90.
+                  width: 100,
                   child: TextField(
                     controller: line.amtCtrl,
                     keyboardType:
@@ -11030,6 +11965,39 @@ class _ReceiptMatchScreen extends StatelessWidget {
   final List<Map<String, dynamic>> candidates;
   final double scannedTotal;
 
+  // 2026-08-30: real risk, reported — this screen used to ALWAYS assume the
+  // scanned receipt belongs to some real bank transaction, with no way out
+  // if none of the offered candidates actually match (or worse, if the user
+  // wasn't sure and just picked the closest-looking one). A cash purchase
+  // has no bank transaction at all — this tile makes "it wasn't from my
+  // bank" a first-class, always-visible choice instead of an unhandled gap.
+  Widget _cashOnlyTile(BuildContext context) => InkWell(
+        onTap: () => Navigator.pop(context, {'cashOnly': true}),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+              color: _purpleSoft,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _purple.withValues(alpha: 0.4))),
+          child: Row(children: [
+            Icon(Icons.payments_outlined, color: _purple, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(tr('Apmokėta grynais'),
+                    style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+                const SizedBox(height: 2),
+                Text(tr('Tai ne banko operacija — pridėsime kaip naują grynųjų įrašą.'),
+                    style: TextStyle(fontSize: 12, color: _muted, height: 1.3)),
+              ]),
+            ),
+            Icon(Icons.chevron_right_rounded, color: _faint),
+          ]),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -11044,16 +12012,18 @@ class _ReceiptMatchScreen extends StatelessWidget {
       body: SafeArea(
         child: candidates.isEmpty
             ? Padding(
-                padding: const EdgeInsets.all(28),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.search_off_rounded, size: 40, color: _faint),
                     const SizedBox(height: 12),
                     Text(
-                        tr('Nerasta panašios operacijos per pastarąsias dienas. Atidaryk ją Transakcijose ir suskaidyk iš ten — "Skaidyti".'),
+                        tr('Nerasta panašios banko operacijos per pastarąsias dienas.'),
                         textAlign: TextAlign.center,
                         style: TextStyle(color: _muted, height: 1.4)),
+                    const SizedBox(height: 20),
+                    _cashOnlyTile(context),
                   ],
                 ),
               )
@@ -11066,6 +12036,7 @@ class _ReceiptMatchScreen extends StatelessWidget {
                         '${tr('Atpažinta suma')}: ${_eur0(scannedTotal)} — ${tr('pasirink, kuri banko operacija tai yra')}',
                         style: TextStyle(color: _muted, fontSize: 13)),
                   ),
+                  _cashOnlyTile(context),
                   for (final t in candidates)
                     InkWell(
                       onTap: () => Navigator.pop(context, t),
@@ -11151,8 +12122,23 @@ const _billHair = Color(0xFF23242E);
 // a result back up through every intermediate screen's own push/await.
 const _kBillSplitHomeRoute = 'billSplitHome';
 
-void _exitBillSplitWizard(BuildContext context) => Navigator.of(context)
-    .popUntil((r) => r.settings.name == _kBillSplitHomeRoute);
+// 2026-08-30: real bug, reported — deleting a saved split (or closing the
+// wizard right after saving a new one) left the list screen showing its OLD
+// content until the user left the Dalybos tab entirely and came back.
+// `Navigator.popUntil` only uncovers the list route's ALREADY-BUILT widget
+// tree; it doesn't rebuild it just because it becomes visible again (that
+// old assumption was wrong — see _BillSplitHomeScreenState's own doc). Every
+// wizard exit funnels through this one function, so the fix belongs here
+// once, not patched into every individual "Atmesti"/"Uždaryti"/delete call
+// site separately.
+void _exitBillSplitWizard(BuildContext context) {
+  Navigator.of(context).popUntil((r) => r.settings.name == _kBillSplitHomeRoute);
+  _billSplitHomeRefresh?.call();
+}
+
+/// Set by _BillSplitHomeScreenState while it's the current route; see
+/// _exitBillSplitWizard's own doc for why this exists.
+void Function()? _billSplitHomeRefresh;
 
 String _billYmd(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -11188,8 +12174,35 @@ Widget _billAvatar(_BillPerson p, {double radius = 15, double fontSize = 13}) =>
     );
 
 // ── STEP 0: Bill Split's own section — past saves + start a new one ────────
-class _BillSplitHomeScreen extends StatelessWidget {
+class _BillSplitHomeScreen extends StatefulWidget {
   const _BillSplitHomeScreen();
+  @override
+  State<_BillSplitHomeScreen> createState() => _BillSplitHomeScreenState();
+}
+
+class _BillSplitHomeScreenState extends State<_BillSplitHomeScreen> {
+  // 2026-08-30: was a StatelessWidget with a comment claiming
+  // "Navigator.popUntil back to it triggers a rebuild" — false; popping
+  // routes uncovers this screen's ALREADY-BUILT widget tree, it doesn't
+  // re-invoke build() just because it becomes visible again. That's exactly
+  // why a deleted (or freshly saved) split kept showing stale until the
+  // whole Dalybos tab was left and re-entered (reported, real). Registering
+  // this instance's own setState as the shared _billSplitHomeRefresh hook —
+  // called once from _exitBillSplitWizard, so every wizard exit path
+  // refreshes this list the same way, not patched per call site.
+  @override
+  void initState() {
+    super.initState();
+    _billSplitHomeRefresh = () {
+      if (mounted) setState(() {});
+    };
+  }
+
+  @override
+  void dispose() {
+    _billSplitHomeRefresh = null;
+    super.dispose();
+  }
 
   Future<void> _startNew(BuildContext context) async {
     final res = await _scanReceiptFlow(context);
@@ -17172,7 +18185,10 @@ class _SavingsGoalSheetState extends State<_SavingsGoalSheet> {
               style: TextStyle(
                   fontSize: 20, fontWeight: FontWeight.w800, color: _ink),
               decoration: const InputDecoration(
-                  border: InputBorder.none, hintText: '0'),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  hintText: '0'),
             ),
           ),
           Text(Money.symbol,
@@ -17430,7 +18446,10 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                             fontWeight: FontWeight.w800,
                             color: _ink),
                         decoration: const InputDecoration(
-                            border: InputBorder.none, hintText: '0'),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            hintText: '0'),
                       ),
                     ),
                     Text(Money.symbol,
@@ -17679,7 +18698,14 @@ class _AccountTabState extends State<_AccountTab> {
         children: [
           _header(),
           _settingsRow(),
-          if (_promo) _promoCard(),
+          // 2026-08-31: removed per explicit request — this promoted adding
+          // arbitrary asset types (real estate, loans, ...) through the same
+          // generic _assetDialog the "+ Pridėti grynų ar santaupų" row
+          // below used to open. Now that "Grynieji" is its own dedicated,
+          // purpose-built feature (Home hero button, receipt scan, manual
+          // entry, its own onboarding), a generic "add any savings" surface
+          // right next to it invited a second, conflicting way to create
+          // cash-like entries — see _assetsCard's own note just below.
           _netWorthCard(),
           _assetsCard(),
           _totalBalanceCard(thin),
@@ -17904,10 +18930,14 @@ class _AccountTabState extends State<_AccountTab> {
             ((a['amount'] as num?) ?? 0).toDouble(),
             onTap: () => _assetDialog(index: i)));
     }
-    rows
-      ..add(const RowDivider(indent: 66))
-      ..add(_addRow(tr('Pridėti grynų ar santaupų'),
-          onTap: () => _assetDialog()));
+    // 2026-08-31: removed the "+ Pridėti grynų ar santaupų" add-row per
+    // explicit request — it opened the same generic, label-free
+    // _assetDialog() that could create an arbitrary second "Grynieji"-like
+    // entry (or any other ad-hoc savings label), conflicting with the one
+    // real, dedicated Grynieji balance the rest of the app (Home hero
+    // button, Sąskaitos, receipt scan) all read from and write to. Existing
+    // entries above (already-added assets, if any) stay visible/editable —
+    // only creating a NEW one from here is gone.
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -763,6 +763,40 @@ class DashboardStore {
     }
   }
 
+  // ── First-use explainer screens (Home hero's "Grynieji"/"Kvitas" quick
+  // actions) — shown once, remembered forever after, same "seen it, don't
+  // repeat it" contract as everything else stored here.
+  static const _kSeenCashIntro = 'seenCashIntro';
+  static const _kSeenReceiptIntro = 'seenReceiptIntro';
+
+  static bool get seenCashIntro {
+    try {
+      return _box.get(_kSeenCashIntro) == true;
+    } catch (_) {
+      return true; // no box (preview) → never block on an intro screen
+    }
+  }
+
+  static Future<void> markCashIntroSeen() async {
+    try {
+      await _box.put(_kSeenCashIntro, true);
+    } catch (_) {/* no box (preview) → nothing to persist */}
+  }
+
+  static bool get seenReceiptIntro {
+    try {
+      return _box.get(_kSeenReceiptIntro) == true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> markReceiptIntroSeen() async {
+    try {
+      await _box.put(_kSeenReceiptIntro, true);
+    } catch (_) {/* no box (preview) → nothing to persist */}
+  }
+
   // ── Per-category budgets ────────────────────────────────────────────────────
   // The user's spending limits, one per section. Each entry:
   // {sec, limit, auto} where `auto` records whether the limit was our suggestion
@@ -1000,6 +1034,51 @@ class DashboardStore {
     final m = txSplits()..remove(key);
     try {
       await _box.put(_kTxSplits, jsonEncode(m));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  static const _kManualTxs = 'manualTxs';
+
+  /// mkey -> the full row for every manually-created transaction (a cash
+  /// expense/income from _openCashExpense, or a cash-receipt-scan split from
+  /// _createCashReceiptSplit — anything with no corresponding real bank row
+  /// at all). 2026-08-31: real bug, reported — these were only ever added to
+  /// the in-memory dashboard list; the next bank sync REPLACES that list
+  /// wholesale from the bank's own fetched data, which obviously never
+  /// contains a row the bank never saw, so the manual row silently vanished
+  /// the moment a sync ran (e.g. every app relaunch). Re-applied in
+  /// _applyLocalTxEdits exactly like txSplits/txEdits/txDeleted already are,
+  /// so a manual row now survives every sync the same way an edit to a real
+  /// bank row does.
+  static Map<String, Map<String, dynamic>> manualTxs() {
+    try {
+      final raw = _box.get(_kManualTxs) as String?;
+      if (raw == null) return {};
+      return (jsonDecode(raw) as Map)
+          .map((k, v) => MapEntry(k as String, Map<String, dynamic>.from(v as Map)));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> addManualTx(Map<String, dynamic> tx) async {
+    final mkey = tx['mkey'] as String?;
+    if (mkey == null || mkey.isEmpty) return;
+    final m = manualTxs();
+    m[mkey] = tx;
+    try {
+      await _box.put(_kManualTxs, jsonEncode(m));
+    } catch (_) {
+      // No Hive box (standalone preview) → in-memory only.
+    }
+  }
+
+  static Future<void> removeManualTx(String mkey) async {
+    final m = manualTxs()..remove(mkey);
+    try {
+      await _box.put(_kManualTxs, jsonEncode(m));
     } catch (_) {
       // No Hive box (standalone preview) → in-memory only.
     }
