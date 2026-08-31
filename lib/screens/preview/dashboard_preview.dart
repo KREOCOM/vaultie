@@ -7126,6 +7126,31 @@ class _DashboardPreviewState extends State<DashboardPreview>
     final now = DateTime.now();
     final mkey = 'manual-${now.microsecondsSinceEpoch}';
     final d = _DashboardPreviewState._ymd(now);
+    // 2026-09-01: real bug, found in audit — scannedTotal (the receipt's own
+    // printed grand total, per functions/receipt_scan.py) was stored AS IF
+    // it were already EUR, with no Money.rate conversion. Every OTHER manual
+    // entry point (_ManualTxScreen._save) explicitly treats a typed amount
+    // as being in the DISPLAY currency and divides by Money.rate before
+    // storing — a scanned total is the same kind of number (what the user
+    // is looking at right now, in their own currency), so it needs the same
+    // conversion. Left unconverted, every scanned cash receipt was off by
+    // the EUR/display-currency rate for anyone not using EUR as display
+    // currency, both in the feed and in the tracked "Grynieji" balance.
+    // Converting HERE (not inside _SplitTransactionScreen itself) matters —
+    // that screen is shared with the bank-matched split flow, where `total`
+    // is a real bank amount already correctly stored in EUR and must NOT be
+    // divided again.
+    final eurTotal = Money.rate > 0 ? scannedTotal / Money.rate : scannedTotal;
+    final eurItems = [
+      for (final it in items)
+        {
+          ...it,
+          'price': (Money.rate > 0
+                  ? (((it['price'] as num?) ?? 0).toDouble() / Money.rate)
+                  : ((it['price'] as num?) ?? 0).toDouble())
+              .toDouble(),
+        },
+    ];
     final tx = <String, dynamic>{
       'nm': tr('Grynųjų pirkinys'),
       'mkey': mkey,
@@ -7137,11 +7162,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
       'ic': 'swap',
       'sec': 'Kita',
       'secc': 'indigo',
-      // scannedTotal is already EUR (same assumption _matchReceiptCandidates
-      // already made comparing it directly against stored EUR amounts) — no
-      // Money.rate conversion, unlike _ManualTxScreen's typed-in-display-
-      // currency amount.
-      'a': double.parse((-scannedTotal.abs()).toStringAsFixed(2)),
+      'a': double.parse((-eurTotal.abs()).toStringAsFixed(2)),
       'amb': false,
       'badges': <String>[],
       'pos': false,
@@ -7153,11 +7174,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
       builder: (_) => _SplitTransactionScreen(
         splitKey: 'grp:$mkey|$d',
         merchant: tx['nm'] as String,
-        total: scannedTotal,
+        total: eurTotal,
         initialCat: 'Kita',
         initialMeta: null,
         parentSnapshot: Map<String, dynamic>.from(tx),
-        prefilledItems: items,
+        prefilledItems: eurItems,
       ),
     ));
     if (saved != true || !mounted) return; // cancelled — nothing was ever created
@@ -7170,7 +7191,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // expense case just above, for the exact same reason.
     await DashboardStore.addManualTx(tx);
     final hadCashTracked = _cashAsset != null;
-    await _deductFromCashAsset(scannedTotal);
+    await _deductFromCashAsset(eurTotal); // amountEur — see eurTotal's own doc above
     _refreshFromAll();
     if (!hadCashTracked && mounted) await _nudgeSetCashIfMissing();
   }
@@ -11592,12 +11613,24 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
         _toast(tr('Nepavyko atpažinti kvito — pabandyk dar kartą arba įvesk rankiniu būdu'));
         return;
       }
+      // 2026-09-01: this rescan button is reachable from BOTH the bank-
+      // matched split (widget.total is a real bank amount, already EUR —
+      // items must stay as the OCR returned them) and the cash-only split
+      // opened from _createCashReceiptSplit (widget.total was pre-converted
+      // to EUR there, via Money.rate, same reasoning as that function's own
+      // doc). Freshly-scanned prices here are raw/unconverted either way, so
+      // the cash case needs the identical conversion applied a second time,
+      // or a rescan would silently reintroduce the exact bug just fixed at
+      // the entry point. cashSrc on the parent snapshot is what tells the
+      // two cases apart.
+      final isCash = widget.parentSnapshot['cashSrc'] == true;
       setState(() {
         for (final l in _lines) l.dispose();
         _lines = [
           for (final it in items)
             () {
               final m = _matchScanCat(it['category'] as String?);
+              final rawPrice = ((it['price'] as num?) ?? 0).toDouble();
               return _SplitLine(
                   cat: m.cat,
                   sec: m.sec,
@@ -11605,7 +11638,9 @@ class _SplitTransactionScreenState extends State<_SplitTransactionScreen> {
                   col: m.col,
                   ic: m.ic,
                   name: (it['name'] as String?) ?? '',
-                  amt: ((it['price'] as num?) ?? 0).toDouble());
+                  amt: (isCash && Money.rate > 0)
+                      ? rawPrice / Money.rate
+                      : rawPrice);
             }(),
         ];
         for (final l in _lines) l.amtCtrl.addListener(() => setState(() {}));
