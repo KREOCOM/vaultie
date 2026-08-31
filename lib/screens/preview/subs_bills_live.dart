@@ -181,8 +181,12 @@ String _cadenceLabel(String? cycle) {
   switch (cycle) {
     case 'weekly':
       return tr('kas savaitę');
+    case 'biweekly':
+      return tr('kas 2 savaites');
     case 'yearly':
       return tr('kas metus');
+    case 'semiannual':
+      return tr('kas pusmetį');
     case 'quarterly':
       return tr('kas ketvirtį');
     default:

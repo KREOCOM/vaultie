@@ -16,12 +16,25 @@ DateTime _addMonthsClamped(DateTime d, int months) {
   return DateTime(y, m, d.day < lastDay ? d.day : lastDay);
 }
 
+// 2026-09-01: real bug, found in audit — 'biweekly' and 'semiannual' had no
+// case here and silently fell into `default` (advance by 1 month), so both
+// were mis-scheduled AND mis-predicted by a whole cycle. Both cadences are
+// real, expected values (see _cleanCadence's allow-list and chargeFor's own
+// per-cadence conversions nearby) — this is the engine that decides both
+// when the reminder fires and what the Sąskaitos due-date chart shows, so
+// the bug affected both at once. models/subscription.dart's older
+// BillingCycleX.advanceFrom already had both cases right (14 days /
+// _addMonths(6)) — this mirrors that exact convention.
 DateTime _advanceCycle(DateTime d, String cycle) {
   switch (cycle) {
     case 'weekly':
       return d.add(const Duration(days: 7));
+    case 'biweekly':
+      return d.add(const Duration(days: 14));
     case 'quarterly':
       return _addMonthsClamped(d, 3);
+    case 'semiannual':
+      return _addMonthsClamped(d, 6);
     case 'yearly':
       return _addMonthsClamped(d, 12);
     default:

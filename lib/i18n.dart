@@ -424,6 +424,8 @@ const Map<String, String> _en = {
   'Baigėsi': 'Ended',
   'Naujas': 'New',
   'kas savaitę': 'weekly',
+  'kas 2 savaites': 'every 2 weeks',
+  'kas pusmetį': 'every 6 months',
   'kas ketvirtį': 'quarterly',
   'kas metus': 'yearly',
   'kas mėnesį': 'monthly',

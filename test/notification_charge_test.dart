@@ -58,4 +58,21 @@ void main() {
           greaterThan(40));
     });
   });
+
+  group('predictedDueDate advances by the ACTUAL cadence, not a guess', () {
+    // Bug: 'biweekly' and 'semiannual' had no case in _advanceCycle and fell
+    // into the 1-month default — both the due-date prediction here and the
+    // reminder scheduling built on top of it were off by a whole cycle.
+    test('biweekly advances by 14 days, not a month', () {
+      final due = predictedDueDate('', lastChargeIso: '2026-01-01',
+          cycle: 'biweekly', today: DateTime(2026, 1, 5));
+      expect(due, DateTime(2026, 1, 15));
+    });
+
+    test('semiannual advances by 6 months, not 1', () {
+      final due = predictedDueDate('', lastChargeIso: '2026-01-01',
+          cycle: 'semiannual', today: DateTime(2026, 1, 5));
+      expect(due, DateTime(2026, 7, 1));
+    });
+  });
 }
