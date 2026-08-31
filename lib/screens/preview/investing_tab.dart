@@ -248,6 +248,22 @@ class _InvestingTabState extends State<InvestingTab> {
     for (final h in _holdings) {
       _fetchQuote(h['symbol'] as String);
     }
+    // 2026-09-01: without this, prices computed via _eurFieldOf stayed
+    // wrong (or blank, after the fix just above) until something ELSE
+    // triggered a rebuild — the real FX rate landing a few seconds after
+    // launch was never itself a reason to redraw. This is exactly what
+    // FxRates.rates (a ValueNotifier) exists for.
+    FxRates.instance.rates.addListener(_onFxRatesChanged);
+  }
+
+  void _onFxRatesChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    FxRates.instance.rates.removeListener(_onFxRatesChanged);
+    super.dispose();
   }
 
   Future<void> _fetchQuote(String symbol) async {
@@ -267,9 +283,21 @@ class _InvestingTabState extends State<InvestingTab> {
     await DashboardStore.setInvestments(_holdings);
   }
 
+  // 2026-09-01: real bug, found in audit — FxRates.rateFor('USD') silently
+  // returns 1.0 (its own documented "soft failure" contract) whenever the
+  // real rate hasn't loaded yet or the fetch failed, which this function
+  // used to divide by directly. That doesn't fail soft here — it prices a
+  // $150 stock as €150.00 with total confidence, off by the whole EUR/USD
+  // spread, with no visual difference from a correct number. Using
+  // hasRateFor's explicit check instead: no real rate yet is treated the
+  // exact same way as "no quote yet" (q == null already returns 0 above) —
+  // every existing caller already has to tolerate a transient 0 while
+  // things load, so this reuses that same, already-correct contract rather
+  // than inventing a new one.
   double _eurFieldOf(String symbol, String field) {
     final q = _quotes[symbol];
     final usd = (q?[field] as num?)?.toDouble() ?? 0;
+    if (!FxRates.instance.hasRateFor('USD')) return 0;
     final usdRate = FxRates.instance.rateFor('USD');
     return usdRate > 0 ? usd / usdRate : 0;
   }
@@ -910,9 +938,23 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
     final q = await StockService.instance.quote(symbol);
     if (!mounted || _picked?.symbol != symbol) return;
     final usd = (q?['price'] as num?)?.toDouble();
+    // 2026-09-01: real bug, found in audit — this is the MOST dangerous of
+    // the three FX-fallback spots: in "Suma (€)" mode the share count saved
+    // to the holding is computed from _priceEur ONCE, here, and never
+    // recomputed — a stale/missing-rate window doesn't just mis-DISPLAY a
+    // number, it permanently bakes a wrong share count into what gets
+    // persisted. hasRateFor's explicit check (instead of trusting
+    // rateFor's soft 1.0 fallback) means a not-yet-loaded rate correctly
+    // falls into the SAME "null price" branch _priceEur already has — the
+    // existing "Nepavyko gauti dabartinės kainos" / save-blocked state
+    // below already handles that correctly, this just stops a fake 1.0
+    // rate from slipping past it as if it were real.
     final usdRate = FxRates.instance.rateFor('USD');
+    final hasRate = FxRates.instance.hasRateFor('USD');
     setState(() {
-      _priceEur = (usd != null && usd > 0 && usdRate > 0) ? usd / usdRate : null;
+      _priceEur = (usd != null && usd > 0 && hasRate && usdRate > 0)
+          ? usd / usdRate
+          : null;
       _loadingPrice = false;
     });
   }
@@ -1260,11 +1302,17 @@ class _HoldingDetailScreen extends StatelessWidget {
     final name = holding['name'] as String;
     final domain = holding['domain'] as String;
     final shares = (holding['shares'] as num).toDouble();
+    // See _InvestingTabState._eurFieldOf's own doc — same fallback-1.0 bug,
+    // fixed the same way: hasRateFor gates it instead of trusting rateFor's
+    // soft fallback, so a not-yet-loaded rate shows 0 (a state every price
+    // reader here already has to tolerate) instead of a wrong confident
+    // number.
+    final hasRate = FxRates.instance.hasRateFor('USD');
     final usdRate = FxRates.instance.rateFor('USD');
     final priceUsd = (quote?['price'] as num?)?.toDouble() ?? 0;
     final prevUsd = (quote?['prevClose'] as num?)?.toDouble() ?? 0;
-    final price = usdRate > 0 ? priceUsd / usdRate : 0.0;
-    final prevClose = usdRate > 0 ? prevUsd / usdRate : 0.0;
+    final price = (hasRate && usdRate > 0) ? priceUsd / usdRate : 0.0;
+    final prevClose = (hasRate && usdRate > 0) ? prevUsd / usdRate : 0.0;
     final value = shares * price;
     final change = shares * (price - prevClose);
     final changePct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
