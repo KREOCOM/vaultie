@@ -10,7 +10,6 @@ import '../main.dart' show VaultieColors;
 import '../services/dashboard_store.dart';
 import 'bank_connect_screen.dart';
 import 'bank_how_it_works.dart';
-import 'bank_import_screen.dart';
 import 'onb_notifications.dart';
 import 'preview/dashboard_preview.dart';
 
@@ -99,15 +98,27 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
         bank: DashboardStore.pendingConnect(),
       );
       if (!mounted) return;
+      // 2026-09-01: real bug, found in audit — a null r.dash (the backend
+      // failed to build a dashboard from the raw scan) used to fall back to
+      // BankImportScreen, a legacy screen writing into the old Hive
+      // `Subscription` box, which dashboard_preview.dart never reads at
+      // all — it showed "Added N payments!" and then those payments were
+      // invisible everywhere else in the app (Sąskaitos, Overview, Home),
+      // with only a single, easily-lost legacy reminder scheduled for them.
+      // A failed dashboard build is exactly what the existing _errorView
+      // below already exists to handle honestly (retry the connection),
+      // so this now goes there instead of pretending to have succeeded.
+      if (r.dash == null) {
+        setState(() => _failed = true);
+        return;
+      }
       // Clears the stack rather than replacing one route.
       //
       // On a cold launch this screen sits on top of the splash, which is now
       // inert — its timer has already fired and stood down (see splash_screen).
       // pushReplacement would leave that dead route underneath, giving the
       // dashboard a back arrow to nowhere.
-      final landing = r.dash != null
-          ? DashboardPreview(data: r.dash!, deeper: r.deeper)
-          : BankImportScreen(result: r.scan);
+      final landing = DashboardPreview(data: r.dash!, deeper: r.deeper);
       // The one moment worth spending the OS notification prompt on: the scan
       // has just found this person's real payments, so the reminders being
       // offered are about something they can already see. Asked once ever.
