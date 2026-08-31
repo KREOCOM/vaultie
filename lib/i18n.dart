@@ -284,6 +284,10 @@ const Map<String, String> _en = {
   'Vakarykštė kaina': 'Yesterday\'s price',
   'Nepavyko įkelti kainų — patikrink ryšį ir bandyk vėl.':
       'Couldn\'t load prices — check your connection and try again.',
+  '1 pozicija neįtraukta — nepavyko gauti kainos':
+      '1 position not included — couldn\'t get its price',
+  'pozicijos neįtrauktos — nepavyko gauti kainų':
+      'positions not included — couldn\'t get their prices',
   'Kiekis': 'Quantity',
   'Suma (€)': 'Amount (€)',
   'Už kiek pirkai?': 'How much did you pay?',

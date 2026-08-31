@@ -16646,7 +16646,13 @@ class _SavingsRateScreenState extends State<_SavingsRateScreen> {
   Widget _savingsGoalRowUi(
       {required String label, required double current, required double goal}) {
     final frac = goal > 0 ? (current / goal).clamp(0.0, 1.0) : 0.0;
-    final pct = goal > 0 ? (current / goal * 100).round() : 0;
+    // 2026-09-01: real bug, found in audit — `frac` (the progress BAR) was
+    // already floored at 0, but `pct` (the TEXT next to it) was not, so a
+    // goal with negative net-since-start (spent more than earned) could
+    // show e.g. "Įvykdyta -15%" next to a bar sitting visibly at 0% — text
+    // and bar disagreeing. No upper clamp: exceeding the goal legitimately
+    // shows e.g. 120%, which `over` already highlights in green below.
+    final pct = goal > 0 ? math.max(0, (current / goal * 100).round()) : 0;
     final over = goal > 0 && current >= goal;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
@@ -16745,7 +16751,14 @@ class _SavingsRateScreenState extends State<_SavingsRateScreen> {
     final prevMon = prevKey != null ? _moInt(prevKey) : 0;
     final prevRows =
         prevKey != null ? rowsOf(prevKey) : <Map<String, dynamic>>[];
-    final prevSavings = savingsOf(prevRows);
+    // 2026-09-01: real bug, found in audit — savingsOf (aka _savingsOf)
+    // deliberately allows a NEGATIVE rate (an overspending month shouldn't
+    // hide behind a flat 0%), but this value feeds the "santaupų klubas"
+    // badge below — a gamification/achievement pill, same shape as
+    // _clubBadge's own already-correct (0, 100) clamp elsewhere in this
+    // file. Un-clamped here, an overspending previous month could show
+    // "−45 % klubas", which reads as broken rather than "you overspent".
+    final prevSavings = savingsOf(prevRows).clamp(0, 100);
     final prevStr = earnedOf(prevRows) > 0 ? '$prevSavings %' : '—';
     // Deliberately NOT relative to curKey: this is the user's overall
     // saving streak (consecutive completed months with a positive rate,

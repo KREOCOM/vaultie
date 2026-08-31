@@ -274,6 +274,17 @@ class _InvestingTabState extends State<InvestingTab> {
       if (q == null) {
         _failed.add(symbol);
       } else {
+        // 2026-09-01: real bug, found in audit — only the TOP of this
+        // function cleared `_failed`, not this success branch. Two
+        // concurrent fetches for the same symbol (e.g. a duplicate ticker
+        // in _holdings, both fetched from initState's loop) could race: an
+        // earlier call's failure lands in `_failed` AFTER a later call's
+        // success already ran, leaving both `_failed.contains(symbol)` and
+        // `_quotes[symbol] != null` true at once — the row shows "Bandyti
+        // vėl" while the total silently already counts it. A success is
+        // authoritative regardless of arrival order, so it always clears
+        // any stale failure mark here too, not just at the top.
+        _failed.remove(symbol);
         _quotes[symbol] = q;
       }
     });
@@ -633,6 +644,29 @@ class _InvestingTabState extends State<InvestingTab> {
               '${Money.format(change.abs())} (${changePct.abs().toStringAsFixed(1)}%) ${tr('šiandien')}',
               style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: changeColor)),
         ]),
+        // 2026-09-01: real bug, found in audit — a holding whose quote
+        // permanently failed to load was just silently left out of
+        // totalValue/change with zero visual cue, so the portfolio number
+        // read as complete when it wasn't. _failed already tracks exactly
+        // which symbols that is (each row's own "Bandyti vėl" state) — this
+        // just surfaces the SAME fact once more at the total, where it's
+        // most likely to be misread as "this is everything".
+        if (_failed.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(children: [
+              Icon(Icons.error_outline_rounded, size: 13, color: p.faint),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                    _failed.length == 1
+                        ? tr('1 pozicija neįtraukta — nepavyko gauti kainos')
+                        : '${_failed.length} ${tr('pozicijos neįtrauktos — nepavyko gauti kainų')}',
+                    style: TextStyle(
+                        fontSize: 11.5, fontWeight: FontWeight.w600, color: p.faint)),
+              ),
+            ]),
+          ),
         SizedBox(
           height: 150,
           width: double.infinity,
