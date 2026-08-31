@@ -235,6 +235,38 @@ _BANK_LINKS = "bank_links"
 # whichever signed-in victim tapped it.
 _BANK_AUTH_STATES = "bank_auth_states"
 
+# 2026-09-01: found in audit — client.delete_session() is best-effort by
+# design (a bank momentarily unreachable must never block a user from
+# disconnecting locally or deleting their account), but until now a failed
+# revoke left NOTHING behind once the surrounding flow finished: disconnect
+# removes the session from _BANK_LINKS regardless, and delete_user_data goes
+# on to delete the uid's _BANK_LINKS/_BANK_AUTH_STATES/entitlements docs (and
+# the client wipes local Hive + deletes the Firebase Auth account) in the
+# same flow. A real, standing PSD2 consent could end up with no trace
+# anywhere in Vaultie's own systems that it still needs revoking — it just
+# lives at the bank for up to the 90-day consent ceiling. This is a
+# top-level (not per-uid) collection specifically so it survives the uid
+# document being deleted, so a failed revoke can still be found and retried
+# later (manually, or by a future scheduled job) instead of vanishing.
+_ORPHANED_SESSIONS = "orphaned_bank_sessions"
+
+
+def _log_orphaned_session(uid: str, session_id: str, *, reason: str) -> None:
+    """Best-effort record of a session revoke that failed even after retries —
+    never raises, since a logging failure must not be allowed to interrupt the
+    disconnect/delete flow it's trying to leave a trail for."""
+    try:
+        from firebase_admin import firestore
+        firestore.client().collection(_ORPHANED_SESSIONS).add({
+            "uid": uid,
+            "sessionId": session_id,
+            "reason": reason,
+            "loggedAt": firestore.SERVER_TIMESTAMP,
+        })
+    except Exception:  # noqa: BLE001
+        logging.exception(
+            "orphaned_bank_sessions: failed to log uid=%s sid=%s", uid, session_id)
+
 
 def _remember_accounts(uid: str, account_uids: list,
                        session_id: str | None = None) -> None:
@@ -979,8 +1011,12 @@ def delete_user_data(req: https_fn.CallableRequest) -> dict:
             for sid in to_revoke:
                 if client.delete_session(sid):
                     revoked += 1
+                else:
+                    _log_orphaned_session(uid, sid, reason="delete_user_data: revoke failed")
         except Exception:  # noqa: BLE001
             logging.exception("delete_user_data: session revoke error uid=%s", uid)
+            for sid in to_revoke:
+                _log_orphaned_session(uid, sid, reason="delete_user_data: revoke exception")
     # Local import mirrors the sibling functions (_remember_accounts / _owned_accounts);
     # `firestore` is not a module-level name, so without this the whole callable
     # raised NameError and never deleted the documents it exists to erase.
@@ -1054,12 +1090,16 @@ def disconnect_bank(req: https_fn.CallableRequest) -> dict:
             for sid in to_revoke:
                 if client.delete_session(sid):
                     revoked += 1
+                else:
+                    _log_orphaned_session(uid, sid, reason="disconnect_bank: revoke failed")
         except Exception:  # noqa: BLE001
             # Best-effort, exactly as in delete_user_data: a session we cannot
             # reach must not block the user from removing the bank locally. The
             # consent then lapses at the ~90-day cliff, which is the safe
             # direction to fail in.
             logging.exception("disconnect_bank: revoke error uid=%s", uid)
+            for sid in to_revoke:
+                _log_orphaned_session(uid, sid, reason="disconnect_bank: revoke exception")
     from firebase_admin import firestore
     try:
         doc = firestore.client().collection(_BANK_LINKS).document(uid)

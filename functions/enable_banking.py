@@ -208,13 +208,29 @@ class EnableBankingClient:
         """Revoke a bank session — ends the PSD2 consent so it can't outlive the
         account. Best-effort: returns True on success, False on any failure, and
         never raises, so account deletion is never blocked by a bank that is
-        momentarily unreachable."""
-        try:
-            self._request("DELETE", f"/sessions/{session_id}")
-            return True
-        except Exception:  # noqa: BLE001
-            logging.warning("EB: could not delete session")
-            return False
+        momentarily unreachable.
+
+        2026-09-01: was a single attempt — a single transient network hiccup
+        (the exact failure mode a revoke call is likely to hit, since it's
+        often called right as the app is tearing down local state) was
+        enough to leave a real, standing PSD2 consent unrevoked with nothing
+        anywhere to retry it. Retries a few times with backoff first, same
+        shape as balances()'s own retry above, before giving up.
+        """
+        for attempt in range(3):
+            try:
+                self._request("DELETE", f"/sessions/{session_id}")
+                return True
+            except Exception as e:  # noqa: BLE001
+                if attempt < 2:
+                    logging.warning(
+                        "EB: delete_session attempt %d failed, retrying: %s",
+                        attempt + 1, e)
+                    time.sleep(1.0 * (attempt + 1))
+                    continue
+                logging.warning("EB: could not delete session after retries: %s", e)
+                return False
+        return False
 
     def balances(self, account_uid: str, *, psu: dict | None = None) -> list:
         """Current balances for an account (list of balance objects).
