@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,6 +15,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../splash_screen.dart' show SplashScreen;
 import '../../services/auth_service.dart';
 import '../../services/review_account.dart';
 import '../../app_prefs.dart';
@@ -19791,6 +19793,23 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => LegalScreen.privacy(!_enUi)))),
           ]),
+          // 2026-09-01: dev-only, added per explicit request — replaying the
+          // full onboarding chain (through Google/Apple sign-in) to review
+          // it kept needing a fresh reinstall each time, which only I could
+          // do. `!kReleaseMode` is true for debug AND profile builds, false
+          // for the actual release build this ships to App Review in — so
+          // this never reaches a real user, no submission-time cleanup
+          // needed. kDebugMode alone (what kPreviewOnboarding already uses)
+          // was deliberately not reused here: debug builds are known to
+          // crash when launched from the home-screen icon on this project
+          // (a Flutter bug, not ours), so profile is the only viable
+          // standalone on-device test mode — this has to work there too.
+          if (!kReleaseMode)
+            _group('🔧 Dev', [
+              _navItem(Icons.replay_rounded, 'Peržiūrėti onboardingą iš naujo',
+                  'Atsijungia ir grąžina į onboardingo pradžią',
+                  onTap: _replayOnboarding),
+            ]),
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -20868,6 +20887,24 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     if (!mounted) return;
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
+  }
+
+  // 2026-09-01: dev-only (see the Settings row's own doc) — resets the
+  // "already onboarded" flag and signs out, then forces the app back to the
+  // very first onboarding page, same chain a genuinely new install would
+  // show (through Google/Apple sign-in). Local Hive data is untouched
+  // (same as a normal sign-out) — signing back in with the same account
+  // shows the same real data again, this only replays the WALKTHROUGH.
+  Future<void> _replayOnboarding() async {
+    try {
+      await AuthService().signOut();
+      await onSignedOut();
+    } catch (_) {/* not signed in / preview build — nothing to sign out of */}
+    await AppPrefs.setOnboarded(false);
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SplashScreen(hasOnboarded: false)),
+        (r) => false);
   }
 
   Future<void> _confirmDelete() async {
