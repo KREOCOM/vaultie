@@ -1,12 +1,15 @@
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../app_prefs.dart';
 import '../i18n.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'auth_screen.dart';
 import 'legal_screen.dart';
 import 'landing.dart';
+import 'splash_screen.dart' show SplashScreen;
 
 /// Standalone login / sign-up for returning-but-signed-out users, and the
 /// screen the onboarding hands off to.
@@ -77,6 +80,18 @@ class _LoginScreenState extends State<LoginScreen> {
   void _email() => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const AuthScreen()),
       );
+
+  /// See the dev-only button's own doc just below in build(). Same
+  /// mechanism as Settings' "Peržiūrėti onboardingą iš naujo" — sets the
+  /// persistent preview flag, then forces the app straight back to the
+  /// very first onboarding page.
+  Future<void> _replayOnboardingFromLogin() async {
+    await AppPrefs.setForcePreviewOnboarding(true);
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SplashScreen(hasOnboarded: false)),
+        (r) => false);
+  }
 
   void _openLegal({required bool terms}) {
     final isLt = Localizations.localeOf(context).languageCode == 'lt';
@@ -190,6 +205,29 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 14),
                   _terms(),
                   const SizedBox(height: 8),
+                  // 2026-09-02: dev-only escape hatch (see the Settings
+                  // row's own doc for the mirror of this button there).
+                  // Disconnecting every bank redirects here (nothing to
+                  // show on Home without one), and this is also where a
+                  // fresh install or a signed-out session lands — exactly
+                  // the moments the Settings toggle is UNREACHABLE from,
+                  // since Settings only exists past this screen. Without
+                  // an escape hatch here too, landing here mid-test with
+                  // the toggle off had no way back to onboarding at all
+                  // short of reinstalling.
+                  if (!kReleaseMode)
+                    GestureDetector(
+                      onTap: _replayOnboardingFromLogin,
+                      child: const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Text('🔧 Peržiūrėti onboardingą',
+                            style: TextStyle(
+                                color: _sub,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline)),
+                      ),
+                    ),
                 ],
               ),
             ),
