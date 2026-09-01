@@ -323,6 +323,24 @@ class AppPrefs {
   static Future<void> setOnboarded(bool value) async {
     await _box.put(_kOnboarded, value);
   }
+
+  static const _kForcePreviewOnboarding = 'forcePreviewOnboarding';
+
+  /// Dev-only (Settings → 🔧 Dev): keeps [SplashScreen] showing the onboarding
+  /// chain on every cold launch, independent of [onboarded]. Needed because
+  /// OnbConnect sets [onboarded] back to true the moment its "Toliau" is
+  /// tapped — correct for a real user reaching sign-in, but it meant the
+  /// one-shot "replay onboarding" button only lasted until that same tap,
+  /// which is exactly the step the walkthrough was being reviewed for. A
+  /// plain cold launch after that landed straight on LoginScreen's sign-up
+  /// state, looking like the replay tool never worked at all.
+  static bool get forcePreviewOnboarding => Hive.isBoxOpen(HiveBoxes.settings)
+      ? _boolOr(_kForcePreviewOnboarding, false)
+      : false;
+
+  static Future<void> setForcePreviewOnboarding(bool value) async {
+    await _box.put(_kForcePreviewOnboarding, value);
+  }
 }
 
 /// The default UI locale when the user hasn't chosen a language in Settings:

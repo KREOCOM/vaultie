@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app_prefs.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
 import 'login_screen.dart';
@@ -169,7 +170,13 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
     }
     final Widget next;
-    if (kPreviewOnboarding || !widget.hasOnboarded) {
+    // AppPrefs.forcePreviewOnboarding: dev-only, set from Settings → 🔧 Dev.
+    // Needed on top of `!widget.hasOnboarded` because OnbConnect marks
+    // onboarding done again the moment its own "Toliau" is tapped — see that
+    // flag's own doc for why the plain one-shot reset wasn't enough.
+    if (kPreviewOnboarding ||
+        AppPrefs.forcePreviewOnboarding ||
+        !widget.hasOnboarded) {
       // Scene pages, each running the real app inside the artwork's phone,
       // then the bank connect. The pre-scene onboarding screens are gone.
       // The bank-tiles page (OnbWelcome) is out of the chain: the tiles moved too

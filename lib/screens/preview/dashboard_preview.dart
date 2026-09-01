@@ -19697,6 +19697,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   bool _faceId = AppLock.faceIdEnabled;
   bool _faceAvailable = false;
   bool _notif = AppPrefs.notificationsEnabled;
+  bool _forcePreviewOnboarding = AppPrefs.forcePreviewOnboarding;
   bool _aiCat = AppPrefs.aiEnrichment;
   bool _busy = false;
 
@@ -19809,6 +19810,12 @@ class _SettingsScreenState extends State<_SettingsScreen> {
               _navItem(Icons.replay_rounded, 'Peržiūrėti onboardingą iš naujo',
                   'Atsijungia ir grąžina į onboardingo pradžią',
                   onTap: _replayOnboarding),
+              _toggleItem(
+                  Icons.visibility_rounded,
+                  'Visada rodyti onboardingą',
+                  'Kol įjungta, kiekvienas paleidimas rodo onboardingą iš naujo',
+                  _forcePreviewOnboarding,
+                  _toggleForcePreviewOnboarding),
             ]),
           const SizedBox(height: 20),
           Padding(
@@ -20895,16 +20902,29 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   // show (through Google/Apple sign-in). Local Hive data is untouched
   // (same as a normal sign-out) — signing back in with the same account
   // shows the same real data again, this only replays the WALKTHROUGH.
+  //
+  // Also flips `forcePreviewOnboarding` on: without it, reaching OnbConnect's
+  // own "Toliau" marks onboarding done again immediately, and the very next
+  // plain cold launch (not through this button) skips straight back to
+  // LoginScreen — indistinguishable from this tool never having worked. The
+  // toggle row below turns it back off once the review is done.
   Future<void> _replayOnboarding() async {
     try {
       await AuthService().signOut();
       await onSignedOut();
     } catch (_) {/* not signed in / preview build — nothing to sign out of */}
     await AppPrefs.setOnboarded(false);
+    await AppPrefs.setForcePreviewOnboarding(true);
+    _forcePreviewOnboarding = true;
     if (!mounted) return;
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const SplashScreen(hasOnboarded: false)),
         (r) => false);
+  }
+
+  Future<void> _toggleForcePreviewOnboarding(bool on) async {
+    await AppPrefs.setForcePreviewOnboarding(on);
+    if (mounted) setState(() => _forcePreviewOnboarding = on);
   }
 
   Future<void> _confirmDelete() async {
