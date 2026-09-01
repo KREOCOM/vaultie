@@ -440,6 +440,7 @@ const Map<String, String> _en = {
   'kas ketvirtį': 'quarterly',
   'kas metus': 'yearly',
   'kas mėnesį': 'monthly',
+  'kitas mokėjimas': 'next payment',
   'Naujos pajamos': 'New income',
   'Nauja išlaida': 'New expense',
   'Pervedimas': 'Transfer',

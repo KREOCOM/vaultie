@@ -334,9 +334,29 @@ class NotificationService {
       final (:key, :name, :charge, :cycle, :due) = c;
 
       final remindDay = due.subtract(const Duration(days: 2));
-      final scheduled = tz.TZDateTime(
+      var scheduled = tz.TZDateTime(
           tz.local, remindDay.year, remindDay.month, remindDay.day, _remindHour);
+      // 2026-09-01: real bug, reported — this only ever runs when the app is
+      // (re)launched (main.dart's _rescheduleFromDashboard) or syncs; there is
+      // no background job keeping the schedule warm in between. If that next
+      // launch happens to land AFTER the ideal "2 days before, at 10:00"
+      // instant — the app simply wasn't open during that exact window — the
+      // reminder for this occurrence was silently DROPPED entirely, not
+      // late, just never sent, even though the bill itself was still
+      // genuinely unpaid and due. A real case: rent due the 1st, reminder
+      // meant for the 30th, but the next app launch after the 30th (still
+      // before the 1st) recomputed the same due date, found the 30th already
+      // in the past, and gave up rather than still reminding. Catches up
+      // instead: fires soon, as long as the due date itself hasn't already
+      // passed (predictedDueDate already guarantees due >= today, so this
+      // only skips the truly-already-due-today edge where a same-day nudge
+      // is arguably too late to help move money anyway).
+      if (!scheduled.isAfter(now) && due.isAfter(today)) {
+        scheduled = tz.TZDateTime.from(now.add(const Duration(minutes: 5)), tz.local);
+      }
       if (scheduled.isAfter(now)) {
+        final daysUntilDue = due.difference(today).inDays;
+        final dueText = isLithuanian ? 'po $daysUntilDue d.' : 'in $daysUntilDue days';
         await _plugin.zonedSchedule(
           id: key.hashCode & 0x3FFFFFFF,
           scheduledDate: scheduled,
@@ -344,8 +364,8 @@ class NotificationService {
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
           title: 'Vaultie 🔔',
           body: isLithuanian
-              ? '$name · ${formatMoney(charge)} – mokėjimas po 2 d.'
-              : '$name · ${formatMoney(charge)} – due in 2 days',
+              ? '$name · ${formatMoney(charge)} – mokėjimas $dueText'
+              : '$name · ${formatMoney(charge)} – due $dueText',
         );
         used++;
       }

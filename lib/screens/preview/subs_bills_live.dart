@@ -194,6 +194,27 @@ String _cadenceLabel(String? cycle) {
   }
 }
 
+// 2026-09-01: added per explicit request — a confirmed item's tile showed
+// its cadence ("kas mėnesį") but never the actual next DUE DATE, even
+// though .dueDate (predictedDueDate) was already computed for every item
+// regardless of type — Sąskaitos got a separate aggregate calendar showing
+// it, Prenumeratos got nothing at all, so a subscription's next charge date
+// was invisible anywhere in the app. Self-contained month-name list rather
+// than reusing dashboard_preview.dart's private _monGen (different file) or
+// intl's DateFormat with a 'lt' locale (needs explicit locale-data init
+// this app doesn't currently do — a real crash risk to introduce casually).
+const _dueMonGenLt = [
+  'sausio', 'vasario', 'kovo', 'balandžio', 'gegužės', 'birželio', 'liepos',
+  'rugpjūčio', 'rugsėjo', 'spalio', 'lapkričio', 'gruodžio',
+];
+const _dueMonEn = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+String _fmtDueDate(DateTime d) => _isEnglishUi
+    ? '${_dueMonEn[d.month - 1]} ${d.day}'
+    : '${d.day} ${_dueMonGenLt[d.month - 1]}';
+
 /// One real recurring stream, as the backend sent it — `subs['items']` shape
 /// documented in dashboard_preview.dart's `_recItems`:
 /// {name, monthly, cost, cycle, status, active, type, occ, sid, lastCharge}.
@@ -1121,7 +1142,11 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                 Text(it.displayName,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
-                Text(it.cadence, style: TextStyle(fontSize: 12, color: _subtle)),
+                Text(
+                    it.dueDate != null
+                        ? '${it.cadence} · ${tr('kitas mokėjimas')} ${_fmtDueDate(it.dueDate!)}'
+                        : it.cadence,
+                    style: TextStyle(fontSize: 12, color: _subtle)),
               ],
             ),
           ),
