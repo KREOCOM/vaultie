@@ -52,7 +52,7 @@ class OnbInvest extends StatelessWidget {
     // safety net for whichever device aspect ratio actually falls short.
     const shift = 0.05;
     return wrapOnbStatusBar(Scaffold(
-      backgroundColor: const Color(0xFF000315),
+      backgroundColor: const Color(0xFF001462),
       body: Stack(
         children: [
           Positioned(
@@ -76,31 +76,23 @@ class OnbInvest extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text.rich(
-                  TextSpan(
-                    style: const TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      height: 1.15,
-                      letterSpacing: -0.4,
-                      shadows: [
-                        Shadow(
-                            color: Color(0xB3000000),
-                            blurRadius: 14,
-                            offset: Offset(0, 3)),
-                        Shadow(color: Color(0x66000000), blurRadius: 30),
-                      ],
-                    ),
-                    children: [
-                      TextSpan(
-                          text: tr('Investicijos'),
-                          style: const TextStyle(color: Color(0xFF5B9BFF))),
-                      TextSpan(
-                          text: tr(' šalia tavo finansų'),
-                          style: const TextStyle(color: Colors.white)),
+                Text(
+                  tr('Investicijos šalia tavo finansų'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                    letterSpacing: -0.4,
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(
+                          color: Color(0xB3000000),
+                          blurRadius: 14,
+                          offset: Offset(0, 3)),
+                      Shadow(color: Color(0x66000000), blurRadius: 30),
                     ],
                   ),
-                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -111,23 +103,6 @@ class OnbInvest extends StatelessWidget {
                     height: 1.4,
                     color: Colors.white,
                     shadows: [
-                      Shadow(
-                          color: Color(0xB3000000),
-                          blurRadius: 10,
-                          offset: Offset(0, 2)),
-                      Shadow(color: Color(0x66000000), blurRadius: 22),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  tr('Tikros rinkos kainos, konvertuotos į eurus — realiu laiku.'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.4,
-                    color: Colors.white.withValues(alpha: 0.75),
-                    shadows: const [
                       Shadow(
                           color: Color(0xB3000000),
                           blurRadius: 10,
