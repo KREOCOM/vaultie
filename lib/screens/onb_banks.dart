@@ -9,7 +9,8 @@ import 'splash_screen.dart';
 /// Onboarding page 2 — bank coverage. Inserted 2026-08-17 right after
 /// OnbIntro, ahead of the existing OnbMonth/OnbOverview/OnbAiChat/
 /// OnbFeatures chain — this page only bumps every later page's own
-/// dotIndex by one (dotCount is 6 throughout; OnbBudget, once between
+/// dotIndex by one (dotCount is 7 throughout, after OnbInvest's own
+/// 2026-09-01 insertion bumped it from 6; OnbBudget, once between
 /// OnbAiChat and OnbFeatures, was removed 2026-08-18).
 ///
 /// A full-bleed still (bank logos over a lit-up Europe globe, 853×1844 — same
@@ -151,7 +152,7 @@ class OnbBanks extends StatelessWidget {
   Widget _dots() => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          for (var i = 0; i < 6; i++)
+          for (var i = 0; i < 7; i++)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 3),
               width: i == 1 ? 18 : 6,

@@ -15,6 +15,7 @@ import 'onb_banks.dart';
 import 'onb_connect.dart';
 import 'onb_features.dart';
 import 'onb_intro.dart';
+import 'onb_invest.dart';
 import 'onb_month.dart';
 import 'onb_overview.dart';
 import 'landing.dart';
@@ -188,14 +189,18 @@ class _SplashScreenState extends State<SplashScreen>
         // own doc for why every page after it bumped its own dotIndex by one.
         // 2026-08-18: OnbBudget ("Nepraleisk nė vienos prenumeratos") removed
         // from the chain entirely — dotCount is 6 throughout again.
+        // 2026-09-01: OnbInvest inserted between OnbMonth and OnbOverview —
+        // same mechanics, dotCount bumped to 7.
         next: OnbBanks(
           next: OnbMonth(
-            next: OnbOverview(
-              next: OnbAiChat(
-                // Everything the intro had no room to demonstrate — the
-                // budget, the lock, reminders, recap, currencies —
-                // immediately before the ask, while still deciding.
-                next: OnbFeatures(next: OnbConnect(next: LoginScreen())),
+            next: OnbInvest(
+              next: OnbOverview(
+                next: OnbAiChat(
+                  // Everything the intro had no room to demonstrate — the
+                  // budget, the lock, reminders, recap, currencies —
+                  // immediately before the ask, while still deciding.
+                  next: OnbFeatures(next: OnbConnect(next: LoginScreen())),
+                ),
               ),
             ),
           ),

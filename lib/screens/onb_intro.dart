@@ -228,7 +228,7 @@ class _OnbIntroState extends State<OnbIntro> {
   Widget _dots() => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          for (var i = 0; i < 6; i++)
+          for (var i = 0; i < 7; i++)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 3),
               width: i == 0 ? 18 : 6,

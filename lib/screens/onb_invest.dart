@@ -5,45 +5,54 @@ import '../i18n.dart';
 import 'preview/dashboard_preview.dart';
 import 'splash_screen.dart';
 
-/// Onboarding page 5 — the AI assistant, shown inside the empty phone drawn
-/// into the background photo itself (page5_bg.png — a standing phone with a
-/// glowing neon rim against a dark faceted-crystal wall).
+/// Onboarding page 4 — the Investavimas tab, shown inside the empty phone
+/// drawn into the background photo itself (page_invest_bg.png — a phone
+/// floating face-on against a black field with vertical blue neon streaks).
+/// Inserted 2026-09-01 between OnbMonth (page 3) and OnbOverview, which
+/// bumps OnbOverview/OnbAiChat/OnbFeatures' own dotIndex by one each
+/// (dotCount 6 → 7 throughout — same mechanics as OnbBanks' own insertion).
 ///
-/// Same technique as [OnbMonth]/[OnbOverview]: a REAL [DashboardPreview]
-/// runs live inside the glass, its own `DemoScript.chat` tour driving it —
-/// opens ON Home (so the "Tavo finansų agentas" banner is actually seen
-/// being tapped, not skipped past), then answers a starter question and a
-/// specific one — with a nested Navigator so both the chat screen itself
-/// and anything it's part of stay confined to the phone.
+/// Same technique as [OnbOverview]: a REAL [DashboardPreview] runs live
+/// inside the glass, its own `DemoScript.investing` tour driving it (open
+/// the empty tab's own "Pridėti pirmą investiciją", pick Tesla, enter 3
+/// shares, confirm — the sheet's own scripted sequence, see
+/// investing_tab.dart's `_AddHoldingSheetState.demo`), laid out at a
+/// virtual size matched to the glass's own aspect ratio so FittedBox.cover
+/// fits it exactly, with a nested Navigator so the sheet the tour opens
+/// stays confined to the phone instead of taking over the real screen.
 ///
-/// Geometry measured off page5_bg.png (853×1844) via pixel sampling
+/// Geometry measured off page_invest_bg.png (1023×1537) via pixel sampling
 /// (ImageMagick row/column scans at three different heights, not
-/// eyeballed): screen glass left=211, top=343, right=630, bottom=1317.
-class OnbAiChat extends StatefulWidget {
-  const OnbAiChat({super.key, required this.next});
+/// eyeballed): screen glass left=322, top=204, right=713, bottom=1118.
+class OnbInvest extends StatefulWidget {
+  const OnbInvest({super.key, required this.next});
 
   final Widget next;
 
-  static const double _imgW = 853, _imgH = 1844;
-  // Shrunk 3px inward on every side past the measured edge, same reasoning
-  // as the other live-embed pages: the photo's own bezel/glow isn't a
-  // perfectly straight line, so sitting exactly on the measured edge risks
-  // a sliver of content hiding under it.
-  static const double _glassL = 214, _glassT = 346, _glassR = 627, _glassB = 1314;
-  static const double _corner = 46;
+  static const double _imgW = 1023, _imgH = 1537;
+  // Shrunk ~3px inward on every side past the measured edge, same reasoning
+  // as OnbOverview's own doc: sitting exactly on the measured edge risks a
+  // sliver of the phone's own rim glow hiding under it.
+  //
+  // _glassT nudged from 207 to 197 (2026-09-01): a 2x-zoom re-crop with
+  // ruler lines drawn directly on the source photo (every 5px, well outside
+  // both the notch and the corner curve) placed the rim's own inner edge —
+  // where the screen's content actually starts — right at 195-200, not 207.
+  // A first attempt at this same fix overshot to 162 (mistaking the rim's
+  // OUTER glow bloom for the screen edge) and pushed the content up far
+  // enough to draw over the rim itself instead of just closing the gap.
+  static const double _glassL = 325, _glassT = 197, _glassR = 710, _glassB = 1115;
+  static const double _corner = 42;
 
-  /// See OnbMonth's own doc comment on this constant — same reasoning here.
+  /// See OnbOverview's own doc comment on this constant — same reasoning here.
   static const double _vw = 390;
   static double get _vh => _vw * (_glassB - _glassT) / (_glassR - _glassL);
 
   @override
-  State<OnbAiChat> createState() => _OnbAiChatState();
+  State<OnbInvest> createState() => _OnbInvestState();
 }
 
-class _OnbAiChatState extends State<OnbAiChat> {
-  /// 2026-08-18: see OnbMonth's own doc comment on this field — same fix,
-  /// same reason (the deferred-mount wait itself read as a bare black
-  /// rectangle on a real device).
+class _OnbInvestState extends State<OnbInvest> {
   bool _live = true;
 
   void _nextPage() {
@@ -62,19 +71,19 @@ class _OnbAiChatState extends State<OnbAiChat> {
         fit: BoxFit.cover,
         clipBehavior: Clip.hardEdge,
         child: SizedBox(
-          width: OnbAiChat._vw,
-          height: OnbAiChat._vh,
+          width: OnbInvest._vw,
+          height: OnbInvest._vh,
           child: MediaQuery(
             data: MediaQueryData(
-              size: Size(OnbAiChat._vw, OnbAiChat._vh),
+              size: Size(OnbInvest._vw, OnbInvest._vh),
               devicePixelRatio: 3,
               textScaler: const TextScaler.linear(1),
             ),
             child: IgnorePointer(
               child: Navigator(
                 onGenerateRoute: (_) => MaterialPageRoute(
-                  builder: (_) =>
-                      const DashboardPreview(demo: true, script: DemoScript.chat),
+                  builder: (_) => const DashboardPreview(
+                      demo: true, script: DemoScript.investing),
                 ),
               ),
             ),
@@ -84,35 +93,56 @@ class _OnbAiChatState extends State<OnbAiChat> {
 
   @override
   Widget build(BuildContext context) {
-    final w = MediaQuery.of(context).size.width;
-    final imgH = w * OnbAiChat._imgH / OnbAiChat._imgW;
-    final scale = w / OnbAiChat._imgW;
+    final size = MediaQuery.of(context).size;
+    final w = size.width;
+    final h = size.height;
+    // This photo's own aspect (1023×1537 ≈ 1.50) is noticeably SHORTER than
+    // a phone screen's (≈2.16, what OnbMonth/OnbOverview's own artwork was
+    // shot at) — scaling it to fit the device WIDTH the way those pages do
+    // left a plain background gap between the artwork and the copy instead
+    // of reaching the bottom edge. Scaling to fill the device HEIGHT instead
+    // (and centring the now-wider-than-the-screen result, cropping the sides
+    // symmetrically — the streaks either side of the phone are decorative
+    // padding, nothing load-bearing gets cut) makes the phone read at the
+    // same scale the other live-dashboard pages use, edge to edge.
+    final scale = h / OnbInvest._imgH;
+    final renderedW = OnbInvest._imgW * scale;
+    final xOffset = (w - renderedW) / 2;
+    // Filling the image all the way to the screen's own bottom edge (see
+    // this method's own doc above) left the headline sitting right on top
+    // of the photo's floor-reflection strip, with no breathing room between
+    // them ("teksta liečia telefoną" — text touching the phone). Shifting
+    // the whole image (and the glass inside it, by the same amount) up by a
+    // fixed amount keeps the phone at the same size — nothing scales down —
+    // while opening a plain-background gap at the bottom for the copy to
+    // sit in; the little extra sky this crops off the top is inconsequential.
+    const bottomGap = 76.0;
 
     return wrapOnbStatusBar(Scaffold(
       backgroundColor: const Color(0xFF020818),
       body: Stack(
         children: [
           Positioned(
-            top: 0,
-            left: 0,
-            width: w,
-            height: imgH,
+            top: -bottomGap,
+            left: xOffset,
+            width: renderedW,
+            height: h,
             child: const Image(
-              image: AssetImage('assets/onboarding/page5_bg.png'),
+              image: AssetImage('assets/onboarding/page_invest_bg.png'),
               fit: BoxFit.fill,
             ),
           ),
 
-          // ── The phone's glass: the REAL app, running its own hands-free
-          // tour (tap the agent banner, ask a question, ask another),
+          // ── The phone's glass: the REAL Investavimas tab, running its own
+          // hands-free tour (open the empty state, add a first position),
           // scaled to the glass's own aspect so it fills it exactly. ──
           Positioned(
-            left: OnbAiChat._glassL * scale,
-            top: OnbAiChat._glassT * scale,
-            width: (OnbAiChat._glassR - OnbAiChat._glassL) * scale,
-            height: (OnbAiChat._glassB - OnbAiChat._glassT) * scale,
+            left: xOffset + OnbInvest._glassL * scale,
+            top: -bottomGap + OnbInvest._glassT * scale,
+            width: (OnbInvest._glassR - OnbInvest._glassL) * scale,
+            height: (OnbInvest._glassB - OnbInvest._glassT) * scale,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(OnbAiChat._corner * scale),
+              borderRadius: BorderRadius.circular(OnbInvest._corner * scale),
               child: Stack(
                 children: [
                   const Positioned.fill(
@@ -130,10 +160,7 @@ class _OnbAiChatState extends State<OnbAiChat> {
             ),
           ),
 
-          // ── Copy block: bottom, plain text (no card) — a card read as
-          // not fitting this particular photo, so it's just the words
-          // themselves, kept legible with a soft drop shadow, sized to sit
-          // above the button without needing to touch the photo at all. ──
+          // ── Copy block: bottom, plain text (no card) — same as OnbOverview. ──
           SafeArea(
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -143,10 +170,10 @@ class _OnbAiChatState extends State<OnbAiChat> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      tr('Klausk agento apie savo finansus'),
+                      tr('Sek ir investicijas'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 25,
+                        fontSize: 27,
                         fontWeight: FontWeight.w800,
                         height: 1.15,
                         letterSpacing: -0.4,
@@ -162,10 +189,10 @@ class _OnbAiChatState extends State<OnbAiChat> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      tr('Gauk atsakymus, paremtus tavo realiais finansiniais duomenimis.'),
+                      tr('Akcijos ir kriptovaliuta, konvertuotos į eurus, šalia visų tavo finansų.'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 15,
+                        fontSize: 16,
                         height: 1.35,
                         color: Colors.white,
                         shadows: [
@@ -177,7 +204,7 @@ class _OnbAiChatState extends State<OnbAiChat> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 34),
                     GestureDetector(
                       onTap: _nextPage,
                       child: Container(
@@ -220,10 +247,10 @@ class _OnbAiChatState extends State<OnbAiChat> {
           for (var i = 0; i < 7; i++)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: i == 5 ? 18 : 6,
+              width: i == 3 ? 18 : 6,
               height: 6,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: i == 5 ? 1 : 0.35),
+                color: Colors.white.withValues(alpha: i == 3 ? 1 : 0.35),
                 borderRadius: BorderRadius.circular(3),
               ),
             ),

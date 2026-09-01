@@ -15,6 +15,18 @@
 //      dashboard_preview.dart (search "InvestingTab").
 //   4. DashboardStore.investments()/setInvestments() can stay — dead code,
 //      harmless, or delete them too.
+//   5. onb_invest.dart, and DemoScript.investing + _runInvestingDemo in
+//      dashboard_preview.dart (the onboarding page that shows this tab
+//      running its own scripted "add a position" demo) — the one place
+//      outside this file that DOES touch this feature, via the two public
+//      (not `_`-prefixed) top-level members just below. A necessary crack
+//      in the isolation promise above: dashboard_preview.dart's demo
+//      director needs a real handle on this tab's own add-holding flow to
+//      glide its fake pointer onto, the same seam every other onboarding
+//      tour already uses for its own tab (see dashboard_preview.dart's
+//      `_demoOpenSavings`/`_kSavings`) — those work underscore-private
+//      because that director and those tabs share ONE file; this tab does
+//      not, so the seam has to be public here instead.
 //
 // No shared state with the rest of the dashboard: reads/writes its own Hive
 // key (DashboardStore.investments()) and never touches `_d`/`all`/budgets/
@@ -223,20 +235,62 @@ class _PortfolioTodayChartPainter extends CustomPainter {
       old.color != color;
 }
 
+/// Onboarding demo seam (see this file's own top-of-file isolation doc,
+/// point 5): set to the tab's own real `_addHolding` handler while the demo
+/// runs, and the empty state's "Pridėti pirmą investiciją" button the demo
+/// director glides its fake pointer onto.
+VoidCallback? investingDemoOpenAdd;
+final GlobalKey kInvestingAddBtn = GlobalKey();
+
+/// Same seam, for looping the demo: clears the in-memory-only demo holding
+/// back to the empty state so the director can run the whole "add a
+/// position" sequence again instead of leaving it finished forever — per
+/// explicit request ("kad neužstrigtų ant Teslos akcijomis, o vėl
+/// atsinaujintų").
+VoidCallback? investingDemoReset;
+
+/// Baked EUR-equivalent quote for the onboarding demo's Tesla position —
+/// never a real network fetch (a marketing page must not depend on, or shape
+/// itself around, a live stock price — same rule the chat demo already
+/// follows for the real assistant). Already in EUR, not USD: onboarding is
+/// the very first screen the app shows, so FxRates cannot be relied on to
+/// have loaded a real USD rate yet — this sidesteps that dependency
+/// entirely rather than racing it.
+const kInvestingDemoQuote = <String, double>{
+  'price': 231.50,
+  'prevClose': 224.30,
+  'open': 226.80,
+  'high': 234.10,
+  'low': 225.40,
+};
+
 class InvestingTab extends StatefulWidget {
-  const InvestingTab({super.key, required this.onExit});
+  const InvestingTab({super.key, required this.onExit, this.demo = false});
   // 2026-08-31: the empty welcome screen hides the app's own bottom nav bar
   // (see dashboard_preview.dart's bottomNavigationBar condition) so it reads
   // as a full-bleed screen, same as the Grynieji/Kvitas intro. With the nav
   // bar gone there is no other way back to Home, so the welcome screen's own
   // close (X) button calls this to switch the outer tab back itself.
   final VoidCallback onExit;
+
+  /// The onboarding preview (see DashboardPreview's own doc): pins this tab
+  /// to an in-memory-only demo holding (never DashboardStore, never a real
+  /// stock-price fetch) and lets its own scripted "add a position" sequence
+  /// run instead of waiting for a finger — see this file's own top-of-file
+  /// isolation doc, point 5.
+  final bool demo;
   @override
   State<InvestingTab> createState() => _InvestingTabState();
 }
 
 class _InvestingTabState extends State<InvestingTab> {
-  final List<Map<String, dynamic>> _holdings = DashboardStore.investments();
+  // 2026-09-01: demo mode never reads (or writes back to) the signed-in
+  // user's real Hive investments — see this file's own top-of-file
+  // isolation doc, point 5. Without this, running the onboarding tour on a
+  // real device would silently add a fake Tesla position to whoever is
+  // actually signed in.
+  late final List<Map<String, dynamic>> _holdings =
+      widget.demo ? <Map<String, dynamic>>[] : DashboardStore.investments();
   // symbol -> quote data ({'price','prevClose','history'}), or null while
   // loading, absent entirely if the fetch failed (shows a retry state).
   final Map<String, Map<String, dynamic>?> _quotes = {};
@@ -268,6 +322,16 @@ class _InvestingTabState extends State<InvestingTab> {
 
   Future<void> _fetchQuote(String symbol) async {
     _failed.remove(symbol);
+    if (widget.demo) {
+      // Never a real stock-price network call to decorate a marketing page —
+      // see kInvestingDemoQuote's own doc. The delay keeps the row's own
+      // loading-spinner beat believable rather than the price popping in on
+      // the very first frame.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      setState(() => _quotes[symbol] = kInvestingDemoQuote);
+      return;
+    }
     final q = await StockService.instance.quote(symbol);
     if (!mounted) return;
     setState(() {
@@ -291,6 +355,7 @@ class _InvestingTabState extends State<InvestingTab> {
   }
 
   Future<void> _save() async {
+    if (widget.demo) return; // never persists — see _holdings' own doc
     await DashboardStore.setInvestments(_holdings);
   }
 
@@ -308,6 +373,8 @@ class _InvestingTabState extends State<InvestingTab> {
   double _eurFieldOf(String symbol, String field) {
     final q = _quotes[symbol];
     final usd = (q?[field] as num?)?.toDouble() ?? 0;
+    // kInvestingDemoQuote is baked in EUR already — see its own doc for why.
+    if (widget.demo) return usd;
     if (!FxRates.instance.hasRateFor('USD')) return 0;
     final usdRate = FxRates.instance.rateFor('USD');
     return usdRate > 0 ? usd / usdRate : 0;
@@ -320,12 +387,11 @@ class _InvestingTabState extends State<InvestingTab> {
   double _eurLowOf(String symbol) => _eurFieldOf(symbol, 'low');
 
   Future<void> _addHolding() async {
-    final result =
-        await showModalBottomSheet<Map<String, dynamic>>(
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const _AddHoldingSheet(),
+      builder: (_) => _AddHoldingSheet(demo: widget.demo),
     );
     if (result == null) return;
     setState(() => _holdings.add(result));
@@ -338,9 +404,23 @@ class _InvestingTabState extends State<InvestingTab> {
     await _save();
   }
 
+  /// Onboarding demo only — see `investingDemoReset`'s own doc. Clears the
+  /// in-memory-only demo holding, nothing to persist (never reaches _save).
+  void _resetDemo() {
+    if (!mounted || _holdings.isEmpty) return;
+    setState(_holdings.clear);
+  }
+
   @override
   Widget build(BuildContext context) {
     const p = _Pal();
+    // Hand the demo director the tab's own handler; it is rebuilt with this
+    // State's context, so it can never go stale on it (same seam as
+    // dashboard_preview.dart's own `_demoOpenSavings`).
+    if (widget.demo) {
+      investingDemoOpenAdd = _addHolding;
+      investingDemoReset = _resetDemo;
+    }
     // Fixed dark palette (see _Pal's own doc) → the status bar needs to be
     // forced light (white icons) here too, independent of the app's actual
     // theme setting, or the clock/battery icons go invisible-dark-on-dark.
@@ -535,6 +615,7 @@ class _InvestingTabState extends State<InvestingTab> {
                           tr('Viskas vienoje vietoje su tavo finansais')),
                       const SizedBox(height: 16),
                       SizedBox(
+                        key: widget.demo ? kInvestingAddBtn : null,
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _addHolding,
@@ -898,7 +979,16 @@ class _InvestingTabState extends State<InvestingTab> {
 
 // ── add-holding sheet: pick from the catalog, enter share count ────────────
 class _AddHoldingSheet extends StatefulWidget {
-  const _AddHoldingSheet();
+  const _AddHoldingSheet({this.demo = false});
+
+  /// Onboarding preview: runs its own scripted sequence (pick Tesla, type 3
+  /// shares, confirm) the moment it mounts instead of waiting for a finger —
+  /// see _AddHoldingSheetState._runDemoSequence. Needs its own private
+  /// TextEditingControllers and search state, so the outer demo director
+  /// (dashboard_preview.dart) can't drive this from the outside the way it
+  /// drives the tab-level "open" tap — same reason the chat tour hands
+  /// typing off to `_demoChatSay` rather than doing it itself.
+  final bool demo;
   @override
   State<_AddHoldingSheet> createState() => _AddHoldingSheetState();
 }
@@ -927,6 +1017,20 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
   bool _searching = false;
   Timer? _debounce;
 
+  // ── Onboarding demo (widget.demo only) ──────────────────────────────────
+  // A self-contained scripted run — pick Tesla, type 3 shares, confirm —
+  // same fake-glide-and-press pointer as dashboard_preview.dart's own demo
+  // director (_demoPointerLayer/_demoTap there), reimplemented locally
+  // because this sheet has its own coordinate space (a modal route, not a
+  // descendant of that director's _kRoot) and its own private controllers.
+  final GlobalKey _kRoot = GlobalKey();
+  final GlobalKey _kTeslaTile = GlobalKey();
+  final GlobalKey _kSharesField = GlobalKey();
+  final GlobalKey _kAddBtn = GlobalKey();
+  Offset? _demoPointer;
+  bool _demoPress = false;
+  Duration _demoGlide = const Duration(milliseconds: 620);
+
   // Popular stocks first, then popular cryptos — the default list shown
   // before the user types anything.
   static final List<({String symbol, String name})> _defaults = [
@@ -951,6 +1055,112 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
   void initState() {
     super.initState();
     _results = _defaults;
+    if (widget.demo) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _runDemoSequence());
+    }
+  }
+
+  /// Centre of a keyed widget in [_kRoot]'s coordinates, or null if it isn't
+  /// laid out right now — same logic as dashboard_preview.dart's own
+  /// `_spotOf`, local to this sheet's own coordinate space.
+  Offset? _spotOf(GlobalKey k) {
+    final box = k.currentContext?.findRenderObject();
+    final root = _kRoot.currentContext?.findRenderObject();
+    if (box is! RenderBox || root is! RenderBox || !box.hasSize) return null;
+    return root.globalToLocal(box.localToGlobal(box.size.center(Offset.zero)));
+  }
+
+  /// Glide the pointer onto [k] and press it — same shape as
+  /// dashboard_preview.dart's own `_demoTap`, minus the `_demoOn` cancel
+  /// switch (this sheet's script is a short, one-shot sequence, not a
+  /// resumable loop).
+  Future<bool> _demoTap(GlobalKey k, VoidCallback act, {int settle = 900}) async {
+    final spot = _spotOf(k);
+    if (spot == null) return mounted;
+    setState(() {
+      _demoGlide = const Duration(milliseconds: 620);
+      _demoPointer = spot;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return false;
+    setState(() => _demoPress = true);
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    if (!mounted) return false;
+    act();
+    setState(() => _demoPress = false);
+    await Future<void>.delayed(Duration(milliseconds: settle));
+    return mounted;
+  }
+
+  /// Pick Tesla from the popular list (it's the catalog's first entry —
+  /// nothing to type, matching "pasirenki pvz. Tesla" rather than a search),
+  /// type "3" into the share-count field, then confirm. Ends on the
+  /// confirmed holding — this sheet closes itself via `_submit`'s own
+  /// `Navigator.pop`, same as a real tap would.
+  Future<void> _runDemoSequence() async {
+    if (!mounted) return;
+    await Future<void>.delayed(const Duration(milliseconds: 550));
+    if (!mounted) return;
+    if (!await _demoTap(_kTeslaTile, () => _pick((symbol: 'TSLA', name: 'Tesla')),
+        settle: 900)) {
+      return;
+    }
+    final sharesSpot = _spotOf(_kSharesField);
+    if (sharesSpot != null && mounted) {
+      setState(() {
+        _demoGlide = const Duration(milliseconds: 500);
+        _demoPointer = sharesSpot;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+    }
+    if (!mounted) return;
+    for (final ch in '3'.split('')) {
+      if (!mounted) return;
+      setState(() => _shares.text += ch);
+      await Future<void>.delayed(const Duration(milliseconds: 280));
+    }
+    if (!mounted) return;
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    setState(() => _demoPointer = null);
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!mounted) return;
+    await _demoTap(_kAddBtn, _submit, settle: 400);
+  }
+
+  Widget _demoPointerLayer() {
+    final p = _demoPointer;
+    return IgnorePointer(
+      child: AnimatedPositioned(
+        duration: _demoGlide,
+        curve: Curves.easeInOutCubic,
+        left: (p?.dx ?? 0) - 21,
+        top: (p?.dy ?? 0) - 21,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 160),
+          scale: p == null ? 0.4 : (_demoPress ? 0.78 : 1),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 260),
+            opacity: p == null ? 0 : 1,
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: _demoPress ? 0.42 : 0.26),
+                border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.9), width: 2),
+                boxShadow: [
+                  BoxShadow(
+                      color: const Color(0xFF0B1B4A).withValues(alpha: 0.35),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -1030,6 +1240,23 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
 
   Future<void> _fetchPrice(String symbol) async {
     setState(() => _loadingPrice = true);
+    if (widget.demo) {
+      // Never a real stock-price network call — see kInvestingDemoQuote's
+      // own doc. Already in EUR, so no FX conversion needed either.
+      //
+      // Uses prevClose, not price, as the captured cost basis — "bought at
+      // yesterday's close" — so the finished holding shows a real "since
+      // purchase" gain instead of a flat 0.0% (this and the tab's own
+      // "today" figure would otherwise both be computed from the exact same
+      // constant and always cancel out to zero).
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (!mounted || _picked?.symbol != symbol) return;
+      setState(() {
+        _priceEur = kInvestingDemoQuote['prevClose'];
+        _loadingPrice = false;
+      });
+      return;
+    }
     final q = await StockService.instance.quote(symbol);
     if (!mounted || _picked?.symbol != symbol) return;
     final usd = (q?['price'] as num?)?.toDouble();
@@ -1070,12 +1297,14 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
     // repositioning this outer sheet.
     final sheetHeight = MediaQuery.sizeOf(context).height * 0.85;
     return SizedBox(
+      key: _kRoot,
       height: sheetHeight,
-      child: Container(
-        decoration: BoxDecoration(
-            color: p.card,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
-        child: Column(children: [
+      child: Stack(children: [
+        Container(
+          decoration: BoxDecoration(
+              color: p.card,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
+          child: Column(children: [
           const SizedBox(height: 10),
           Container(
               width: 40,
@@ -1097,8 +1326,10 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
           Expanded(
             child: _picked == null ? _pickerBody(p) : _sharesBody(p),
           ),
-        ]),
-      ),
+          ]),
+        ),
+        if (widget.demo) _demoPointerLayer(),
+      ]),
     );
   }
 
@@ -1200,6 +1431,7 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
                     }
                   }
                   return ListTile(
+                    key: widget.demo && s.symbol == 'TSLA' ? _kTeslaTile : null,
                     onTap: () => _pick(s),
                     leading: knownDomain != null
                         ? CategoryIcon(
@@ -1319,6 +1551,7 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
             style: TextStyle(fontSize: 13.5, color: p.muted, fontWeight: FontWeight.w600)),
         const SizedBox(height: 10),
         Container(
+          key: widget.demo && !_byAmount ? _kSharesField : null,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
               color: p.soft,
@@ -1328,7 +1561,12 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
             key: ValueKey(_byAmount),
             controller: _byAmount ? _amount : _shares,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            autofocus: true,
+            // 2026-09-01: never autofocus in the onboarding demo — this
+            // field is never really typed into (see _runDemoSequence, which
+            // sets the controller's text directly), and a real focus request
+            // still pops the system keyboard over the tiny embedded phone
+            // even though IgnorePointer blocks a real tap from reaching it.
+            autofocus: !widget.demo,
             onChanged: _byAmount ? (_) => setState(() {}) : null,
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: p.ink),
             decoration: InputDecoration(
@@ -1350,35 +1588,8 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
         ],
         const SizedBox(height: 22),
         GestureDetector(
-          onTap: () {
-            double n;
-            if (_byAmount) {
-              final amt = double.tryParse(_amount.text.replaceAll(',', '.')) ?? 0;
-              if (amt <= 0 || _priceEur == null || _priceEur! <= 0) return;
-              n = amt / _priceEur!;
-            } else {
-              n = double.tryParse(_shares.text.replaceAll(',', '.')) ?? 0;
-            }
-            if (n <= 0) return;
-            Navigator.pop(context, {
-              'symbol': s.symbol,
-              'name': s.name,
-              'domain': _domain ?? '',
-              'shares': n,
-              'addedAt': DateTime.now().toIso8601String(),
-              // 2026-09-01: added per explicit request — until now nothing
-              // recorded what price a holding was actually bought at, so
-              // every gain/loss shown anywhere was "today's move" only
-              // (vs yesterday's close), never "up/down since you bought
-              // it" — the number an investor actually wants after a week
-              // or a month. _priceEur is the live EUR price already
-              // fetched for this symbol at the moment of confirming; null
-              // only if that fetch hasn't landed/failed, in which case the
-              // since-purchase stat just shows "—" rather than a made-up
-              // number (see _eurCostBasisOf's own doc).
-              if (_priceEur != null) 'costBasis': _priceEur,
-            });
-          },
+          key: widget.demo ? _kAddBtn : null,
+          onTap: _submit,
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
             alignment: Alignment.center,
@@ -1391,6 +1602,39 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
         ),
       ]),
     );
+  }
+
+  /// Confirms the picked holding and closes the sheet — shared by the real
+  /// "Pridėti" tap and _runDemoSequence's own scripted final tap.
+  void _submit() {
+    final s = _picked;
+    if (s == null) return;
+    double n;
+    if (_byAmount) {
+      final amt = double.tryParse(_amount.text.replaceAll(',', '.')) ?? 0;
+      if (amt <= 0 || _priceEur == null || _priceEur! <= 0) return;
+      n = amt / _priceEur!;
+    } else {
+      n = double.tryParse(_shares.text.replaceAll(',', '.')) ?? 0;
+    }
+    if (n <= 0) return;
+    Navigator.pop(context, {
+      'symbol': s.symbol,
+      'name': s.name,
+      'domain': _domain ?? '',
+      'shares': n,
+      'addedAt': DateTime.now().toIso8601String(),
+      // 2026-09-01: added per explicit request — until now nothing
+      // recorded what price a holding was actually bought at, so every
+      // gain/loss shown anywhere was "today's move" only (vs yesterday's
+      // close), never "up/down since you bought it" — the number an
+      // investor actually wants after a week or a month. _priceEur is the
+      // live EUR price already fetched for this symbol at the moment of
+      // confirming; null only if that fetch hasn't landed/failed, in which
+      // case the since-purchase stat just shows "—" rather than a made-up
+      // number (see _eurCostBasisOf's own doc).
+      if (_priceEur != null) 'costBasis': _priceEur,
+    });
   }
 }
 
