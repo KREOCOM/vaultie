@@ -569,6 +569,15 @@ class _InvestingTabState extends State<InvestingTab> {
 
   Widget _totalCard(_Pal p) {
     double totalValue = 0, totalPrevValue = 0, totalOpen = 0, totalHigh = 0, totalLow = 0;
+    // 2026-09-01: added per explicit request — portfolio value already
+    // showed "today vs yesterday"; nothing anywhere showed the overall
+    // "how has my portfolio done since I bought into it" figure. Summed
+    // separately from totalValue/totalPrevValue above because it can only
+    // include holdings that actually have a recorded cost basis (added
+    // after this feature existed) — a holding added before it has no
+    // purchase price on record to compare against.
+    double totalCostBasisValue = 0, totalCostBasisReturn = 0;
+    var anyCostBasis = false;
     var anyLoaded = false;
     // 2026-08-28: this used to gate the spinner on `anyLoaded` alone — if
     // EVERY holding's fetch failed (the real bug: stock_quote required auth,
@@ -587,6 +596,12 @@ class _InvestingTabState extends State<InvestingTab> {
         totalOpen += shares * _eurOpenOf(sym);
         totalHigh += shares * _eurHighOf(sym);
         totalLow += shares * _eurLowOf(sym);
+        final costBasis = (h['costBasis'] as num?)?.toDouble();
+        if (costBasis != null && costBasis > 0) {
+          anyCostBasis = true;
+          totalCostBasisValue += shares * costBasis;
+          totalCostBasisReturn += shares * (_eurPriceOf(sym) - costBasis);
+        }
       } else if (!_failed.contains(sym)) {
         settled = false;
       }
@@ -594,6 +609,10 @@ class _InvestingTabState extends State<InvestingTab> {
     final change = totalValue - totalPrevValue;
     final changePct = totalPrevValue > 0 ? (change / totalPrevValue * 100) : 0;
     final up = change >= 0;
+    final totalReturnPct = totalCostBasisValue > 0
+        ? (totalCostBasisReturn / totalCostBasisValue * 100)
+        : 0;
+    final totalReturnUp = totalCostBasisReturn >= 0;
     // 2026-08-28: matches "01 Robinhood classic" faithfully now, per
     // explicit request — a genuinely dark trading-app look (see _Pal's own
     // doc), so the line is back to semantic green/red rather than the
@@ -644,6 +663,24 @@ class _InvestingTabState extends State<InvestingTab> {
               '${Money.format(change.abs())} (${changePct.abs().toStringAsFixed(1)}%) ${tr('šiandien')}',
               style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: changeColor)),
         ]),
+        if (anyCostBasis) ...[
+          const SizedBox(height: 4),
+          Row(children: [
+            Icon(
+                totalReturnUp
+                    ? Icons.arrow_upward_rounded
+                    : Icons.arrow_downward_rounded,
+                size: 14,
+                color: totalReturnUp ? _Pal.good : _Pal.bad),
+            const SizedBox(width: 3),
+            Text(
+                '${Money.format(totalCostBasisReturn.abs())} (${totalReturnPct.abs().toStringAsFixed(1)}%) ${tr('nuo pirkimo')}',
+                style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: totalReturnUp ? _Pal.good : _Pal.bad)),
+          ]),
+        ],
         // 2026-09-01: real bug, found in audit — a holding whose quote
         // permanently failed to load was just silently left out of
         // totalValue/change with zero visual cue, so the portfolio number
@@ -752,8 +789,20 @@ class _InvestingTabState extends State<InvestingTab> {
     final price = _eurPriceOf(symbol);
     final prevClose = _eurPrevCloseOf(symbol);
     final value = shares * price;
-    final change = shares * (price - prevClose);
-    final changePct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
+    // 2026-09-01: added per explicit request — "today vs yesterday" is not
+    // what someone checking a holding a week (or a month) after buying it
+    // wants to see. When a cost basis was captured at add-time (see
+    // _AddHoldingSheet's own doc), this row now shows the return SINCE
+    // PURCHASE instead — the number that actually answers "how has this
+    // done". Falls back to today's move only for a holding added before
+    // this existed (no cost basis on record, nothing to compute against).
+    final costBasis = (h['costBasis'] as num?)?.toDouble();
+    final hasCostBasis = costBasis != null && costBasis > 0;
+    final pct = hasCostBasis
+        ? (price - costBasis) / costBasis * 100
+        : (prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0.0);
+    final change = hasCostBasis ? shares * (price - costBasis) : shares * (price - prevClose);
+    final changePct = pct;
     final up = change >= 0;
 
     return GestureDetector(
@@ -1317,6 +1366,17 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
               'domain': _domain ?? '',
               'shares': n,
               'addedAt': DateTime.now().toIso8601String(),
+              // 2026-09-01: added per explicit request — until now nothing
+              // recorded what price a holding was actually bought at, so
+              // every gain/loss shown anywhere was "today's move" only
+              // (vs yesterday's close), never "up/down since you bought
+              // it" — the number an investor actually wants after a week
+              // or a month. _priceEur is the live EUR price already
+              // fetched for this symbol at the moment of confirming; null
+              // only if that fetch hasn't landed/failed, in which case the
+              // since-purchase stat just shows "—" rather than a made-up
+              // number (see _eurCostBasisOf's own doc).
+              if (_priceEur != null) 'costBasis': _priceEur,
             });
           },
           child: Container(
@@ -1363,6 +1423,12 @@ class _HoldingDetailScreen extends StatelessWidget {
     final change = shares * (price - prevClose);
     final changePct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
     final up = change >= 0;
+    // 2026-09-01: added per explicit request — see _holdingRow's own doc.
+    final costBasis = (holding['costBasis'] as num?)?.toDouble();
+    final hasCostBasis = costBasis != null && costBasis > 0;
+    final totalReturn = hasCostBasis ? shares * (price - costBasis) : 0.0;
+    final totalReturnPct = hasCostBasis ? (price - costBasis) / costBasis * 100 : 0.0;
+    final totalReturnUp = totalReturn >= 0;
 
     return Scaffold(
       backgroundColor: p.bg,
@@ -1418,6 +1484,26 @@ class _HoldingDetailScreen extends StatelessWidget {
                           color: up ? _Pal.good : _Pal.bad)),
                 ]),
               ),
+              if (hasCostBasis) ...[
+                const SizedBox(height: 6),
+                Center(
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(
+                        totalReturnUp
+                            ? Icons.arrow_upward_rounded
+                            : Icons.arrow_downward_rounded,
+                        size: 16,
+                        color: totalReturnUp ? _Pal.good : _Pal.bad),
+                    const SizedBox(width: 3),
+                    Text(
+                        '${Money.format(totalReturn.abs())} (${totalReturnPct.abs().toStringAsFixed(1)}%) ${tr('nuo pirkimo')}',
+                        style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: totalReturnUp ? _Pal.good : _Pal.bad)),
+                  ]),
+                ),
+              ],
               const SizedBox(height: 24),
               Container(
                 padding: const EdgeInsets.all(16),
@@ -1431,6 +1517,10 @@ class _HoldingDetailScreen extends StatelessWidget {
                   _infoRow(p, tr('Kaina už 1 vnt.'), Money.format(price)),
                   Divider(height: 22, color: p.hair),
                   _infoRow(p, tr('Vakarykštė kaina'), Money.format(prevClose)),
+                  if (hasCostBasis) ...[
+                    Divider(height: 22, color: p.hair),
+                    _infoRow(p, tr('Pirkimo kaina'), Money.format(costBasis)),
+                  ],
                 ]),
               ),
               const SizedBox(height: 14),

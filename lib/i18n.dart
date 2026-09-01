@@ -271,6 +271,7 @@ const Map<String, String> _en = {
   'Pridėti akciją, kriptovaliutą': 'Add a stock, crypto',
   'Portfelio vertė': 'Portfolio value',
   'šiandien': 'today',
+  'nuo pirkimo': 'since purchase',
   'vnt.': 'shares',
   'Bandyti vėl': 'Try again',
   'Kiek turi?': 'How much do you have?',
@@ -284,6 +285,7 @@ const Map<String, String> _en = {
   'Kiek turi': 'You have',
   'Kaina už 1 vnt.': 'Price per share',
   'Vakarykštė kaina': 'Yesterday\'s price',
+  'Pirkimo kaina': 'Purchase price',
   'Nepavyko įkelti kainų — patikrink ryšį ir bandyk vėl.':
       'Couldn\'t load prices — check your connection and try again.',
   '1 pozicija neįtraukta — nepavyko gauti kainos':
