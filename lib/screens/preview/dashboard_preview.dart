@@ -2671,16 +2671,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // the home feed switching over to it a moment later. The chat walkthrough
   // opens on Home ON PURPOSE — it wants to show the "Tavo finansų agentas"
   // banner actually being tapped, not skip straight past it.
-  // Investing is overall tab index 6 (Home=0, then _otherTabs 1..6 in order —
-  // Overview, AI chat, Planning, Account, Transakcijos, Investavimas), NOT
-  // 5 — that's Transakcijos. Caught on-device: the demo silently opened onto
-  // the wrong tab instead of crashing, so this needed an actual screenshot
-  // to notice, not just analyze/tests passing.
+  // The investing tour starts on HOME, not the Investing tab itself
+  // (per explicit request): the point of a full-screen live demo is to show
+  // the actual entry point — the "Investicijos" quick action a real finger
+  // would tap — not skip straight past it. _runInvestingDemo does that tap
+  // itself, same as the overview tour already does for its own tab.
   late int _tab = !widget.demo
       ? 0
       : switch (widget.script) {
           DemoScript.overview => 1,
-          DemoScript.investing => 6,
           _ => 0,
         };
   bool _hideBal = false;
@@ -2859,6 +2858,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
   final GlobalKey _kRec = GlobalKey();
   final GlobalKey _kBills = GlobalKey(); // the Sąskaitos card on Home
   final GlobalKey _kAgentBanner = GlobalKey(); // "Tavo finansų agentas" on Home
+  final GlobalKey _kInvestQuickAction = GlobalKey(); // "Investicijos" hero quick action
   final GlobalKey _kNav0 = GlobalKey(); // the Pradžia tab button
   final GlobalKey _kNav1 = GlobalKey(); // the Apžvalga tab button
   final GlobalKey _kNav3 = GlobalKey(); // Planavimas
@@ -2912,7 +2912,17 @@ class _DashboardPreviewState extends State<DashboardPreview>
     setState(() => _demoPress = true);
     if (!await _beat(180)) return false;
     act();
-    setState(() => _demoPress = false);
+    // Cleared right away, not held through `settle` — every caller's `act()`
+    // either switches tabs or pushes/pops a route, so whatever the pointer
+    // was sitting on is gone the instant it runs. A circle left frozen at
+    // its old coordinates through the whole settle window then reads as
+    // pressing empty space in the NEW screen instead of what was actually
+    // just tapped — most visible on a tab switch (an instant IndexedStack
+    // swap, no transition to cover it), which is what surfaced this.
+    setState(() {
+      _demoPress = false;
+      _demoPointer = null;
+    });
     return _beat(settle);
   }
 
@@ -3035,25 +3045,34 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// this outer director has no access to — the same reason the chat tour
   /// hands typing off to `_demoChatSay` rather than driving it itself.
   ///
-  /// A loop, same shape as the other tours (per explicit request — a
-  /// one-shot version left it frozen on the finished Tesla position instead
-  /// of restarting): open the empty state's own "Pridėti pirmą
-  /// investiciją", let the sheet's own scripted sequence finish and sit for
-  /// a beat, then reset back to empty and do it again.
+  /// Investing tour: starts on Home (where a real finger would), taps the
+  /// "Investicijos" quick action into the tab itself, then the empty
+  /// state's own "Pridėti pirmą investiciją" — the sheet's own scripted
+  /// sequence (pick Tesla, type shares, confirm) finishes on its own
+  /// timeline, not this loop's, so this just waits long enough for it to be
+  /// done and readable — then resets, taps back to Home, and laps again.
   Future<void> _runInvestingDemo() async {
-    if (!await _beat(1000)) return;
+    if (!await _beat(1400)) return;
     while (mounted && _demoOn) {
+      if (!await _demoTap(
+          _kInvestQuickAction, () => setState(() => _tab = 6),
+          settle: 1200)) {
+        return;
+      }
+      setState(() => _demoPointer = null);
       final openAdd = investingDemoOpenAdd;
       if (openAdd == null) return;
       if (!await _demoTap(kInvestingAddBtn, openAdd, settle: 900)) return;
       setState(() => _demoPointer = null);
-      // The sheet's own sequence (pick Tesla, type shares, confirm) runs and
-      // closes on its own timeline, not this loop's — this just waits long
-      // enough for it to have finished AND for the result to sit on screen
-      // long enough to actually read, before clearing it for the next lap.
       if (!await _beat(4200)) return;
       investingDemoReset?.call();
-      if (!await _beat(700)) return;
+      if (!await _beat(600)) return;
+      if (!await _demoTap(_kNav0, () => setState(() => _tab = 0),
+          settle: 1200)) {
+        return;
+      }
+      setState(() => _demoPointer = null);
+      if (!await _beat(1400)) return;
     }
   }
 
@@ -5971,6 +5990,9 @@ class _DashboardPreviewState extends State<DashboardPreview>
           ),
           Expanded(
             child: _heroActionButton(
+              key: widget.demo && widget.script == DemoScript.investing
+                  ? _kInvestQuickAction
+                  : null,
               icon: Icons.show_chart_rounded,
               label: tr('Investicijos'),
               onTap: () => setState(() => _tab = 6),
@@ -6124,6 +6146,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
   }
 
   Widget _heroActionButton({
+    Key? key,
     required IconData icon,
     required String label,
     required VoidCallback onTap,
@@ -6133,6 +6156,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
         behavior: HitTestBehavior.opaque,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
+            key: key,
             width: 48,
             height: 48,
             decoration: BoxDecoration(

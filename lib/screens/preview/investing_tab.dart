@@ -1087,7 +1087,16 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
     await Future<void>.delayed(const Duration(milliseconds: 180));
     if (!mounted) return false;
     act();
-    setState(() => _demoPress = false);
+    // Cleared right away, not held through `settle` — both callers of this
+    // (picking Tesla, confirming) swap out everything under the pointer
+    // the instant `act()` runs (the sheet's own body, or the sheet itself),
+    // so a circle left frozen at its old coordinates through the whole
+    // settle window read as pressing empty space in the NEW layout instead
+    // of what was actually just tapped ("atrodo kad spaudi kampe kažkur").
+    setState(() {
+      _demoPress = false;
+      _demoPointer = null;
+    });
     await Future<void>.delayed(Duration(milliseconds: settle));
     return mounted;
   }
@@ -1430,18 +1439,26 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
                       break;
                     }
                   }
+                  // Keyed on the leading icon specifically, not the whole
+                  // ListTile — the row stretches to the sheet's full width,
+                  // so the ROW's own geometric centre sits in blank space
+                  // well to the right of Tesla's actual name/logo, which is
+                  // what the demo-tap glide was landing on before this.
+                  final teslaKey =
+                      widget.demo && s.symbol == 'TSLA' ? _kTeslaTile : null;
                   return ListTile(
-                    key: widget.demo && s.symbol == 'TSLA' ? _kTeslaTile : null,
                     onTap: () => _pick(s),
                     leading: knownDomain != null
                         ? CategoryIcon(
+                            key: teslaKey,
                             icon: Icons.show_chart_rounded,
                             color: p.purple,
                             size: 40,
                             circle: false,
                             merchant: s.name,
                             domain: knownDomain)
-                        : _TickerBadge(symbol: _displaySymbol(s.symbol), pal: p),
+                        : _TickerBadge(
+                            symbol: _displaySymbol(s.symbol), pal: p),
                     title: Text(s.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
