@@ -32,6 +32,10 @@ _CATEGORIES = [
     "pharmacy", "health", "fitness", "taxes", "banking", "finance", "insurance",
     "connectivity", "utilities", "housing", "rent", "entertainment", "software",
     "travel", "education", "other",
+    # 2026-09-01: added per explicit request, alongside the matching
+    # dashboard.CAT_MAP entries — see that file's own doc.
+    "plumber", "electrician", "handyman", "hair_salon", "beauty_salon",
+    "veterinarian", "pet_store",
 ]
 _CATSET = set(_CATEGORIES)
 

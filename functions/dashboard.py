@@ -77,6 +77,22 @@ CAT_MAP = {
     "travel":        ("Kelionės",            "entertainment", "fun", "Pramogos",           "cyan"),
     "education":     ("Mokslas",             "invest",    "doc",     "Švietimas",          "purple"),
     "childcare":     ("Vaikai, ugdymas",     "invest",    "doc",     "Švietimas",          "purple"),
+    # 2026-09-01: added per explicit request — a one-off payment to a
+    # tradesperson (plumber, electrician, general home repair) had no
+    # category anywhere in the taxonomy at all, client or server; always
+    # fell through to generic "Kita". Multiple keys (like fuel/gas_station
+    # above) hedge against which exact category string a data source uses.
+    "plumber":       ("Namų priežiūra, meistrai", "housing", "tools", "Būstas, sąskaitos", "olive"),
+    "electrician":   ("Namų priežiūra, meistrai", "housing", "tools", "Būstas, sąskaitos", "olive"),
+    "handyman":      ("Namų priežiūra, meistrai", "housing", "tools", "Būstas, sąskaitos", "olive"),
+    "home_service":  ("Namų priežiūra, meistrai", "housing", "tools", "Būstas, sąskaitos", "olive"),
+    "hair_salon":    ("Grožis, kirpykla",     "health",    "scissors", "Sveikata, sportas", "orange"),
+    "hairdresser":   ("Grožis, kirpykla",     "health",    "scissors", "Sveikata, sportas", "orange"),
+    "beauty_salon":  ("Grožis, kirpykla",     "health",    "scissors", "Sveikata, sportas", "orange"),
+    "nail_salon":    ("Grožis, kirpykla",     "health",    "scissors", "Sveikata, sportas", "orange"),
+    "veterinarian":  ("Naminiai gyvūnai",     "shopping",  "pets",    "Apsipirkimas",       "teal"),
+    "pet_store":     ("Naminiai gyvūnai",     "shopping",  "pets",    "Apsipirkimas",       "teal"),
+    "pet_grooming":  ("Naminiai gyvūnai",     "shopping",  "pets",    "Apsipirkimas",       "teal"),
 }
 OTHER = ("Kita", "other", "swap", "Kita", "indigo")
 

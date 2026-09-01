@@ -65,6 +65,8 @@ _CATEGORIES = [
     "Pramogos", "Prenumeratos", "Kelionės",
     "Mokesčiai", "Bankas, komisiniai", "Investicijos", "Paskola, lizingas",
     "Mokslas", "Kursai, knygos", "Vaikai, ugdymas",
+    # 2026-09-01: added per explicit request — see dashboard.CAT_MAP's own doc.
+    "Namų priežiūra, meistrai", "Grožis, kirpykla", "Naminiai gyvūnai",
     "Kita",
 ]
 _CATSET = set(_CATEGORIES)

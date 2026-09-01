@@ -276,6 +276,13 @@ const _catIcons = <String, IconData>{
   'edu': Icons.school_rounded,
   'bag': Icons.shopping_bag_rounded,
   'car': Icons.directions_car_rounded,
+  // 2026-09-01: added per explicit request, alongside 3 new categories
+  // (see _expenseCats below) — a one-off payment to a tradesperson, a
+  // hairdresser/beautician, or anything pet-related had no category (and
+  // so no icon) anywhere before this.
+  'tools': Icons.handyman_rounded,
+  'scissors': Icons.content_cut_rounded,
+  'pets': Icons.pets_rounded,
 };
 
 // section (spending-category) colours + glyphs for the weekly bar chart
@@ -8436,9 +8443,18 @@ const _expenseCats = <_ManualCat>[
   _ManualCat(
       'Ryšys, internetas', 'Būstas, sąskaitos', 'olive', 'housing', 'home'),
   _ManualCat('Draudimas', 'Būstas, sąskaitos', 'olive', 'housing', 'shield'),
+  // 2026-09-01: added per explicit request, comparing against other budget
+  // apps' category lists — a one-off payment to a tradesperson (plumber,
+  // electrician, general home repair) had no category anywhere before
+  // this; always fell through to generic "Kita".
+  _ManualCat(
+      'Namų priežiūra, meistrai', 'Būstas, sąskaitos', 'olive', 'housing', 'tools'),
   _ManualCat('Sveikata', 'Sveikata, sportas', 'orange', 'health', 'health'),
   _ManualCat('Sportas', 'Sveikata, sportas', 'orange', 'fitness', 'health'),
   _ManualCat('Vaistinė', 'Sveikata, sportas', 'orange', 'health', 'health'),
+  _ManualCat(
+      'Grožis, kirpykla', 'Sveikata, sportas', 'orange', 'health', 'scissors'),
+  _ManualCat('Naminiai gyvūnai', 'Apsipirkimas', 'teal', 'shopping', 'pets'),
   _ManualCat('Pramogos', 'Pramogos', 'cyan', 'entertainment', 'fun'),
   _ManualCat('Prenumeratos', 'Pramogos', 'cyan', 'entertainment', 'monitor'),
   _ManualCat('Kelionės', 'Pramogos', 'cyan', 'entertainment', 'fun'),
