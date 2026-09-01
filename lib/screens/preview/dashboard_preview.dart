@@ -19533,11 +19533,21 @@ class _AccountTabState extends State<_AccountTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
-        title: Text(tr('Atjungti bankus?'),
+        title: Text(tr('Atjungti VISUS bankus?'),
             style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+        // 2026-09-01: real gap, reported — the old text never said WHAT
+        // happens right after (straight back to the bank-connect screen,
+        // since the dashboard has nothing to show with zero banks) — just
+        // reassured that the account/subscription are safe, which reads as
+        // "this is a small, safe action" right before the app visibly
+        // resets to onboarding. Someone could tap through this without
+        // realising they're about to lose their whole dashboard view until
+        // they reconnect something.
         content: Text(
             tr('Pašalinsime visus prijungtus bankus ir jų duomenis iš šio '
-                'telefono. Galėsi prijungti iš naujo. Tavo paskyra ir '
+                'telefono. Kadangi appsas be banko nieko negali parodyti, '
+                'iš karto atsidursi banko prijungimo lange — galėsi '
+                'prisijungti iš naujo tada, kai norėsi. Tavo paskyra ir '
                 'prenumerata nenukentės.'),
             style: TextStyle(color: _muted, height: 1.4)),
         actions: [

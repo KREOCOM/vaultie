@@ -1086,8 +1086,11 @@ const Map<String, String> _en = {
       'The system picked out the likely recurring payments — your job is to confirm which are real:',
   'Atjungti bankus ir pradėti iš naujo': 'Disconnect banks and start over',
   'Atjungti bankus?': 'Disconnect banks?',
+  'Atjungti VISUS bankus?': 'Disconnect ALL banks?',
   'Pašalinsime visus prijungtus bankus ir jų duomenis iš šio telefono. Galėsi prijungti iš naujo. Tavo paskyra ir prenumerata nenukentės.':
       "We'll remove every connected bank and its data from this phone. You can reconnect later. Your account and subscription stay intact.",
+  'Pašalinsime visus prijungtus bankus ir jų duomenis iš šio telefono. Kadangi appsas be banko nieko negali parodyti, iš karto atsidursi banko prijungimo lange — galėsi prisijungti iš naujo tada, kai norėsi. Tavo paskyra ir prenumerata nenukentės.':
+      "We'll remove every connected bank and its data from this phone. Since the app can't show anything without a bank, you'll land straight on the bank-connect screen — you can reconnect whenever you're ready. Your account and subscription stay intact.",
   'Kursas nepasiekiamas': 'Rate unavailable',
   'Suskleisti': 'Show less',
   'sąsk.': 'accounts',
