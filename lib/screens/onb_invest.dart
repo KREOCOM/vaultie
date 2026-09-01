@@ -2,37 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../i18n.dart';
-import 'preview/dashboard_preview.dart';
+import 'splash_screen.dart';
 
-/// Onboarding page 4 — the Investavimas tab, inserted 2026-09-01 between
-/// OnbMonth (page 3) and OnbOverview, which bumps OnbOverview/OnbAiChat/
-/// OnbFeatures' own dotIndex by one each (dotCount 6 → 7 throughout).
+/// Onboarding page 4 — investing, inserted 2026-09-01 between OnbMonth
+/// (page 3) and OnbOverview, which bumps OnbOverview/OnbAiChat/OnbFeatures'
+/// own dotIndex by one each (dotCount 6 → 7 throughout).
 ///
-/// 2026-09-02 rework, per explicit request: the phone-in-photo treatment
-/// OnbMonth/OnbOverview use ("lievai atrodo" — it read as thin/cheap here)
-/// is dropped for this page in favour of the REAL [DashboardPreview]
-/// itself — but a first full-screen attempt ("Toliau" floating directly
-/// over the live content) was corrected again just as quickly: shrunk back
-/// into a framed card on a plain blue field, with "Toliau" given its own
-/// space BELOW the frame instead of overlapping it — same rhythm as every
-/// other page in the chain, just without a photo to align against. Home
-/// shows first (with the real "Investicijos" quick action visible), then
-/// `DemoScript.investing`'s own tour taps it, opens the empty state's
-/// "Pridėti pirmą investiciją", picks Tesla, types 3 shares, confirms, sits
-/// on the result, then loops back to Home and does it again.
-///
-/// The frame reuses OnbMonth's own virtual-canvas trick (lay the dashboard
-/// out at a fixed size matched to the FRAME's own aspect, then
-/// FittedBox.cover it in) but needs none of that page's pixel-sampled photo
-/// geometry — the frame's shape is drawn here, not measured off an asset.
+/// 2026-09-02, second rework: a live DashboardPreview demo (first full-
+/// screen, then framed) chased a string of real bugs — a stale demo
+/// pointer, awkward "Toliau" placement, tap targets landing on blank space
+/// — one fix at a time, and kept not landing right. Dropped in favour of
+/// what every OTHER page in this chain not built on a live tab already
+/// does successfully (OnbIntro, OnbBanks): a plain full-bleed still
+/// (853×1844 — same asset size as the rest of the chain) with the copy on
+/// a scrim-free scrim, sat on the photo's own already-dark lower half —
+/// same technique as OnbOverview's copy block, just with a real photo
+/// behind it instead of a live phone. Simple, and — unlike the live
+/// version — it can't develop a new bug of its own.
 class OnbInvest extends StatelessWidget {
   const OnbInvest({super.key, required this.next});
 
   final Widget next;
 
-  static const double _vw = 390, _vh = _vw * 19.5 / 9;
-
-  void _nextPage(BuildContext context) {
+  void _next(BuildContext context) {
     HapticFeedback.lightImpact();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
@@ -44,134 +36,97 @@ class OnbInvest extends StatelessWidget {
     );
   }
 
-  Widget _liveFrame() => FittedBox(
-        fit: BoxFit.cover,
-        clipBehavior: Clip.hardEdge,
-        child: SizedBox(
-          width: _vw,
-          height: _vh,
-          child: MediaQuery(
-            data: const MediaQueryData(
-              size: Size(_vw, _vh),
-              devicePixelRatio: 3,
-              textScaler: TextScaler.linear(1),
-            ),
-            // IgnorePointer: this is a recording, not a screen the viewer
-            // drives — same rule every other onboarding demo page follows.
-            //
-            // Still wrapped in its own private Navigator: the add-holding
-            // sheet the tour opens is a REAL showModalBottomSheet call,
-            // which pushes onto whatever Navigator it finds regardless of
-            // IgnorePointer (that only blocks touch, not code) — without
-            // this, it would push onto the app's real onboarding-chain
-            // Navigator instead, and its own Navigator.pop(context, result)
-            // could pop the wrong thing. Same isolation OnbOverview/OnbMonth
-            // already use.
-            child: IgnorePointer(
-              child: Navigator(onGenerateRoute: _investingDemoRoute),
-            ),
-          ),
-        ),
-      );
-
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFF020818),
+  Widget build(BuildContext context) => wrapOnbStatusBar(Scaffold(
+        backgroundColor: const Color(0xFF030E30),
         body: Stack(
           fit: StackFit.expand,
           children: [
-            // A soft blue glow behind the frame — atmosphere without needing
-            // a photo asset, and it scales to any screen size for free.
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0, -0.15),
-                  radius: 0.9,
-                  colors: [Color(0xFF13297A), Color(0xFF020818)],
-                  stops: [0, 1],
-                ),
+            const Positioned.fill(
+              child: Image(
+                image: AssetImage('assets/onboarding/page_invest_bg.png'),
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
               ),
             ),
             SafeArea(
-              child: Column(
-                children: [
-                  const SizedBox(height: 22),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 34),
-                      child: Center(
-                        child: AspectRatio(
-                          aspectRatio: 9 / 19.5,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(34),
-                              border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.18),
-                                  width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: const Color(0xFF1E4BFF)
-                                        .withValues(alpha: 0.35),
-                                    blurRadius: 40,
-                                    spreadRadius: 2),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(32),
-                              child: _liveFrame(),
-                            ),
-                          ),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(30, 0, 30, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        tr('Turi akcijų ar kriptovaliutos?'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 27,
+                          fontWeight: FontWeight.w800,
+                          height: 1.15,
+                          letterSpacing: -0.4,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                                color: Color(0xB3000000),
+                                blurRadius: 14,
+                                offset: Offset(0, 3)),
+                            Shadow(color: Color(0x66000000), blurRadius: 30),
+                          ],
                         ),
                       ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 22, 28, 16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onTap: () => _nextPage(context),
-                          child: Container(
-                            height: 54,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: const Color(0xFF001450)
-                                        .withValues(alpha: 0.45),
-                                    blurRadius: 22,
-                                    offset: const Offset(0, 10)),
-                              ],
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(tr('Toliau'),
-                                style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1846E6))),
-                          ),
+                      const SizedBox(height: 8),
+                      Text(
+                        tr('Sek savo akcijas bei kriptovaliutą ir matyk jų pokyčius realiu laiku — kartu su visais kitais finansais.'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 15.5,
+                          height: 1.4,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                                color: Color(0xB3000000),
+                                blurRadius: 10,
+                                offset: Offset(0, 2)),
+                            Shadow(color: Color(0x66000000), blurRadius: 22),
+                          ],
                         ),
-                        const SizedBox(height: 18),
-                        _dots(),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 22),
+                      GestureDetector(
+                        onTap: () => _next(context),
+                        child: Container(
+                          height: 54,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: const Color(0xFF001450)
+                                      .withValues(alpha: 0.45),
+                                  blurRadius: 22,
+                                  offset: const Offset(0, 10)),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(tr('Toliau'),
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1846E6))),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(width: double.infinity, child: _dots()),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ],
         ),
-      );
-
-  static Route<dynamic> _investingDemoRoute(RouteSettings settings) =>
-      MaterialPageRoute(
-        settings: settings,
-        builder: (_) =>
-            const DashboardPreview(demo: true, script: DemoScript.investing),
-      );
+      ));
 
   Widget _dots() => Row(
         mainAxisAlignment: MainAxisAlignment.center,
