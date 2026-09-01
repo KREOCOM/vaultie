@@ -189,13 +189,15 @@ class _SplashScreenState extends State<SplashScreen>
         // own doc for why every page after it bumped its own dotIndex by one.
         // 2026-08-18: OnbBudget ("Nepraleisk nė vienos prenumeratos") removed
         // from the chain entirely — dotCount is 6 throughout again.
-        // 2026-09-01: OnbInvest inserted between OnbMonth and OnbOverview —
-        // same mechanics, dotCount bumped to 7.
+        // 2026-09-01: OnbInvest inserted — dotCount bumped to 7.
+        // 2026-09-02: moved from right after OnbMonth to right before
+        // OnbFeatures (dotIndex 3 → 5; OnbOverview/OnbAiChat each shifted
+        // one earlier to fill the gap) — per explicit request.
         next: OnbBanks(
           next: OnbMonth(
-            next: OnbInvest(
-              next: OnbOverview(
-                next: OnbAiChat(
+            next: OnbOverview(
+              next: OnbAiChat(
+                next: OnbInvest(
                   // Everything the intro had no room to demonstrate — the
                   // budget, the lock, reminders, recap, currencies —
                   // immediately before the ask, while still deciding.

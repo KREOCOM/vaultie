@@ -220,10 +220,10 @@ class _OnbAiChatState extends State<OnbAiChat> {
           for (var i = 0; i < 7; i++)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: i == 5 ? 18 : 6,
+              width: i == 4 ? 18 : 6,
               height: 6,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: i == 5 ? 1 : 0.35),
+                color: Colors.white.withValues(alpha: i == 4 ? 1 : 0.35),
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
