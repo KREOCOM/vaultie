@@ -58,10 +58,10 @@ class OnbInvest extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        tr('Turi akcijų ar kriptovaliutos?'),
+                        tr('Investicijos šalia tavo finansų'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 27,
+                          fontSize: 30,
                           fontWeight: FontWeight.w800,
                           height: 1.15,
                           letterSpacing: -0.4,
@@ -75,12 +75,12 @@ class OnbInvest extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Text(
-                        tr('Sek savo akcijas bei kriptovaliutą ir matyk jų pokyčius realiu laiku — kartu su visais kitais finansais.'),
+                        tr('Akcijas ir kriptovaliutas stebėk kartu su kasdieniais pinigais.'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 15.5,
+                          fontSize: 17,
                           height: 1.4,
                           color: Colors.white,
                           shadows: [
