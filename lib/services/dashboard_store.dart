@@ -763,40 +763,6 @@ class DashboardStore {
     }
   }
 
-  // ── First-use explainer screens (Home hero's "Grynieji"/"Kvitas" quick
-  // actions) — shown once, remembered forever after, same "seen it, don't
-  // repeat it" contract as everything else stored here.
-  static const _kSeenCashIntro = 'seenCashIntro';
-  static const _kSeenReceiptIntro = 'seenReceiptIntro';
-
-  static bool get seenCashIntro {
-    try {
-      return _box.get(_kSeenCashIntro) == true;
-    } catch (_) {
-      return true; // no box (preview) → never block on an intro screen
-    }
-  }
-
-  static Future<void> markCashIntroSeen() async {
-    try {
-      await _box.put(_kSeenCashIntro, true);
-    } catch (_) {/* no box (preview) → nothing to persist */}
-  }
-
-  static bool get seenReceiptIntro {
-    try {
-      return _box.get(_kSeenReceiptIntro) == true;
-    } catch (_) {
-      return true;
-    }
-  }
-
-  static Future<void> markReceiptIntroSeen() async {
-    try {
-      await _box.put(_kSeenReceiptIntro, true);
-    } catch (_) {/* no box (preview) → nothing to persist */}
-  }
-
   // ── Per-category budgets ────────────────────────────────────────────────────
   // The user's spending limits, one per section. Each entry:
   // {sec, limit, auto} where `auto` records whether the limit was our suggestion

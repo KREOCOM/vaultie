@@ -1551,13 +1551,17 @@ void _toastAt(BuildContext context, String m) =>
       ..showSnackBar(SnackBar(
           content: Text(m), duration: const Duration(milliseconds: 3300)));
 
-// 2026-08-31: TEMPORARY, while the "Grynieji"/"Kvitas" explainer screens'
-// photos/copy are still being iterated on — real users should only ever see
-// each one once (that's what DashboardStore.seenCashIntro/seenReceiptIntro
-// is for), but that same one-time-only behaviour makes it impossible to
-// re-check a design change without resetting persisted state by hand. Set to
-// false before submission so the real "seen it once" gating takes over.
-const bool _kAlwaysShowFeatureIntro = true;
+// 2026-09-01: real design decision — the "Grynieji"/"Kvitas" explainers
+// don't gate on a one-time "seen it" flag at all (that flag used to mark
+// itself seen the instant the screen was shown, even if the user just
+// closed it via X without doing anything — so someone who opened it,
+// got confused, and left would never see the explanation again). Instead
+// this mirrors exactly how the Investing tab's own empty state already
+// works: it shows every time, for as long as the user hasn't actually
+// COMPLETED the thing it's explaining, and stops for good the moment they
+// have — a real usage milestone, not a "did they glance at this once" flag.
+bool get _hasLoggedCashTx =>
+    DashboardStore.manualTxs().values.any((tx) => tx['cashSrc'] == true);
 
 // 2026-08-31: real bug, reported — _FeatureIntroScreen's darkening overlay
 // used the app's own theme-switchable `_bg`, which in LIGHT mode is a
@@ -5958,10 +5962,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
     return proceed == true;
   }
 
-  // The "Kvitas" hero quick action, wrapped: first ever tap explains what
-  // scanning does (bank-match OR cash-only) before dropping into the picker.
+  // The "Kvitas" hero quick action, wrapped: explains what scanning does
+  // (bank-match OR cash-only) every time, until the user has actually
+  // completed a cash-tracked entry at least once (see _hasLoggedCashTx).
   Future<void> _openReceiptQuickAction() async {
-    if (_kAlwaysShowFeatureIntro || !DashboardStore.seenReceiptIntro) {
+    if (!_hasLoggedCashTx) {
       final proceed = await _showFeatureIntro(
         asset: 'assets/onboarding/receipt_intro_bg.png',
         imageShiftFraction: 0.08,
@@ -5980,7 +5985,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ],
         ctaLabel: tr('Skenuoti kvitą'),
       );
-      await DashboardStore.markReceiptIntroSeen();
       if (!proceed || !mounted) return;
     }
     await _startReceiptScan();
@@ -5993,7 +5997,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // chip in Transactions) — scan the receipt (handles both a bank-match and
   // a cash-only outcome on its own) or skip straight to manual entry.
   Future<void> _chooseCashEntry() async {
-    if (_kAlwaysShowFeatureIntro || !DashboardStore.seenCashIntro) {
+    if (!_hasLoggedCashTx) {
       final proceed = await _showFeatureIntro(
         asset: 'assets/onboarding/cash_intro_bg.png',
         imageShiftFraction: 0.30,
@@ -6011,7 +6015,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ],
         ctaLabel: tr('Supratau, tęsti'),
       );
-      await DashboardStore.markCashIntroSeen();
       if (!proceed || !mounted) return;
     }
     final choice = await showModalBottomSheet<int>(
