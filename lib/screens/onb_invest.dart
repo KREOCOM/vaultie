@@ -52,7 +52,7 @@ class OnbInvest extends StatelessWidget {
     // safety net for whichever device aspect ratio actually falls short.
     const shift = 0.05;
     return wrapOnbStatusBar(Scaffold(
-      backgroundColor: const Color(0xFF001462),
+      backgroundColor: const Color(0xFF00021C),
       body: Stack(
         children: [
           Positioned(
@@ -70,7 +70,7 @@ class OnbInvest extends StatelessWidget {
           // flush against "Toliau") and up into the photo's own big empty
           // lower half, so that space reads as filled rather than wasted.
           Positioned(
-            top: h * 0.61,
+            top: h * 0.66,
             left: 30,
             right: 30,
             child: Column(
