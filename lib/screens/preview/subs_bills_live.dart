@@ -1142,11 +1142,30 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                 Text(it.displayName,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _ink)),
-                Text(
-                    it.dueDate != null
-                        ? '${it.cadence} · ${tr('kitas mokėjimas')} ${_fmtDueDate(it.dueDate!)}'
-                        : it.cadence,
-                    style: TextStyle(fontSize: 12, color: _subtle)),
+                // 2026-09-01: added per explicit request — the day-correction
+                // sheet (_editDueDay) already existed and already worked
+                // correctly for either type (it's generic over _LiveItem),
+                // but was only ever WIRED UP from Sąskaitos' own aggregate
+                // calendar — Prenumeratos had no way to reach it at all, so a
+                // subscription's predicted date could never be corrected,
+                // only bills'. Tapping the date here now opens the exact
+                // same sheet for both.
+                if (it.dueDate != null)
+                  InkWell(
+                    onTap: () => _editDueDay(it),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Flexible(
+                        child: Text(
+                            '${it.cadence} · ${tr('kitas mokėjimas')} ${_fmtDueDate(it.dueDate!)}',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, color: _subtle)),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(Icons.edit_outlined, size: 12, color: _subtle),
+                    ]),
+                  )
+                else
+                  Text(it.cadence, style: TextStyle(fontSize: 12, color: _subtle)),
               ],
             ),
           ),
