@@ -56,7 +56,7 @@ class _OnbInvestState extends State<OnbInvest>
     (
       icon: Icons.bolt_rounded,
       title: 'Pokyčiai realiu laiku',
-      sub: 'Stebėk kainų pokyčius, konvertuotus į eurus.',
+      sub: 'Kainos kyla ir krenta — matai iš karto.',
       merchant: null,
       domain: null,
     ),

@@ -1194,8 +1194,8 @@ const Map<String, String> _en = {
   'Bitcoin, Ethereum ir kitos kriptovaliutos.':
       'Bitcoin, Ethereum and other cryptocurrencies.',
   'Pokyčiai realiu laiku': 'Real-time changes',
-  'Stebėk kainų pokyčius, konvertuotus į eurus.':
-      'Track price changes, converted to euros.',
+  'Kainos kyla ir krenta — matai iš karto.':
+      'Prices rise and fall — you see it instantly.',
   // Dev-only onboarding-replay tools (Settings + LoginScreen) — never shown
   // in a release build, but the same missing-translation bug either way.
   'Peržiūrėti onboardingą': 'Replay onboarding',
