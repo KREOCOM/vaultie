@@ -405,11 +405,35 @@ class _OnbPaywallState extends State<OnbPaywall> {
           // Both fills sit clearly ABOVE the page (#00082D). They used to be
           // within a few points of it, so the cards dissolved into the
           // background and there was nothing to choose between.
-          color: on ? const Color(0xFF122A63) : const Color(0xFF0B1740),
+          //
+          // 2026-09-02: the annual card additionally gets a gradient fill +
+          // an outer glow (below) instead of the plain flat colour the
+          // monthly card keeps — per explicit request to make it read as
+          // the obviously-worth-it choice, without touching any of its
+          // copy.
+          gradient: annual
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: on
+                      ? const [Color(0xFF1B3E93), Color(0xFF0A1F52)]
+                      : const [Color(0xFF14275C), Color(0xFF0B1740)],
+                )
+              : null,
+          color: annual ? null : (on ? const Color(0xFF122A63) : const Color(0xFF0B1740)),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
               color: on ? _blueBright : const Color(0xFF1E2F66),
               width: on ? 1.8 : 1),
+          boxShadow: annual
+              ? [
+                  BoxShadow(
+                      color: _blueBright.withValues(alpha: on ? 0.45 : 0.25),
+                      blurRadius: 28,
+                      spreadRadius: 0.5,
+                      offset: const Offset(0, 8)),
+                ]
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
