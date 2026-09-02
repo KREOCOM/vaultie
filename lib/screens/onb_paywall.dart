@@ -260,33 +260,12 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
             child: Image.asset('assets/onboarding/paywall_hero.png',
                 fit: BoxFit.fitWidth),
           ),
-          // 2026-09-02 v2: a FIXED fraction here (first 0.25, then an
-          // overcorrected 0.55) either cut the photo short or pushed the
-          // plans into a scroll that used to not exist — a percentage of
-          // screen height has no way to know how tall the content below it
-          // actually is. Now just matched to where the flexible spacer
-          // below settles on a normal device (see its own doc): enough to
-          // clear the chair/table without needing to trail all the way to
-          // where that spacer happens to end.
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x0000082D),
-                      Color(0x0000082D),
-                      Color(0xCC00082D),
-                      _paper,
-                    ],
-                    stops: [0, 0.20, 0.27, 0.33],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          // 2026-09-03: a fade/darken gradient used to sit here on top of
+          // the photo, blending it into the page background below. Per
+          // explicit request — it read as the photo being blurred/hazy
+          // rather than shown properly — removed. The photo now shows
+          // plain and sharp; the fixed SizedBox below still controls how
+          // much of it is visible before the plan cards start.
           SafeArea(
             child: Column(
               children: [
