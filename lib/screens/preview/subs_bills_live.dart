@@ -379,11 +379,19 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
 
   bool get _isSubs => widget.wantType == 'subscription';
 
+  // 2026-09-02: demo mode treats every item as already reviewed — per
+  // explicit request, the onboarding tour should show Sąskaitos/Prenumeratos
+  // as an already-populated calendar + list, not the "help us find your
+  // payments" review prompt a genuinely fresh Hive (nothing marked reviewed
+  // yet) would otherwise trigger for every single item, baked demo data
+  // included.
   List<_LiveItem> get _confirmed => _all
-      .where((it) => it.type == widget.wantType && it.reviewed && !it.excluded)
+      .where((it) =>
+          it.type == widget.wantType && (widget.demo || it.reviewed) && !it.excluded)
       .toList();
-  List<_LiveItem> get _pending =>
-      _all.where((it) => it.type == widget.wantType && !it.reviewed).toList();
+  List<_LiveItem> get _pending => widget.demo
+      ? const []
+      : _all.where((it) => it.type == widget.wantType && !it.reviewed).toList();
 
   // The sort screen is worth opening whenever there's EITHER a backend
   // candidate left to review OR real transactions to manually search — not
@@ -398,14 +406,11 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   @override
   void initState() {
     super.initState();
-    if (widget.demo && _isSubs) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await Future.delayed(const Duration(milliseconds: 900));
-        if (mounted && _canOpenSort) {
-          await _openSort(autoCloseAfter: const Duration(milliseconds: 1800));
-        }
-      });
-    }
+    // 2026-09-02: used to auto-open the "find your subscriptions" sort
+    // screen here for the Prenumeratos demo specifically — removed per
+    // explicit request, in favour of just showing the already-populated
+    // confirmed list (see _confirmed/_pending's own doc) like Sąskaitos
+    // does now too.
   }
 
   @override
