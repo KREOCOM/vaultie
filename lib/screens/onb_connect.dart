@@ -173,7 +173,7 @@ class _OnbConnectState extends State<OnbConnect>
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            tr('Prisijunk prie banko per savo banko sistemą. Vaultie niekada nemato tavo prisijungimo duomenų.'),
+                            tr('Prisijunk prie banko per savo banko sistemą. Tavo prisijungimo duomenys lieka tik banke.'),
                             style: const TextStyle(
                               fontSize: 13.5,
                               height: 1.4,

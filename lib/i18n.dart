@@ -1207,8 +1207,8 @@ const Map<String, String> _en = {
       'While on, every launch shows onboarding again',
   'Prijunk savo banką\n': 'Connect your bank\n',
   'saugiai ir greitai': 'safely and quickly',
-  'Prisijunk prie banko per savo banko sistemą. Vaultie niekada nemato tavo prisijungimo duomenų.':
-      'Sign in through your own bank’s system. Vaultie never sees your login details.',
+  'Prisijunk prie banko per savo banko sistemą. Tavo prisijungimo duomenys lieka tik banke.':
+      'Sign in through your own bank’s system. Your login details stay with the bank.',
   'Tu kontroliuoji prieigą': 'You control access',
   'Tu nusprendi, kokius duomenis bendrinti ir kada atšaukti prieigą.':
       'You decide what data to share and when to revoke access.',
