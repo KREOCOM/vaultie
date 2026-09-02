@@ -295,7 +295,15 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                 // content (the only flex child now) is what actually gives
                 // the content first claim on the remaining space, with
                 // scrolling kept only as a fallback for a shorter device.
-                const SizedBox(height: 320),
+                // 406 and 320 both still left the bottom of the content
+                // (disclosures, sometimes the monthly card) taller than the
+                // space actually left after this gap — with scrolling now
+                // off, that overflow doesn't scroll into view at all, it
+                // just clips silently, which read as the annual plan card
+                // being cut off / hidden under the photo. 240 leaves a
+                // solid margin above the content's own worst-case height
+                // instead of a guess tuned to exactly one device.
+                const SizedBox(height: 240),
                 Expanded(
                   child: SingleChildScrollView(
                     // No drag — per explicit request, this screen must never
