@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../i18n.dart';
+import '../ui/design_system.dart' show CategoryIcon;
 import 'splash_screen.dart';
 
 /// Onboarding page 6 — investing, inserted 2026-09-01 between OnbMonth
@@ -29,21 +30,35 @@ class OnbInvest extends StatefulWidget {
 
 class _OnbInvestState extends State<OnbInvest>
     with SingleTickerProviderStateMixin {
+  // 2026-09-02: per explicit request, the first two tiles show a REAL brand
+  // logo instead of a generic glyph — same CategoryIcon + domain mechanism
+  // investing_tab.dart already uses for these exact two (kStockCatalog's
+  // Tesla/Bitcoin entries), which itself only ever calls Vaultie's OWN
+  // public logo proxy (functions/main.py:merchant_logo), never a third
+  // party directly — safe to use pre-login. `icon`/`color` are just the
+  // fallback glyph/tile if that fetch ever fails. The third tile has no
+  // single brand to show, so it keeps a plain icon instead of a domain.
   static const _cards = [
     (
       icon: Icons.show_chart_rounded,
       title: 'Akcijos',
       sub: 'Tesla, Apple, Google ir kitos populiariausios akcijos.',
+      merchant: 'Tesla',
+      domain: 'tesla.com',
     ),
     (
       icon: Icons.currency_bitcoin_rounded,
       title: 'Kriptovaliuta',
       sub: 'Bitcoin, Ethereum ir kitos kriptovaliutos.',
+      merchant: 'Bitcoin',
+      domain: 'bitcoin.org',
     ),
     (
       icon: Icons.bolt_rounded,
       title: 'Pokyčiai realiu laiku',
       sub: 'Stebėk kainų pokyčius, konvertuotus į eurus.',
+      merchant: null,
+      domain: null,
     ),
   ];
 
@@ -232,20 +247,7 @@ class _OnbInvestState extends State<OnbInvest>
           ),
           child: Row(
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(11),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF3E63FF), Color(0xFF1B2E7A)],
-                  ),
-                ),
-                child: Icon(c.icon, color: Colors.white, size: 18),
-              ),
+              _tileFor(c),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -268,6 +270,60 @@ class _OnbInvestState extends State<OnbInvest>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Real brand logo when the card has one (via Vaultie's own public logo
+  /// proxy — see `_cards`' own doc), else the plain glyph tile; the
+  /// "Real-time changes" card (no single brand to show) gets a tiny
+  /// green/red mini-bar pair instead of either, standing in for "prices
+  /// moving up and down" the way a logo would for a specific brand.
+  Widget _tileFor(({IconData icon, String title, String sub, String? merchant, String? domain}) c) {
+    if (c.domain != null) {
+      return CategoryIcon(
+        icon: c.icon,
+        color: const Color(0xFF3E63FF),
+        size: 38,
+        circle: false,
+        merchant: c.merchant,
+        domain: c.domain,
+      );
+    }
+    return Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(11),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF3E63FF), Color(0xFF1B2E7A)],
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            width: 5,
+            height: 17,
+            decoration: BoxDecoration(
+              color: const Color(0xFF34C759),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 3),
+          Container(
+            width: 5,
+            height: 11,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF453A),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ],
       ),
     );
   }
