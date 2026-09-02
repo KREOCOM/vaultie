@@ -94,7 +94,7 @@ class _OnbInvestState extends State<OnbInvest>
     // gap at the BOTTOM rather than stretching the photo to compensate;
     // that gap is filled by the Scaffold's own background colour, matched
     // to this photo's sampled bottom-row average, so the seam is invisible.
-    const shift = 0.15;
+    const shift = 0.10;
     return wrapOnbStatusBar(Scaffold(
         backgroundColor: const Color(0xFF00021C),
         body: Stack(
@@ -120,12 +120,11 @@ class _OnbInvestState extends State<OnbInvest>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Shrunk from 630 now that the photo itself is
-                          // shifted up (see build()'s own doc on `shift`) —
-                          // the animals themselves end noticeably higher on
-                          // screen now, so the copy doesn't need to start
-                          // as far down to clear them.
-                          const SizedBox(height: 460),
+                          // Shrunk further (630 -> 460 -> 330) alongside a
+                          // bigger `shift` above — per explicit request, to
+                          // fit the copy AND all three cards on screen
+                          // without needing a scroll.
+                          const SizedBox(height: 395),
                           Text(
                             tr('Investicijos šalia tavo finansų'),
                             style: const TextStyle(
@@ -143,12 +142,12 @@ class _OnbInvestState extends State<OnbInvest>
                               ],
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           Text(
                             tr('Akcijas ir kriptovaliutas stebėk kartu su kasdieniais pinigais.'),
                             style: const TextStyle(
-                              fontSize: 14.5,
-                              height: 1.4,
+                              fontSize: 14,
+                              height: 1.35,
                               color: Colors.white,
                               shadows: [
                                 Shadow(
@@ -159,7 +158,7 @@ class _OnbInvestState extends State<OnbInvest>
                               ],
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 14),
                           for (var i = 0; i < _cards.length; i++) _card(i),
                         ],
                       ),
@@ -223,31 +222,31 @@ class _OnbInvestState extends State<OnbInvest>
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(bottom: 9),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(11),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             color: Colors.white.withValues(alpha: 0.05),
             border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
           ),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 38,
+                height: 38,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius: BorderRadius.circular(11),
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [Color(0xFF3E63FF), Color(0xFF1B2E7A)],
                   ),
                 ),
-                child: Icon(c.icon, color: Colors.white, size: 21),
+                child: Icon(c.icon, color: Colors.white, size: 18),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
