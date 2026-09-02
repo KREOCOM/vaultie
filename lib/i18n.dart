@@ -1200,6 +1200,7 @@ const Map<String, String> _en = {
   // in a release build, but the same missing-translation bug either way.
   'Peržiūrėti onboardingą': 'Replay onboarding',
   'Peržiūrėti onboardingą iš naujo': 'Replay onboarding from the start',
+  'Peržiūrėti paywall': 'Preview paywall',
   'Atsijungia ir grąžina į onboardingo pradžią':
       'Signs out and returns to the start of onboarding',
   'Visada rodyti onboardingą': 'Always show onboarding',

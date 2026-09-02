@@ -33,10 +33,21 @@ import 'login_screen.dart';
 ///    ("Išlaidų ir biudžetų sekimas") are shortened rather than shrunk to an
 ///    unreadable size.
 class OnbPaywall extends StatefulWidget {
-  const OnbPaywall({super.key, required this.next, this.onClose});
+  const OnbPaywall(
+      {super.key, required this.next, this.onClose, this.previewOnly = false});
 
   final Widget next;
   final VoidCallback? onClose;
+
+  /// Dev-only: skips the auto-advance-if-already-premium check in initState
+  /// below. Without this, the dev "preview paywall" shortcut on a simulator
+  /// that ever held a real entitlement (this account's own dev grant
+  /// included — the cached flag survives in local storage) instantly
+  /// replaces this whole screen with `next` before it ever paints, which
+  /// showed up as a plain black screen with no error. Never set outside
+  /// that one dev entry point — a real paying user must still skip past
+  /// this screen automatically.
+  final bool previewOnly;
 
   @override
   State<OnbPaywall> createState() => _OnbPaywallState();
@@ -56,7 +67,7 @@ const _greenSoft = Color(0xFF071B12);
 const _monthly = 4.99;
 const _yearly = 39.99;
 
-class _OnbPaywallState extends State<OnbPaywall> {
+class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateMixin {
   bool _annual = true;
   bool _busy = false;
   // Guards against advancing twice: purchase()/restore() flip premium synchronously,
@@ -64,6 +75,14 @@ class _OnbPaywallState extends State<OnbPaywall> {
   // the explicit success handler calls _advance again → two pushReplacements (double
   // BankConnectScreen + a double bank-list fetch, and a possible route assertion).
   bool _advanced = false;
+
+  // Loops the annual card's outer glow — per explicit request ("kaip nors
+  // švytinčiai") — a slow breathe between dim and bright rather than a
+  // fixed shadow, so it reads as worth noticing rather than a static outline.
+  late final AnimationController _glowCtl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2200),
+  )..repeat(reverse: true);
 
   @override
   void initState() {
@@ -75,11 +94,11 @@ class _OnbPaywallState extends State<OnbPaywall> {
     // listened, so a subscriber could be stranded on it until they tapped
     // Restore.
     final premium = PurchaseService.instance.isPremiumListenable;
-    if (premium.value) {
+    if (premium.value && !widget.previewOnly) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _advance());
       return;
     }
-    premium.addListener(_onPremiumChanged);
+    if (!widget.previewOnly) premium.addListener(_onPremiumChanged);
   }
 
   void _onPremiumChanged() {
@@ -91,6 +110,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
   @override
   void dispose() {
     PurchaseService.instance.isPremiumListenable.removeListener(_onPremiumChanged);
+    _glowCtl.dispose();
     super.dispose();
   }
 
@@ -240,12 +260,14 @@ class _OnbPaywallState extends State<OnbPaywall> {
             child: Image.asset('assets/onboarding/paywall_hero.png',
                 fit: BoxFit.fitWidth),
           ),
-          // 2026-09-02: stops pushed from [0.13, 0.19, 0.25] to [0.32, 0.44,
-          // 0.55] — per explicit request, the photo was fading out (and the
-          // "Vaultie Premium" wordmark/feature icons swapped in) before the
-          // woman/chair/table were even half shown. The chair is plain and
-          // dark by ~55% of the image's own height (checked directly, not
-          // eyeballed), so the plan card below now starts clear of her.
+          // 2026-09-02 v2: a FIXED fraction here (first 0.25, then an
+          // overcorrected 0.55) either cut the photo short or pushed the
+          // plans into a scroll that used to not exist — a percentage of
+          // screen height has no way to know how tall the content below it
+          // actually is. Now just matched to where the flexible spacer
+          // below settles on a normal device (see its own doc): enough to
+          // clear the chair/table without needing to trail all the way to
+          // where that spacer happens to end.
           const Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
@@ -259,7 +281,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                       Color(0xCC00082D),
                       _paper,
                     ],
-                    stops: [0, 0.32, 0.44, 0.55],
+                    stops: [0, 0.20, 0.27, 0.33],
                   ),
                 ),
               ),
@@ -277,26 +299,52 @@ class _OnbPaywallState extends State<OnbPaywall> {
                     onPressed: _busy ? null : (widget.onClose ?? _exit),
                   ),
                 ),
-                // Scrolls on purpose: this is the densest screen in the app and
-                // a short phone must not clip the plans or the legal text.
+                // 2026-09-02 v2: a fixed-fraction SizedBox here first guessed
+                // too little photo, then (overcorrecting) too much, pushing
+                // the plans into a scroll that didn't used to exist ("neturi
+                // būti scrolinimo"). Tried an Expanded spacer sized to
+                // "whatever the content below doesn't need" next — but that
+                // makes this spacer and the content below it TWO flexible
+                // siblings sharing the leftover space by their flex factor
+                // (roughly 50/50), not "content gets what it needs, spacer
+                // gets the rest" — so the content's own viewport ended up
+                // squeezed to half the screen and its bottom (the Apple-
+                // required restore/terms text) silently scrolled out of
+                // reach, with nothing left to scroll to it. A fixed height
+                // — same approach OnbConnect/OnbInvest already use for their
+                // own full-bleed photos — plus a SINGLE Expanded around the
+                // content (the only flex child now) is what actually gives
+                // the content first claim on the remaining space, with
+                // scrolling kept only as a fallback for a shorter device.
+                const SizedBox(height: 320),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Clears the render's artwork above — the render's
-                        // OWN wordmark ("V PREMIUM") now stands in for the
-                        // "Vaultie Premium" text this screen used to add on
-                        // top, which is why that text (and the "Visos
-                        // funkcijos vienoje vietoje" line under it) is gone;
-                        // duplicating the render's own title read as
-                        // redundant right below it, per explicit request.
-                        SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.53),
+                        // Per explicit request: the gap above read as too
+                        // empty without SOME headline, even once it shrank
+                        // to a sane size — the render's own "V PREMIUM"
+                        // wordmark sits far enough up/left that it doesn't
+                        // double as a title for what follows.
+                        Text.rich(
+                          TextSpan(children: [
+                            TextSpan(text: '${tr('Vaultie')} '),
+                            TextSpan(
+                                text: 'Premium',
+                                style: const TextStyle(color: _blueBright)),
+                          ]),
+                          style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: _ink,
+                              letterSpacing: -0.6),
+                        ),
                         // Plans first: the price is the decision, and on a short
                         // phone it used to sit below three feature cards where
                         // it had to be scrolled to.
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         _planCard(
                           annual: true,
                           title: tr('Metinis planas'),
@@ -347,45 +395,58 @@ class _OnbPaywallState extends State<OnbPaywall> {
     int? trialDays,
   }) {
     final on = _annual == annual;
-    return GestureDetector(
-      onTap: _busy ? null : () => setState(() => _annual = annual),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-        decoration: BoxDecoration(
-          // Both fills sit clearly ABOVE the page (#00082D). They used to be
-          // within a few points of it, so the cards dissolved into the
-          // background and there was nothing to choose between.
-          //
-          // 2026-09-02: the annual card additionally gets a gradient fill +
-          // an outer glow (below) instead of the plain flat colour the
-          // monthly card keeps — per explicit request to make it read as
-          // the obviously-worth-it choice, without touching any of its
-          // copy.
-          gradient: annual
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: on
-                      ? const [Color(0xFF1B3E93), Color(0xFF0A1F52)]
-                      : const [Color(0xFF14275C), Color(0xFF0B1740)],
-                )
-              : null,
-          color: annual ? null : (on ? const Color(0xFF122A63) : const Color(0xFF0B1740)),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: on ? _blueBright : const Color(0xFF1E2F66),
-              width: on ? 1.8 : 1),
-          boxShadow: annual
-              ? [
-                  BoxShadow(
-                      color: _blueBright.withValues(alpha: on ? 0.45 : 0.25),
-                      blurRadius: 28,
-                      spreadRadius: 0.5,
-                      offset: const Offset(0, 8)),
-                ]
-              : null,
-        ),
-        child: Column(
+    // The annual card's glow now breathes with _glowCtl instead of sitting at
+    // a fixed shadow — per explicit request ("kaip nors švytinčiai"). The
+    // monthly card gets the opposite treatment when it isn't the one picked:
+    // a slight dimming on top of its already-flatter fill, so the two read
+    // as clearly unequal rather than two same-weight boxes with different
+    // colours — the other half of "labiau išskirk metinį ir mėnesinį".
+    return AnimatedBuilder(
+      animation: _glowCtl,
+      builder: (context, _) {
+        final glow = _glowCtl.value;
+        return GestureDetector(
+          onTap: _busy ? null : () => setState(() => _annual = annual),
+          child: Opacity(
+            opacity: (!annual && !on) ? 0.8 : 1,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+              decoration: BoxDecoration(
+                // Both fills sit clearly ABOVE the page (#00082D). They used to be
+                // within a few points of it, so the cards dissolved into the
+                // background and there was nothing to choose between.
+                //
+                // 2026-09-02: the annual card additionally gets a gradient fill +
+                // an outer glow (below) instead of the plain flat colour the
+                // monthly card keeps — per explicit request to make it read as
+                // the obviously-worth-it choice, without touching any of its
+                // copy.
+                gradient: annual
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: on
+                            ? const [Color(0xFF1B3E93), Color(0xFF0A1F52)]
+                            : const [Color(0xFF14275C), Color(0xFF0B1740)],
+                      )
+                    : null,
+                color: annual ? null : (on ? const Color(0xFF122A63) : const Color(0xFF0B1740)),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                    color: on ? _blueBright : const Color(0xFF1E2F66),
+                    width: on ? 1.8 : 1),
+                boxShadow: annual
+                    ? [
+                        BoxShadow(
+                            color: _blueBright.withValues(
+                                alpha: (on ? 0.38 : 0.20) + glow * (on ? 0.32 : 0.14)),
+                            blurRadius: 22 + glow * 18,
+                            spreadRadius: 0.5 + glow * 1.5,
+                            offset: const Offset(0, 8)),
+                      ]
+                    : null,
+              ),
+              child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (annual)
@@ -528,8 +589,11 @@ class _OnbPaywallState extends State<OnbPaywall> {
               ],
             ),
           ],
-        ),
-      ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

@@ -9,6 +9,7 @@ import '../user_session.dart';
 import 'auth_screen.dart';
 import 'legal_screen.dart';
 import 'landing.dart';
+import 'onb_paywall.dart' show OnbPaywall;
 import 'splash_screen.dart' show SplashScreen;
 
 /// Standalone login / sign-up for returning-but-signed-out users, and the
@@ -91,6 +92,29 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const SplashScreen(hasOnboarded: false)),
         (r) => false);
+  }
+
+  /// Dev-only, same idea as [_replayOnboardingFromLogin] just above — a way
+  /// to check the paywall's own look without a real sign-in.
+  ///
+  /// `previewOnly: true` is the actual fix for the black screen this used
+  /// to produce: OnbPaywall's initState auto-advances past itself the
+  /// moment isPremiumListenable already reads true, which it does on any
+  /// device that ever held a real entitlement (this account's own dev
+  /// grant included — the cached flag survives in local storage), so the
+  /// screen this button exists to preview was never actually reached. See
+  /// [OnbPaywall.previewOnly]'s own doc. `next` stays a real screen anyway,
+  /// in case a signed-out simulator's premium flag ever gets cleared.
+  void _previewPaywall() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => OnbPaywall(
+          next: const LoginScreen(),
+          onClose: () => Navigator.of(context).pop(),
+          previewOnly: true,
+        ),
+      ),
+    );
   }
 
   void _openLegal({required bool terms}) {
@@ -221,6 +245,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Text('🔧 ${tr('Peržiūrėti onboardingą')}',
+                            style: const TextStyle(
+                                color: _sub,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline)),
+                      ),
+                    ),
+                  if (!kReleaseMode)
+                    GestureDetector(
+                      onTap: _previewPaywall,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text('🔧 ${tr('Peržiūrėti paywall')}',
                             style: const TextStyle(
                                 color: _sub,
                                 fontSize: 12,
