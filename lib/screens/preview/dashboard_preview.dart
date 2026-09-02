@@ -19886,13 +19886,13 @@ class _SettingsScreenState extends State<_SettingsScreen> {
           // standalone on-device test mode — this has to work there too.
           if (!kReleaseMode)
             _group('🔧 Dev', [
-              _navItem(Icons.replay_rounded, 'Peržiūrėti onboardingą iš naujo',
-                  'Atsijungia ir grąžina į onboardingo pradžią',
+              _navItem(Icons.replay_rounded, tr('Peržiūrėti onboardingą iš naujo'),
+                  tr('Atsijungia ir grąžina į onboardingo pradžią'),
                   onTap: _replayOnboarding),
               _toggleItem(
                   Icons.visibility_rounded,
-                  'Visada rodyti onboardingą',
-                  'Kol įjungta, kiekvienas paleidimas rodo onboardingą iš naujo',
+                  tr('Visada rodyti onboardingą'),
+                  tr('Kol įjungta, kiekvienas paleidimas rodo onboardingą iš naujo'),
                   _forcePreviewOnboarding,
                   _toggleForcePreviewOnboarding),
             ]),

@@ -218,10 +218,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   if (!kReleaseMode)
                     GestureDetector(
                       onTap: _replayOnboardingFromLogin,
-                      child: const Padding(
-                        padding: EdgeInsets.only(top: 6),
-                        child: Text('🔧 Peržiūrėti onboardingą',
-                            style: TextStyle(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text('🔧 ${tr('Peržiūrėti onboardingą')}',
+                            style: const TextStyle(
                                 color: _sub,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,

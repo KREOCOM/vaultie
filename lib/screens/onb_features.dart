@@ -2,43 +2,99 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../i18n.dart';
-import '../services/fx_rates.dart';
 import 'splash_screen.dart';
 
-/// Onboarding page 6 — the last page before the bank connect: everything
+/// Onboarding page 7 — the last page before the bank connect: everything
 /// the intro had no room to demonstrate.
 ///
-/// 2026-08-19: rebuilt on a supplied reference mockup — a plain ambient
-/// gradient field (page6_bg.png) with the mark, a two-tone headline, seven
-/// left-rule feature rows and a capability chip strip, all real Flutter
-/// text/widgets (the mockup's own text is baked into its OWN copy of the
-/// image and isn't reachable from code — page6_bg.png is deliberately the
-/// EMPTY version of that render, supplied separately, so every word here
-/// can still be localised/edited). Scrollable: seven rows plus the chip
-/// strip is more copy than any other page in the chain, and unlike a fixed
-/// cap-and-shrink artwork (the previous page's Android strategy) a plain
-/// static background never NEEDS the room back, so letting the copy scroll
-/// over it is the simplest thing that always fits.
+/// 2026-09-02 rework, per explicit request ("atrodo labai daug teksto"):
+/// the previous version's seven left-rule rows plus a capability chip strip
+/// was more copy than any other page in the chain and read as a wall of
+/// text. Condensed to five icon-tile cards (same idea as a supplied
+/// reference mockup) covering the exact same real features, just paired up
+/// — receipts/budget stay separate (the two things someone actually opens
+/// daily), while banks+currencies+export merge into one "data" card and
+/// security+language/theme merge into one "personalise" card. Nothing
+/// listed here that isn't in the app: receipts (`ScanService`), the budget
+/// (`AppPrefs.budget`), bills/subscriptions (`LiveRecurringScreen`), the
+/// currency conversion (`FxRates`) and CSV/PDF export, the lock (`AppLock`),
+/// and the language/theme choice (`AppPrefs.locale`/`darkMode`).
 ///
-/// Each row is a feature that exists in the code — receipts (`ScanService`),
-/// the budget (`AppPrefs.budget`), bills/subscriptions (`LiveRecurringScreen`),
-/// the currency conversion (`FxRates`), CSV/PDF export, the lock (`AppLock`)
-/// and the language/theme choice (`AppPrefs.locale`/`darkMode`). An intro
-/// that lists things the app cannot do is worse than an intro that lists
-/// fewer things.
-class OnbFeatures extends StatelessWidget {
+/// The cards stagger in one at a time, alternating left/right, rather than
+/// appearing all at once — per explicit request, so the list reads as a
+/// sequence of things being pointed out instead of a static block of text
+/// landing all together.
+class OnbFeatures extends StatefulWidget {
   const OnbFeatures({super.key, required this.next});
 
   final Widget next;
 
+  @override
+  State<OnbFeatures> createState() => _OnbFeaturesState();
+}
+
+class _OnbFeaturesState extends State<OnbFeatures>
+    with SingleTickerProviderStateMixin {
   static const _deep = Color(0xFF030B24);
+
+  static const _cards = [
+    (
+      icon: Icons.document_scanner_outlined,
+      title: 'Išlaidos ir kvitai',
+      sub: 'Skenuok kvitus, sek išlaidas ir kategorijas.',
+    ),
+    (
+      icon: Icons.track_changes_rounded,
+      title: 'Biudžetas ir tikslai',
+      sub: 'Nustatyk biudžetus ir siek savo tikslų.',
+    ),
+    (
+      icon: Icons.notifications_active_rounded,
+      title: 'Sąskaitos ir priminimai',
+      sub: 'Sek prenumeratas, sąskaitas ir mokėk laiku.',
+    ),
+    (
+      icon: Icons.account_balance_rounded,
+      title: 'Bankai, valiutos, eksportas',
+      sub: 'Prijunk bankus, konvertuok valiutas, eksportuok duomenis.',
+    ),
+    (
+      icon: Icons.lock_rounded,
+      title: 'Saugumas ir pritaikymas',
+      sub: 'Face ID, PIN, kalba ir tema — kaip tau patogu.',
+    ),
+  ];
+
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: 500 + _cards.length * 170),
+  )..forward();
+
+  /// Card [i]'s own slice of the shared controller — staggered by 170ms per
+  /// card, each running over ~500ms of it, so card 2 is already sliding in
+  /// while card 1 is still settling rather than waiting its turn.
+  Animation<double> _cardAnim(int i) {
+    final total = _ctrl.duration!.inMilliseconds;
+    final start = (i * 170) / total;
+    final end = ((i * 170) + 500) / total;
+    return CurvedAnimation(
+      parent: _ctrl,
+      curve: Interval(start, end.clamp(start, 1.0), curve: Curves.easeOutCubic),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   void _next(BuildContext context) {
     HapticFeedback.lightImpact();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 200),
-        pageBuilder: (_, __, ___) => next,
+        pageBuilder: (_, __, ___) => widget.next,
         transitionsBuilder: (_, a, __, child) =>
             FadeTransition(opacity: a, child: child),
       ),
@@ -112,7 +168,7 @@ class OnbFeatures extends StatelessWidget {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            tr('Tvarkyk išlaidas, biudžetą, sąskaitas ir kasdienius pinigus vienoje aplikacijoje.'),
+                            tr('Tvarkyk savo kasdienius finansus vienoje vietoje.'),
                             style: TextStyle(
                               fontSize: 14.5,
                               height: 1.45,
@@ -120,41 +176,8 @@ class OnbFeatures extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 22),
-                          _row(
-                            tr('Išlaidos ir kvitai'),
-                            tr('Skenuok kvitus ir automatiškai rūšiuok pirkinius į kategorijas.'),
-                          ),
-                          _row(
-                            tr('Biudžetas ir tikslai'),
-                            tr('Nustatyk biudžetus, stebėk išlaidas ir siek savo finansinių tikslų.'),
-                          ),
-                          _row(
-                            tr('Sąskaitos ir mokėjimai'),
-                            tr('Dalinkis sąskaitomis, valdyk mokėjimus ir gauk priminimus laiku.'),
-                          ),
-                          _row(
-                            tr('Bankai ir valiutos'),
-                            // The count comes from the catalogue, not from
-                            // prose — see _row's own note on why this is
-                            // composed here rather than passed as a literal.
-                            // 'valiutas' (accusative) — direct object of "konvertuok",
-                            // not the genitive 'valiutų' this used to read.
-                            '${tr('Prijunk bankus, stebėk sąskaitas ir konvertuok')} ${kCurrencies.length} ${tr('skirtingas valiutas.')}',
-                          ),
-                          _row(
-                            tr('Eksportas ir atsarginės kopijos'),
-                            tr('Eksportuok duomenis į CSV arba PDF formatus ir turėk viską po ranka.'),
-                          ),
-                          _row(
-                            tr('Saugumas ir patogumas'),
-                            tr('Face ID, PIN kodas ir kiti saugumo sprendimai, kuriais gali pasitikėti.'),
-                          ),
-                          _row(
-                            tr('Pritaikyta tau'),
-                            tr('Pasirink kalbą (LT / EN) ir temą (šviesi / tamsi) taip, kaip tau patogiausia.'),
-                          ),
-                          const SizedBox(height: 18),
-                          _chips(),
+                          for (var i = 0; i < _cards.length; i++)
+                            _card(i),
                         ],
                       ),
                     ),
@@ -199,79 +222,71 @@ class OnbFeatures extends StatelessWidget {
         ),
       ));
 
-  Widget _row(String title, String body) => Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: IntrinsicHeight(
+  /// Card [i] slides in from the right on even indexes, from the left on
+  /// odd ones, fading in over the same span — per explicit request, so the
+  /// list reads as items being pointed out one at a time rather than a
+  /// block of text landing all at once.
+  Widget _card(int i) {
+    final c = _cards[i];
+    final anim = _cardAnim(i);
+    final fromRight = i.isEven;
+    return AnimatedBuilder(
+      animation: anim,
+      builder: (_, child) => Opacity(
+        opacity: anim.value,
+        child: Transform.translate(
+          offset: Offset((1 - anim.value) * (fromRight ? 48 : -48), 0),
+          child: child,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: Colors.white.withValues(alpha: 0.05),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+          ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                width: 2.5,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3E63FF),
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(13),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF3E63FF), Color(0xFF1B2E7A)],
+                  ),
                 ),
+                child: Icon(c.icon, color: Colors.white, size: 21),
               ),
-              const SizedBox(width: 13),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
+                    Text(tr(c.title),
                         style: const TextStyle(
-                            fontSize: 15.5,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: Colors.white)),
                     const SizedBox(height: 3),
-                    Text(body,
+                    Text(tr(c.sub),
                         style: TextStyle(
-                            fontSize: 13,
-                            height: 1.4,
-                            color: Colors.white.withValues(alpha: 0.68))),
+                            fontSize: 12.5,
+                            height: 1.35,
+                            color: Colors.white.withValues(alpha: 0.65))),
                   ],
                 ),
               ),
+              Icon(Icons.chevron_right_rounded,
+                  color: Colors.white.withValues(alpha: 0.35), size: 22),
             ],
           ),
         ),
-      );
-
-  /// The capability strip from the reference mockup — a quick, scannable
-  /// "yes, it really does all this" summary right under the feature rows.
-  Widget _chips() {
-    const items = [
-      'Face ID',
-      'PIN',
-      'CSV / PDF',
-      'LT / EN',
-      'Dark / Light',
-    ];
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 10,
-        runSpacing: 8,
-        children: [
-          for (var i = 0; i < items.length; i++) ...[
-            if (i > 0)
-              Text('•',
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.35),
-                      fontSize: 13)),
-            Text(items[i],
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.9))),
-          ],
-        ],
       ),
     );
   }

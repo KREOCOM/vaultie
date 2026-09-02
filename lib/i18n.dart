@@ -1163,6 +1163,39 @@ const Map<String, String> _en = {
   'Pritaikyta tau': 'Made for you',
   'Pasirink kalbą (LT / EN) ir temą (šviesi / tamsi) taip, kaip tau patogiausia.':
       'Choose your language (LT / EN) and theme (light / dark) — whatever suits you.',
+  // 2026-09-02: OnbFeatures condensed to 5 cards — new/changed strings from
+  // that redesign. Added immediately, not left to fall back to Lithuanian —
+  // that fallback is exactly what made this page show a mix of languages in
+  // the first place (the OLD strings just above already had EN entries; new
+  // ones next to them on the same screen didn't yet).
+  'Tvarkyk savo kasdienius finansus vienoje vietoje.':
+      'Manage your everyday finances in one place.',
+  'Skenuok kvitus, sek išlaidas ir kategorijas.':
+      'Scan receipts, track expenses and categories.',
+  'Nustatyk biudžetus ir siek savo tikslų.':
+      'Set budgets and reach your goals.',
+  'Sąskaitos ir priminimai': 'Bills and reminders',
+  'Sek prenumeratas, sąskaitas ir mokėk laiku.':
+      'Track subscriptions, bills, and pay on time.',
+  'Bankai, valiutos, eksportas': 'Banks, currencies, export',
+  'Prijunk bankus, konvertuok valiutas, eksportuok duomenis.':
+      'Connect banks, convert currencies, export your data.',
+  'Saugumas ir pritaikymas': 'Security and personalisation',
+  'Face ID, PIN, kalba ir tema — kaip tau patogu.':
+      'Face ID, PIN, language and theme — however you like.',
+  // OnbInvest (2026-09-01/02) — same missing-translation bug, same fix.
+  'Investicijos šalia tavo finansų': 'Investments alongside your finances',
+  'Akcijas ir kriptovaliutas stebėk kartu su kasdieniais pinigais.':
+      'Track stocks and crypto alongside your everyday money.',
+  // Dev-only onboarding-replay tools (Settings + LoginScreen) — never shown
+  // in a release build, but the same missing-translation bug either way.
+  'Peržiūrėti onboardingą': 'Replay onboarding',
+  'Peržiūrėti onboardingą iš naujo': 'Replay onboarding from the start',
+  'Atsijungia ir grąžina į onboardingo pradžią':
+      'Signs out and returns to the start of onboarding',
+  'Visada rodyti onboardingą': 'Always show onboarding',
+  'Kol įjungta, kiekvienas paleidimas rodo onboardingą iš naujo':
+      'While on, every launch shows onboarding again',
   'Prijunk savo banką\n': 'Connect your bank\n',
   'saugiai ir greitai': 'safely and quickly',
   'Prisijunk prie banko per savo banko sistemą. Vaultie niekada nemato tavo prisijungimo duomenų.':
