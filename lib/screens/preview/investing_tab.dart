@@ -15,18 +15,14 @@
 //      dashboard_preview.dart (search "InvestingTab").
 //   4. DashboardStore.investments()/setInvestments() can stay — dead code,
 //      harmless, or delete them too.
-//   5. onb_invest.dart, and DemoScript.investing + _runInvestingDemo in
-//      dashboard_preview.dart (the onboarding page that shows this tab
-//      running its own scripted "add a position" demo) — the one place
-//      outside this file that DOES touch this feature, via the two public
-//      (not `_`-prefixed) top-level members just below. A necessary crack
-//      in the isolation promise above: dashboard_preview.dart's demo
-//      director needs a real handle on this tab's own add-holding flow to
-//      glide its fake pointer onto, the same seam every other onboarding
-//      tour already uses for its own tab (see dashboard_preview.dart's
-//      `_demoOpenSavings`/`_kSavings`) — those work underscore-private
-//      because that director and those tabs share ONE file; this tab does
-//      not, so the seam has to be public here instead.
+//
+// 2026-09-02: a live onboarding demo of this tab (OnbInvest opening straight
+// onto it, scripting an "add Tesla" sequence) was built, then reverted back
+// to a plain static photo — see onb_invest.dart's own doc. The public
+// (not `_`-prefixed) demo-seam members that demo needed have been removed
+// again; `demo` on [InvestingTab] itself stays, since this tab is still
+// built (never shown) as part of every onboarding page's own DashboardPreview
+// — see `widget.demo`'s own doc below for why that still matters.
 //
 // No shared state with the rest of the dashboard: reads/writes its own Hive
 // key (DashboardStore.investments()) and never touches `_d`/`all`/budgets/
@@ -235,20 +231,6 @@ class _PortfolioTodayChartPainter extends CustomPainter {
       old.color != color;
 }
 
-/// Onboarding demo seam (see this file's own top-of-file isolation doc,
-/// point 5): set to the tab's own real `_addHolding` handler while the demo
-/// runs, and the empty state's "Pridėti pirmą investiciją" button the demo
-/// director glides its fake pointer onto.
-VoidCallback? investingDemoOpenAdd;
-final GlobalKey kInvestingAddBtn = GlobalKey();
-
-/// Same seam, for looping the demo: clears the in-memory-only demo holding
-/// back to the empty state so the director can run the whole "add a
-/// position" sequence again instead of leaving it finished forever — per
-/// explicit request ("kad neužstrigtų ant Teslos akcijomis, o vėl
-/// atsinaujintų").
-VoidCallback? investingDemoReset;
-
 /// Baked EUR-equivalent quote for the onboarding demo's Tesla position —
 /// never a real network fetch (a marketing page must not depend on, or shape
 /// itself around, a live stock price — same rule the chat demo already
@@ -404,23 +386,9 @@ class _InvestingTabState extends State<InvestingTab> {
     await _save();
   }
 
-  /// Onboarding demo only — see `investingDemoReset`'s own doc. Clears the
-  /// in-memory-only demo holding, nothing to persist (never reaches _save).
-  void _resetDemo() {
-    if (!mounted || _holdings.isEmpty) return;
-    setState(_holdings.clear);
-  }
-
   @override
   Widget build(BuildContext context) {
     const p = _Pal();
-    // Hand the demo director the tab's own handler; it is rebuilt with this
-    // State's context, so it can never go stale on it (same seam as
-    // dashboard_preview.dart's own `_demoOpenSavings`).
-    if (widget.demo) {
-      investingDemoOpenAdd = _addHolding;
-      investingDemoReset = _resetDemo;
-    }
     // Fixed dark palette (see _Pal's own doc) → the status bar needs to be
     // forced light (white icons) here too, independent of the app's actual
     // theme setting, or the clock/battery icons go invisible-dark-on-dark.
@@ -615,7 +583,6 @@ class _InvestingTabState extends State<InvestingTab> {
                           tr('Viskas vienoje vietoje su tavo finansais')),
                       const SizedBox(height: 16),
                       SizedBox(
-                        key: widget.demo ? kInvestingAddBtn : null,
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _addHolding,

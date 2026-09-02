@@ -40,7 +40,7 @@ import '../login_screen.dart';
 import '../../widgets/subscription_avatar.dart';
 import 'subs_bills_live.dart' show LiveRecurringScreen;
 import 'investing_tab.dart'
-    show InvestingTab, investingDemoOpenAdd, investingDemoReset, kInvestingAddBtn;
+    show InvestingTab;
 
 /// Bilance-style Dashboard preview, on the user's REAL computed Revolut data.
 ///
@@ -2226,13 +2226,6 @@ enum DemoScript {
   /// AI chat: opens straight onto the tab with a conversation already in it,
   /// then types another question and answers it.
   chat,
-
-  /// Investing tab: opens straight onto its empty state, then the empty
-  /// state's own "Pridėti pirmą investiciją" opens the real add-holding
-  /// sheet — which, in demo mode, runs its OWN scripted sequence (pick
-  /// Tesla, type 3 shares, confirm) rather than waiting for a finger. A
-  /// one-shot recording, not a loop — see [_runInvestingDemo]'s own doc.
-  investing,
 }
 
 /// Set by the Overview tab while the demo is running, so the director can open
@@ -2247,12 +2240,6 @@ final GlobalKey _kSavings = GlobalKey();
 /// summary to Anthropic (and raise a consent dialog) to decorate a marketing
 /// page, which is the same mistake the bank sync was.
 Future<void> Function(String q, String a)? _demoChatSay;
-
-// Investing's own version of this same seam (`investingDemoOpenAdd` /
-// `kInvestingAddBtn`) lives in investing_tab.dart instead, as public
-// top-level members — that tab is a separate file, deliberately isolated
-// (see its own top-of-file doc), so the private-top-level-variable trick
-// used above only works for tabs declared in THIS file.
 
 class DashboardPreview extends StatefulWidget {
   /// [data] is the live dashboard payload from a bank connection. When null the
@@ -2666,16 +2653,11 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // silently dropped by iOS for anyone who ever tapped "Don't Allow", with
   // nothing in the app ever telling them.
   bool _notifDenied = false;
-  // The overview and investing walkthroughs open ON their own tab: those
-  // pages should show what they're actually about from the first frame, not
-  // the home feed switching over to it a moment later. The chat walkthrough
-  // opens on Home ON PURPOSE — it wants to show the "Tavo finansų agentas"
-  // banner actually being tapped, not skip straight past it.
-  // The investing tour starts on HOME, not the Investing tab itself
-  // (per explicit request): the point of a full-screen live demo is to show
-  // the actual entry point — the "Investicijos" quick action a real finger
-  // would tap — not skip straight past it. _runInvestingDemo does that tap
-  // itself, same as the overview tour already does for its own tab.
+  // The overview walkthrough opens ON its own tab: that page should show
+  // what it's actually about from the first frame, not the home feed
+  // switching over to it a moment later. The chat walkthrough opens on
+  // Home ON PURPOSE — it wants to show the "Tavo finansų agentas" banner
+  // actually being tapped, not skip straight past it.
   late int _tab = !widget.demo
       ? 0
       : switch (widget.script) {
@@ -2858,7 +2840,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
   final GlobalKey _kRec = GlobalKey();
   final GlobalKey _kBills = GlobalKey(); // the Sąskaitos card on Home
   final GlobalKey _kAgentBanner = GlobalKey(); // "Tavo finansų agentas" on Home
-  final GlobalKey _kInvestQuickAction = GlobalKey(); // "Investicijos" hero quick action
   final GlobalKey _kNav0 = GlobalKey(); // the Pradžia tab button
   final GlobalKey _kNav1 = GlobalKey(); // the Apžvalga tab button
   final GlobalKey _kNav3 = GlobalKey(); // Planavimas
@@ -3037,45 +3018,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
   }
 
-  /// Investing tour: open the empty tab's own "Pridėti pirmą investiciją" —
-  /// everything after that (picking Tesla, typing the share count, confirming)
-  /// is the add-holding sheet's OWN scripted sequence, started the moment it
-  /// mounts (see investing_tab.dart's `_AddHoldingSheetState.demo`), because
-  /// it needs its own private TextEditingControllers and search state that
-  /// this outer director has no access to — the same reason the chat tour
-  /// hands typing off to `_demoChatSay` rather than driving it itself.
-  ///
-  /// Investing tour: starts on Home (where a real finger would), taps the
-  /// "Investicijos" quick action into the tab itself, then the empty
-  /// state's own "Pridėti pirmą investiciją" — the sheet's own scripted
-  /// sequence (pick Tesla, type shares, confirm) finishes on its own
-  /// timeline, not this loop's, so this just waits long enough for it to be
-  /// done and readable — then resets, taps back to Home, and laps again.
-  Future<void> _runInvestingDemo() async {
-    if (!await _beat(1400)) return;
-    while (mounted && _demoOn) {
-      if (!await _demoTap(
-          _kInvestQuickAction, () => setState(() => _tab = 6),
-          settle: 1200)) {
-        return;
-      }
-      setState(() => _demoPointer = null);
-      final openAdd = investingDemoOpenAdd;
-      if (openAdd == null) return;
-      if (!await _demoTap(kInvestingAddBtn, openAdd, settle: 900)) return;
-      setState(() => _demoPointer = null);
-      if (!await _beat(4200)) return;
-      investingDemoReset?.call();
-      if (!await _beat(600)) return;
-      if (!await _demoTap(_kNav0, () => setState(() => _tab = 0),
-          settle: 1200)) {
-        return;
-      }
-      setState(() => _demoPointer = null);
-      if (!await _beat(1400)) return;
-    }
-  }
-
   /// Budget tour: open the add-budget sheet, close it, then show the app going
   /// dark from the settings screen.
   ///
@@ -3147,7 +3089,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
     if (widget.script == DemoScript.budget) return _runBudgetDemo();
     if (widget.script == DemoScript.chat) return _runChatDemo();
     if (widget.script == DemoScript.overview) return _runOverviewDemo();
-    if (widget.script == DemoScript.investing) return _runInvestingDemo();
     if (!await _beat(700)) return;
     // 2026-08-19: was a 4-step tour — bars, an eye hide/show, the scroll,
     // Transakcijos. The eye step is gone per request ("šito nereikia
@@ -5990,9 +5931,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
           ),
           Expanded(
             child: _heroActionButton(
-              key: widget.demo && widget.script == DemoScript.investing
-                  ? _kInvestQuickAction
-                  : null,
               icon: Icons.show_chart_rounded,
               label: tr('Investicijos'),
               onTap: () => setState(() => _tab = 6),

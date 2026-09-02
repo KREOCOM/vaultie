@@ -1187,6 +1187,15 @@ const Map<String, String> _en = {
   'Investicijos šalia tavo finansų': 'Investments alongside your finances',
   'Akcijas ir kriptovaliutas stebėk kartu su kasdieniais pinigais.':
       'Track stocks and crypto alongside your everyday money.',
+  'Akcijos': 'Stocks',
+  'Tesla, Apple, Google ir kitos populiariausios akcijos.':
+      'Tesla, Apple, Google and other popular stocks.',
+  'Kriptovaliuta': 'Crypto',
+  'Bitcoin, Ethereum ir kitos kriptovaliutos.':
+      'Bitcoin, Ethereum and other cryptocurrencies.',
+  'Pokyčiai realiu laiku': 'Real-time changes',
+  'Stebėk kainų pokyčius, konvertuotus į eurus.':
+      'Track price changes, converted to euros.',
   // Dev-only onboarding-replay tools (Settings + LoginScreen) — never shown
   // in a release build, but the same missing-translation bug either way.
   'Peržiūrėti onboardingą': 'Replay onboarding',
