@@ -251,21 +251,21 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
       backgroundColor: _paper,
       body: Stack(
         children: [
-          // The render's mark, card and chart sit in its top quarter; the rest
-          // is empty, which is where the plans go.
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Image.asset('assets/onboarding/paywall_hero.png',
-                fit: BoxFit.fitWidth),
+          // 2026-09-03: full-bleed background per explicit request — the
+          // photo used to sit only behind the top portion, with the plan
+          // cards on the plain page colour below it. Now it fills the
+          // whole screen (BoxFit.cover; this asset's own aspect is close
+          // enough to the device's that cover barely crops anything) and
+          // every Flutter block — headline, cards, buy button, disclosures
+          // — sits on top of it, same as OnbConnect/OnbInvest's own
+          // full-bleed pages.
+          const Positioned.fill(
+            child: Image(
+              image: AssetImage('assets/onboarding/paywall_hero.png'),
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            ),
           ),
-          // 2026-09-03: a fade/darken gradient used to sit here on top of
-          // the photo, blending it into the page background below. Per
-          // explicit request — it read as the photo being blurred/hazy
-          // rather than shown properly — removed. The photo now shows
-          // plain and sharp; the fixed SizedBox below still controls how
-          // much of it is visible before the plan cards start.
           SafeArea(
             child: Column(
               children: [
@@ -298,6 +298,13 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                 const SizedBox(height: 320),
                 Expanded(
                   child: SingleChildScrollView(
+                    // No drag — per explicit request, this screen must never
+                    // scroll at all, not even as a fallback. The fixed
+                    // height above is sized so everything (cards, button,
+                    // disclosures) already fits; a scrollable safety net
+                    // just meant dragging could reveal a seam where the
+                    // full-bleed photo behind it ends.
+                    physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -306,7 +313,10 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                         // empty without SOME headline, even once it shrank
                         // to a sane size — the render's own "V PREMIUM"
                         // wordmark sits far enough up/left that it doesn't
-                        // double as a title for what follows.
+                        // double as a title for what follows. Now that the
+                        // photo runs full-bleed behind this too, it gets
+                        // the same drop shadow OnbConnect/OnbInvest give
+                        // their own headlines over a photo.
                         Text.rich(
                           TextSpan(children: [
                             TextSpan(text: '${tr('Vaultie')} '),
@@ -318,7 +328,14 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                               fontSize: 22,
                               fontWeight: FontWeight.w800,
                               color: _ink,
-                              letterSpacing: -0.6),
+                              letterSpacing: -0.6,
+                              shadows: [
+                                Shadow(
+                                    color: Color(0xB3000000),
+                                    blurRadius: 14,
+                                    offset: Offset(0, 3)),
+                                Shadow(color: Color(0x66000000), blurRadius: 30),
+                              ]),
                         ),
                         // Plans first: the price is the decision, and on a short
                         // phone it used to sit below three feature cards where
