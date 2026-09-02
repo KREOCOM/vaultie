@@ -60,6 +60,13 @@ const _blue = Color(0xFF003DE1);
 const _blueBright = Color(0xFF0A4DFD);
 const _green = Color(0xFF25C26B);
 const _greenSoft = Color(0xFF071B12);
+// The annual plan's own accent — per explicit request ("padaryk B variantą,
+// premium žodį padaryk melyną, bet visa kita palik"): everything B's mockup
+// gave the annual plan (its badge, discount chip, border and glow) stays
+// gold, only the "Premium" headline word itself went blue instead — gold
+// text there read wrong against this particular photo.
+const _gold = Color(0xFFFFB74D);
+const _goldDeep = Color(0xFFFF8A3D);
 
 // Fallback prices, used ONLY until the store offering loads (or if it never
 // does). Every derived figure below is computed from the LIVE store price when
@@ -325,25 +332,39 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                         // photo runs full-bleed behind this too, it gets
                         // the same drop shadow OnbConnect/OnbInvest give
                         // their own headlines over a photo.
-                        Text.rich(
-                          TextSpan(children: [
-                            TextSpan(text: '${tr('Vaultie')} '),
-                            TextSpan(
-                                text: 'Premium',
-                                style: const TextStyle(color: _blueBright)),
-                          ]),
-                          style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: _ink,
-                              letterSpacing: -0.6,
-                              shadows: [
-                                Shadow(
-                                    color: Color(0xB3000000),
-                                    blurRadius: 14,
-                                    offset: Offset(0, 3)),
-                                Shadow(color: Color(0x66000000), blurRadius: 30),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('👑', style: TextStyle(fontSize: 17)),
+                            const SizedBox(width: 7),
+                            Text.rich(
+                              TextSpan(children: [
+                                TextSpan(text: '${tr('Vaultie')} '),
+                                TextSpan(
+                                  text: 'Premium',
+                                  style: TextStyle(
+                                    foreground: Paint()
+                                      ..shader = const LinearGradient(
+                                        colors: [Color(0xFF7FB0FF), _blueBright],
+                                      ).createShader(
+                                          const Rect.fromLTWH(0, 0, 110, 26)),
+                                  ),
+                                ),
                               ]),
+                              style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: _ink,
+                                  letterSpacing: -0.6,
+                                  shadows: [
+                                    Shadow(
+                                        color: Color(0xB3000000),
+                                        blurRadius: 14,
+                                        offset: Offset(0, 3)),
+                                    Shadow(color: Color(0x66000000), blurRadius: 30),
+                                  ]),
+                            ),
+                          ],
                         ),
                         // Plans first: the price is the decision, and on a short
                         // phone it used to sit below three feature cards where
@@ -373,6 +394,13 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                           trialDays: _trialFor(PlanId.monthly),
                         ),
                         if (!_annual) _trialLine(),
+                        const SizedBox(height: 10),
+                        // Fills what used to be dead space between the plans
+                        // and the buy button — real, checkable facts only
+                        // (no star rating: Vaultie has no App Store reviews
+                        // yet, and Apple treats an invented one as a
+                        // misleading claim).
+                        _trustRow(),
                         const SizedBox(height: 10),
                         // The buy button sits right after the plans, not below
                         // the feature icons — it is the decision that follows
@@ -436,13 +464,20 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                     : null,
                 color: annual ? null : (on ? const Color(0xFF122A63) : const Color(0xFF0B1740)),
                 borderRadius: BorderRadius.circular(16),
+                // The annual plan's border/glow is gold regardless of which
+                // plan is picked — it is this plan's own accent, not a
+                // selection state (the monthly card still uses blue for
+                // that). Dimmer, thinner gold when it isn't the one chosen,
+                // same on/off pattern the rest of the card already used.
                 border: Border.all(
-                    color: on ? _blueBright : const Color(0xFF1E2F66),
+                    color: annual
+                        ? (on ? _gold : _gold.withValues(alpha: 0.35))
+                        : (on ? _blueBright : const Color(0xFF1E2F66)),
                     width: on ? 1.8 : 1),
                 boxShadow: annual
                     ? [
                         BoxShadow(
-                            color: _blueBright.withValues(
+                            color: _gold.withValues(
                                 alpha: (on ? 0.38 : 0.20) + glow * (on ? 0.32 : 0.14)),
                             blurRadius: 22 + glow * 18,
                             spreadRadius: 0.5 + glow * 1.5,
@@ -462,11 +497,12 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                       padding:
                           const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                       decoration: BoxDecoration(
-                          color: _blue, borderRadius: BorderRadius.circular(7)),
+                          gradient: const LinearGradient(colors: [_gold, _goldDeep]),
+                          borderRadius: BorderRadius.circular(7)),
                       child: Text(tr('POPULIARUS PASIRINKIMAS'),
                           style: const TextStyle(
                               fontSize: 9, fontWeight: FontWeight.w800,
-                              color: Colors.white, letterSpacing: 0.4)),
+                              color: Color(0xFF241300), letterSpacing: 0.4)),
                     ),
                     const Spacer(),
                     // The saving was a green slab of its own under both plans,
@@ -498,12 +534,17 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: on ? _blue : const Color(0xFF3A4A6B), width: 2),
+                    border: Border.all(
+                        color: on
+                            ? (annual ? _gold : _blue)
+                            : const Color(0xFF3A4A6B),
+                        width: 2),
                   ),
                   child: on
                       ? Container(
                           width: 11, height: 11,
-                          decoration: const BoxDecoration(color: _blue, shape: BoxShape.circle))
+                          decoration: BoxDecoration(
+                              color: annual ? _gold : _blue, shape: BoxShape.circle))
                       : null,
                 ),
                 const SizedBox(width: 12),
@@ -543,11 +584,12 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                       Container(
                         margin: const EdgeInsets.only(bottom: 4),
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration:
-                            BoxDecoration(color: _green, borderRadius: BorderRadius.circular(6)),
+                        decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [_gold, _goldDeep]),
+                            borderRadius: BorderRadius.circular(6)),
                         child: Text('−${_p.discount} %',
                             style: const TextStyle(
-                                fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
+                                fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF241300))),
                       ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -613,6 +655,37 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
         child: Text(tr('Atšaukti gali bet kada.'),
             style: const TextStyle(
                 fontSize: 13, fontWeight: FontWeight.w600, color: _sub)),
+      ),
+    );
+  }
+
+  /// A single row of real, checkable facts — filled the empty stretch
+  /// between the plans and the buy button. Deliberately NOT a star rating:
+  /// Vaultie has no App Store reviews yet (not live), and Apple treats an
+  /// invented rating on a purchase screen as a misleading claim.
+  Widget _trustRow() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.lock_outline_rounded, size: 12, color: _sub),
+          const SizedBox(width: 5),
+          Text(tr('Šifruota'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _sub)),
+          Text('  ·  ', style: TextStyle(fontSize: 11, color: _sub.withValues(alpha: 0.6))),
+          Icon(Icons.account_balance_rounded, size: 12, color: _sub),
+          const SizedBox(width: 5),
+          Text(tr('2 700+ bankų'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _sub)),
+          Text('  ·  ', style: TextStyle(fontSize: 11, color: _sub.withValues(alpha: 0.6))),
+          Icon(Icons.event_busy_rounded, size: 12, color: _sub),
+          const SizedBox(width: 5),
+          Text(tr('Atšauk bet kada'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _sub)),
+        ],
       ),
     );
   }

@@ -1201,6 +1201,9 @@ const Map<String, String> _en = {
   'Peržiūrėti onboardingą': 'Replay onboarding',
   'Peržiūrėti onboardingą iš naujo': 'Replay onboarding from the start',
   'Peržiūrėti paywall': 'Preview paywall',
+  'Šifruota': 'Encrypted',
+  'Atšauk bet kada': 'Cancel anytime',
+  '2 700+ bankų': '2,700+ banks',
   'Atsijungia ir grąžina į onboardingo pradžią':
       'Signs out and returns to the start of onboarding',
   'Visada rodyti onboardingą': 'Always show onboarding',
