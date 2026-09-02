@@ -240,6 +240,12 @@ class _OnbPaywallState extends State<OnbPaywall> {
             child: Image.asset('assets/onboarding/paywall_hero.png',
                 fit: BoxFit.fitWidth),
           ),
+          // 2026-09-02: stops pushed from [0.13, 0.19, 0.25] to [0.32, 0.44,
+          // 0.55] — per explicit request, the photo was fading out (and the
+          // "Vaultie Premium" wordmark/feature icons swapped in) before the
+          // woman/chair/table were even half shown. The chair is plain and
+          // dark by ~55% of the image's own height (checked directly, not
+          // eyeballed), so the plan card below now starts clear of her.
           const Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
@@ -253,7 +259,7 @@ class _OnbPaywallState extends State<OnbPaywall> {
                       Color(0xCC00082D),
                       _paper,
                     ],
-                    stops: [0, 0.13, 0.19, 0.25],
+                    stops: [0, 0.32, 0.44, 0.55],
                   ),
                 ),
               ),
@@ -278,33 +284,15 @@ class _OnbPaywallState extends State<OnbPaywall> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                     child: Column(
                       children: [
-                        // Clears the render's artwork above.
+                        // Clears the render's artwork above — the render's
+                        // OWN wordmark ("V PREMIUM") now stands in for the
+                        // "Vaultie Premium" text this screen used to add on
+                        // top, which is why that text (and the "Visos
+                        // funkcijos vienoje vietoje" line under it) is gone;
+                        // duplicating the render's own title read as
+                        // redundant right below it, per explicit request.
                         SizedBox(
-                            height: MediaQuery.of(context).size.width *
-                                1844 /
-                                853 *
-                                0.135),
-                        // "Premium" carries the brand blue — it is the word the
-                        // screen is selling.
-                        const Text.rich(
-                          TextSpan(children: [
-                            TextSpan(text: 'Vaultie '),
-                            TextSpan(
-                                text: 'Premium',
-                                style: TextStyle(color: _blueBright)),
-                          ]),
-                          style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: _ink,
-                              letterSpacing: -0.8),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          tr('Visos funkcijos vienoje vietoje.'),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13.5, height: 1.45, color: _sub),
-                        ),
+                            height: MediaQuery.of(context).size.height * 0.53),
                         // Plans first: the price is the decision, and on a short
                         // phone it used to sit below three feature cards where
                         // it had to be scrolled to.
@@ -338,8 +326,6 @@ class _OnbPaywallState extends State<OnbPaywall> {
                         // the feature icons — it is the decision that follows
                         // picking a plan, not something to scroll past first.
                         _bottom(),
-                        const SizedBox(height: 14),
-                        _features(),
                       ],
                     ),
                   ),
@@ -351,42 +337,6 @@ class _OnbPaywallState extends State<OnbPaywall> {
       ),
     );
   }
-
-  Widget _features() => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final f in [
-            (Icons.bar_chart_rounded, tr('AI finansų\nanalizė')),
-            (Icons.pie_chart_rounded, tr('Išlaidų\nsekimas')),
-            (Icons.account_balance_wallet_rounded, tr('Prenumeratų\nsekimas')),
-            (Icons.lightbulb_rounded, tr('Išmanios\nįžvalgos')),
-            (Icons.shield_rounded, tr('Neriboti\nbankai')),
-          ])
-            Expanded(
-              child: Column(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF07231A),
-                      borderRadius: BorderRadius.circular(13),
-                      border:
-                          Border.all(color: _green.withValues(alpha: 0.40)),
-                    ),
-                    child: Icon(f.$1, size: 22, color: _green),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(f.$2,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 9.5, height: 1.3, fontWeight: FontWeight.w600, color: _ink)),
-                ],
-              ),
-            ),
-        ],
-      );
 
   Widget _planCard({
     required bool annual,
