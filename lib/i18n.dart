@@ -1125,6 +1125,13 @@ const Map<String, String> _en = {
   // every page — the exact bug the "pages 2–7" section above was written to
   // catch, just for copy that was rewritten after that audit ran.
   'Suprask savo\nfinansus aiškiau': 'Understand your\nfinances more clearly',
+  // 2026-09-03: page 1's headline split into three tr() calls (a gradient
+  // accent on the middle word needs its own TextSpan) — same phrase as the
+  // line above, just in three pieces so each one still resolves in English.
+  'Suprask savo\n': 'Understand your\n',
+  'finansus': 'finances',
+  ' aiškiau': ' more clearly',
+  'VAULTIE': 'VAULTIE',
   'Jungiame 2 700+ bankų\nvisoje Europoje': 'Connecting 2,700+\nbanks across Europe',
   'Visi tavo bankai, visos tavo sąskaitos vienoje vietoje.':
       'All your banks, all your accounts, in one place.',

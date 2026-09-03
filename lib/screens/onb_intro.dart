@@ -136,8 +136,62 @@ class _OnbIntroState extends State<OnbIntro> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      tr('Suprask savo\nfinansus aiškiau'),
+                    // 2026-09-03: per explicit request — plain text straight
+                    // on the photo read as "just typed on top of it", not
+                    // designed. A small eyebrow (the mark on the same blue
+                    // tile every other page's icon uses, never bare white on
+                    // a photo) plus one gradient-accented word in the
+                    // headline gives it the same brand anchor the rest of
+                    // the chain already has.
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 20 * scale,
+                          height: 20 * scale,
+                          padding: EdgeInsets.all(4 * scale),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(6 * scale),
+                            gradient: const RadialGradient(
+                              center: Alignment(-0.6, -1.0),
+                              radius: 1.6,
+                              colors: [Color(0xFF3E63FF), Color(0xFF081A4D)],
+                              stops: [0.0, 0.65],
+                            ),
+                          ),
+                          child: Image.asset('assets/icon/logo_mark.png',
+                              fit: BoxFit.contain),
+                        ),
+                        SizedBox(width: 7 * scale),
+                        Text(
+                          tr('VAULTIE'),
+                          style: TextStyle(
+                            fontSize: 12 * scale,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 2,
+                            color: Colors.white.withValues(alpha: 0.85),
+                            shadows: const [
+                              Shadow(color: Color(0x99000000), blurRadius: 8),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 14 * scale),
+                    Text.rich(
+                      TextSpan(children: [
+                        TextSpan(text: tr('Suprask savo\n')),
+                        TextSpan(
+                          text: tr('finansus'),
+                          style: TextStyle(
+                            foreground: Paint()
+                              ..shader = const LinearGradient(
+                                colors: [Color(0xFF7FB0FF), Color(0xFF0A4DFD)],
+                              ).createShader(const Rect.fromLTWH(0, 0, 150, 34)),
+                          ),
+                        ),
+                        TextSpan(text: ' ${tr('aiškiau')}'),
+                      ]),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 30 * scale,
