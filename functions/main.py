@@ -160,6 +160,36 @@ def _begin(req: https_fn.CallableRequest, name: str) -> str:
     return rid
 
 
+def _check_daily_cap(uid: str, name: str, limit: int, rid: str) -> None:
+    """Cheap insurance against a runaway client (a retry loop, a stuck
+    button, a bug) hammering a paid AI endpoint all day on one account.
+
+    Not meant to constrain real use — these limits are set well above
+    anything a real person would hit in a day; they exist only to put a
+    ceiling under a bug. One Firestore doc per uid+day, incremented per
+    call; a `get` + `set` (not a transaction) is good enough here since the
+    only realistic race is the same signed-in user's own two near-
+    simultaneous taps, and losing that race just means the cap is off by
+    one for one day.
+    """
+    from firebase_admin import firestore
+    today = dt.date.today().isoformat()
+    ref = firestore.client().collection("ai_daily_usage").document(
+        f"{uid}_{today}")
+    snap = ref.get()
+    count = int((snap.to_dict() or {}).get(name, 0)) if snap.exists else 0
+    if count >= limit:
+        logging.warning(
+            "call=%s rid=%s uid=%s daily cap reached (%d/%d)",
+            name, rid, uid, count, limit)
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.RESOURCE_EXHAUSTED,
+            message="Daily limit reached — please try again tomorrow.",
+        )
+    ref.set({name: firestore.Increment(1), "uid": uid, "date": today},
+             merge=True)
+
+
 # Firebase uid of the App Review demo account (appreview@vaultieapp.com). See
 # _require_premium below and lib/services/review_account.dart on the client.
 #
@@ -1407,6 +1437,7 @@ def finance_chat(req: https_fn.CallableRequest) -> dict:
     _require_auth(req)
     rid = _begin(req, "finance_chat")
     _require_premium(req)
+    _check_daily_cap(_uid(req), "finance_chat", 40, rid)
     data = req.data or {}
     reply = _finance_chat(
         summary=str(data.get("summary") or ""),
@@ -1438,6 +1469,7 @@ def month_summary(req: https_fn.CallableRequest) -> dict:
     _require_auth(req)
     rid = _begin(req, "month_summary")
     _require_premium(req)
+    _check_daily_cap(_uid(req), "month_summary", 5, rid)
     data = req.data or {}
     text = _month_report(
         stats=str(data.get("stats") or ""),
@@ -1479,6 +1511,7 @@ def scan_receipt(req: https_fn.CallableRequest) -> dict:
     _require_auth(req)
     rid = _begin(req, "scan_receipt")
     _require_premium(req)
+    _check_daily_cap(_uid(req), "scan_receipt", 25, rid)
     data = req.data or {}
     image_b64 = str(data.get("image") or "")
     media_type = str(data.get("mediaType") or "image/jpeg")
