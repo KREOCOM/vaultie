@@ -1001,9 +1001,17 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: cxCard,
+            // 2026-09-03: a plain flat cxCard fill read as bland next to a
+            // reference mockup — per explicit request, a soft gradient plus
+            // a brighter (still low-alpha) border instead, same idea as the
+            // paywall's own upgraded plan cards.
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF182A5C), Color(0xFF101C42)],
+            ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: cxLine),
+            border: Border.all(color: const Color(0xFF8FB6FF).withValues(alpha: 0.22)),
           ),
           child: Row(
             children: [
@@ -1041,34 +1049,36 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     );
   }
 
+  /// A bank's real logo, same [Bank.logo] URL as before — this is not a
+  /// placeholder. What changed: it now sits on its own backing tile instead
+  /// of directly on the dark card. Plenty of these logos are dark text or
+  /// partly transparent, drawn straight for whichever bank supplied them —
+  /// on cxCard's navy that made some vanish and others look inconsistent
+  /// bank to bank ("bankai atrodo keistai"). Pure white washed out the
+  /// logos that are themselves light/white-stroked (drawn for a dark
+  /// background originally) — per explicit follow-up, a soft light-grey
+  /// tile instead, which still lifts dark logos but doesn't erase light
+  /// ones the same way.
   Widget _bankLogo(Bank bank) {
     final logo = bank.logo;
-    if (logo != null && logo.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          logo,
-          width: 36,
-          height: 36,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _logoFallback(bank),
-        ),
-      );
-    }
-    return _logoFallback(bank);
-  }
-
-  Widget _logoFallback(Bank bank) {
     return Container(
-      width: 36,
-      height: 36,
-      alignment: Alignment.center,
+      width: 40,
+      height: 40,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: VaultieColors.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFFC9D2E8),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: const Icon(Icons.account_balance,
-          color: VaultieColors.primary, size: 20),
+      child: logo != null && logo.isNotEmpty
+          ? Image.network(
+              logo,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => _logoFallbackIcon(),
+            )
+          : _logoFallbackIcon(),
     );
   }
+
+  Widget _logoFallbackIcon() =>
+      const Icon(Icons.account_balance, color: VaultieColors.primary, size: 20);
 }
