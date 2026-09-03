@@ -302,15 +302,12 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                 // content (the only flex child now) is what actually gives
                 // the content first claim on the remaining space, with
                 // scrolling kept only as a fallback for a shorter device.
-                // 406 and 320 both still left the bottom of the content
-                // (disclosures, sometimes the monthly card) taller than the
-                // space actually left after this gap — with scrolling now
-                // off, that overflow doesn't scroll into view at all, it
-                // just clips silently, which read as the annual plan card
-                // being cut off / hidden under the photo. 240 leaves a
-                // solid margin above the content's own worst-case height
-                // instead of a guess tuned to exactly one device.
-                const SizedBox(height: 240),
+                // 2026-09-03 v3: new photo (V PREMIUM on its own, no
+                // headline needed below it anymore — see above). 150 was
+                // too far up — the annual plan card landed right on top of
+                // the wordmark. Back down near the original HTML mockup's
+                // own value, clearing the render's light-ring motif.
+                const SizedBox(height: 300),
                 Expanded(
                   child: SingleChildScrollView(
                     // No drag — per explicit request, this screen must never
@@ -324,52 +321,10 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Per explicit request: the gap above read as too
-                        // empty without SOME headline, even once it shrank
-                        // to a sane size — the render's own "V PREMIUM"
-                        // wordmark sits far enough up/left that it doesn't
-                        // double as a title for what follows. Now that the
-                        // photo runs full-bleed behind this too, it gets
-                        // the same drop shadow OnbConnect/OnbInvest give
-                        // their own headlines over a photo.
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text('👑', style: TextStyle(fontSize: 17)),
-                            const SizedBox(width: 7),
-                            Text.rich(
-                              TextSpan(children: [
-                                TextSpan(text: '${tr('Vaultie')} '),
-                                TextSpan(
-                                  text: 'Premium',
-                                  style: TextStyle(
-                                    foreground: Paint()
-                                      ..shader = const LinearGradient(
-                                        colors: [Color(0xFF7FB0FF), _blueBright],
-                                      ).createShader(
-                                          const Rect.fromLTWH(0, 0, 110, 26)),
-                                  ),
-                                ),
-                              ]),
-                              style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: _ink,
-                                  letterSpacing: -0.6,
-                                  shadows: [
-                                    Shadow(
-                                        color: Color(0xB3000000),
-                                        blurRadius: 14,
-                                        offset: Offset(0, 3)),
-                                    Shadow(color: Color(0x66000000), blurRadius: 30),
-                                  ]),
-                            ),
-                          ],
-                        ),
-                        // Plans first: the price is the decision, and on a short
-                        // phone it used to sit below three feature cards where
-                        // it had to be scrolled to.
-                        const SizedBox(height: 14),
+                        // 2026-09-03 v2: dropped per explicit request — this
+                        // photo's own render already says "V PREMIUM", so a
+                        // second "Vaultie Premium" headline right below it
+                        // was redundant. Plans go straight after the gap now.
                         _planCard(
                           annual: true,
                           title: tr('Metinis planas'),
@@ -664,27 +619,33 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
   /// Vaultie has no App Store reviews yet (not live), and Apple treats an
   /// invented rating on a purchase screen as a misleading claim.
   Widget _trustRow() {
+    // Per explicit request: _sub (the same dim grey-blue as fine print
+    // elsewhere) read as too washed out here — this row states real
+    // capabilities, not a footnote, so it gets its own brighter tone plus a
+    // touch more container contrast, one step down from the plan cards'
+    // own text but clearly above the disclosures below the buy button.
+    const trustText = Color(0xFFDCE4F7);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: Colors.white.withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.lock_outline_rounded, size: 12, color: _sub),
+          const Icon(Icons.lock_outline_rounded, size: 12, color: trustText),
           const SizedBox(width: 5),
-          Text(tr('Šifruota'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _sub)),
-          Text('  ·  ', style: TextStyle(fontSize: 11, color: _sub.withValues(alpha: 0.6))),
-          Icon(Icons.account_balance_rounded, size: 12, color: _sub),
+          Text(tr('Šifruota'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: trustText)),
+          Text('  ·  ', style: TextStyle(fontSize: 11, color: trustText.withValues(alpha: 0.5))),
+          const Icon(Icons.account_balance_rounded, size: 12, color: trustText),
           const SizedBox(width: 5),
-          Text(tr('2 700+ bankų'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _sub)),
-          Text('  ·  ', style: TextStyle(fontSize: 11, color: _sub.withValues(alpha: 0.6))),
-          Icon(Icons.event_busy_rounded, size: 12, color: _sub),
+          Text(tr('2 700+ bankų'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: trustText)),
+          Text('  ·  ', style: TextStyle(fontSize: 11, color: trustText.withValues(alpha: 0.5))),
+          const Icon(Icons.event_busy_rounded, size: 12, color: trustText),
           const SizedBox(width: 5),
-          Text(tr('Atšauk bet kada'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _sub)),
+          Text(tr('Atšauk bet kada'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: trustText)),
         ],
       ),
     );
