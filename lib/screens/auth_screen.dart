@@ -85,12 +85,12 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         await ensureLocalDataForCurrentUser();
         if (!mounted) return;
         // Signed-in but unverified accounts are held at the verify screen.
+        final landing = _auth.isEmailVerified
+            ? await landingAfterAuth()
+            : const VerifyEmailScreen();
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => _auth.isEmailVerified
-                ? landingAfterAuth()
-                : const VerifyEmailScreen(),
-          ),
+          MaterialPageRoute(builder: (_) => landing),
         );
       } else {
         // register() already fires the verification email; land the user on
@@ -180,8 +180,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       // through the email-verification gate. An Apple private-relay address can
       // report emailVerified=false and would otherwise trap the user on the
       // verify screen with no working way out.
+      final landing = await landingAfterAuth();
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => landingAfterAuth()),
+        MaterialPageRoute(builder: (_) => landing),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -219,8 +221,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       // Social accounts (Google/Apple) are provider-verified — go straight to
       // the dashboard, never the email-verification gate (see signInWithGoogle).
+      final landing = await landingAfterAuth();
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => landingAfterAuth()),
+        MaterialPageRoute(builder: (_) => landing),
       );
     } on FirebaseAuthException catch (e) {
       // Surface the exact code so real-device failures are diagnosable

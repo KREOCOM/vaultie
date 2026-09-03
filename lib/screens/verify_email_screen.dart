@@ -62,8 +62,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         _poll?.cancel();
         await ensureLocalDataForCurrentUser();
         if (!mounted) return;
+        final landing = await landingAfterAuth();
+        if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => landingAfterAuth()),
+          MaterialPageRoute(builder: (_) => landing),
           (route) => false,
         );
       } else if (showFeedback) {

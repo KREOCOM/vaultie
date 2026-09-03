@@ -16,7 +16,7 @@ import 'preview/dashboard_preview.dart';
 /// is gone — the intro chain's own "Prijungti banką" screen makes the same
 /// pitch in the current identity — so the function moved somewhere its name
 /// still describes the file.
-Widget landingAfterAuth() {
+Future<Widget> landingAfterAuth() async {
   // App Review lands here, on the sample month, before anything else is checked.
   //
   // Above the paywall on purpose: making a reviewer complete a StoreKit sandbox
@@ -44,7 +44,14 @@ Widget landingAfterAuth() {
   // alone, which meant connecting a bank once bought permanent free access:
   // the paywall was skipped for anyone who had data, including after their
   // subscription lapsed.
-  if (!PurchaseService.instance.isPremium) {
+  //
+  // confirmPremium(), not the plain isPremium getter: the on-device
+  // RevenueCat SDK reflects the PHONE's own StoreKit transactions, not
+  // necessarily this signed-in account's — a device that ever held a real
+  // entitlement can make a brand-new, never-paid account read as premium.
+  // See PurchaseService.confirmPremium's own doc for the full story and why
+  // this has to be asked right here, not cached earlier.
+  if (!await PurchaseService.instance.confirmPremium()) {
     return const OnbPaywall(next: BankConnectScreen());
   }
   // 2026-08-20: was gated on the saved blob's mere presence. That blob and

@@ -142,6 +142,16 @@ abstract class PurchaseService {
   /// null) so the premium entitlement follows the *account*, not the device.
   /// Refreshes the cached premium state to match.
   Future<void> setUser(String? uid);
+
+  /// Confirms [isPremium] against the server's own entitlement check
+  /// (`check_entitlement`, backed by the exact same RevenueCat lookup every
+  /// paid endpoint already enforces) rather than trusting whatever the
+  /// on-device RevenueCat SDK currently reports. See
+  /// [RevenueCatPurchaseService.confirmPremium] for why the on-device SDK
+  /// alone is not enough. Returns the server's answer when reachable,
+  /// falling back to [isPremium] on any failure — this must never THROW, so
+  /// a caller gating a paywall on it never gets stuck.
+  Future<bool> confirmPremium();
 }
 
 /// On-device mock. Grants premium after a short fake "store round-trip" and
@@ -214,6 +224,9 @@ class MockPurchaseService implements PurchaseService {
     // Local mock: premium is just the cached flag (cleared on account wipe).
     _premium.value = _box.get(_premiumKey, defaultValue: false) as bool;
   }
+
+  @override
+  Future<bool> confirmPremium() async => isPremium; // no server to ask
 }
 
 /// Live [PurchaseService] backed by RevenueCat.
@@ -550,61 +563,67 @@ class RevenueCatPurchaseService implements PurchaseService {
         info = await rc.Purchases.logOut();
       }
       _applyCustomerInfo(info);
-    } catch (e) {
+    } catch (_) {
       // Offline, not configured, or already anonymous — fall back to the cached
       // flag (which the account wipe clears).
-      debugPrint('[PurchaseService] setUser: logIn/logOut threw: $e');
       _premium.value = _box.get(_premiumKey, defaultValue: false) as bool;
     }
-    debugPrint('[PurchaseService] setUser($uid): client premium after '
-        'RevenueCat = ${_premium.value}');
-    if (uid != null && _premium.value) {
-      await _confirmWithServer(uid);
-    }
+    // 2026-09-03: used to also call [confirmPremium] right here, once, and
+    // downgrade _premium on a "not premium" server answer. Removed — it
+    // raced RevenueCat's OWN update listener
+    // (`addCustomerInfoUpdateListener`, registered once in [init] for the
+    // app's whole lifetime, driven by StoreKit2's device-wide
+    // `Transaction.updates` stream, not this call). That listener could
+    // fire again microseconds after this method returned and silently flip
+    // _premium back to true, undoing the correction before
+    // landingAfterAuth() ever read it — which is exactly what happened:
+    // check_entitlement never even showed up in the server logs for a real
+    // sign-in, only for this file's own deploy health-check. Confirming
+    // with the server belongs at the one place that actually consumes the
+    // answer — see [confirmPremium] and landing.dart.
   }
 
-  /// Catches the one gap [_applyCustomerInfo] alone cannot: RevenueCat's iOS
-  /// SDK observes every StoreKit transaction on this PHONE, not the
-  /// signed-in account, so a device that ever held a real entitlement — a
-  /// reviewer's test device, a shared family Apple ID, a QA phone with a
-  /// promotional grant — can make a brand-new, never-paid account read as
-  /// premium right after `logIn`. The paywall would then be skipped, only
-  /// for the very next paid action (starting a bank connection) to be
-  /// rejected server-side with no explanation the person could act on.
+  /// Confirms [isPremium] against the server's own check (`check_entitlement`,
+  /// the exact same RevenueCat-by-uid lookup every paid endpoint already
+  /// enforces via `_require_premium`/`entitlement.py`) instead of trusting
+  /// only the on-device RevenueCat SDK.
   ///
-  /// `check_entitlement` asks the exact same server-side check every paid
-  /// endpoint already enforces (`functions/entitlement.py`), so this can
-  /// never make the client MORE permissive than the server — only catches
-  /// it agreeing sooner, before the paywall decision is made instead of
-  /// after a confusing failure downstream.
+  /// Needed because that SDK observes every StoreKit transaction on this
+  /// PHONE, not the signed-in account: a device that ever held a real
+  /// entitlement (a reviewer's test device, a shared family Apple ID, a QA
+  /// phone with a promotional/lifetime grant) can make a brand-new,
+  /// never-paid account read as premium right after [setUser] — the paywall
+  /// then gets skipped, only for the very next paid action (starting a bank
+  /// connection) to be rejected server-side with no explanation the person
+  /// could act on.
   ///
-  /// Deliberately one-directional: only downgrades true→false, and only on
-  /// an explicit server answer. A network failure or timeout here leaves
-  /// [_premium] exactly as RevenueCat already set it — the paid endpoints
-  /// themselves remain the real enforcement, so a client-side gate that
-  /// occasionally stays too permissive during an outage is a UX gap, not a
-  /// security one; downgrading a genuine subscriber to "not premium" because
-  /// this one best-effort call timed out would be strictly worse.
-  Future<void> _confirmWithServer(String uid) async {
-    debugPrint('[PurchaseService] _confirmWithServer($uid): calling '
-        'check_entitlement…');
+  /// Called from [landingAfterAuth] right before it decides whether to show
+  /// the paywall — the one place this answer is actually consumed — rather
+  /// than cached earlier and raced by RevenueCat's own async update
+  /// listener. Trusts the server fully, both directions, when reachable:
+  /// this is the same authority every paid endpoint already answers to, so
+  /// there is nothing more conservative to fall back to. Only on a network
+  /// failure/timeout does it fall back to the client's own best-known value
+  /// — the paid endpoints remain the real enforcement regardless, so an
+  /// occasionally-too-permissive client gate during an outage is a UX gap,
+  /// not a security one.
+  @override
+  Future<bool> confirmPremium() async {
+    final uid = _boundUid;
+    if (uid == null) return isPremium;
     try {
       final res = await _functions
           .httpsCallable('check_entitlement',
               options: HttpsCallableOptions(timeout: const Duration(seconds: 10)))
           .call<Map<Object?, Object?>>();
-      debugPrint('[PurchaseService] check_entitlement replied: ${res.data}');
       final serverPremium = res.data['premium'] == true;
-      if (!serverPremium) {
-        _premium.value = false;
-        await _box.put(_premiumKey, false);
-        debugPrint('[PurchaseService] server says NOT premium — downgraded '
-            'client state.');
+      if (serverPremium != _premium.value) {
+        _premium.value = serverPremium;
+        await _box.put(_premiumKey, serverPremium);
       }
-    } catch (e) {
-      // Offline, cold-started function, whatever — leave the client's own
-      // determination alone; see this method's own doc for why that's safe.
-      debugPrint('[PurchaseService] check_entitlement call FAILED: $e');
+      return serverPremium;
+    } catch (_) {
+      return isPremium;
     }
   }
 }

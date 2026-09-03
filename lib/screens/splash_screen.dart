@@ -209,10 +209,11 @@ class _SplashScreenState extends State<SplashScreen>
         ),
       );
     } else if (auth.isLoggedIn) {
-      next = verified ? landingAfterAuth() : const VerifyEmailScreen();
+      next = verified ? await landingAfterAuth() : const VerifyEmailScreen();
     } else {
       next = const LoginScreen();
     }
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
