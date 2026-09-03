@@ -411,12 +411,33 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
     // explicit request, in favour of just showing the already-populated
     // confirmed list (see _confirmed/_pending's own doc) like Sąskaitos
     // does now too.
+    //
+    // 2026-09-04: this screen's own _ink/_bg/_card/etc getters (top of this
+    // file) read AppPrefs.darkMode.value directly — unlike
+    // dashboard_preview.dart, which already forces light for widget.demo
+    // (see that file's own initState comment: a marketing page must not
+    // carry over whatever dark/light mode the real account happens to be
+    // left on). Reached from the onboarding demo via Sąskaitos/Prenumeratos,
+    // this screen skipped that guard entirely, so a device with dark mode
+    // on (from testing the real app, or a demo elsewhere in the chain that
+    // flips it mid-script — see dashboard_preview.dart's own
+    // _runBudgetDemo/_demoSetDark) showed dark here regardless. Same
+    // temporary-flip-then-restore pattern as _demoSetDark, not
+    // AppPrefs.setDarkMode, so the viewer's own real setting is never
+    // touched or persisted.
+    if (widget.demo && AppPrefs.darkMode.value) {
+      AppPrefs.darkMode.value = false;
+    }
   }
 
   @override
   void dispose() {
     _waveCtl.dispose();
     _ringsCtl.dispose();
+    if (widget.demo) {
+      final real = AppPrefs.darkModeSaved;
+      if (AppPrefs.darkMode.value != real) AppPrefs.darkMode.value = real;
+    }
     super.dispose();
   }
 
