@@ -147,11 +147,11 @@ class _OnbIntroState extends State<OnbIntro> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 20 * scale,
-                          height: 20 * scale,
-                          padding: EdgeInsets.all(4 * scale),
+                          width: 30 * scale,
+                          height: 30 * scale,
+                          padding: EdgeInsets.all(6 * scale),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6 * scale),
+                            borderRadius: BorderRadius.circular(9 * scale),
                             gradient: const RadialGradient(
                               center: Alignment(-0.6, -1.0),
                               radius: 1.6,
@@ -162,14 +162,14 @@ class _OnbIntroState extends State<OnbIntro> {
                           child: Image.asset('assets/icon/logo_mark.png',
                               fit: BoxFit.contain),
                         ),
-                        SizedBox(width: 7 * scale),
+                        SizedBox(width: 9 * scale),
                         Text(
                           tr('VAULTIE'),
                           style: TextStyle(
-                            fontSize: 12 * scale,
+                            fontSize: 17 * scale,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: 2,
-                            color: Colors.white.withValues(alpha: 0.85),
+                            letterSpacing: 2.5,
+                            color: Colors.white.withValues(alpha: 0.9),
                             shadows: const [
                               Shadow(color: Color(0x99000000), blurRadius: 8),
                             ],
