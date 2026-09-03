@@ -63,23 +63,15 @@ class OnbBanks extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 2026-09-04: one word/figure per onboarding page picked
-                    // out in the same blue gradient as page 1's "finansus" —
-                    // per explicit request, applied consistently across the
-                    // whole chain. Here it's the number, the thing this page
-                    // is actually pitching.
+                    // 2026-09-04: the per-page blue accent word was tried
+                    // here and reverted — against this photo it read as too
+                    // faint/blended into the background rather than
+                    // standing out. Only page 1's own "finansus" keeps the
+                    // gradient; every other page's headline is plain white.
                     Text.rich(
                       TextSpan(children: [
                         TextSpan(text: tr('Jungiame ')),
-                        TextSpan(
-                          text: tr('2 700+'),
-                          style: TextStyle(
-                            foreground: Paint()
-                              ..shader = const LinearGradient(
-                                colors: [Color(0xFF7FB0FF), Color(0xFF0A4DFD)],
-                              ).createShader(const Rect.fromLTWH(0, 0, 150, 34)),
-                          ),
-                        ),
+                        TextSpan(text: tr('2 700+')),
                         TextSpan(text: tr(' bankų\nvisoje Europoje')),
                       ]),
                       textAlign: TextAlign.center,

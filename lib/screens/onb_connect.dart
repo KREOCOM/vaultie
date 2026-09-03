@@ -97,6 +97,14 @@ class _OnbConnectState extends State<OnbConnect>
     // that ends the intro and hands over to the sign-in.
     HapticFeedback.mediumImpact();
     await AppPrefs.setOnboarded(true);
+    // 2026-09-04: the light "Frost" theme is the app's primary theme (see
+    // AppPrefs.darkMode's own doc) — onboarding itself never offers a theme
+    // choice, so this is the one guaranteed place to land every new user on
+    // light regardless of whatever `darkContentTheme` happened to be left
+    // set to (e.g. a stray value from testing on a reused device/build).
+    // Someone who actually wants dark can still switch it right back on in
+    // Settings; this only fixes the FIRST thing they see.
+    await AppPrefs.setDarkMode(false);
     if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
@@ -160,26 +168,18 @@ class _OnbConnectState extends State<OnbConnect>
                                 ],
                               ),
                               children: [
+                                // 2026-09-04: the per-page blue accent word
+                                // was tried here and reverted — see
+                                // OnbBanks' own doc, same reason. Plain
+                                // white headline, only page 1 keeps blue.
                                 TextSpan(
                                     text: tr('Prijunk savo '),
                                     style: const TextStyle(
                                         color: Colors.white)),
-                                // 2026-09-04: one word per onboarding page
-                                // picked out in the same blue gradient as
-                                // page 1's "finansus" — see that page's own
-                                // doc.
                                 TextSpan(
                                     text: tr('banką\n'),
-                                    style: TextStyle(
-                                      foreground: Paint()
-                                        ..shader = const LinearGradient(
-                                          colors: [
-                                            Color(0xFF7FB0FF),
-                                            Color(0xFF0A4DFD)
-                                          ],
-                                        ).createShader(
-                                            const Rect.fromLTWH(0, 0, 150, 30)),
-                                    )),
+                                    style: const TextStyle(
+                                        color: Colors.white)),
                                 TextSpan(
                                     text: tr('saugiai ir greitai'),
                                     style: const TextStyle(

@@ -140,20 +140,12 @@ class _OnbInvestState extends State<OnbInvest>
                           // fit the copy AND all three cards on screen
                           // without needing a scroll.
                           const SizedBox(height: 395),
-                          // 2026-09-04: one word per onboarding page picked out in
-                          // the same blue gradient as page 1's "finansus" — see
-                          // that page's own doc.
+                          // 2026-09-04: the per-page blue accent word was
+                          // tried here and reverted — see OnbBanks' own doc,
+                          // same reason.
                           Text.rich(
                             TextSpan(children: [
-                              TextSpan(
-                                text: tr('Investicijos'),
-                                style: TextStyle(
-                                  foreground: Paint()
-                                    ..shader = const LinearGradient(
-                                      colors: [Color(0xFF7FB0FF), Color(0xFF0A4DFD)],
-                                    ).createShader(const Rect.fromLTWH(0, 0, 150, 32)),
-                                ),
-                              ),
+                              TextSpan(text: tr('Investicijos')),
                               TextSpan(text: tr(' šalia tavo finansų')),
                             ]),
                             style: const TextStyle(

@@ -482,7 +482,10 @@ class _InvestingTabState extends State<InvestingTab> {
                 left: 0,
                 right: 0,
                 height: h * 1.15,
-                child: Image.asset('assets/onboarding/investing_intro_bg.png',
+                // 2026-09-04: swapped to the newer bull/bear render used on
+                // the onboarding "Investicijos" page itself, per explicit
+                // request — same 853×1844 art, same crop math above.
+                child: Image.asset('assets/onboarding/page_invest_bg.png',
                     fit: BoxFit.cover),
               ),
               DecoratedBox(

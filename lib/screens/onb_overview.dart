@@ -147,21 +147,12 @@ class _OnbOverviewState extends State<OnbOverview> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 2026-09-04: one word per onboarding page picked out in
-                    // the same blue gradient as page 1's "finansus" — see
-                    // that page's own doc.
+                    // 2026-09-04: the per-page blue accent word was tried
+                    // here and reverted — see OnbBanks' own doc, same reason.
                     Text.rich(
                       TextSpan(children: [
                         TextSpan(text: tr('Stebėk, kur gali ')),
-                        TextSpan(
-                          text: tr('sutaupyti'),
-                          style: TextStyle(
-                            foreground: Paint()
-                              ..shader = const LinearGradient(
-                                colors: [Color(0xFF7FB0FF), Color(0xFF0A4DFD)],
-                              ).createShader(const Rect.fromLTWH(0, 0, 150, 32)),
-                          ),
-                        ),
+                        TextSpan(text: tr('sutaupyti')),
                       ]),
                       textAlign: TextAlign.center,
                       style: const TextStyle(

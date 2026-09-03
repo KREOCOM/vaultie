@@ -159,18 +159,14 @@ class _OnbFeaturesState extends State<OnbFeatures>
                                     text: tr('Daugiau funkcijų.\n'),
                                     style:
                                         const TextStyle(color: Colors.white)),
+                                // 2026-09-04: was a paler blue, then a
+                                // gradient accent — both reverted per
+                                // explicit feedback (too faint / only page
+                                // 1 keeps the blue accent). Plain white,
+                                // matching the first line.
                                 TextSpan(
                                     text: tr('Daugiau kontrolės.'),
-                                    style: TextStyle(
-                                      foreground: Paint()
-                                        ..shader = const LinearGradient(
-                                          colors: [
-                                            Color(0xFF7FB0FF),
-                                            Color(0xFF0A4DFD)
-                                          ],
-                                        ).createShader(
-                                            const Rect.fromLTWH(0, 0, 230, 34)),
-                                    )),
+                                    style: const TextStyle(color: Colors.white)),
                               ],
                             ),
                           ),
