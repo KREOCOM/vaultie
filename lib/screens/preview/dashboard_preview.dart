@@ -9016,53 +9016,66 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
                   // amount
+                  // 2026-09-04: was a full-width Expanded field — an almost
+                  // empty "0" stretched across the whole card, reading as an
+                  // oversized, oddly-proportioned block. The row now hugs
+                  // its own content (IntrinsicWidth) and centers in the
+                  // card instead, the same compact "big centered amount"
+                  // treatment real fintech apps use, with a touch less
+                  // vertical padding so the card itself isn't so tall.
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 22),
+                        horizontal: 18, vertical: 18),
                     decoration: BoxDecoration(
                         color: _card,
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: _hair)),
-                    child: Row(children: [
-                      Text(widget.kind == 'income' ? '+' : '−',
-                          style: TextStyle(
-                              fontSize: 34,
-                              fontWeight: FontWeight.w800,
-                              color: tint)),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: TextField(
-                          controller: _amountCtl,
-                          autofocus: true,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'[0-9.,]'))
-                          ],
-                          onChanged: (_) => setState(() {}),
-                          style: TextStyle(
-                              fontSize: 40,
-                              fontWeight: FontWeight.w800,
-                              color: _ink,
-                              letterSpacing: -1),
-                          decoration: InputDecoration(
-                            isCollapsed: true,
-                            border: InputBorder.none,
-                            hintText: '0',
-                            hintStyle: TextStyle(
-                                fontSize: 40,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(widget.kind == 'income' ? '+' : '−',
+                            style: TextStyle(
+                                fontSize: 32,
                                 fontWeight: FontWeight.w800,
-                                color: _faint),
+                                color: tint)),
+                        const SizedBox(width: 6),
+                        IntrinsicWidth(
+                          child: TextField(
+                            controller: _amountCtl,
+                            autofocus: true,
+                            textAlign: TextAlign.center,
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                    decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                  RegExp(r'[0-9.,]'))
+                            ],
+                            onChanged: (_) => setState(() {}),
+                            style: TextStyle(
+                                fontSize: 38,
+                                fontWeight: FontWeight.w800,
+                                color: _ink,
+                                letterSpacing: -1),
+                            decoration: InputDecoration(
+                              isCollapsed: true,
+                              border: InputBorder.none,
+                              hintText: '0',
+                              hintStyle: TextStyle(
+                                  fontSize: 38,
+                                  fontWeight: FontWeight.w800,
+                                  color: _faint),
+                            ),
                           ),
                         ),
-                      ),
-                      Text(Money.symbol,
-                          style: TextStyle(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w700,
-                              color: _muted)),
-                    ]),
+                        const SizedBox(width: 4),
+                        Text(Money.symbol,
+                            style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: _muted)),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   // category
