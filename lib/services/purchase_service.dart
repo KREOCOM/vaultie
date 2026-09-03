@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -255,6 +256,11 @@ class RevenueCatPurchaseService implements PurchaseService {
   /// the transaction attaches to the account the SERVER checks, not an anonymous
   /// RevenueCat id. Null when signed out.
   String? _boundUid;
+
+  // Functions are deployed to europe-west1 — must match banking_service.dart's
+  // own instance or the call 404s. See functions/main.py:check_entitlement.
+  final FirebaseFunctions _functions =
+      FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   /// Purchasable package + localized price per plan, from the current offering.
   final Map<PlanId, rc.Package> _packages = {};
@@ -548,6 +554,48 @@ class RevenueCatPurchaseService implements PurchaseService {
       // Offline, not configured, or already anonymous — fall back to the cached
       // flag (which the account wipe clears).
       _premium.value = _box.get(_premiumKey, defaultValue: false) as bool;
+    }
+    if (uid != null && _premium.value) {
+      await _confirmWithServer(uid);
+    }
+  }
+
+  /// Catches the one gap [_applyCustomerInfo] alone cannot: RevenueCat's iOS
+  /// SDK observes every StoreKit transaction on this PHONE, not the
+  /// signed-in account, so a device that ever held a real entitlement — a
+  /// reviewer's test device, a shared family Apple ID, a QA phone with a
+  /// promotional grant — can make a brand-new, never-paid account read as
+  /// premium right after `logIn`. The paywall would then be skipped, only
+  /// for the very next paid action (starting a bank connection) to be
+  /// rejected server-side with no explanation the person could act on.
+  ///
+  /// `check_entitlement` asks the exact same server-side check every paid
+  /// endpoint already enforces (`functions/entitlement.py`), so this can
+  /// never make the client MORE permissive than the server — only catches
+  /// it agreeing sooner, before the paywall decision is made instead of
+  /// after a confusing failure downstream.
+  ///
+  /// Deliberately one-directional: only downgrades true→false, and only on
+  /// an explicit server answer. A network failure or timeout here leaves
+  /// [_premium] exactly as RevenueCat already set it — the paid endpoints
+  /// themselves remain the real enforcement, so a client-side gate that
+  /// occasionally stays too permissive during an outage is a UX gap, not a
+  /// security one; downgrading a genuine subscriber to "not premium" because
+  /// this one best-effort call timed out would be strictly worse.
+  Future<void> _confirmWithServer(String uid) async {
+    try {
+      final res = await _functions
+          .httpsCallable('check_entitlement',
+              options: HttpsCallableOptions(timeout: const Duration(seconds: 10)))
+          .call<Map<Object?, Object?>>();
+      final serverPremium = res.data['premium'] == true;
+      if (!serverPremium) {
+        _premium.value = false;
+        await _box.put(_premiumKey, false);
+      }
+    } catch (_) {
+      // Offline, cold-started function, whatever — leave the client's own
+      // determination alone; see this method's own doc for why that's safe.
     }
   }
 }

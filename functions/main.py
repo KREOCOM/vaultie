@@ -218,6 +218,26 @@ def _require_premium(req: https_fn.CallableRequest) -> None:
     )
 
 
+@https_fn.on_call(region=_REGION, secrets=[REVENUECAT_API_KEY])
+def check_entitlement(req: https_fn.CallableRequest) -> dict:
+    """Whether the signed-in user actually holds Vaultie Pro, per the SAME
+    RevenueCat-backed check every paid endpoint enforces (see
+    ``_require_premium``/``entitlement.py``) — not a new, separate opinion.
+
+    Exists because the paywall gate right after sign-in used to trust ONLY
+    the on-device RevenueCat SDK state. That SDK observes every StoreKit
+    transaction on the PHONE, not the signed-in account: on a device that
+    ever held a real entitlement (a reviewer's test device, a family
+    member's shared Apple ID, a QA phone with a promotional grant), signing
+    in as a brand-new, never-paid account could read as premium client-side
+    and skip the paywall — only to have the very next paid action (starting
+    a bank connection) rejected by this exact same server check, with no
+    explanation the person could act on. Calling this once right after
+    sign-in lets the client catch that mismatch before it looks broken.
+    """
+    return {"premium": _is_premium(_uid(req), REVENUECAT_API_KEY.value)}
+
+
 # The one thing this backend stores. Everything else — transactions, balances,
 # the built dashboard — stays in memory and on the phone.
 _BANK_LINKS = "bank_links"
