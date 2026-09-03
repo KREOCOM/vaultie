@@ -23,6 +23,13 @@ const cxLine = Color(0x332E56C8);
 /// unwarned that reads as an error or a scam, and it is the single place someone
 /// is most likely to abandon. Three steps and one sentence about who sees the
 /// password costs a tap and removes that.
+///
+/// 2026-09-03: rebuilt per an explicit reference mockup — a glowing badge
+/// above the title, each step in its own bordered card (icon circle + an
+/// overlapping number, not a numbered rail connecting them), and the safety
+/// explanation + connection diagram merged into one card instead of two
+/// separate elements. Real Vaultie blue throughout, not the reference's own
+/// generic blue.
 class BankHowItWorks extends StatelessWidget {
   const BankHowItWorks({super.key, required this.onContinue});
 
@@ -30,63 +37,122 @@ class BankHowItWorks extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // This screen packs a title, 3 steps, an animated connection graphic, a
-    // safety card and a disclaimer ABOVE the CTA — on iOS's reference height
-    // it still clears the fold; Android's shorter/narrower common sizes (and
-    // its default text scaling reading a touch larger) pushed "Tęsti" below
-    // it, so the whole thing became "scroll to find the button" on exactly the
-    // screen meant to build trust in one glance. Only the gaps shrink — same
-    // content, same order, nothing removed. iOS keeps its original spacing.
-    final gap = Platform.isAndroid ? 16.0 : 26.0;
-    return Scaffold(
-      backgroundColor: cxBg,
-      appBar: AppBar(
-        backgroundColor: cxBg,
-        elevation: 0,
-        foregroundColor: cxInk,
-      ),
-      body: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+    // Same reasoning as before this rewrite: iOS's reference height clears
+    // the fold, Android's shorter/narrower common sizes (plus its default
+    // text scaling reading a touch larger) don't — only the gaps shrink,
+    // same content and order. A scroll is still there as a fallback for
+    // whatever device this guess doesn't hold on, but nothing here should
+    // need it in practice.
+    final gap = Platform.isAndroid ? 15.0 : 18.0;
+    // 2026-09-03: this used to be its own Scaffold+AppBar, but this widget
+    // is only ever used as _Phase.intro's body INSIDE BankConnectScreen's
+    // own Scaffold (which already has an AppBar titled "Prijungti banką"
+    // and its own SafeArea around body) — never pushed as a standalone
+    // route. A second, blank (titleless) AppBar was stacking directly under
+    // the real one, silently eating ~50pt of height the layout wasn't
+    // budgeted for, on a screen where every 10pt of headroom mattered ("kai
+    // scrolini slepiasi tekstas" — the deficit only showed up once the
+    // scroll from a too-tall bottom actually engaged). Just the content now;
+    // the outer Scaffold owns the app bar and the SafeArea on every side.
+    return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 10, 22, 12),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // No badge above the title anymore — per explicit request. The
+              // Vaultie mark swap still clipped oddly at small sizes and read
+              // as one logo too many on a screen that already opens from a
+              // Vaultie-branded app bar.
               Text(
                 tr('Kaip prijungsime tavo banką'),
-                style: TextStyle(
-                  fontSize: 27,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
                   height: 1.15,
-                  letterSpacing: -0.7,
+                  letterSpacing: -0.5,
                   color: cxInk,
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: gap * 0.4),
+              Text(
+                tr('Vos 3 žingsniai iki prijungto banko.'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, height: 1.3, color: cxSubtle),
+              ),
+              SizedBox(height: gap * 1.7),
               _Step(
+                icon: Icons.account_balance_rounded,
                 n: '1',
                 title: tr('Pasirink savo banką'),
-                body: tr('Iš 2 700+ Europos bankų sąrašo.'),
+                body: tr('Iš daugiau nei 2 700+ Europos bankų.'),
               ),
+              SizedBox(height: gap),
               _Step(
+                icon: Icons.lock_outline_rounded,
                 n: '2',
                 title: tr('Patvirtink prieigą banke'),
                 body: tr('Nukreipsim į tavo banko programėlę ar svetainę. '
-                    'Prisijungi ir patvirtini prieigą — taip pat, kaip '
-                    'prisijungdamas prie savo banko. Vaultie tavo prisijungimo '
-                    'duomenų nemato.'),
+                    'Prisijungi ir patvirtini prieigą taip, kaip įprastai.'),
               ),
+              SizedBox(height: gap),
               _Step(
+                icon: Icons.check_circle_outline_rounded,
                 n: '3',
                 title: tr('Grįžk į Vaultie'),
-                body: tr('Kai patvirtinsi, grįši į Vaultie — kai kurie bankai '
-                    'grąžina automatiškai, kiti paprašys tiesiog grįžti pačiam. '
-                    'Tavo operacijos susitvarkys pačios.'),
-                last: true,
+                body: tr('Kai patvirtinsi, grįši į Vaultie — tavo operacijos '
+                    'susitvarkys automatiškai.'),
               ),
-              SizedBox(height: gap),
-              const _ConnectionFlow(),
-              SizedBox(height: gap),
+              SizedBox(height: gap * 1.7),
+              Container(
+                padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+                decoration: BoxDecoration(
+                  color: cxCard,
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: cxLine),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: _flowAccent.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.shield_outlined,
+                              size: 14, color: _flowAccent),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(tr('Tavo banko duomenys saugūs'),
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: cxInk)),
+                              const SizedBox(height: 3),
+                              Text(
+                                tr('Prisijungimas vyksta tavo banko aplinkoje. '
+                                    'Vaultie nemato prisijungimo duomenų.'),
+                                style: const TextStyle(
+                                    fontSize: 11.5, height: 1.3, color: cxSubtle),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const _ConnectionFlow(),
+                  ],
+                ),
+              ),
+              SizedBox(height: gap * 1.2),
               // A blue link on deep navy disappeared into the background. This
               // is the answer to the question people actually have before
               // handing over bank access, so it gets a surface of its own.
@@ -95,45 +161,45 @@ class BankHowItWorks extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: cxCard,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(13),
                     border: Border.all(color: const Color(0xFF2E56C8)),
                   ),
                   child: Row(
                     children: [
                       const Icon(Icons.shield_outlined,
-                          size: 19, color: Color(0xFF8FB6FF)),
-                      const SizedBox(width: 11),
+                          size: 17, color: _flowAccent),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           tr('Kodėl tai saugu'),
                           style: const TextStyle(
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: cxInk,
                           ),
                         ),
                       ),
                       const Icon(Icons.chevron_right_rounded,
-                          size: 20, color: Color(0xFF8FB6FF)),
+                          size: 19, color: _flowAccent),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: gap * 1.2),
               Text(
                 tr('Jungiamės per Enable Banking — licencijuotą ES atvirosios '
                     'bankininkystės tiekėją (PSD2). Prieiga tik skaitymo. '
                     'Atšaukti gali bet kada.'),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11.5, height: 1.45, color: cxSubtle),
+                style: const TextStyle(fontSize: 10.5, height: 1.35, color: cxSubtle),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: gap * 1.2),
               SizedBox(
                 width: double.infinity,
-                height: 54,
+                height: 50,
                 child: ElevatedButton(
                   onPressed: onContinue,
                   style: ElevatedButton.styleFrom(
@@ -150,72 +216,92 @@ class BankHowItWorks extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }
 
 class _Step extends StatelessWidget {
-  const _Step(
-      {required this.n,
-      required this.title,
-      required this.body,
-      this.last = false});
+  const _Step({
+    required this.icon,
+    required this.n,
+    required this.title,
+    required this.body,
+  });
 
+  final IconData icon;
   final String n;
   final String title;
   final String body;
-  final bool last;
 
   @override
   Widget build(BuildContext context) {
-    return IntrinsicHeight(
+    return Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: cxCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cxLine),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: VaultieColors.primary.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
+          SizedBox(
+            width: 34,
+            height: 34,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _flowAccent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 16, color: _flowAccent),
                 ),
-                child: Text(n,
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: VaultieColors.primary)),
-              ),
-              if (!last)
-                Expanded(
+                Positioned(
+                  top: -5,
+                  left: -5,
                   child: Container(
-                    width: 2,
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    color: VaultieColors.primary.withValues(alpha: 0.16),
+                    width: 18,
+                    height: 18,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(colors: [
+                        VaultieColors.brightBlue,
+                        VaultieColors.primary,
+                      ]),
+                      border: Border.all(color: cxCard, width: 2.5),
+                    ),
+                    child: Text(n,
+                        style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 11),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(bottom: last ? 0 : 20, top: 3),
+              padding: const EdgeInsets.only(top: 1),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: TextStyle(
-                          fontSize: 16,
+                      style: const TextStyle(
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: cxInk)),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(body,
-                      style: TextStyle(
-                          fontSize: 13.5, height: 1.45, color: cxSubtle)),
+                      style: const TextStyle(
+                          fontSize: 11.5, height: 1.35, color: cxSubtle)),
                 ],
               ),
             ),
@@ -258,7 +344,7 @@ Future<void> showWhySafeSheet(BuildContext context) => showModalBottomSheet<void
               ),
               const SizedBox(height: 16),
               Text(tr('Kodėl tai saugu'),
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.4,
@@ -302,7 +388,7 @@ Future<void> showWhySafeSheet(BuildContext context) => showModalBottomSheet<void
               Text(
                 tr('Sutikimas galioja ribotą laiką ir yra atnaujinamas pagal '
                     'PSD2. Atšaukti gali bet kada.'),
-                style: TextStyle(fontSize: 11.5, height: 1.45, color: cxSubtle),
+                style: const TextStyle(fontSize: 11.5, height: 1.45, color: cxSubtle),
               ),
             ],
           ),
@@ -323,10 +409,10 @@ class _Point extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
               child: Icon(Icons.check_circle_rounded,
-                  size: 17, color: const Color(0xFF2FA34E)),
+                  size: 17, color: Color(0xFF2FA34E)),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -334,13 +420,13 @@ class _Point extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: cxInk)),
                   const SizedBox(height: 3),
                   Text(body,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 13, height: 1.45, color: cxSubtle)),
                 ],
               ),
@@ -350,13 +436,13 @@ class _Point extends StatelessWidget {
       );
 }
 
-/// Fills what used to be a bare `Spacer()` — a plain dead gap between the
-/// three steps and the "Kodėl tai saugu" link. Two endpoints (the Vaultie
-/// mark, a bank) with a dashed line each way between them: one line's arrow
-/// travels left→right (step 2, going TO the bank), the other right→left
-/// (step 3, coming back) — both animate continuously and simultaneously,
-/// rather than in sequence, since access flows out and confirmation flows
-/// back at once, not as two separate phases.
+/// The connection diagram, now living inside the safety card instead of a
+/// bare gap of its own. Two endpoints (the Vaultie mark, a bank) with a
+/// dashed line each way between them: one line's arrow travels left→right
+/// (step 2, going TO the bank), the other right→left (step 3, coming back)
+/// — both animate continuously and simultaneously, rather than in sequence,
+/// since access flows out and confirmation flows back at once, not as two
+/// separate phases.
 class _ConnectionFlow extends StatefulWidget {
   const _ConnectionFlow();
 
@@ -379,63 +465,42 @@ class _ConnectionFlowState extends State<_ConnectionFlow>
 
   @override
   Widget build(BuildContext context) {
-    // Same reasoning as the gaps around this widget in BankHowItWorks: only
-    // Android, whose common heights pushed the CTA below the fold, gets a
-    // smaller version — the 52px endpoint circles are still the tallest thing
-    // here, so 76 has as much room as 96 ever needed for them.
-    final height = Platform.isAndroid ? 76.0 : 96.0;
-    final lineGap = Platform.isAndroid ? 8.0 : 16.0;
-    return SizedBox(
-      height: height,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Soft glow behind the endpoints, tying this gap to the same brand
-          // blue as the rest of the screen instead of leaving it flat cxBg.
-          Container(
-            width: 240,
-            height: height,
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                colors: [
-                  _flowAccent.withValues(alpha: 0.16),
-                  _flowAccent.withValues(alpha: 0),
-                ],
-              ),
-            ),
-          ),
-          Row(
-            children: [
-              _endpoint(const Icon(Icons.shield_rounded,
-                  size: 24, color: Colors.white)),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _flowLine(reverse: false),
-                      SizedBox(height: lineGap),
-                      _flowLine(reverse: true),
-                    ],
-                  ),
+    const height = 46.0;
+    const lineGap = 7.0;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: SizedBox(
+        height: height,
+        child: Row(
+          children: [
+            _endpoint(const Icon(Icons.shield_rounded, size: 15, color: Colors.white)),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _flowLine(reverse: false),
+                    const SizedBox(height: lineGap),
+                    _flowLine(reverse: true),
+                  ],
                 ),
               ),
-              _endpoint(const Icon(Icons.account_balance_rounded,
-                  size: 24, color: Colors.white)),
-            ],
-          ),
-        ],
+            ),
+            _endpoint(const Icon(Icons.account_balance_rounded,
+                size: 15, color: Colors.white)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _endpoint(Widget child) => Container(
-        width: 52,
-        height: 52,
+        width: 30,
+        height: 30,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: cxCard,
+          color: cxBg,
           shape: BoxShape.circle,
           border: Border.all(color: _flowAccent.withValues(alpha: 0.4)),
         ),
@@ -445,7 +510,7 @@ class _ConnectionFlowState extends State<_ConnectionFlow>
   Widget _flowLine({required bool reverse}) => LayoutBuilder(
         builder: (context, constraints) => SizedBox(
           width: constraints.maxWidth,
-          height: 16,
+          height: 14,
           child: AnimatedBuilder(
             animation: _c,
             builder: (context, _) {
@@ -454,7 +519,7 @@ class _ConnectionFlowState extends State<_ConnectionFlow>
                 clipBehavior: Clip.none,
                 children: [
                   CustomPaint(
-                    size: Size(constraints.maxWidth, 16),
+                    size: Size(constraints.maxWidth, 14),
                     painter: _DashedLinePainter(
                         color: cxSubtle.withValues(alpha: 0.35)),
                   ),
@@ -464,7 +529,7 @@ class _ConnectionFlowState extends State<_ConnectionFlow>
                       reverse
                           ? Icons.arrow_back_rounded
                           : Icons.arrow_forward_rounded,
-                      size: 14,
+                      size: 13,
                       color: _flowAccent,
                     ),
                   ),
