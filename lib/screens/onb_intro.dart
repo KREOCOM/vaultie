@@ -101,13 +101,14 @@ class _OnbIntroState extends State<OnbIntro> {
         fit: StackFit.expand,
         children: [
           // ── Full-bleed artwork ──
-          // 2026-08-17 v4: a woman on a balcony at night, reading her phone,
-          // a lit bank-tower skyline (HSBC, Citi) behind her — same 853×1844
-          // aspect as v2/v3, same composition logic: clear dark sky top-left
-          // is where the copy block below sits, no scrim needed there.
+          // 2026-09-03 v5: a woman on her couch at night, reading her phone,
+          // a lit city skyline through the window behind her — same
+          // 852×1846 aspect as v2–v4, same composition logic: clear dark sky
+          // top-left is where the copy block below sits, no scrim needed
+          // there.
           const Positioned.fill(
             child: Image(
-              image: AssetImage('assets/onboarding/page1_v4.png'),
+              image: AssetImage('assets/onboarding/page1_v5.png'),
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
             ),
@@ -158,7 +159,10 @@ class _OnbIntroState extends State<OnbIntro> {
                       tr('Vaultie padeda aiškiau matyti, kur keliauja tavo pinigai, priimti geresnius sprendimus ir viską stebėti vienoje vietoje.'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 15.5 * scale,
+                        // 2026-09-03: bumped from 15.5 alongside the v5
+                        // photo swap, per explicit request to try the
+                        // subtitle a bit larger.
+                        fontSize: 17 * scale,
                         height: 1.4,
                         color: Colors.white,
                         shadows: const [
