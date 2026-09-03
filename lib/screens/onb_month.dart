@@ -170,8 +170,23 @@ class _OnbMonthState extends State<OnbMonth> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      tr('Matyk visą finansų vaizdą'),
+                    // 2026-09-04: one word per onboarding page picked out in
+                    // the same blue gradient as page 1's "finansus" — see
+                    // that page's own doc.
+                    Text.rich(
+                      TextSpan(children: [
+                        TextSpan(text: tr('Matyk visą ')),
+                        TextSpan(
+                          text: tr('finansų'),
+                          style: TextStyle(
+                            foreground: Paint()
+                              ..shader = const LinearGradient(
+                                colors: [Color(0xFF7FB0FF), Color(0xFF0A4DFD)],
+                              ).createShader(const Rect.fromLTWH(0, 0, 130, 32)),
+                          ),
+                        ),
+                        TextSpan(text: tr(' vaizdą')),
+                      ]),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 28,

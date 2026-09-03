@@ -161,8 +161,16 @@ class _OnbFeaturesState extends State<OnbFeatures>
                                         const TextStyle(color: Colors.white)),
                                 TextSpan(
                                     text: tr('Daugiau kontrolės.'),
-                                    style: const TextStyle(
-                                        color: Color(0xFF6E9CFF))),
+                                    style: TextStyle(
+                                      foreground: Paint()
+                                        ..shader = const LinearGradient(
+                                          colors: [
+                                            Color(0xFF7FB0FF),
+                                            Color(0xFF0A4DFD)
+                                          ],
+                                        ).createShader(
+                                            const Rect.fromLTWH(0, 0, 230, 34)),
+                                    )),
                               ],
                             ),
                           ),

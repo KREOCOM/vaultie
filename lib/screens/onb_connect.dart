@@ -161,13 +161,29 @@ class _OnbConnectState extends State<OnbConnect>
                               ),
                               children: [
                                 TextSpan(
-                                    text: tr('Prijunk savo banką\n'),
+                                    text: tr('Prijunk savo '),
                                     style: const TextStyle(
                                         color: Colors.white)),
+                                // 2026-09-04: one word per onboarding page
+                                // picked out in the same blue gradient as
+                                // page 1's "finansus" — see that page's own
+                                // doc.
+                                TextSpan(
+                                    text: tr('banką\n'),
+                                    style: TextStyle(
+                                      foreground: Paint()
+                                        ..shader = const LinearGradient(
+                                          colors: [
+                                            Color(0xFF7FB0FF),
+                                            Color(0xFF0A4DFD)
+                                          ],
+                                        ).createShader(
+                                            const Rect.fromLTWH(0, 0, 150, 30)),
+                                    )),
                                 TextSpan(
                                     text: tr('saugiai ir greitai'),
                                     style: const TextStyle(
-                                        color: Color(0xFF8FB2FF))),
+                                        color: Colors.white)),
                               ],
                             ),
                           ),

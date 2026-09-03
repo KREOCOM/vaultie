@@ -136,48 +136,11 @@ class _OnbIntroState extends State<OnbIntro> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 2026-09-03: per explicit request — plain text straight
-                    // on the photo read as "just typed on top of it", not
-                    // designed. A small eyebrow (the mark on the same blue
-                    // tile every other page's icon uses, never bare white on
-                    // a photo) plus one gradient-accented word in the
-                    // headline gives it the same brand anchor the rest of
-                    // the chain already has.
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 30 * scale,
-                          height: 30 * scale,
-                          padding: EdgeInsets.all(6 * scale),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(9 * scale),
-                            gradient: const RadialGradient(
-                              center: Alignment(-0.6, -1.0),
-                              radius: 1.6,
-                              colors: [Color(0xFF3E63FF), Color(0xFF081A4D)],
-                              stops: [0.0, 0.65],
-                            ),
-                          ),
-                          child: Image.asset('assets/icon/logo_mark.png',
-                              fit: BoxFit.contain),
-                        ),
-                        SizedBox(width: 9 * scale),
-                        Text(
-                          tr('VAULTIE'),
-                          style: TextStyle(
-                            fontSize: 17 * scale,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 2.5,
-                            color: Colors.white.withValues(alpha: 0.9),
-                            shadows: const [
-                              Shadow(color: Color(0x99000000), blurRadius: 8),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 14 * scale),
+                    // 2026-09-04: the logo+"VAULTIE" eyebrow row (added
+                    // 2026-09-03) removed again per explicit request — the
+                    // one-word blue accent below is the anchor now, reused
+                    // as the same pattern on every onboarding page instead
+                    // of just this one.
                     Text.rich(
                       TextSpan(children: [
                         TextSpan(text: tr('Suprask savo\n')),

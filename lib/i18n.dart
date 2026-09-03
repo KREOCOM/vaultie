@@ -1133,15 +1133,30 @@ const Map<String, String> _en = {
   ' aiškiau': ' more clearly',
   'VAULTIE': 'VAULTIE',
   'Jungiame 2 700+ bankų\nvisoje Europoje': 'Connecting 2,700+\nbanks across Europe',
+  // 2026-09-04: split into three tr() calls for the gradient-accented "2
+  // 700+" — same phrase as the line above, just in pieces.
+  'Jungiame ': 'Connecting ',
+  '2 700+': '2,700+',
+  ' bankų\nvisoje Europoje': '\nbanks across Europe',
   'Visi tavo bankai, visos tavo sąskaitos vienoje vietoje.':
       'All your banks, all your accounts, in one place.',
   'Matyk visą finansų vaizdą': 'See your whole financial picture',
+  // 2026-09-04: split for the gradient-accented "finansų" — same phrase.
+  'Matyk visą ': 'See your whole ',
+  'finansų': 'financial',
+  ' vaizdą': ' picture',
   'Balansai, išlaidos, pajamos, biudžetas vienoje aiškioje vietoje.':
       'Balances, spending, income and budget in one clear place.',
   'Stebėk, kur gali sutaupyti': 'Track where you can save',
+  // 2026-09-04: split for the gradient-accented "sutaupyti" — same phrase.
+  'Stebėk, kur gali ': 'Track where you can ',
+  'sutaupyti': 'save',
   'Atrask prenumeratas, sąskaitas ir sek savo santaupų normą.':
       'Discover subscriptions, bills, and track your savings rate.',
   'Klausk agento apie savo finansus': 'Ask the agent about your finances',
+  // 2026-09-04: split for the gradient-accented "finansus" (reuses page 1's
+  // own translation for that word) — same phrase as the line above.
+  'Klausk agento apie savo ': 'Ask the agent about your ',
   'Gauk atsakymus, paremtus tavo realiais finansiniais duomenimis.':
       'Get answers based on your real financial data.',
   'Daugiau funkcijų.\n': 'More features.\n',
@@ -1192,6 +1207,7 @@ const Map<String, String> _en = {
       'Face ID, PIN, language and theme — however you like.',
   // OnbInvest (2026-09-01/02) — same missing-translation bug, same fix.
   'Investicijos šalia tavo finansų': 'Investments alongside your finances',
+  ' šalia tavo finansų': ' alongside your finances',
   'Akcijas ir kriptovaliutas stebėk kartu su kasdieniais pinigais.':
       'Track stocks and crypto alongside your everyday money.',
   'Akcijos': 'Stocks',
@@ -1217,6 +1233,8 @@ const Map<String, String> _en = {
   'Kol įjungta, kiekvienas paleidimas rodo onboardingą iš naujo':
       'While on, every launch shows onboarding again',
   'Prijunk savo banką\n': 'Connect your bank\n',
+  'Prijunk savo ': 'Connect your ',
+  'banką\n': 'bank\n',
   'saugiai ir greitai': 'safely and quickly',
   'Prisijunk prie banko per savo banko sistemą. Tavo prisijungimo duomenys lieka tik banke.':
       'Sign in through your own bank’s system. Your login details stay with the bank.',
