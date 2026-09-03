@@ -64,20 +64,29 @@ Future<void> ensureLocalDataForCurrentUser() async {
     // Reporting is best-effort and must never block sign-in.
   }
 
-  // Point RevenueCat at this account so premium follows the account.
+  // Point RevenueCat at this account so premium follows the account, then
+  // (see setUser's own doc) confirm with the server that the account
+  // actually holds the entitlement RevenueCat just reported.
   //
   // Bounded on purpose. This is awaited between the splash and the first real
-  // screen, and RevenueCat's logIn is a network call with no timeout of its
+  // screen, and both of those are network calls with no timeout of their
   // own — so a hung billing server froze the app on the branded splash
   // permanently: no spinner, no error, no retry, indistinguishable from a
   // crash, on every launch for every signed-in user. Premium is already seeded
   // from the cached entitlement at startup and the SDK pushes the real answer
   // when it arrives, so continuing without waiting is correct rather than a
   // shortcut. Nothing about who owns the vault depends on it.
+  //
+  // 12s, not 6: setUser() now makes up to two sequential network calls
+  // (RevenueCat's logIn, then the server's own entitlement check) instead
+  // of one. 6s was tight enough on a real device's network that the SECOND
+  // call routinely never got a chance to even start before this timeout
+  // fired and abandoned it — which is exactly the check meant to catch a
+  // device already holding someone else's entitlement.
   try {
     await PurchaseService.instance
         .setUser(uid)
-        .timeout(const Duration(seconds: 6));
+        .timeout(const Duration(seconds: 12));
   } catch (_) {
     // Offline, slow, or not configured — the entitlement listener catches up.
   }

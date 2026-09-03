@@ -550,11 +550,14 @@ class RevenueCatPurchaseService implements PurchaseService {
         info = await rc.Purchases.logOut();
       }
       _applyCustomerInfo(info);
-    } catch (_) {
+    } catch (e) {
       // Offline, not configured, or already anonymous — fall back to the cached
       // flag (which the account wipe clears).
+      debugPrint('[PurchaseService] setUser: logIn/logOut threw: $e');
       _premium.value = _box.get(_premiumKey, defaultValue: false) as bool;
     }
+    debugPrint('[PurchaseService] setUser($uid): client premium after '
+        'RevenueCat = ${_premium.value}');
     if (uid != null && _premium.value) {
       await _confirmWithServer(uid);
     }
@@ -583,19 +586,25 @@ class RevenueCatPurchaseService implements PurchaseService {
   /// security one; downgrading a genuine subscriber to "not premium" because
   /// this one best-effort call timed out would be strictly worse.
   Future<void> _confirmWithServer(String uid) async {
+    debugPrint('[PurchaseService] _confirmWithServer($uid): calling '
+        'check_entitlement…');
     try {
       final res = await _functions
           .httpsCallable('check_entitlement',
               options: HttpsCallableOptions(timeout: const Duration(seconds: 10)))
           .call<Map<Object?, Object?>>();
+      debugPrint('[PurchaseService] check_entitlement replied: ${res.data}');
       final serverPremium = res.data['premium'] == true;
       if (!serverPremium) {
         _premium.value = false;
         await _box.put(_premiumKey, false);
+        debugPrint('[PurchaseService] server says NOT premium — downgraded '
+            'client state.');
       }
-    } catch (_) {
+    } catch (e) {
       // Offline, cold-started function, whatever — leave the client's own
       // determination alone; see this method's own doc for why that's safe.
+      debugPrint('[PurchaseService] check_entitlement call FAILED: $e');
     }
   }
 }
