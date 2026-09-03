@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -612,17 +613,33 @@ class RevenueCatPurchaseService implements PurchaseService {
     final uid = _boundUid;
     if (uid == null) return isPremium;
     try {
-      final res = await _functions
-          .httpsCallable('check_entitlement',
-              options: HttpsCallableOptions(timeout: const Duration(seconds: 10)))
-          .call<Map<Object?, Object?>>();
-      final serverPremium = res.data['premium'] == true;
+      // Same calling convention as BankingService._call — a bare positional
+      // {} (check_entitlement takes no arguments; the uid comes from the
+      // auth token, never the request body) and an untyped .call(), cast
+      // afterward. The previous attempt used .call<Map<Object?, Object?>>()
+      // with no positional argument at all, which never showed up as a
+      // single invocation in Cloud Logging — not even a rejected one —
+      // meaning it never left the device in the first place.
+      final callable = _functions.httpsCallable('check_entitlement',
+          options: HttpsCallableOptions(timeout: const Duration(seconds: 10)));
+      final res = await callable.call(<String, dynamic>{});
+      final data = (res.data as Map).cast<Object?, Object?>();
+      final serverPremium = data['premium'] == true;
       if (serverPremium != _premium.value) {
         _premium.value = serverPremium;
         await _box.put(_premiumKey, serverPremium);
       }
       return serverPremium;
-    } catch (_) {
+    } catch (e, s) {
+      // Best-effort by design (see this method's own doc) — but silent
+      // failure is exactly how the last attempt at this went unnoticed for
+      // hours. Recorded, not swallowed, so a repeat is visible in
+      // Crashlytics without needing a live-attached debugger on the
+      // reporter's device.
+      try {
+        await FirebaseCrashlytics.instance
+            .recordError(e, s, reason: 'confirmPremium/check_entitlement failed');
+      } catch (_) {}
       return isPremium;
     }
   }
