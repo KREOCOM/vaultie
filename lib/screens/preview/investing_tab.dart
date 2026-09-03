@@ -499,10 +499,16 @@ class _InvestingTabState extends State<InvestingTab> {
                   // a light 12% tint), then ramps fast into solid right
                   // before the text starts at 46%, so the art keeps its own
                   // vividness and only the text's own backdrop gets dark.
+                  // 2026-09-04: the new bull/bear render's own legs sit
+                  // right where the old ramp started — per explicit
+                  // feedback ("kojos jau tamsėja") the whole ramp is pushed
+                  // ~5% further down so the legs stay bright longer, only
+                  // going solid right where the (now also nudged-down) text
+                  // block starts.
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.30, 0.40, 0.46, 1.0],
+                    stops: const [0.0, 0.35, 0.44, 0.49, 1.0],
                     colors: [
                       p.bg.withValues(alpha: 0),
                       p.bg.withValues(alpha: 0.12),
@@ -548,7 +554,11 @@ class _InvestingTabState extends State<InvestingTab> {
               // copy can never trigger a hard overflow error; Stack's own
               // default clip just trims it if it ever ran past the screen.
               Positioned(
-                top: h * 0.46,
+                // 2026-09-04: nudged down 3% (matches the gradient's own
+                // solid point just above) — per explicit feedback, there was
+                // a gap between the disclaimer line and the screen's own
+                // bottom edge; a small shift, not a big one.
+                top: h * 0.49,
                 left: 24,
                 right: 24,
                 child: SafeArea(
