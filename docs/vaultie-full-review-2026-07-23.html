@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — pilnas appso patikrinimas</title>
+<style>
+  :root{--ink:#0B1533;--sub:#4C5B7D;--paper:#FCFCFD;--card:#fff;--line:#E6EAF2;--blue:#003DE1;
+        --crit:#C0392B;--high:#D97706;--med:#2563EB;--low:#12A366;--purp:#6D28D9;}
+  @media (prefers-color-scheme:dark){:root{--ink:#EEF1F8;--sub:#A2ADC4;--paper:#0A1024;--card:#121A36;--line:#222C4E;--blue:#6E96FF;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px 20px 90px}
+  h1{font-size:30px;letter-spacing:-.7px;margin:0 0 6px}
+  .sub{color:var(--sub);margin:0 0 26px}
+  h2{font-size:21px;letter-spacing:-.3px;margin:40px 0 6px;padding-top:20px;border-top:1px solid var(--line)}
+  h2 .em{margin-right:9px}
+  .lead{color:var(--sub);margin:0 0 16px}
+  .verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--low);
+           border-radius:12px;padding:18px 20px;margin-bottom:8px}
+  .verdict strong{color:var(--ink)}
+  .item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:10px 0;
+        border-left:4px solid var(--line)}
+  .item.crit{border-left-color:var(--crit)} .item.high{border-left-color:var(--high)}
+  .item.med{border-left-color:var(--med)} .item.low{border-left-color:var(--low)}
+  .item.feat{border-left-color:var(--purp)}
+  .item h3{margin:0 0 4px;font-size:15.5px}
+  .item p{margin:5px 0;color:var(--sub);font-size:14px}
+  .item .fix{color:var(--ink)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:800;
+       letter-spacing:.03em;color:#fff;vertical-align:middle;margin-left:6px}
+  .t-crit{background:var(--crit)} .t-high{background:var(--high)} .t-med{background:var(--med)}
+  .t-low{background:var(--low)} .t-feat{background:var(--purp)}
+  code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(128,150,200,.16);
+       padding:1px 5px;border-radius:4px;color:var(--ink);white-space:nowrap}
+  .foot{margin-top:44px;color:var(--sub);font-size:13px;text-align:center;border-top:1px solid var(--line);padding-top:20px}
+  ul{color:var(--sub);margin:6px 0 6px 0;padding-left:20px} li{margin-bottom:5px}
+  a{color:var(--blue)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;margin-top:8px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sub)}
+  td.k{color:var(--ink);font-weight:700;white-space:nowrap}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>Vaultie — pilnas appso patikrinimas</h1>
+<p class="sub">2026-07-23 · 6 lygiagretūs agentai skaitė tikrą kodą · logika · bug'ai · dark/light · vertimai · UX/dizainas · konkurentai + wow funkcijos · <b>be onboarding'o</b> (jį keiti)</p>
+
+<div class="verdict">
+<strong>Bendras vertinimas: variklis geras, keli TIKRI crash'ai ir pinigų-matematikos spragos, plius aiškus polish + funkcijų kelias.</strong>
+Skaičių logika iš esmės <b>teisinga</b> — pajamos/išlaidos/net, kategorijų sumos, savi pervedimai ir valiutos keitimas sueina. Bet: (1) <b>kelios vietos kertasi su „nešvariais" banko duomenimis ir gali nulaužti visą Pradžios ekraną</b> — tai svarbiausia; (2) įplaukos be banko kodo klaidingai skaičiuojamos kaip grąžinimai; (3) dark-mode keli šviesūs elementai; (4) angliškai keli tekstai lieka lietuviški; (5) daug pigių UX/dizaino laimėjimų. Ir aiškus „wow" funkcijų sąrašas iš to, ko žmonės tikisi 2026-ais.
+</div>
+
+<h2><span class="em">🔴</span>1. Bug'ai — svarbiausia (crash'ai + pinigai)</h2>
+<p class="lead">Šitie nėra kosmetika. Pirmi keturi gali <b>nulaužti visą Pradžios ekraną</b>, kai iš kelių bankų ateina eilutė be datos ar be sumos — o multi-bank duomenys kaip tik tokie (nutilęs bankas, cache, keista data). Saugūs pagalbininkai (<code>_dOf</code>, <code>_ymOf</code>) EGZISTUOJA, bet karštuose keliuose jie apeinami.</p>
+
+<div class="item crit"><h3>Pradžios feed'as krenta, kai eilutė turi <code>null</code> ar keistą datą <span class="tag t-crit">critical</span></h3>
+<p><code>dashboard_preview.dart:1080, 1091, 1116, 1123, 1152</code> (ir 1943, 5442, 5890, 6157…)</p>
+<p>Karštos kilpos daro <code>(t['d'] as String).startsWith(mk)</code> ir <code>DateTime.parse(d)</code> vietoj saugaus <code>_dOf(t)</code>/<code>tryParse</code>. Viena cache'inta ar tylaus-banko eilutė su <code>d==null</code> arba ne-ISO data → <code>TypeError</code>/<code>FormatException</code> → <b>visas namų ekranas nepasistato.</b> Plius <code>_ymOf('')</code> grąžina 7 tarpus, kurie tada eina į <code>int.parse("  ")</code> → crash mėnesio antraštėj.</p>
+<p class="fix"><b>Taisymas:</b> datą skaityti TIK per <code>_dOf(t)</code> + <code>DateTime.tryParse</code>; mėnesio raktą tikrinti <code>RegExp(r'^\d{4}-\d{2}$')</code> prieš <code>substring</code>/<code>int.parse</code>.</p></div>
+
+<div class="item high"><h3>Eilutė be skaičiaus <code>a</code> nulaužia visas pinigų sumas <span class="tag t-high">high</span></h3>
+<p><code>dashboard_preview.dart:219, 225, 248</code> (<code>_flowOf</code>/<code>_spendOf</code>/<code>_receivedOf</code>)</p>
+<p>Visi daro negynybišką <code>(t['a'] as num)</code>. Eilutė su <code>a==null</code> → <code>TypeError</code>. <code>_computeWeek</code> sukasi per KIEKVIENĄ refresh (pull-to-refresh), tad lūžta ne vienas ekranas, o namų render + atnaujinimas. (Eksporto kelias jau naudoja saugų <code>(t['a'] as num?)?.toDouble() ?? 0</code> — pagalbininkai ne.)</p>
+<p class="fix"><b>Taisymas:</b> <code>((t['a'] ?? 0) as num).toDouble()</code> tuose trijuose.</p></div>
+
+<div class="item high"><h3>Įplauka be banko kodo skaičiuojama kaip GRĄŽINIMAS → iškreipia pajamas/išlaidas <span class="tag t-high">high</span></h3>
+<p><code>dashboard.py:385-396, 810-832</code> (<code>_classify</code> + <code>_flow</code>) — patvirtinta ir logikos, ir bug agentų</p>
+<p>Įplauka (CRDT), kuri nėra P2P, nėra atlyginimas ir neturi atpažinto kredito-pervedimo kodo (SEB dažnai kodų nesiunčia), nukrenta į „Kita" → <code>_flow</code> pagal taisyklę „a&gt;0 ir ne Pajamos/Pervedimai → refund" → <b>ATIMA tą sumą iš išlaidų</b> ir NEprideda prie pajamų. Pvz. €500 „AcmeCorp UAB payout" be kodo → išlaidos sumažėja €500, pajamos +0. Freelance/palūkanos/vienkartinės įplaukos iškreipia santaupų %.</p>
+<p class="fix"><b>Taisymas:</b> <code>_flow</code> „refund" laikyti tik kai eilutė TIKRAI grąžinimas (REFUND kodas / <code>cat=="Grąžinimas"</code>); kitą neatpažintą įplauką → <b>income</b>. (Susiję: SEPA-kodu ateinantis pirkinio grąžinimas irgi neatimamas — tą patį kelią taisyti.)</p></div>
+
+<div class="item med"><h3>Savaitės grafikas neatima grąžinimų, nors mėnuo atima → savaitė perdeda išlaidas <span class="tag t-med">med</span></h3>
+<p><code>dashboard.py:663</code> — <code>_week</code> praleidžia <code>sec=="Pajamos"</code>, o <code>CARD_REFUND</code> patenka į „Pajamos", tad savaitėj nedingsta, bet mėnesyje atimama. €40 pirkinys + €30 grąžinimas → savaitė 40, mėnuo 10. <b>Taisymas:</b> savaitėj neblokuoti visų „Pajamos" — praleisti grąžinimą, kad atimtų kaip mėnuo.</p></div>
+
+<div class="item med"><h3>Savings-rate ekranas krenta su 0 transakcijų <span class="tag t-med">med</span></h3>
+<p><code>dashboard_preview.dart:5952-5953</code> — <code>monthKeys.last</code> be tuščio patikrinimo → <code>StateError</code> šviežiai prijungtai sąskaitai be transakcijų. <b>Taisymas:</b> <code>if (monthKeys.isEmpty) return &lt;empty&gt;;</code> prieš <code>.last</code>.</p></div>
+
+<div class="item med"><h3>Nežinomas vieno-žodžio prekybininkas be descriptoriaus tampa „transfer" → prenumeratų blokas prieštarauja sau <span class="tag t-med">med</span></h3>
+<p><code>recurring.py:410-423</code> (<code>_bare_person_like</code>) — grąžina True BET KOKIAM vieno žodžio didžiąja raide vardui be acceptoriaus/domeno. Plikas „Spotify" (be remittance) → <code>type=transfer</code> → išmetamas iš <code>subs.total</code>, bet paliekamas kaip aktyvus → suma ir sąrašas nesutampa. Reta (tikri brendai turi domenus/DB), bet verta. <b>Taisymas:</b> <code>_bare_person_like</code> reikalauti tikro P2P signalo (kontrahento IBAN / SEPA kodas), ne vien vardo formos; arba dalintis <code>NAME_OVERRIDES</code> su recurring.</p></div>
+
+<div class="item low"><h3>Prenumeratų suma ir sąrašas nesutampa dėl tarpų varde <span class="tag t-low">low</span></h3>
+<p><code>dashboard_preview.dart:388</code> (<code>_recCounted</code>) ieško be <code>.trim()</code>, o raktas saugomas su <code>.trim()</code>. „Netflix " (tarpas gale) → dingsta iš sąrašo, bet lieka mėnesio sumoj. <b>Taisymas:</b> <code>.trim().toLowerCase()</code>.</p></div>
+
+<div class="item low"><h3>⚠️ Paywall bypass vis dar įjungtas (release blocker) <span class="tag t-low">prieš release</span></h3>
+<p><code>main.py:71</code> <code>_TEST_BYPASS_PREMIUM=True</code> + <code>main.dart:138</code> <code>kBypassPaywall=true</code>. Sąmoninga testui, bet prieš mokamą release'ą privalu grąžinti (su RevenueCat promo entitlement, kaip aptarta).</p></div>
+
+<h2><span class="em">🌓</span>2. Dark mode — keli šviesūs elementai pralenda</h2>
+<p class="lead">Branduolinės spalvos (<code>_ink/_muted/_card/_bg/_hair</code>) adaptuojasi teisingai. Bet keli hardcode'inti šviesūs paviršiai lieka — vienas tikras neįskaitomumo bug'as, kiti glaring.</p>
+
+<div class="item high"><h3>„Rezervuota" chip'as dark'e — tekstas dingsta <span class="tag t-high">high</span></h3>
+<p><code>dashboard_preview.dart:1936, 1938</code> — fonas hardcode <code>Color(0xFFEFEFF2)</code> (beveik baltas), tekstas <code>_muted</code> (dark'e šviesus) → ~1.3:1 kontrastas, tekstas praktiškai nematomas. Gretimas „Sąskaita" chip'as teisingai naudoja <code>_purpleSoft</code>. <b>Taisymas:</b> chip'ui adaptyvų foną (<code>_soft</code>/<code>_hair</code>).</p></div>
+
+<div class="item med"><h3>Ryškios šviesios linijos + progreso juostos dark'e <span class="tag t-med">med</span></h3>
+<ul>
+<li>Bottom nav viršaus linija <code>:2045</code> <code>Color(0xFFECECEF)</code> → ryški balta linija ant tamsaus baro (matoma kiekvienam tab'e). → <code>_hair</code>.</li>
+<li>Grafiko <code>Divider</code> <code>:3362</code> ta pati problema. → <code>_hair</code>.</li>
+<li>Biudžeto/žiedo progreso fonai <code>:3969, 4937, 5258</code> <code>Color(0xFFE7F0E8)</code> (šviesus mint) glaring ant tamsių kortelių. → adaptyvus <code>_soft</code>/<code>_hair</code>.</li>
+<li>Range pill <code>:3323</code> <code>Colors.white</code> → kietas baltas ant tamsaus. → <code>_card</code>.</li>
+<li>Kategorijos-juostos placeholder <code>:1731</code>, grafiko gridlines <code>:3447</code> — šviesūs, negatuoti pagal <code>_darkMode</code> (gretimi spark'ai daro teisingai). → mirror the dark-switch.</li>
+</ul></div>
+
+<h2><span class="em">🌐</span>3. Angliškas vertimas — keli tekstai lieka lietuviški</h2>
+<p class="lead">Branduolinis dashboard'as ~95% išverstas, bet neseniai pridėti dalykai ir vienas privatumo-kritinis dialogas ship'inasi neišversti — angliškas vartotojas pataiko į lietuvių kalbą blogiausiu momentu.</p>
+
+<div class="item high"><h3>AI sutikimo dialogas — pilnai lietuviškas angliškam vartotojui <span class="tag t-high">high</span></h3>
+<p><code>dashboard_preview.dart:9047</code> vs <code>i18n.dart:450</code> — dashboard tekstą pakeitei į „<code>appsas siunčia</code>", o i18n raktas liko „<code>„Vaultie" siunčia</code>", tad lookup nepavyksta → lietuviškas fallback. Angliškas vartotojas prašomas <b>sutikti siųsti finansinius duomenis trečiai šaliai kalba, kurios gali neskaityti.</b> <b>Taisymas:</b> suvienodinti i18n raktą su dabartiniu LT tekstu.</p></div>
+
+<div class="item med"><h3>Neišversti klasteriai (angliškai rodo lietuviškai) <span class="tag t-med">med</span></h3>
+<ul>
+<li><b>„Atjungti bankus" srautas</b> <code>:7921, 7936, 7939</code> — nėra i18n įrašų.</li>
+<li><b>Recurring „Kaip naudotis" blokas</b> <code>:7072–7105</code> (7 eilutės — mano ką tik pridėtos) — reikia angliškų įrašų.</li>
+<li><b>Valiutos-picker pastaba</b> <code>:8284</code>.</li>
+<li><b>„July suma"</b> <code>:5638</code> — <code>suma</code> hardcode (turi būti <code>tr('suma')</code> → „July total").</li>
+<li><b>„34 prekybininkai"</b> <code>:5808</code> — vertimas egzistuoja (<code>i18n.dart:306</code>), tik nenaudojamas.</li>
+<li><b>„Nustatymai"</b> <code>:7634</code> — hardcode, ne per <code>tr()</code>.</li>
+</ul>
+<p class="fix"><b>Iš viso ~15 i18n įrašų + kelios <code>tr()</code> apgaubtys.</b> Ne App-Store-ready angliškai, kol #high ir šitie sutvarkyti.</p></div>
+
+<h2><span class="em">🎨</span>4. UX ir dizainas — pigūs, matomi laimėjimai</h2>
+
+<div class="item high"><h3>Negyvi filtrų mygtukai Apžvalgos ekrane <span class="tag t-high">pasitikėjimas</span></h3>
+<p><code>dashboard_preview.dart:4377-4386</code> — mėnesio ir „Filtras" chip'ai atrodo kaip veikiantys (identiški Apžvalgos tab'o veikiantiems), bet <b>neturi <code>onTap</code></b>. Žmogus bakstelės tikėdamasis mėnesio pasirinkimo — tyla. Erozuoja pasitikėjimą pačiam pirmam analizės ekrane. <b>Taisymas:</b> prijungti (kaip Apžvalgos tab'e) arba pašalinti.</p></div>
+
+<div class="item med"><h3>Mėnesio apžvalga — 16 vienodų kortelių siena, verdiktas paskendęs <span class="tag t-med">med</span></h3>
+<p><code>:4331-4351</code> — visos kortelės vienodo stiliaus, niekas nerodo, kas svarbu. O svarbiausias skaičius (<b>net + santaupų %</b>) rodomas tuo pačiu 17px kaip viskas, po skrituliais. <b>Taisymas (paprastas):</b> (1) iškelti net/santaupas į vieną RYŠKŲ hero bloką viršuje (didesnis šriftas, spalva pagal +/−); (2) sugrupuoti kortelės sekcijų antraštėm (<code>_sectionLabel</code> jau egzistuoja) — „Šis mėnuo" / „Analizė" / „Detalės". <b>Vienas didžiausio poveikio dizaino pakeitimas.</b></p></div>
+
+<div class="item med"><h3>Kiti UX dalykai <span class="tag t-med">med</span></h3>
+<ul>
+<li><b>Išlaidų skritulys neklikinamas, pajamų — klikinamas</b> <code>:4397-4405</code> — atbulai (išlaidas nori drill'inti labiausiai). Apgaubk „Išleista" skritulį.</li>
+<li><b>Techniniai antraščiukai</b> — <code>:1392</code> „grafikas = likučio kitimas laike", <code>:2005</code> „Skrituliai · kategorijos · kalendorius" skamba kaip debug. Pakeisk į vertę arba pašalink.</li>
+<li><b>Recurring eilutė perkrauta</b> <code>:7115-7183</code> — 3 taps (pervadinti/šiukšlinė/switch) grūste. Duok switch'ui oro, pervadinimą į aiškesnį affordance.</li>
+<li><b>Centrinis nav — AI pokalbis, ne „pridėti"</b> <code>:2033-2081</code> — vartotojai tikisi „add" centre; <code>+</code> yra tik namų viršuj. Apsvarstyk.</li>
+<li><b>Trūksta tuščių/loading būsenų</b> — mėnuo be transakcijų rodo tuščią antraštę; nėra skeleton sinchronizuojant.</li>
+</ul></div>
+
+<h2><span class="em">✨</span>5. „Wow" funkcijos — ko žmonės tikisi 2026 (post-launch kelias)</h2>
+<p class="lead">Iš Emma, Cleo, Rocket Money, Monarch, Snoop, Copilot tyrimo. Universali tiesa: <b>„sutaupyk man", ne „parodyk man"</b>, ir <b>proaktyvūs įspėjimai, ne pasyvus dashboard'as.</b> Ir #1 nusiskundimas visur — sulūžę bankų prisijungimai + klaidingos kategorijos (tavo variklio darbas kaip tik čia).</p>
+
+<table>
+<thead><tr><th>Funkcija</th><th>Poveikis</th><th>Darbas</th><th>Kodėl</th></tr></thead>
+<tbody>
+<tr><td class="k">🔔 Atnaujinimo + kainos-kilimo įspėjimai</td><td>Aukštas</td><td><b>Mažas</b></td><td>„Netflix atsinaujina po 3 d., €13.99"; „Spotify pakilo €9.99→€11.99". Grynas skaičiavimas iš to, ką jau atpažįsti. <b>Retai kas turi kainos-kilimo įspėjimus</b> — tikras wow, ir įgyvendina tavo „nužudyk bereikalingas" pažadą.</td></tr>
+<tr><td class="k">💶 „Kiek liko išleisti šį mėn" + „vs praėjęs mėn"</td><td>Aukštas</td><td><b>Mažas</b></td><td>pajamos − sąskaitos − biudžetai = liko. Delta rodyklės kategorijoms. Iš „veidrodžio atgal" → sprendimo įrankis.</td></tr>
+<tr><td class="k">✂️ Atšaukimo pagalba</td><td>Aukštas</td><td>Maž–Vid</td><td>Kiekvienai prenumeratai „Kaip atšaukti" + „priminti prieš atnaujinimą" + „pažymėta atšaukta" (švenčia sutaupytą €/mėn). Rocket Money irgi negali auto-atšaukti — duoda instrukcijas. EU-realu.</td></tr>
+<tr><td class="k">📅 Būsimų mokėjimų kalendorius</td><td>Vid–Aukštas</td><td>Mažas</td><td>Kas ir kada mokėtina, per visus bankus. Naudoja tavo recurring detekciją + heatmap.</td></tr>
+<tr><td class="k">📈 Net-worth trendas laike</td><td>Aukštas</td><td>Vid</td><td>Mylimiausias „ar man ok?" vaizdas. Reikia mėnesinių balanso snapshot'ų.</td></tr>
+<tr><td class="k">🎯 Engagement (push, streak'ai)</td><td>Vid–Aukštas</td><td>Vid</td><td>Retention draudimas mokamam produktui. Cleo įrodyta.</td></tr>
+<tr><td class="k">📤 Dalinama įžvalgos kortelė</td><td>Vid</td><td>Mažas</td><td>„Sutaupiau €38/mėn su Vaultie" — pigi organinio augimo kilpa.</td></tr>
+</tbody></table>
+
+<div class="item feat" style="margin-top:14px"><h3>Top „ship greitai" rekomendacija <span class="tag t-feat">wow</span></h3>
+<p><b>Prenumeratų atnaujinimo + kainos-kilimo įspėjimai.</b> Mažiausias darbas, didžiausias strateginis atitikimas — variklis JAU atpažįsta pasikartojančius; belieka suplanuotas push + sumos diff. Paverčia tavo „nužudyk bereikalingas" iš statiško sąrašo į veiksmą, kurį appsas <b>inicijuoja pats.</b> Antra — „kiek liko išleisti", trečia — atšaukimo pagalba.</p></div>
+
+<div class="verdict" style="border-left-color:var(--high);margin-top:24px">
+<strong>Sąžininga santrauka.</strong> Variklis (pinigų matematika, kategorizavimas, prenumeratos) — geros formos. <b>Prieš arba iškart po launch'o svarbiausia: (1) crash-atsparumas nešvariems duomenims — datos/sumos per saugius pagalbininkus; (2) įplauka→pajamos, ne grąžinimas.</b> Dark-mode + angliškas vertimas — launch kokybė. UX polish (negyvi filtrai, mėnesio hierarchija) — pigūs matomi laimėjimai. „Wow" — atnaujinimo įspėjimai, jei nori feature, kuris kalba fintech žmogui. Ir kaip visi tyrimai sako: <b>patikimumas (prisijungimai + tikslumas) yra įėjimo kaina €4.99/mėn</b> — tavo variklio darbas kaip tik ten, tad esi teisingam kely.
+</div>
+
+<p class="foot">Parengta 2026-07-23 · 6 lygiagretūs agentai · visi radiniai su failu:eilute · nieko nepakeista kode (tik patikra)</p>
+</div></body></html>

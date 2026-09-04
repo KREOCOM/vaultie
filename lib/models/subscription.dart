@@ -1,7 +1,11 @@
 import 'package:hive/hive.dart';
 
 /// How often a subscription is billed.
-enum BillingCycle { weekly, monthly, quarterly, yearly }
+///
+/// `biweekly` and `semiannual` are appended, never inserted: the Hive adapter
+/// persists this as `index`, so reordering would silently re-label every
+/// subscription already stored on a user's phone.
+enum BillingCycle { weekly, monthly, quarterly, yearly, biweekly, semiannual }
 
 extension BillingCycleX on BillingCycle {
   String get label => switch (this) {
@@ -9,6 +13,8 @@ extension BillingCycleX on BillingCycle {
         BillingCycle.monthly => 'Monthly',
         BillingCycle.quarterly => 'Quarterly',
         BillingCycle.yearly => 'Yearly',
+        BillingCycle.biweekly => 'Biweekly',
+        BillingCycle.semiannual => 'Twice a year',
       };
 
   /// Multiplier to normalise a single charge into a monthly figure.
@@ -17,6 +23,9 @@ extension BillingCycleX on BillingCycle {
         BillingCycle.monthly => 1,
         BillingCycle.quarterly => 1 / 3,
         BillingCycle.yearly => 1 / 12,
+        // 365.25 / 14 / 12 — a fortnightly charge is 2.17 months' worth, not one.
+        BillingCycle.biweekly => 2.174,
+        BillingCycle.semiannual => 1 / 6,
       };
 
   /// Days between charges — used to advance [Subscription.nextBillingDate].
@@ -25,6 +34,8 @@ extension BillingCycleX on BillingCycle {
         BillingCycle.monthly => 30,
         BillingCycle.quarterly => 91,
         BillingCycle.yearly => 365,
+        BillingCycle.biweekly => 14,
+        BillingCycle.semiannual => 182,
       };
 
   /// [from] advanced by exactly one billing cycle.
@@ -50,6 +61,9 @@ extension BillingCycleX on BillingCycle {
         BillingCycle.monthly => _addMonths(anchor, cycles),
         BillingCycle.quarterly => _addMonths(anchor, 3 * cycles),
         BillingCycle.yearly => _addMonths(anchor, 12 * cycles),
+        BillingCycle.biweekly =>
+          DateTime(anchor.year, anchor.month, anchor.day + 14 * cycles),
+        BillingCycle.semiannual => _addMonths(anchor, 6 * cycles),
       };
 }
 
@@ -81,7 +95,7 @@ class Subscription {
     required this.billingCycle,
     required this.category,
     required this.nextBillingDate,
-    this.colorValue = 0xFF174E35,
+    this.colorValue = 0xFF003DE1,
     this.isEstimated = false,
     this.notes,
     this.logoDomain,
@@ -187,11 +201,11 @@ class SubscriptionAdapter extends TypeAdapter<Subscription> {
     return Subscription(
       id: fields[0] as String,
       name: fields[1] as String,
-      cost: fields[2] as double,
+      cost: (fields[2] as num).toDouble(),
       billingCycle: BillingCycle.values[fields[3] as int],
       category: fields[4] as String,
       nextBillingDate: DateTime.fromMillisecondsSinceEpoch(fields[5] as int),
-      colorValue: fields[6] as int? ?? 0xFF174E35,
+      colorValue: fields[6] as int? ?? 0xFF003DE1,
       // Fields 7–9 were added later; older records default them.
       isEstimated: fields[7] as bool? ?? false,
       notes: fields[8] as String?,

@@ -410,6 +410,18 @@ abstract class AppLocalizations {
   /// **'Weekly'**
   String get billingWeekly;
 
+  /// No description provided for @billingBiweekly.
+  ///
+  /// In en, this message translates to:
+  /// **'Every two weeks'**
+  String get billingBiweekly;
+
+  /// No description provided for @billingSemiannual.
+  ///
+  /// In en, this message translates to:
+  /// **'Twice a year'**
+  String get billingSemiannual;
+
   /// No description provided for @billingMonthly.
   ///
   /// In en, this message translates to:

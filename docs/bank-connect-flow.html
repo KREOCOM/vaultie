@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie · Banko prijungimas — perdėliotas flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF1F7; --card:#FFFFFF; --ink:#14203A; --subtle:#5C6A85;
+  --line:#E3E9F2; --hi:#EAF1FF; --hiline:#BBD0F5; --accent:#2F6BFF;
+  --good:#12A56A; --warn:#C77700; --danger:#D94A4A;
+  --page:#F6F8FC;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page); color:var(--ink);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-feature-settings:'cv11','ss01'; -webkit-font-smoothing:antialiased;
+  line-height:1.5;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px 100px}
+
+/* ── header ───────────────────────────────────────────── */
+header.top{padding:64px 0 40px;border-bottom:1px solid var(--line);margin-bottom:44px}
+.eyebrow{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+h1{font-size:clamp(32px,5vw,52px);line-height:1.05;letter-spacing:-1.6px;font-weight:800;margin:0 0 18px}
+.lede{font-size:17px;color:var(--subtle);max-width:660px;margin:0 0 8px;line-height:1.6}
+.lede b{color:var(--ink);font-weight:600}
+
+/* ── badges ───────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;
+  letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:6px;white-space:nowrap}
+.b-new{background:#E7F6EF;color:var(--good);border:1px solid #BFE7D5}
+.b-fix{background:#FFF4E0;color:var(--warn);border:1px solid #F2DCB0}
+.b-has{background:#EDF1F7;color:var(--subtle);border:1px solid var(--line)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:26px}
+.legend span.t{font-size:13px;color:var(--subtle)}
+
+/* ── flow rail ────────────────────────────────────────── */
+.rail{display:flex;gap:8px;overflow-x:auto;padding:22px 0 26px;margin-bottom:12px}
+.rail::-webkit-scrollbar{height:6px}
+.rail::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.step{flex:0 0 auto;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:11px 14px;min-width:132px;text-decoration:none;color:inherit;transition:.15s}
+.step:hover{border-color:var(--hiline);transform:translateY(-2px)}
+.step .n{font-size:10.5px;font-weight:800;color:var(--subtle);letter-spacing:.08em}
+.step .l{font-size:13.5px;font-weight:700;margin:3px 0 6px;letter-spacing:-.2px}
+.step.new{border-color:#BFE7D5;background:#F5FCF9}
+.step.fix{border-color:#F2DCB0;background:#FFFCF6}
+
+/* ── sections ─────────────────────────────────────────── */
+section.blk{display:grid;grid-template-columns:320px 1fr;gap:52px;align-items:start;
+  padding:44px 0;border-top:1px solid var(--line)}
+@media(max-width:860px){section.blk{grid-template-columns:1fr;gap:28px}}
+.blk h2{font-size:26px;letter-spacing:-.7px;font-weight:800;margin:0 0 6px;line-height:1.15}
+.stepno{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.1em;margin-bottom:10px}
+.blk .why{font-size:15.5px;color:var(--subtle);line-height:1.65;margin:14px 0 22px;max-width:560px}
+.blk .why b{color:var(--ink);font-weight:650}
+.hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+.notes{display:grid;gap:10px;max-width:600px}
+.note{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px;font-size:14px;line-height:1.55}
+.note .k{font-weight:750;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);display:block;margin-bottom:4px}
+.note.warn{background:#FFFCF6;border-color:#F2DCB0}
+.note.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--subtle)}
+
+/* ── phone ────────────────────────────────────────────── */
+.phone{width:300px;height:630px;background:#fff;border-radius:38px;padding:9px;
+  border:1px solid #D8E0EC;box-shadow:0 22px 50px -20px rgba(20,32,58,.28),0 2px 6px rgba(20,32,58,.06);
+  position:sticky;top:24px}
+@media(max-width:860px){.phone{position:static;margin:0 auto}}
+.scr{width:100%;height:100%;background:var(--bg);border-radius:30px;overflow:hidden;
+  display:flex;flex-direction:column;position:relative}
+.sbar{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 22px;
+  font-size:11.5px;font-weight:700;color:var(--ink);flex:0 0 auto}
+.sbar .dots{display:flex;gap:3px;align-items:center}
+.sbar .dots i{width:13px;height:9px;border:1.2px solid var(--ink);border-radius:2px;display:block;opacity:.75}
+.nav{height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:0 0 auto}
+.nav .bk{font-size:17px;color:var(--ink);opacity:.75}
+.nav .ttl{font-size:15px;font-weight:700;letter-spacing:-.2px}
+.nav .rt{margin-left:auto;font-size:12.5px;font-weight:650;color:var(--accent)}
+.body{flex:1;overflow:hidden;padding:0 16px 14px;display:flex;flex-direction:column}
+
+/* progress dots in-app */
+.pdots{display:flex;gap:5px;padding:2px 0 12px}
+.pdots i{height:3px;border-radius:2px;background:var(--line);flex:1;display:block}
+.pdots i.on{background:var(--accent)}
+.pdots i.done{background:#A9C4FF}
+
+.srch{background:#fff;border:1px solid var(--line);border-radius:12px;height:38px;display:flex;
+  align-items:center;gap:8px;padding:0 12px;font-size:13px;color:var(--subtle);flex:0 0 auto;margin-bottom:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;margin-bottom:9px}
+.chip .ch{color:var(--accent);font-weight:650}
+.hint{font-size:11.5px;color:var(--subtle);line-height:1.45}
+
+.tile{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 13px;
+  display:flex;align-items:center;gap:11px;margin-bottom:8px}
+.tile .lg{width:32px;height:32px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:900;color:#fff;letter-spacing:-.3px}
+.tile .nm{font-size:14px;font-weight:650;flex:1;letter-spacing:-.2px}
+.tile .ar{color:var(--subtle);font-size:12px}
+.tile.sel{border-color:var(--hiline);background:var(--hi)}
+.lg.seb{background:#0B7A3E}.lg.swe{background:#F5850C}.lg.rev{background:#191C1F}
+.lg.lum{background:#1E3A8A}.lg.cit{background:#8B2332}.lg.n26{background:#1A9E8F}
+.lg.gen{background:#DCE4F1;color:#8494AC}
+
+.foot{margin-top:auto;padding-top:10px;display:flex;gap:6px;align-items:flex-start;
+  font-size:10.5px;color:var(--subtle);line-height:1.4}
+
+.btn{height:46px;border-radius:14px;background:var(--accent);color:#fff;display:flex;
+  align-items:center;justify-content:center;font-size:14.5px;font-weight:750;letter-spacing:-.2px}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--hiline);height:42px;font-size:13.5px}
+.btn.white{background:#fff;color:var(--accent);border:1px solid var(--line)}
+
+/* explainer accordions */
+.acc{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:8px;overflow:hidden}
+.acc .hdr{display:flex;align-items:center;gap:10px;padding:12px 13px;font-size:13.5px;font-weight:700;letter-spacing:-.2px}
+.acc .hdr .ic{width:24px;height:24px;border-radius:7px;background:var(--hi);display:flex;
+  align-items:center;justify-content:center;font-size:12px;flex:0 0 auto}
+.acc .hdr .cv{margin-left:auto;color:var(--subtle);font-size:11px}
+.acc .bd{padding:0 13px 13px 46px;font-size:12px;color:var(--subtle);line-height:1.5}
+
+.hero2{display:flex;align-items:center;justify-content:center;gap:14px;padding:16px 0 12px}
+.hero2 .lg{width:52px;height:52px;border-radius:15px;font-size:16px}
+.hero2 .lnk{color:var(--subtle);font-size:16px;letter-spacing:2px}
+.h2t{font-size:20px;font-weight:800;letter-spacing:-.6px;text-align:center;line-height:1.2;margin-bottom:6px}
+.h2s{font-size:12.5px;color:var(--subtle);text-align:center;line-height:1.45;margin-bottom:14px;padding:0 6px}
+
+/* checklist */
+.ck{display:flex;gap:10px;align-items:flex-start;padding:9px 0;font-size:13px}
+.ck .mk{width:19px;height:19px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;
+  justify-content:center;font-size:10px;font-weight:900;color:#fff;margin-top:1px}
+.ck .mk.d{background:var(--good)}
+.ck .mk.a{background:var(--accent)}
+.ck .mk.o{background:#fff;border:1.5px solid var(--line)}
+.ck .tx{font-weight:600;letter-spacing:-.15px}
+.ck.pend .tx{color:var(--subtle);font-weight:500}
+.ck .sub{font-size:11px;color:var(--subtle);font-weight:500;margin-top:1px}
+
+/* account picker rows */
+.arow{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;
+  display:flex;align-items:center;gap:11px;margin-bottom:8px}
+.arow .cb{width:21px;height:21px;border-radius:7px;border:1.5px solid var(--line);flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:900}
+.arow .cb.on{background:var(--accent);border-color:var(--accent)}
+.arow .mid{flex:1;min-width:0}
+.arow .an{font-size:13.5px;font-weight:650;letter-spacing:-.2px}
+.arow .ai{font-size:11px;color:var(--subtle);font-family:ui-monospace,Menlo,monospace;margin-top:1px}
+.arow .bal{font-size:13.5px;font-weight:750;text-align:right;white-space:nowrap}
+.arow .bal.neg{color:var(--danger)}
+.arow.off{opacity:.55}
+
+/* success */
+.ok{width:66px;height:66px;border-radius:20px;margin:0 auto;display:flex;align-items:center;
+  justify-content:center;font-size:22px;font-weight:900;color:#fff;position:relative}
+.ok .tick{position:absolute;right:-4px;bottom:-4px;width:24px;height:24px;border-radius:50%;
+  background:var(--good);border:3px solid var(--bg);display:flex;align-items:center;
+  justify-content:center;font-size:11px;color:#fff}
+.stat{display:flex;gap:8px;margin:14px 0 4px}
+.stat div{flex:1;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center}
+.stat .v{font-size:18px;font-weight:800;letter-spacing:-.5px}
+.stat .k{font-size:10px;color:var(--subtle);font-weight:600;margin-top:1px}
+
+/* review intro */
+.rcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 13px;margin-bottom:8px;
+  display:flex;gap:10px;align-items:flex-start}
+.rcard .ic{width:26px;height:26px;border-radius:8px;background:var(--hi);display:flex;align-items:center;
+  justify-content:center;font-size:12px;flex:0 0 auto}
+.rcard .t{font-size:13px;font-weight:700;letter-spacing:-.2px}
+.rcard .s{font-size:11.5px;color:var(--subtle);line-height:1.45;margin-top:2px}
+
+/* manage */
+.mrow{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 13px;margin-bottom:8px}
+.mtop{display:flex;align-items:center;gap:10px}
+.mbar{height:4px;background:var(--line);border-radius:2px;margin-top:10px;overflow:hidden}
+.mbar i{display:block;height:100%;border-radius:2px;background:var(--good)}
+.mbar i.low{background:var(--warn)}
+.mmeta{font-size:10.5px;color:var(--subtle);margin-top:6px;display:flex;justify-content:space-between}
+
+/* states strip */
+.states{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:20px}
+.st{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px}
+.st .t{font-size:14.5px;font-weight:750;letter-spacing:-.25px;margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.st .d{font-size:13px;color:var(--subtle);line-height:1.55}
+.st .q{font-size:12.5px;color:var(--ink);background:var(--hi);border:1px solid var(--hiline);
+  border-radius:9px;padding:8px 10px;margin-top:9px;line-height:1.45}
+
+/* order table */
+.ord{width:100%;border-collapse:separate;border-spacing:0;margin-top:22px;background:var(--card);
+  border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ord th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle);
+  padding:12px 16px;background:#F9FBFE;border-bottom:1px solid var(--line);font-weight:800}
+.ord td{padding:13px 16px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top}
+.ord tr:last-child td{border-bottom:0}
+.ord td.n{font-weight:800;color:var(--accent);width:34px}
+.ord td.w{color:var(--subtle);font-size:13px}
+.ord .f{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--subtle)}
+
+h3.sec{font-size:22px;font-weight:800;letter-spacing:-.6px;margin:56px 0 4px}
+p.secl{color:var(--subtle);font-size:15px;margin:0 0 4px;max-width:660px;line-height:1.6}
+.rule{border:0;border-top:1px solid var(--line);margin:52px 0 0}
+footer{margin-top:40px;font-size:12.5px;color:var(--subtle);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Vaultie · banko prijungimas</div>
+  <h1>Nuo „paspaudžiau savo banką"<br>iki „štai tavo pinigai"</h1>
+  <p class="lede">Šiandien tarp tų dviejų taškų žmogus nemato <b>nė vieno</b> ekrano, kuriame kas nors būtų paaiškinta, pasirinkta ar patvirtinta: sąrašas → suktukas → banko puslapis → suktukas su keturiais besikeičiančiais sakiniais → dashboard. Pasitikėjimas sprendžiasi būtent tada, kai mes nieko nesakome.</p>
+  <p class="lede">Žemiau — visas flow'as perdėliotas. Trys ekranai nauji, trys esami pataisyti, likę nekeičiami.</p>
+  <div class="legend">
+    <span class="badge b-has">Yra</span><span class="t">veikia, nekeičiam</span>
+    <span class="badge b-fix">Taisom</span><span class="t">ekranas yra, bet neatlieka darbo</span>
+    <span class="badge b-new">Nauja</span><span class="t">ekrano nėra</span>
+  </div>
+</header>
+
+<div class="rail">
+  <a class="step" href="#s1"><div class="n">01</div><div class="l">Kvietimas</div><span class="badge b-has">Yra</span></a>
+  <a class="step fix" href="#s2"><div class="n">02</div><div class="l">Bankų sąrašas</div><span class="badge b-fix">Taisom</span></a>
+  <a class="step new" href="#s3"><div class="n">03</div><div class="l">Ką darom su SEB</div><span class="badge b-new">Nauja</span></a>
+  <a class="step fix" href="#s4"><div class="n">04</div><div class="l">Perdavimas bankui</div><span class="badge b-fix">Taisom</span></a>
+  <a class="step new" href="#s5"><div class="n">05</div><div class="l">Sąskaitų atranka</div><span class="badge b-new">Nauja</span></a>
+  <a class="step fix" href="#s6"><div class="n">06</div><div class="l">Skaitom</div><span class="badge b-fix">Taisom</span></a>
+  <a class="step new" href="#s7"><div class="n">07</div><div class="l">Prijungta</div><span class="badge b-new">Nauja</span></a>
+  <a class="step new" href="#s8"><div class="n">08</div><div class="l">Prieš peržiūrą</div><span class="badge b-new">Nauja</span></a>
+  <a class="step new" href="#s9"><div class="n">09</div><div class="l">Bankų valdymas</div><span class="badge b-new">Nauja</span></a>
+</div>
+
+<!-- ══════════════ 01 ══════════════ -->
+<section class="blk" id="s1">
+  <div class="phone">
+    <div class="scr" style="background:#041038">
+      <div class="sbar" style="color:#fff"><span>9:41</span><span class="dots"><i style="border-color:#fff"></i></span></div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:0 20px 22px;color:#fff">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:20px 10px">
+          <div class="lg seb" style="width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff">SEB</div>
+          <div class="lg swe" style="width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#fff">SWED</div>
+          <div class="lg rev" style="width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff">R</div>
+          <div class="lg lum" style="width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#fff">LUM</div>
+          <div class="lg cit" style="width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#fff">CIT</div>
+          <div class="lg n26" style="width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#fff">N26</div>
+        </div>
+        <div style="width:34px;height:3px;background:#5B8CFF;border-radius:2px;margin-bottom:13px"></div>
+        <div style="font-size:26px;font-weight:800;letter-spacing:-.9px;line-height:1.12;margin-bottom:14px">Prieigą<br>kontroliuoji tu</div>
+        <div style="font-size:12.5px;line-height:1.5;color:rgba(255,255,255,.8);margin-bottom:6px">🏦 &nbsp;<b style="color:#fff">Pasirink, ką prijungti</b> — prijunk tik tas sąskaitas, kurias nori.</div>
+        <div style="font-size:12.5px;line-height:1.5;color:rgba(255,255,255,.8);margin-bottom:6px">👁 &nbsp;<b style="color:#fff">Tik skaitymo prieiga</b> — mokėjimų atlikti negalim.</div>
+        <div style="font-size:12.5px;line-height:1.5;color:rgba(255,255,255,.8);margin-bottom:16px">🛡 &nbsp;<b style="color:#fff">Saugus prisijungimas</b> — patvirtini savo banke, pagal PSD2.</div>
+        <div class="btn white" style="height:50px">Prijungti banką</div>
+        <div style="text-align:center;font-size:12px;font-weight:600;color:rgba(255,255,255,.62);margin-top:10px">2500+ bankų visoje Europoje</div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="stepno">01</div>
+    <div class="hd"><h2>Kvietimas</h2><span class="badge b-has">Yra</span></div>
+    <p class="why">Šitas ekranas geras ir jo neliečiam. Bet jis <b>duoda pažadą, kurio flow'as neįvykdo</b>: „Pasirink, ką prijungti". Realiai sąskaitų atrankos programėlėje nėra — todėl žingsnis 05.</p>
+    <div class="notes">
+      <div class="note"><span class="k">Failas</span><span class="f">lib/screens/onb_connect.dart</span> — paskutinis intro grandinės ekranas, veda į sign-in (bankų callable'ai reikalauja paskyros).</div>
+      <div class="note warn"><span class="k">Nesutampa</span>„Pasirink, ką prijungti" — pažadėta čia, neįvykdyta niekur. Arba darom 05, arba keičiam tekstą. Siūlau daryti 05.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 02 ══════════════ -->
+<section class="blk" id="s2">
+  <div class="phone">
+    <div class="scr">
+      <div class="sbar"><span>9:41</span><span class="dots"><i></i></span></div>
+      <div class="nav"><span class="bk">←</span><span class="ttl">Prijungti banką</span></div>
+      <div class="body">
+        <div class="pdots"><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="chip">🇱🇹 Lietuva <span class="ch">· Keisti</span></div>
+        <div class="srch">🔍 Ieškoti banko</div>
+        <div class="tile"><div class="lg seb">SEB</div><div class="nm">SEB</div><div class="ar">›</div></div>
+        <div class="tile"><div class="lg swe" style="font-size:9px">SWED</div><div class="nm">Swedbank</div><div class="ar">›</div></div>
+        <div class="tile"><div class="lg rev">R</div><div class="nm">Revolut</div><div class="ar">›</div></div>
+        <div class="tile"><div class="lg lum" style="font-size:9px">LUM</div><div class="nm">Luminor</div><div class="ar">›</div></div>
+        <div class="tile"><div class="lg cit" style="font-size:9px">CIT</div><div class="nm">Citadele</div><div class="ar">›</div></div>
+        <div class="tile"><div class="lg gen">🏦</div><div class="nm">Šiaulių bankas</div><div class="ar">›</div></div>
+        <div class="tile"><div class="lg gen">🏦</div><div class="nm">Urbo bankas</div><div class="ar">›</div></div>
+        <div class="foot">🔒 <span>Duomenys saugomi tik tavo telefone · Sutikimas galioja 90 dienų</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="stepno">02</div>
+    <div class="hd"><h2>Bankų sąrašas</h2><span class="badge b-fix">Taisom</span></div>
+    <p class="why">Ekranas iš esmės tvarkingas. Trūksta <b>paieškos tarp bankų</b> — šalies paieška yra, bankų nėra. Lietuvoj tai nekliudo, bet Vokietijoj ar UK sąrašas yra šimtai eilučių ir slinkti pirštu nerealu. Plius <b>žingsnių taškai viršuj</b>, kad žmogus žinotų, kiek liko.</p>
+    <p class="why">„Populiarūs bankai" bloko <b>nedarom</b> — tai buvo iš Spendee, ne iš Bilance, ir tai redakcinis sprendimas, kurį reikėtų palaikyti rankomis 30-čiai šalių.</p>
+    <div class="notes">
+      <div class="note"><span class="k">Failas</span><span class="f">bank_connect_screen.dart · _bankList()</span> — pridėti <span class="f">TextField</span> filtrą virš <span class="f">ListView.separated</span>, tokį patį kaip <span class="f">_countrySearch</span>.</div>
+      <div class="note"><span class="k">Logotipai</span>Pilkos generinės ikonos Šiaulių/Urbo — normalu. Bilance grid'e Luminor ir Citadele irgi pilki. Nesivaikom 100%.</div>
+      <div class="note"><span class="k">Lieka</span>Šalies čipas, „90 dienų" poraštė ir kill-switch elgsena — nekeičiam.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 03 ══════════════ -->
+<section class="blk" id="s3">
+  <div class="phone">
+    <div class="scr">
+      <div class="sbar"><span>9:41</span><span class="dots"><i></i></span></div>
+      <div class="nav"><span class="bk">←</span><span class="ttl"></span></div>
+      <div class="body">
+        <div class="pdots"><i class="done"></i><i class="on"></i><i></i><i></i></div>
+        <div class="hero2">
+          <div class="lg seb" style="width:52px;height:52px;border-radius:15px;font-size:15px">SEB</div>
+          <span class="lnk">···</span>
+          <div class="lg" style="width:52px;height:52px;border-radius:15px;background:#2F6BFF;font-size:20px">V</div>
+        </div>
+        <div class="h2t">Jungiam tavo SEB<br>prie Vaultie</div>
+        <div class="h2s">Prisijungsi SEB puslapyje, kaip visada. Štai kas įvyks.</div>
+
+        <div class="acc">
+          <div class="hdr"><span class="ic">1</span>Kaip tai veikia<span class="cv">▴</span></div>
+          <div class="bd">Paspaudęs „Tęsti" atsidursi SEB puslapyje ir prisijungsi kaip įprastai — Smart-ID arba m. parašu. Slaptažodžio Vaultie nemato ir negali matyti.</div>
+        </div>
+        <div class="acc">
+          <div class="hdr"><span class="ic">2</span>Ką Vaultie matys<span class="cv">▾</span></div>
+        </div>
+        <div class="acc">
+          <div class="hdr"><span class="ic">3</span>Ko Vaultie negali<span class="cv">▾</span></div>
+        </div>
+        <div class="acc">
+          <div class="hdr"><span class="ic">4</span>Kiek tai galioja<span class="cv">▾</span></div>
+        </div>
+
+        <div style="margin-top:auto">
+          <div class="btn">Tęsti į SEB</div>
+          <div class="foot" style="justify-content:center;margin-top:10px">🔒 <span>Licencijuota <b>Enable Banking</b> · Duomenys lieka telefone</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="stepno">03</div>
+    <div class="hd"><h2>Ką darom su tavo SEB</h2><span class="badge b-new">Nauja</span></div>
+    <p class="why">Didžiausia spraga. Dabar tarp „bakstelėjau SEB" ir svetimo banko lango praeina <b>vienas kadras</b>. Pasitikėjimas sprendžiasi būtent ten, ir mes tą sekundę tylime.</p>
+    <p class="why">Ekranas <b>konkretus bankui</b> — pavadinimas ir logotipas antraštėje. Ne bendras „saugumo" tekstas, o „jungiam <b>tavo SEB</b>". Keturios sekcijos susiskleidusios, pirma atidaryta: kas nori — skaito, kas nespaudžia — mato pavadinimus ir tai jau atsakymai.</p>
+    <div class="notes">
+      <div class="note"><span class="k">Ką Vaultie matys</span>Sąskaitų likučius ir 6 mėn. operacijas: datą, sumą, gavėją. Iš to sudėliojam išlaidas, pajamas ir prenumeratas.</div>
+      <div class="note"><span class="k">Ko Vaultie negali</span>Pervesti pinigų, atlikti mokėjimų, keisti tavo sąskaitos. Prieiga tik skaitymui — taip veikia PSD2.</div>
+      <div class="note"><span class="k">Kiek tai galioja</span>Bankas duoda leidimą 90 dienų. Po to paprašysim atnaujinti vienu paspaudimu. Atjungti gali bet kada.</div>
+      <div class="note warn"><span class="k">Nemeluojam</span>Licencija — <b>Enable Banking</b>, ne Vaultie. Ir jokio „mažiau nei 60 sekundžių" — kitas ekranas pats sako, kad skenavimas trunka iki minutės.</div>
+      <div class="note"><span class="k">Kur kode</span>Naujas ekranas tarp <span class="f">_bankTile onTap</span> ir <span class="f">_connect(bank)</span>. <span class="f">_connect</span> nesikeičia — tik iškviečiamas iš čia.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 04 ══════════════ -->
+<section class="blk" id="s4">
+  <div class="phone">
+    <div class="scr">
+      <div class="sbar"><span>9:41</span><span class="dots"><i></i></span></div>
+      <div class="nav"><span class="ttl"></span></div>
+      <div class="body" style="justify-content:center;text-align:center;padding-bottom:60px">
+        <div class="hero2" style="padding-bottom:20px">
+          <div class="lg" style="width:46px;height:46px;border-radius:14px;background:#2F6BFF;font-size:18px">V</div>
+          <span class="lnk" style="color:var(--accent)">→</span>
+          <div class="lg seb" style="width:56px;height:56px;border-radius:16px;font-size:15px">SEB</div>
+        </div>
+        <div style="font-size:17px;font-weight:750;letter-spacing:-.4px;line-height:1.3;margin-bottom:8px">Atveriam SEB puslapį</div>
+        <div style="font-size:12.5px;color:var(--subtle);line-height:1.55;padding:0 14px;margin-bottom:22px">Prisijunk ir patvirtink prieigą.<br>Tada <b style="color:var(--ink)">grįžk atgal į Vaultie</b> — mes lauksim čia.</div>
+        <div style="display:flex;gap:5px;justify-content:center;margin-bottom:24px">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></span>
+          <span style="width:6px;height:6px;border-radius:50%;background:#A9C4FF"></span>
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--line)"></span>
+        </div>
+        <div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:11.5px;color:var(--subtle);line-height:1.5;text-align:left">
+          <b style="color:var(--ink)">Jei SEB atidarys savo programėlę</b> — tai normalu. Patvirtinęs joje grįši į Vaultie automatiškai.
+        </div>
+        <div style="margin-top:auto;padding-top:18px"><div class="btn ghost">Atšaukti</div></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="stepno">04</div>
+    <div class="hd"><h2>Perdavimas bankui</h2><span class="badge b-fix">Taisom</span></div>
+    <p class="why">Dabar čia sukasi ratukas ir vienas sakinys. Trūksta dviejų dalykų, kurie <b>realiai kelia palaikymo laiškus</b>: kad reikės <b>grįžti atgal</b> į Vaultie, ir kad <b>SEB gali atidaryti savo programėlę</b> — tada žmogus atsiduria svetimam ekrane ir nesupranta, ar dar tebevyksta.</p>
+    <p class="why">Ta app-handoff atšaka kode jau apdorota (<span class="f">pendingConnect</span> + universal link), tik žmogui apie ją niekas nesako.</p>
+    <div class="notes">
+      <div class="note"><span class="k">Failas</span><span class="f">bank_connect_screen.dart · _Phase.connecting</span> — pakeisti <span class="f">_busy()</span> tekstą į šitą maketą.</div>
+      <div class="note"><span class="k">Atšaukti</span>Mygtukas yra, kad langas neatrodytų kaip spąstai. <span class="f">CANCELED</span> jau grąžina į sąrašą.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 05 ══════════════ -->
+<section class="blk" id="s5">
+  <div class="phone">
+    <div class="scr">
+      <div class="sbar"><span>9:41</span><span class="dots"><i></i></span></div>
+      <div class="nav"><span class="ttl">SEB</span><span class="rt">Žymėti visas</span></div>
+      <div class="body">
+        <div class="pdots"><i class="done"></i><i class="done"></i><i class="on"></i><i></i></div>
+        <div style="font-size:19px;font-weight:800;letter-spacing:-.5px;margin:4px 0 5px">Kurias sąskaitas<br>skaičiuoti?</div>
+        <div class="hint" style="margin-bottom:14px">Radom 3 sąskaitas. Neatžymėtos nebus rodomos ir nedalyvaus skaičiavimuose.</div>
+
+        <div class="arow"><div class="cb on">✓</div><div class="mid"><div class="an">Atsiskaitomoji</div><div class="ai">LT12 •••• 3391 · EUR</div></div><div class="bal">2 418,50 €</div></div>
+        <div class="arow"><div class="cb on">✓</div><div class="mid"><div class="an">Taupomoji</div><div class="ai">LT12 •••• 8842 · EUR</div></div><div class="bal">6 000,00 €</div></div>
+        <div class="arow off"><div class="cb"></div><div class="mid"><div class="an">Kreditinė kortelė</div><div class="ai">LT12 •••• 1027 · EUR</div></div><div class="bal neg">−312,40 €</div></div>
+
+        <div style="background:var(--hi);border:1px solid var(--hiline);border-radius:12px;padding:10px 12px;font-size:11.5px;line-height:1.5;margin-top:6px">
+          Pervedimai tarp <b>tavo pačių</b> sąskaitų nebus skaičiuojami kaip išlaidos.
+        </div>
+
+        <div style="margin-top:auto">
+          <div class="btn">Prijungti 2 sąskaitas</div>
+          <div class="foot" style="justify-content:center;margin-top:9px"><span>Pakeisti gali bet kada Nustatymuose</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="stepno">05</div>
+    <div class="hd"><h2>Sąskaitų atranka</h2><span class="badge b-new">Nauja</span></div>
+    <p class="why">Šitas ekranas <b>įvykdo onboardingo pažadą</b> („Pasirink, ką prijungti") ir tuo pačiu yra pirmas kartas, kai žmogus <b>pamato savo pinigus</b> — likučius. Po minutės laukimo tai stiprus momentas, o jis dabar prarandamas.</p>
+    <p class="why">Sąžiningai: sutikimo lange bankas jau klausia, kurias sąskaitas duoti. Mūsiškis ekranas ne dubliuoja tai, o sprendžia kitą klausimą — <b>kurios sąskaitos dalyvauja skaičiavime</b>. Bendra sąskaita su tėvais ar kreditinė gali iškreipti visą mėnesio vaizdą.</p>
+    <div class="notes">
+      <div class="note"><span class="k">Duomenys</span>Įterpiama po <span class="f">finishBankAuth</span>, prieš <span class="f">DashboardStore.addConnection</span> — sąskaitos jau parneštos <span class="f">scan.connection['accounts']</span>.</div>
+      <div class="note"><span class="k">Tapatybė</span>Grupuoti pagal <b>IBAN</b>, ne pagal sesijos UID. Revolut daugiavaliutės sąskaitos — tikros atskiros, ne dublikatai.</div>
+      <div class="note warn"><span class="k">Kraštinis atvejis</span>Jei bankas grąžina <b>0 sąskaitų</b>, ekrano nerodom — kode jau yra apsauga, kad tuščias sutikimas nesukurtų „prijungto" banko be nieko.</div>
+      <div class="note"><span class="k">Praleidžiam</span>Jei sąskaita viena — ekrano nerodom, einam toliau. Nėra ką rinktis.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 06 ══════════════ -->
+<section class="blk" id="s6">
+  <div class="phone">
+    <div class="scr">
+      <div class="sbar"><span>9:41</span><span class="dots"><i></i></span></div>
+      <div class="nav"><span class="ttl"></span></div>
+      <div class="body" style="padding-top:26px">
+        <div class="hero2" style="padding:6px 0 18px">
+          <div class="lg seb" style="width:56px;height:56px;border-radius:17px;font-size:15px">SEB</div>
+        </div>
+        <div style="font-size:19px;font-weight:800;letter-spacing:-.5px;text-align:center;margin-bottom:4px">Skaitom tavo SEB</div>
+        <div class="hint" style="text-align:center;margin-bottom:20px;padding:0 18px">Gali užtrukti iki minutės.<br>Neuždaryk programėlės.</div>
+
+        <div style="background:#fff;border:1px solid var(--line);border-radius:16px;padding:6px 14px 8px">
+          <div class="ck"><span class="mk d">✓</span><div><div class="tx">Saugiai prisijungta</div></div></div>
+          <div class="ck"><span class="mk d">✓</span><div><div class="tx">Rastos 2 sąskaitos</div></div></div>
+          <div class="ck"><span class="mk a">◍</span><div><div class="tx">Traukiam operacijas</div><div class="sub">284 iš ~410</div></div></div>
+          <div class="ck pend"><span class="mk o"></span><div><div class="tx">Ieškom prenumeratų ir sąskaitų</div></div></div>
+          <div class="ck pend"><span class="mk o"></span><div><div class="tx">Skaičiuojam mėnesio vaizdą</div></div></div>
+        </div>
+
+        <div style="margin-top:auto"><div class="foot" style="justify-content:center">🔒 <span>Duomenys keliauja tiesiai į tavo telefoną</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="stepno">06</div>
+    <div class="hd"><h2>Skaitom</h2><span class="badge b-fix">Taisom</span></div>
+    <p class="why">Dabar čia keturi sakiniai keičiasi kas 5 sekundes ant vieno ratuko. Problema ta, kad tekstas sukasi <b>pagal laikmatį, ne pagal darbą</b> — „Beveik baigėm…" gali kartotis 40 sekundžių, ir tai atrodo kaip pakibimas.</p>
+    <p class="why">Sąrašas su varnelėmis sprendžia tą patį pigiau: <b>tai, kas jau padaryta, lieka ekrane</b>. Net jei tikslaus progreso neturim, trys užpildytos varnelės iš penkių yra suprantamesnės nei besikeičianti eilutė.</p>
+    <div class="notes">
+      <div class="note"><span class="k">Failas</span><span class="f">_Phase.analysing</span> · <span class="f">_stagesLt</span> / <span class="f">_stagesEn</span> — laikmatis lieka, bet vietoj teksto keitimo jis <b>pridedinėja varneles</b>.</div>
+      <div class="note"><span class="k">Skaičius „284 iš ~410"</span>Tik jei backend'as jį realiai duoda. Jei ne — eilutę rodom be skaičiaus. Netikras progresas blogiau nei jokio.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 07 ══════════════ -->
+<section class="blk" id="s7">
+  <div class="phone">
+    <div class="scr">
+      <div class="sbar"><span>9:41</span><span class="dots"><i></i></span></div>
+      <div class="nav"><span class="ttl"></span></div>
+      <div class="body" style="padding-top:34px">
+        <div class="ok seb" style="background:#0B7A3E">SEB<span class="tick">✓</span></div>
+        <div style="font-size:22px;font-weight:800;letter-spacing:-.6px;text-align:center;margin:18px 0 5px">SEB prijungtas</div>
+        <div class="hint" style="text-align:center;padding:0 20px">Viskas paruošta. Štai ką radom.</div>
+        <div class="stat">
+          <div><div class="v">2</div><div class="k">sąskaitos</div></div>
+          <div><div class="v">412</div><div class="k">operacijų</div></div>
+          <div><div class="v">6</div><div class="k">prenumeratos</div></div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:11.5px;color:var(--subtle);line-height:1.5;margin-top:8px">
+          Sutikimas galioja iki <b style="color:var(--ink)">2026 m. spalio 24 d.</b> Priminsim prieš pasibaigiant.
+        </div>
+        <div style="margin-top:auto">
+          <div class="btn">Rodyk mano pinigus</div>
+          <div style="height:9px"></div>
+          <div class="btn ghost">Prijungti dar vieną banką</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="stepno">07</div>
+    <div class="hd"><h2>Prijungta</h2><span class="badge b-new">Nauja</span></div>
+    <p class="why">Šiandien iš skenavimo krentam <b>tiesiai į dashboard</b>. Sunkiausias veiksmas visoje programėlėje baigiasi be jokio patvirtinimo, kad pavyko.</p>
+    <p class="why">Trys skaičiai čia svarbesni už animaciją: jie <b>įrodo, kad kažkas realiai įvyko</b>, ir iškart parodo, ką gavo už prenumeratą. „Prijungti dar vieną banką" — vienintelė vieta visame flow'e, kur antras bankas atrodo natūraliai; kodas kelis bankus jau palaiko.</p>
+    <div class="notes">
+      <div class="note"><span class="k">Failas</span>Įsiterpia prieš <span class="f">pushReplacement → DashboardPreview</span> tiek <span class="f">bank_connect_screen.dart</span>, tiek <span class="f">bank_callback_screen.dart</span> — abu keliai turi baigtis vienodai.</div>
+      <div class="note"><span class="k">Konfeti</span>Galima, bet neprivaloma. Varnelė ant logotipo + skaičiai daro tą patį darbą ir nesensta.</div>
+      <div class="note warn"><span class="k">Data, ne „90 dienų"</span>Konkreti data suprantama iškart. „Galioja 90 dienų" reikalauja skaičiuoti galvoje.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 08 ══════════════ -->
+<section class="blk" id="s8">
+  <div class="phone">
+    <div class="scr">
+      <div class="sbar"><span>9:41</span><span class="dots"><i></i></span></div>
+      <div class="nav"><span class="ttl"></span><span class="rt">Praleisti</span></div>
+      <div class="body" style="padding-top:24px">
+        <div style="font-size:23px;font-weight:800;letter-spacing:-.7px;line-height:1.15;margin-bottom:8px">Kai ką žinai<br>tik tu</div>
+        <div class="hint" style="margin-bottom:18px">Viską sugrupavom automatiškai. Trys vietos, kur be tavęs neatspėsim:</div>
+
+        <div class="rcard"><span class="ic">↔</span><div><div class="t">Pervedimai sau</div><div class="s">Pinigai iš tavo sąskaitos į tavo taupomąją — ne išlaida.</div></div></div>
+        <div class="rcard"><span class="ic">💵</span><div><div class="t">Grynieji</div><div class="s">Bankas mato „išgryninta 100 €". Kam — nežino niekas, tik tu.</div></div></div>
+        <div class="rcard"><span class="ic">🔁</span><div><div class="t">Ar tai prenumerata?</div><div class="s">Trys pirkiniai toje pačioje vietoje ne visada reiškia mėnesinį mokestį.</div></div></div>
+
+        <div style="background:var(--hi);border:1px solid var(--hiline);border-radius:12px;padding:11px 13px;font-size:12px;line-height:1.5;margin-top:6px">
+          Peržiūrėk <b>6 pažymėtas vietas</b> — užtruks apie minutę. Kuo tiksliau, tuo naudingesnės prognozės.
+        </div>
+
+        <div style="margin-top:auto"><div class="btn">Pradėti peržiūrą</div></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="stepno">08</div>
+    <div class="hd"><h2>Prieš peržiūrą</h2><span class="badge b-new">Nauja</span></div>
+    <p class="why">Grynai apie lūkesčius. Kai AI kategorijos pasirodo <b>be įžangos</b>, kiekviena klaida skaitoma kaip „programėlė kvaila". Kai prieš tai pasakom „štai kur mums reikia tavęs" — ta pati klaida skaitoma kaip <b>bendras darbas</b>.</p>
+    <p class="why">Trys pavyzdžiai parinkti ne atsitiktinai — tai realios mūsų kategorizavimo silpnybės. Sakom jas patys, pirmi.</p>
+    <div class="notes">
+      <div class="note"><span class="k">„Praleisti"</span>Būtinas. Kas nenori tvarkyti — neturi būti verčiamas; ekranas informuoja, o ne stato vartus.</div>
+      <div class="note"><span class="k">Rodom kartą</span>Tik po pirmo banko. Antram ir trečiam — nebe.</div>
+      <div class="note warn"><span class="k">Žmogus ≠ sąskaita</span>Peržiūra turi rodyti ir atvejus, kur vardas + pavardė nuklydo į Sąskaitas ar Prenumeratas. Tai vieta, kur žmogus tą pagauna.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 09 ══════════════ -->
+<section class="blk" id="s9">
+  <div class="phone">
+    <div class="scr">
+      <div class="sbar"><span>9:41</span><span class="dots"><i></i></span></div>
+      <div class="nav"><span class="bk">←</span><span class="ttl">Prijungti bankai</span></div>
+      <div class="body">
+        <div class="mrow">
+          <div class="mtop"><div class="lg seb">SEB</div><div style="flex:1"><div class="an" style="font-size:14px;font-weight:700">SEB</div><div style="font-size:11px;color:var(--subtle)">2 sąskaitos · atnaujinta prieš 2 val.</div></div><div class="ar" style="color:var(--subtle)">›</div></div>
+          <div class="mbar"><i style="width:72%"></i></div>
+          <div class="mmeta"><span>Prieiga galioja dar 64 d.</span><span>iki 10-24</span></div>
+        </div>
+        <div class="mrow">
+          <div class="mtop"><div class="lg rev">R</div><div style="flex:1"><div class="an" style="font-size:14px;font-weight:700">Revolut</div><div style="font-size:11px;color:var(--subtle)">3 sąskaitos · EUR, GBP, USD</div></div><div class="ar" style="color:var(--subtle)">›</div></div>
+          <div class="mbar"><i class="low" style="width:11%"></i></div>
+          <div class="mmeta"><span style="color:var(--warn);font-weight:700">Baigiasi po 9 d.</span><span>iki 08-04</span></div>
+        </div>
+        <div style="background:#FFFCF6;border:1px solid #F2DCB0;border-radius:12px;padding:11px 12px;margin-top:2px">
+          <div style="font-size:12.5px;font-weight:700;margin-bottom:3px">Revolut prieiga baigiasi</div>
+          <div style="font-size:11.5px;color:var(--subtle);line-height:1.45;margin-bottom:9px">Atnaujink, kad duomenys nenustotų atsinaujinti. Užtrunka ~20 sek.</div>
+          <div class="btn" style="height:36px;font-size:13px">Atnaujinti prieigą</div>
+        </div>
+        <div style="margin-top:auto"><div class="btn ghost">+ Prijungti banką</div></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="stepno">09</div>
+    <div class="hd"><h2>Bankų valdymas</h2><span class="badge b-new">Nauja</span></div>
+    <p class="why">Sutikimas miršta po 90 dienų — tai <b>ne kraštinis atvejis, o garantuotas įvykis</b> kiekvienam vartotojui. Šiandien nėra ekrano, kuriame žmogus matytų, kiek liko, ir nėra momento, kai jam apie tai pasakom. Tai reiškia, kad kas 90 dienų programėlė tyliai sustings, ir tai atrodys kaip gedimas.</p>
+    <p class="why">Čia pat gyvena ir „atjungti banką", ir kelių bankų vaizdas — dabar prijungę antrą banką neturim jokio ekrano, kuris parodytų, kad jų yra du.</p>
+    <div class="notes">
+      <div class="note"><span class="k">Duomenys</span><span class="f">DashboardStore.connections</span> jau saugo banką, sesiją ir sąskaitas. Trūksta tik <b>galiojimo datos</b> ir šito ekrano.</div>
+      <div class="note warn"><span class="k">Įspėti iš anksto</span>Geltona būsena nuo ~14 d. Pranešimas — likus 7 d. Ne tada, kai jau nustojo veikti.</div>
+      <div class="note"><span class="k">Vieta</span>Nustatymai → Prijungti bankai. Iš čia veda ir „+ Prijungti banką", t. y. grįžtam į 02.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<h3 class="sec">Būsenos, kurių niekada nerodo maketai</h3>
+<p class="secl">Kiekviena jų dabar arba egzistuoja kaip nuogas tekstas ratuko vietoje, arba palieka žmogų aklavietėje. Tekstas svarbesnis už dizainą.</p>
+<div class="states">
+  <div class="st">
+    <div class="t">🚫 Bankų sąrašas nepasiekiamas</div>
+    <div class="d">Kill-switch įjungtas arba Enable Banking guli. Jau prijungti bankai turi veikti toliau.</div>
+    <div class="q">„Bankų prijungimas laikinai neveikia — ne dėl tavęs. Jau prijungti bankai rodomi kaip įprastai.“</div>
+  </div>
+  <div class="st">
+    <div class="t">↩️ Grįžo be sutikimo</div>
+    <div class="d">Uždarė banko langą arba paspaudė „atšaukti". Šiandien tiesiog krentam atgal į sąrašą be žodžio.</div>
+    <div class="q">„Prijungimas neužbaigtas. Nieko nepakeitėm — gali bandyti dar kartą.“</div>
+  </div>
+  <div class="st">
+    <div class="t">⚠️ Bankas prisijungė, duomenys ne</div>
+    <div class="d">Reali klaida, jau apdorota kode. Svarbiausia — pasakyti, kad <b>sutikimas nesudegė</b>.</div>
+    <div class="q">„Bankas prisijungė, bet duomenų parsisiųsti nepavyko. Bandyk dar kartą — pakartotinai patvirtinti nereikės.“</div>
+  </div>
+  <div class="st">
+    <div class="t">🕳 Sutikimas be sąskaitų</div>
+    <div class="d">Bankas grąžino nulį sąskaitų. Kodas teisingai atsisako kurti tokį ryšį — trūksta paaiškinimo.</div>
+    <div class="q">„SEB negrąžino nė vienos sąskaitos. Patvirtinant pažymėk bent vieną.“</div>
+  </div>
+  <div class="st">
+    <div class="t">⏳ Bankas apribojo užklausas</div>
+    <div class="d">Per daug bandymų per parą. Žmogui atrodo kaip mūsų gedimas.</div>
+    <div class="q">„SEB šiandien daugiau užklausų nepriima. Pabandyk rytoj — tavo duomenys niekur nedingo.“</div>
+  </div>
+  <div class="st">
+    <div class="t">🔁 Bankas jau prijungtas</div>
+    <div class="d">Renkasi tą patį banką antrą kartą. Nauja sesija be reikalo degina sutikimą.</div>
+    <div class="q">„SEB jau prijungtas. Nori atnaujinti prieigą ar pridėti daugiau sąskaitų?“</div>
+  </div>
+</div>
+
+<h3 class="sec">Ko sąmoningai nedarom</h3>
+<p class="secl">Kad neužklysčiau atgal į tai per kitą pokalbį.</p>
+<div class="notes" style="margin-top:18px;max-width:760px">
+  <div class="note"><span class="k">„Populiarūs bankai" blokas</span>Tai buvo iš <b>Spendee</b>, ne Bilance. Reikalauja rankinio sąrašo 30-čiai šalių ir sensta. Vietoj to — paieška.</div>
+  <div class="note"><span class="k">Vienodi apvalūs logotipai</span>Bilance grid'e Luminor ir Citadele — pilkos generinės ikonos. Net jie negauna visų. Mūsiškiai eina per tinklą iš Enable Banking su fallback'u.</div>
+  <div class="note"><span class="k">„Užtrunka mažiau nei 60 sek.“</span>Kitas ekranas pats sako, kad skenavimas trunka iki minutės. Pažadas, kurį paneigia kitas ekranas, blogiau nei jokio pažado.</div>
+  <div class="note"><span class="k">„Vaultie — licencijuota įstaiga“</span>Licencija priklauso <b>Enable Banking</b>. Kreditas atitenka tam, kas ją realiai turi.</div>
+</div>
+
+<h3 class="sec">Kokia tvarka daryti</h3>
+<p class="secl">Surikiuota pagal santykį „kiek pasitikėjimo prideda" ÷ „kiek kainuoja". Pirmi trys duoda didžiąją dalį naudos.</p>
+<table class="ord">
+  <tr><th class="n">#</th><th>Ką</th><th>Kodėl pirma</th><th>Apimtis</th></tr>
+  <tr><td class="n">1</td><td><b>03 · Ką darom su tavo SEB</b></td><td class="w">Vienintelis momentas, kur sprendžiasi pasitikėjimas. Šiandien jo nėra.</td><td class="w">Naujas ekranas, <span class="f">_connect</span> nesikeičia</td></tr>
+  <tr><td class="n">2</td><td><b>07 · Prijungta</b></td><td class="w">Sunkiausias veiksmas baigiasi be patvirtinimo. Pigu, jaučiasi iškart.</td><td class="w">Naujas ekranas, 2 iškvietimo vietos</td></tr>
+  <tr><td class="n">3</td><td><b>04 + 06 · Perdavimas ir skaitymas</b></td><td class="w">Tik tekstas ir varnelės. Nuima palaikymo klausimus „ar pakibo".</td><td class="w">Esamų <span class="f">_busy()</span> perrašymas</td></tr>
+  <tr><td class="n">4</td><td><b>05 · Sąskaitų atranka</b></td><td class="w">Įvykdo onboardingo pažadą ir taiso skaičiavimus. Liečia duomenų sluoksnį.</td><td class="w">Ekranas + filtras <span class="f">accountRefs</span></td></tr>
+  <tr><td class="n">5</td><td><b>09 · Bankų valdymas</b></td><td class="w">Iki pirmo 90 dienų galo dar yra laiko — bet jis ateis visiems.</td><td class="w">Ekranas + galiojimo data saugykloje</td></tr>
+  <tr><td class="n">6</td><td><b>02 · Bankų paieška</b></td><td class="w">Lietuvoj nekliudo. Būtina prieš plėtrą į DE/UK.</td><td class="w">Vienas <span class="f">TextField</span></td></tr>
+  <tr><td class="n">7</td><td><b>08 · Prieš peržiūrą</b></td><td class="w">Vertingas tik kai peržiūros ekranas nusistovi.</td><td class="w">Naujas ekranas</td></tr>
+</table>
+
+<footer>
+  Vaultie · banko prijungimo flow'as · 2026-07-26<br>
+  Spalvos iš <span class="f">lib/content_theme.dart</span> („Frost" šviesus). Bankų ekranų fonas <span class="f">cBg</span> bendras <b>penkiems</b> ekranams — keitimas paliečia visus.
+</footer>
+
+</div>
+</body>
+</html>

@@ -8,6 +8,7 @@ Secret and never lives in source or on the device.
 import datetime as dt
 import json
 import logging
+import re
 import time
 import uuid
 
@@ -26,12 +27,29 @@ DEFAULT_COUNTRY = "LT"
 _TIMEOUT = 30  # seconds
 
 
+_UID_IN_PATH = re.compile(r"/accounts/[^/]+")
+
+
 class EnableBankingError(RuntimeError):
-    """Raised when the Enable Banking API returns a non-2xx response."""
+    """Raised when the Enable Banking API returns a non-2xx response.
+
+    The message is deliberately thin. It used to carry the full request path
+    plus 300 raw characters of the bank's response — and this string travels
+    further than it looks: into Cloud Logging via scan_diag, and back to the
+    phone as ``HttpsError.details``. The path contains the account uid (the
+    identifier that addresses someone's account) and the body can echo the
+    account holder's own details. Neither belongs in a log sink.
+
+    The full body is still available on the instance for local debugging; it is
+    just not part of what gets printed and forwarded.
+    """
 
     def __init__(self, status: int, path: str, body: str):
-        super().__init__(f"[HTTP {status}] {path}: {body[:300]}")
+        safe_path = _UID_IN_PATH.sub("/accounts/…", path or "")
+        super().__init__(f"[HTTP {status}] {safe_path}")
         self.status = status
+        self.path = safe_path
+        self.body = body  # not in the message — see the docstring
 
 
 def _is_period_error(e: "EnableBankingError") -> bool:
@@ -39,8 +57,14 @@ def _is_period_error(e: "EnableBankingError") -> bool:
     far back (PSD2 history limit). Documented error name is
     ``WRONG_TRANSACTIONS_PERIOD``; some banks return a plain 4xx. Used to stop
     the backward window walk gracefully instead of treating it as a hard failure.
+
+    Reads ``e.body`` rather than ``str(e)``: the marker lives in the bank's
+    response, which is no longer part of the exception message (it carried the
+    account uid into logs). Keep both — a plain str() check here would silently
+    turn "no more history" into a failed scan.
     """
-    return "WRONG_TRANSACTIONS_PERIOD" in str(e).upper()
+    haystack = f"{getattr(e, 'body', '') or ''} {e}".upper()
+    return "WRONG_TRANSACTIONS_PERIOD" in haystack
 
 
 def _build_jwt(private_key: str) -> str:
@@ -180,6 +204,34 @@ class EnableBankingClient:
         """Exchange the redirect ``code`` for a session (+ its accounts)."""
         return self._request("POST", "/sessions", body={"code": code})
 
+    def delete_session(self, session_id: str) -> bool:
+        """Revoke a bank session — ends the PSD2 consent so it can't outlive the
+        account. Best-effort: returns True on success, False on any failure, and
+        never raises, so account deletion is never blocked by a bank that is
+        momentarily unreachable.
+
+        2026-09-01: was a single attempt — a single transient network hiccup
+        (the exact failure mode a revoke call is likely to hit, since it's
+        often called right as the app is tearing down local state) was
+        enough to leave a real, standing PSD2 consent unrevoked with nothing
+        anywhere to retry it. Retries a few times with backoff first, same
+        shape as balances()'s own retry above, before giving up.
+        """
+        for attempt in range(3):
+            try:
+                self._request("DELETE", f"/sessions/{session_id}")
+                return True
+            except Exception as e:  # noqa: BLE001
+                if attempt < 2:
+                    logging.warning(
+                        "EB: delete_session attempt %d failed, retrying: %s",
+                        attempt + 1, e)
+                    time.sleep(1.0 * (attempt + 1))
+                    continue
+                logging.warning("EB: could not delete session after retries: %s", e)
+                return False
+        return False
+
     def balances(self, account_uid: str, *, psu: dict | None = None) -> list:
         """Current balances for an account (list of balance objects).
 
@@ -188,12 +240,21 @@ class EnableBankingClient:
         Returns [] on any error so a missing-balances endpoint never blocks the
         transaction scan.
         """
-        try:
-            data = self._request("GET", f"/accounts/{account_uid}/balances",
-                                 psu=psu)
-            return data.get("balances", [])
-        except EnableBankingError:
-            return []
+        for attempt in range(3):
+            try:
+                data = self._request("GET", f"/accounts/{account_uid}/balances",
+                                     psu=psu)
+                return data.get("balances", [])
+            except EnableBankingError as e:
+                # A rate-limited balance (Swedbank's cap) used to fall silently to
+                # 0. Retry on 429, and log any other failure instead of hiding it.
+                if e.status == 429 and attempt < 2:
+                    time.sleep(1.0 * (attempt + 1))
+                    continue
+                logging.warning("balances: %s failed (%s): %s",
+                                account_uid[:8], e.status, e)
+                return []
+        return []
 
     def _fetch_window(self, account_uid, *, date_from, date_to, page_budget,
                       psu=None):

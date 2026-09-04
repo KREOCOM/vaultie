@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — bankų normalizavimo refaktoringas</title>
+<style>
+  :root{--ink:#0B1533;--sub:#4C5B7D;--paper:#FCFCFD;--card:#fff;--line:#E6EAF2;--blue:#003DE1;
+        --crit:#C0392B;--high:#D97706;--med:#2563EB;--low:#12A366;}
+  @media (prefers-color-scheme:dark){:root{--ink:#EEF1F8;--sub:#A2ADC4;--paper:#0A1024;--card:#121A36;--line:#222C4E;--blue:#6E96FF;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1100px;margin:0 auto;padding:36px 20px 80px}
+  h1{font-size:30px;letter-spacing:-.7px;margin:0 0 6px}
+  .sub{color:var(--sub);margin:0 0 28px}
+  h2{font-size:21px;letter-spacing:-.3px;margin:38px 0 12px;padding-top:18px;border-top:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px}
+  p{color:var(--sub)}
+  .verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--low);
+           border-radius:12px;padding:18px 20px;margin-bottom:8px}
+  .verdict strong{color:var(--ink)}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;min-width:760px;font-size:13.5px}
+  th{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);color:var(--sub);
+     font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+  td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--sub)}
+  tr:last-child td{border-bottom:none}
+  td.k{color:var(--ink);font-weight:700;white-space:nowrap}
+  code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(128,150,200,.14);
+       padding:1px 5px;border-radius:4px;color:var(--ink)}
+  .ok{color:var(--low);font-weight:700}
+  ul{color:var(--sub);padding-left:20px} li{margin-bottom:7px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0}
+  .good{border-left:4px solid var(--low)}
+  .warn{border-left:4px solid var(--high)}
+  .lim{border-left:4px solid var(--med)}
+  .foot{margin-top:40px;color:var(--sub);font-size:13px;text-align:center}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:800;color:#fff}
+  .t-low{background:var(--low)} .t-med{background:var(--med)} .t-high{background:var(--high)}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>Bankų normalizavimo refaktoringas</h1>
+<p class="sub">2026-07-21 · <code>functions/normalize.py</code> + pasikartojančių mokėjimų guard'ai · 10 sintetinių bankų, 30 transakcijų, visi testai žali</p>
+
+<div class="verdict">
+<strong>Ką tai daro.</strong> Enable Banking 2500+ bankų suveda į vieną Berlin Group schemą, bet bankai ją <em>užpildo</em> skirtingai — vieną lauką vienas užpildo, kitas palieka tuščią ar kiša kitur. Šis sluoksnis vieną kartą, prie įėjimo, sutvarko <strong>formą</strong> (prekybininko vardas, valiuta, balansas, dublikatai) pagal dokumentuotą prioritetą, todėl nė vienas žemiau esantis etapas nebeturi žinoti, kuris bankas atsiuntė. Taisyklė: <strong>jokio <code>if bank == "Swedbank"</code></strong> — kiekviena taisyklė remiasi duomenų <em>forma</em>, ne banko vardu.
+</div>
+
+<h2>1. Kas pakeista generiškai</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Sritis</th><th>Problema (kaip bankai skiriasi)</th><th>Generiškas sprendimas</th></tr></thead>
+<tbody>
+<tr><td class="k">Prekybininko vardas</td><td>Swedbank palieka <code>creditor.name</code> tuščią, merchant kiša į remittance descriptorių; kiti — į <code>note</code>; Santander kitu formatu.</td><td>Prioriteto grandinė (struktūrinis kontrahentas → <code>merchant</code> → remittance → <code>note</code>), plius kortelės descriptoriaus valymas (ref, data, suma, valiuta, miestas). Užpildoma vieną kartą, visi etapai mato švarų vardą.</td></tr>
+<tr><td class="k">Valiuta</td><td>Kai kurie žymi sąskaitą <code>XXX</code> („be valiutos"), nors balansas realus EUR/SEK.</td><td><code>real_currency()</code> — ima valiutą iš <em>balanso objekto</em>, ne iš sąskaitos etiketės; <code>XXX</code>/tuščia niekada nepateka į ekraną.</td></tr>
+<tr><td class="k">Balansas</td><td>Vienas siunčia tik <code>ITAV/ITBD</code>, kitas tik <code>FWAV</code>, kitas <code>CLAV</code> — <code>CLBD</code> gali nebūti visai.</td><td><code>pick_balance()</code> su plačiu Berlin Group tipų prioritetu (available → booked → forward → …), o ne „pirmas iš sąrašo".</td></tr>
+<tr><td class="k">Kryptis / suma / remittance</td><td>Trūkstamas <code>credit_debit_indicator</code> paverdavo pajamas neigiama išlaida; string remittance būdavo pjaustomas <code>[0]</code>; kai kas naudoja bare <code>amount</code>.</td><td>Numatytoji kryptis DBIT (dokumentuota duomenų spraga), remittance → visada sąrašas, <code>transaction_amount</code> užpildomas iš bare <code>amount</code>.</td></tr>
+<tr><td class="k">Dublikatai</td><td><code>entry_reference</code>-only lūžo dviem būdais: bankas be jo dubliuodavo puslapius; PENDING ir vėlesnė BOOKED kopija turi <em>skirtingus</em> ref → abi likdavo, dviguba suma.</td><td>Dedupe pagal ref, kitaip kompozitinis raktas (data, suma, kryptis, merchant); PENDING numetamas, kai yra BOOKED su ta pačia (data, suma, merchant).</td></tr>
+<tr><td class="k">Prenumeratos — kasdienės išlaidos <span class="tag t-high">nauja</span></td><td>Nežinomas pasikartojantis prekybininkas be MCC (<em>„Skani mėsa"</em>, <em>„Tiltų"</em>) numatytai tapdavo prenumeratos kandidatu.</td><td>Kasdienių-išlaidų guard: nežinomas kortelės prekybininkas, kurio srautas NĖRA patikima prenumerata (svyruoja suma / netaisyklinga kadencija) ir vardas ne skaitmeninė paslauga → <code>frequent</code>, ne prenumerata. Remiasi jau esamu <code>_stream_credible()</code>.</td></tr>
+<tr><td class="k">Prenumeratos — žmonės <span class="tag t-high">nauja</span></td><td>Viena pavardė (<em>„Sulajeva"</em>) neatpažįstama kaip žmogus (reikalauta 2 žodžių) → siūloma kaip €4 prenumerata.</td><td><code>_bare_person_like()</code>: viena didžiąja raide prasidedanti pavardė pervedime <em>be kortelės acceptoriaus/domeno</em> → žmogus → <code>transfer</code> (išimtas iš prenumeratų). Kortelės pirkinys su domenu (Netflix) lieka prenumerata.</td></tr>
+</tbody></table></div>
+
+<h2>2. Paslėptos prielaidos</h2>
+<ul>
+<li><strong>Trūkstama kryptis = DBIT.</strong> Tikras kortelės/pervedimo eilutes EB visada pažymi; numatymas DBIT taikomas tik sugadintoms eilutėms — kad ženklas būtų <em>nuoseklus</em>, ne kad būtų teisingas retai pasitaikančiai trūkstamai pajamų eilutei.</li>
+<li><strong>Balanso valiuta > sąskaitos valiuta.</strong> Laikoma, kad balanso objekto valiuta yra tiesa, kai sąskaita pažymėta <code>XXX</code>. Jei bankas atsiųstų klaidingą valiutą balanse — pasitikėtume ja.</li>
+<li><strong>Prekybininkas iš remittance = kortelės descriptorius.</strong> Ištraukimas suveikia tik radus <code>(ref)</code> grupę arba pirkimo veiksmažodį (PIRKINYS/COMPRA…); paprastas memo nekedžiojamas. Nematytas descriptoriaus formatas gali duoti prastesnį vardą (bet ne „—").</li>
+<li><strong>Viena pavardė + jokio acceptoriaus = žmogus.</strong> Heuristika: nežinomas vieno žodžio <em>brendas</em>, mokamas SEPA ir nepažįstamas DB, gali klaidingai tapti „transfer". Šioje srityje P2P pervedimai dominuoja tą atvejį, o žinomi brendai yra DB hit'ai, kurie čia nepatenka.</li>
+<li><strong>„Frequent" = kasdienės išlaidos, ne komitmentas.</strong> Nežinomo prekybininko su svyruojančia suma / netaisyklinga kadencija guard laiko išlaidomis. Reta reguliari nežinoma paslauga be MCC pirmą kartą gali nueiti į frequent — kol DB/MCC ją atpažins.</li>
+</ul>
+
+<h2>3. Ko NEįmanoma išspręsti generiškai</h2>
+<div class="box lim">
+<p><strong>Iš transakcijos <em>formos</em> €7 pasikartojančio mėsinės vizito nuo €7 prenumeratos atskirti neįmanoma.</strong> Struktūriškai jie identiški. Skirtumas — <em>prekybininko reikšmė</em> (ar tai maistas, ar paslauga), o ji nėra formoje. Ją duoda tik:</p>
+<ul>
+<li><strong>MCC</strong> (merchant_category_code) — patikima, bet daug LT bankų (Swedbank) jo <em>nesiunčia</em>. Padeda tik kai yra.</li>
+<li><strong>Prekybininkų DB</strong> — <em>bendra visiems vartotojams</em>. Pirmas, kurio duomenyse „Tiltų" išspręstas kaip kavinė, išsprendžia jį <em>visiems</em>. Su masteliu tas pats nežinomas prekybininkas kartojasi → DB gerėja, ne blogėja. Tai pranašumas, kurio bankas neturi: jis mato tik savo klientus, Vaultie — per 2500 bankų.</li>
+</ul>
+<p><strong>Ką generiškas sluoksnis dėl to sprendžia sąmoningai:</strong> nesant nei MCC, nei DB atpažinimo, jis <em>neteigia</em> „prenumerata". Numatoma į saugesnį kibirą (<code>frequent</code> / <code>transfer</code>), o prenumerata rezervuojama realiems įrodymams (pastovi suma + reguliari mėnesinė+ kadencija) arba teigiamam paslaugos ženklui. Liekana mažėja augant vartotojų, ne didėja.</p>
+</div>
+
+<h2>4. Rezultatų lentelė</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Regionas</th><th>Bankas (schemos keistenybė)</th><th>Balansas</th><th>Vlt.</th><th>Merchant</th><th>Subs</th><th>Crash</th></tr></thead>
+<tbody>
+<tr><td>Baltic</td><td class="k">Swedbank-like — merchant remittance'e, sąsk. <code>XXX</code>, <code>ITAV/ITBD</code></td><td>982.22</td><td>EUR</td><td>3/3</td><td>1</td><td class="ok">ok</td></tr>
+<tr><td>Baltic</td><td class="k">SEB-like — švarus <code>creditor</code>, BTC kodai, P2P įplauka</td><td>495.10</td><td>EUR</td><td>3/3</td><td>0</td><td class="ok">ok</td></tr>
+<tr><td>Scandinavian</td><td class="k">Nordea-like — SEK, balansas <code>CLAV</code></td><td>15000.00</td><td>SEK</td><td>3/3</td><td>1</td><td class="ok">ok</td></tr>
+<tr><td>Scandinavian</td><td class="k">DNB-like — NOK, tik <code>FWAV</code>, merchant <code>note</code></td><td>24000.00</td><td>NOK</td><td>2/2</td><td>0</td><td class="ok">ok</td></tr>
+<tr><td>Western</td><td class="k">N26-like — EUR, MCC yra</td><td>1200.55</td><td>EUR</td><td>2/2</td><td>0</td><td class="ok">ok</td></tr>
+<tr><td>Southern</td><td class="k">Santander-like — merchant remittance'e (COMPRA EN), tarpininkai</td><td>742.00</td><td>EUR</td><td>3/3</td><td>0</td><td class="ok">ok</td></tr>
+<tr><td>Edge</td><td class="k">Minimal — tik data + suma, jokio vardo/kodo/MCC</td><td>50.00</td><td>EUR</td><td>0/0</td><td>0</td><td class="ok">ok</td></tr>
+<tr><td>Edge</td><td class="k">Broken — trūksta valiutos, balanso sumos, indikatoriaus</td><td>0.00</td><td>EUR</td><td>1/1</td><td>0</td><td class="ok">ok</td></tr>
+<tr><td>Classification</td><td class="k">Local shops — „Skani mėsa", „Tiltų" (kortelė, nežinomi DB)</td><td>300.00</td><td>EUR</td><td>7/7</td><td>0</td><td class="ok">ok</td></tr>
+<tr><td>Classification</td><td class="k">P2P „Sulajeva" + Netflix (kontrolė)</td><td>510.00</td><td>EUR</td><td>4/4</td><td>2</td><td class="ok">ok</td></tr>
+</tbody></table></div>
+<p style="margin-top:10px"><strong>Merchant</strong> = kiek DBIT eilučių su prekybininko šaltiniu išsprendė realų vardą (be šaltinio → sąmoningai lieka „—"). <strong>Subs</strong> = kandidatų skaičius (Local shops = 0, nes abu → <code>frequent</code>; P2P = 2, iš kurių „Sulajeva" yra <code>transfer</code>, ne prenumerata). Bendrai: 30 → 30 po dedupe, dashboard sukonstruotas be klaidos.</p>
+
+<h2>5. Kokie testai tai saugo</h2>
+<ul>
+<li><strong><code>test_bank_schemas.py</code> (naujas)</strong> — vairuoja pilną pipeline'ą (normalize → balansas → dedupe → detect_recurring → build_dashboard) per 10 fixtures. Asertai keyed pagal <em>schemos būseną</em>, ne banko vardą: kryptis DBIT|CRDT, CRDT niekada neapverčiama, remittance visada sąrašas, balanso valiuta iš objekto ir niekada <code>XXX</code>, merchant išsprendžiamas ⇔ yra šaltinis, daugia-mėnesio prekybininkas nedingsta. Plius <code>expect</code> klasifikavimas: „Skani mėsa"/„Tiltų" ∈ frequent ir ∉ kandidatai; „Sulajeva" ∉ prenumeratos; „Netflix" ∈ kandidatai.</li>
+<li><strong><code>test_merchant_remittance.py</code></strong> — kortelės descriptoriaus valymas (prefiksas, ref, skaičiai nepratekėję).</li>
+<li><strong>Esami žali:</strong> <code>test_recurring</code>, <code>test_streams</code>, <code>test_subs_review</code>, <code>test_series_id</code>, <code>test_bolt_merge</code>, <code>test_txn_time</code> — pasikartojančių mokėjimų guard'ai jų nesulaužė.</li>
+<li><strong>Aklas taškas prieš tai:</strong> senas rinkinys neturėjo pasikartojančio nežinomo <em>vietinio</em> prekybininko — todėl žalias suite „Skani mėsa" klaidos <em>nepagaudavo</em>. Dabar pagauna.</li>
+</ul>
+
+<h2>6. Prieš deploy — privaloma</h2>
+<div class="box warn">
+<ul>
+<li><strong>Grąžinti paywall bypass:</strong> <code>main.py:71</code> <code>_TEST_BYPASS_PREMIUM = True → False</code>; <code>lib/main.dart:138</code> <code>kBypassPaywall = true → false</code>. <em>Abu dabar įjungti.</em></li>
+<li><strong>Deploy'as neišbandytas gyvai:</strong> šis darbas patikrintas tik sintetiniais fixtures. Prieš pasitikint — patikra ant įrenginio su tikru Swedbank/SEB/Revolut skenu (atmintis: telefono nuotraukos pagauna tai, ko šios patikros nemato).</li>
+<li><strong>Iš audito lieka #15:</strong> deep link'ai bankams, perduodantiems valdymą savo programai (SEB, Swedbank) — atskiras, gyvo įrenginio testas, nesusijęs su šiuo refaktoringu.</li>
+</ul>
+</div>
+
+<p class="foot">Parengta 2026-07-21 · <code>normalize.py</code> + <code>recurring.py</code> guard'ai · visi teiginiai su testu, kuris juos tikrina</p>
+</div></body></html>

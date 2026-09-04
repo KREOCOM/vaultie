@@ -6,45 +6,55 @@
   <meta name="robots" content="noindex">
   <title>Vaultie — grįžtama į programėlę…</title>
   <style>
-    :root { color-scheme: light dark; }
+    :root { color-scheme: dark; }
+    /* Matches the two REAL app screens either side of this page in the
+       actual flow — bank_connect_screen.dart's _redirectView (shown right
+       before leaving for the bank) and bank_callback_screen.dart (shown
+       right after returning), both cxBg #0A1533 with white ink and #A9BCEC
+       subtle text. This page used to be light (#F4F6FF), which read as a
+       jarring flash of a wrong, unrelated site sandwiched between two dark
+       app screens — same brand blue #003DE1 accent, wrong everything else.
+       The icon below is the real app icon file (/img/icon.png). */
     body {
       margin: 0; min-height: 100vh; display: flex; align-items: center;
-      justify-content: center; background: #F4F8F5; color: #11231A;
+      justify-content: center; background: #0A1533; color: #FFFFFF;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       text-align: center; padding: 24px;
     }
     .card { max-width: 380px; }
-    .dot {
-      width: 56px; height: 56px; margin: 0 auto 20px; border-radius: 16px;
-      background: #174E35; display: flex; align-items: center; justify-content: center;
-      color: #8BD3A7; font-size: 28px; font-weight: 800;
+    .mark {
+      width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 18px;
+      display: block; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
     }
-    h1 { font-size: 20px; font-weight: 800; margin: 0 0 8px; }
-    p { font-size: 15px; line-height: 1.5; color: #6B7E74; margin: 0 0 24px; }
+    h1 { font-size: 20px; font-weight: 800; margin: 0 0 8px; color: #FFFFFF; }
+    p { font-size: 15px; line-height: 1.5; color: #A9BCEC; margin: 0 0 24px; }
     .spinner {
       width: 26px; height: 26px; margin: 0 auto 20px; border-radius: 50%;
-      border: 3px solid #E1E8E3; border-top-color: #174E35;
+      border: 3px solid rgba(255,255,255,0.15); border-top-color: #2F6BFF;
       animation: spin 0.9s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     a.btn {
-      display: inline-block; background: #174E35; color: #fff; text-decoration: none;
+      display: inline-block; background: #003DE1; color: #fff; text-decoration: none;
       font-weight: 700; font-size: 15px; padding: 14px 22px; border-radius: 14px;
     }
     .hidden { display: none; }
-    @media (prefers-color-scheme: dark) {
-      body { background: #0E1A14; color: #EAF2EC; }
-      p { color: #9BB0A4; }
+    /* Draws the eye once we know the automatic hand-off didn't happen — a
+       still spinner reads as "working", a pulsing button reads as "tap me". */
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(47,107,255,0.55); }
+      50% { transform: scale(1.04); box-shadow: 0 0 0 10px rgba(47,107,255,0); }
     }
+    a.btn.pulse { animation: pulse 1.1s ease-in-out infinite; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="dot">V</div>
+    <img class="mark" src="/img/icon.png" alt="Vaultie">
     <div id="loading">
-      <div class="spinner"></div>
-      <h1>Grįžtama į Vaultie…</h1>
-      <p>Baigiame prijungti tavo banką. Jei programėlė neatsidaro automatiškai,
+      <div class="spinner" id="spinner"></div>
+      <h1 id="heading">Grįžtama į Vaultie…</h1>
+      <p id="body">Baigiame prijungti tavo banką. Jei programėlė neatsidaro automatiškai,
          paspausk mygtuką žemiau.</p>
       <a id="open" class="btn" href="#">Atidaryti Vaultie</a>
     </div>
@@ -55,12 +65,21 @@
   </div>
 
   <script>
-    // Universal Links do the real work: when Vaultie is installed, iOS opens
-    // the app directly from the https redirect URL and this page never renders
-    // (no "Open in Vaultie?" prompt). This page therefore only runs as a
-    // FALLBACK — the app isn't installed, or the Universal Link didn't fire
-    // (e.g. an in-app browser). In that case we fall back to the custom
-    // scheme, which may prompt, and always offer a manual button.
+    // Universal Links / Android App Links do the real work: when Vaultie is
+    // installed, the OS opens the app directly from the https redirect URL
+    // and this page never renders. This page therefore only runs as a
+    // FALLBACK — the app isn't installed, the OS link verification hasn't
+    // been granted yet, or the link arrived through a context (e.g. a bank's
+    // own app handing off) that doesn't route it directly.
+    //
+    // A bare `vaultie://...` href is NOT reliable on Android Chrome — not
+    // even on a direct tap, which is what a "tap the button" fallback is
+    // supposed to guarantee. Chrome only reliably resolves a custom scheme
+    // via its own `intent://` URI form (Google's documented mechanism for a
+    // webpage to hand off to a specific native app); a bare custom scheme is
+    // resolved inconsistently across Chrome versions and OEM builds, which is
+    // exactly why this worked for some testers and did nothing — not even on
+    // tap — for others. iOS has no such gate, so it keeps the plain scheme.
     (function () {
       var params = new URLSearchParams(window.location.search);
       var code = params.get('code');
@@ -72,19 +91,60 @@
         return;
       }
 
-      var deepLink = 'vaultie://banking/callback?code=' + encodeURIComponent(code);
-      if (state) {
-        deepLink += '&state=' + encodeURIComponent(state);
+      var qs = 'code=' + encodeURIComponent(code);
+      if (state) qs += '&state=' + encodeURIComponent(state);
+
+      var isAndroid = /Android/i.test(navigator.userAgent);
+      // iOS keeps the plain custom scheme — ASWebAuthenticationSession has no
+      // gesture gate, it just watches for the callback scheme regardless of
+      // how it's triggered. Android needs the `intent://` wrapper (below):
+      // Google's documented mechanism for a webpage handing off to a named
+      // app by package, which resolves reliably on a real tap across Chrome
+      // versions/OEM builds where the bare scheme is inconsistent.
+      var btnLink = 'vaultie://banking/callback?' + qs;
+      if (isAndroid) {
+        // package= pins this to Vaultie specifically, skipping any app-chooser
+        // prompt; S.browser_fallback_url is where Chrome sends the user if no
+        // app claims the scheme (Vaultie not installed) instead of a dead end.
+        var fallback = encodeURIComponent(window.location.href);
+        btnLink = 'intent://banking/callback?' + qs +
+          '#Intent;scheme=vaultie;package=com.kreocom.vaultie;' +
+          'S.browser_fallback_url=' + fallback + ';end';
       }
 
-      // Wire up the manual fallback button first (always works on a tap).
-      document.getElementById('open').setAttribute('href', deepLink);
+      var openBtn = document.getElementById('open');
+      openBtn.setAttribute('href', btnLink);
 
-      // Then attempt the custom-scheme fallback. Deferred a beat so that if a
-      // Universal Link is mid-flight it wins and we never fire the scheme.
+      // No automatic window.location.replace(autoLink) here — tried it, and
+      // on this device Chrome didn't silently follow it. It showed Chrome's
+      // OWN "Eiti toliau į vaultie?" confirmation banner instead, and once
+      // that got dismissed, the tab fell back to whatever page was earlier in
+      // its history (the bank's own consent screen) rather than closing —
+      // confusing on top of confusing. Confirmed against Chrome's own public
+      // guidance: a script-triggered navigation to a scheme it doesn't own is
+      // not treated as a user gesture, so it is never guaranteed to hand off
+      // silently — only a real tap is.
+      //
+      // The real "stuck on this page" bug (a real tap DID launch the app
+      // every time, but Chrome never yielded the screen back) turned out to
+      // be a separate, Android-side task-affinity issue — see the comment on
+      // MainActivity in AndroidManifest.xml — not anything fixable from here.
+      //
+      // Reaching this page at all already means Universal Links / Android App
+      // Links did NOT intercept the redirect before it rendered — a bank that
+      // hands off to its own separate app (SEB, Swedbank) skips this page
+      // entirely. Everything that DOES render here completed its whole OAuth
+      // flow inside the SAME browser tab (e.g. Revolut), so a tap on the
+      // button below is the normal way this finishes, not a fallback for
+      // something broken.
       setTimeout(function () {
-        window.location.replace(deepLink);
-      }, 400);
+        if (document.hidden) return; // already left — don't relabel a dead page
+        document.getElementById('spinner').classList.add('hidden');
+        document.getElementById('heading').textContent = 'Paspausk, kad atidarytum Vaultie';
+        document.getElementById('body').textContent =
+          'Automatiškai neperėjome — telefonas kartais to nepadaro pats. Vienas palietimas, ir esi programėlėje.';
+        openBtn.classList.add('pulse');
+      }, 500);
     })();
   </script>
 </body>

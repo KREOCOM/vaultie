@@ -1,5 +1,8 @@
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+import '../main.dart';
 
 /// Remotely-controllable feature flags, backed by Firebase Remote Config.
 ///
@@ -19,6 +22,33 @@ class FeatureFlags {
   /// loads (offline first launch, fetch failure). Listeners rebuild when a
   /// fresh config activates, so the card appears the moment the flag arrives.
   final ValueNotifier<bool> bankingEnabled = ValueNotifier<bool>(false);
+
+  /// Hive key holding the last value Remote Config actually returned.
+  static const _cacheKey = 'flag_$bankingKey';
+
+  /// Seeds [bankingEnabled] from the last known value before any network call.
+  ///
+  /// Without this, "config hasn't loaded yet" and "the kill-switch is on" look
+  /// identical, so every offline launch hid banking — the entire product —
+  /// with no explanation. A cached answer is a better guess than a default,
+  /// and the real value overwrites it moments later.
+  void loadCached() {
+    try {
+      final box = Hive.box(HiveBoxes.settings);
+      bankingEnabled.value = box.get(_cacheKey, defaultValue: true) as bool;
+    } catch (_) {
+      bankingEnabled.value = true;
+    }
+  }
+
+  void _publish(bool value) {
+    bankingEnabled.value = value;
+    try {
+      Hive.box(HiveBoxes.settings).put(_cacheKey, value);
+    } catch (_) {
+      // Cache is an optimisation; the live value still applies this session.
+    }
+  }
 
   /// Fetches and activates Remote Config, then publishes the flags. Fire this
   /// once at startup WITHOUT awaiting — it never throws and never blocks the
@@ -43,14 +73,14 @@ class FeatureFlags {
         ),
       );
       await rc.fetchAndActivate();
-      bankingEnabled.value = rc.getBool(bankingKey);
+      _publish(rc.getBool(bankingKey));
 
       // Pick up config the SDK pushes later in the same session (realtime),
       // so a kill-switch can take effect without an app restart.
       rc.onConfigUpdated.listen((_) async {
         try {
           await rc.activate();
-          bankingEnabled.value = rc.getBool(bankingKey);
+          _publish(rc.getBool(bankingKey));
         } catch (_) {
           // Ignore — keep the last activated value.
         }

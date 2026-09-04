@@ -7,8 +7,9 @@ people they paid. Nothing is persisted server-side; the summary lives only in
 the request. The Anthropic API does not train on API traffic, which is the point
 to disclose to the user and to App Review.
 
-Model: Haiku 4.5 (fast + cheap; this is Q&A over a short summary, not reasoning
-over a corpus). Prompt caching keeps follow-up questions ~10× cheaper by reusing
+Model: Sonnet 5 for both the chat and the monthly report — see the model
+constants below for why the report used to run on Haiku and why that was
+wrong. Prompt caching keeps follow-up chat questions ~10× cheaper by reusing
 the summary across a conversation.
 
 Called over plain HTTPS (requests) — no new pip dependency, same as
@@ -21,7 +22,25 @@ import time
 import requests
 
 _URL = "https://api.anthropic.com/v1/messages"
-_MODEL = "claude-haiku-4-5-20251001"  # fast + cheap
+# Both the report and the chat write TO the user in Lithuanian, a heavily-
+# inflected language where the smallest tier makes visible declension/
+# agreement errors — or worse, invents a word that isn't Lithuanian at all. A
+# real monthly report generated on Haiku 4.5 came back "Birželis buvo gan
+# šalatanas mėnuo" ("šalatanas" — not a Lithuanian word, nothing close to one)
+# and "Gaukos 2816 eurų" (not a real conjugation of "gauti"; should be
+# "Gavai"). This was found and reported by the person actually using the app,
+# not caught in testing — the exact way a language-quality bug slips past
+# anyone who tests mostly in English.
+#
+# The report used to run on Haiku specifically because it is short and
+# "just a summariser" (Q&A over a few numbers, not reasoning over a corpus) —
+# but that reasoning was about REASONING difficulty, not WRITING difficulty.
+# A monthly narrative is free-form generative prose with nothing to copy from,
+# which is a harder target for fluent Lithuanian than the chat's more
+# constrained, often shorter answers. If anything the report needed the
+# stronger model MORE than chat did, not less.
+_MODEL = "claude-sonnet-5"
+_CHAT_MODEL = "claude-sonnet-5"
 _TIMEOUT = 30
 
 # Hard caps so a malformed or hostile client can't run up a bill or a huge call.
@@ -30,11 +49,17 @@ _MAX_TURNS = 24
 _MAX_TURN_CHARS = 2_000
 _MAX_REPLY_TOKENS = 700
 
-# Static persona — cached across every user and conversation (identical bytes).
+# Persona template — the one language line is swapped in per request. The app's
+# UI language drives the reply language: the model must NOT guess it from the
+# question or from the (Lithuanian) merchant names in the summary. Relying on the
+# model to detect the language made an English user's chat drift to Lithuanian
+# because the finance data is Lithuanian. Mirror what _report_system already does.
 _SYSTEM = (
     "Tu esi „Vaultie“ asistentas — draugiškas, konkretus pagalbininkas, "
     "atsakantis į vartotojo klausimus apie JO PATIES asmeninius finansus. "
-    "Kalbėk lietuviškai, trumpai ir aiškiai (2–5 sakiniai; sąrašai tik kai "
+    "{lang_rule} Rašyk TAISYKLINGA, sklandžia kalba — "
+    "lietuviškai naudok teisingus linksnius, gimines ir derinimą, be vertalų. "
+    "Rašyk trumpai ir aiškiai (2–5 sakiniai; sąrašai tik kai "
     "tikrai padeda). Sumas rašyk eurais.\n\n"
     "GRIEŽTOS TAISYKLĖS:\n"
     "1. Remkis TIK žemiau pateikta vartotojo finansų santrauka. Jei santraukoje "
@@ -47,8 +72,47 @@ _SYSTEM = (
     "4. Jei klausimas nesusijęs su vartotojo finansais, mandagiai grąžink prie "
     "temos.\n"
     "5. Rašyk paprastu tekstu. NENAUDOK Markdown formatavimo — jokių „**“, "
-    "„#“ ar kitų simbolių paryškinimui."
+    "„#“ ar kitų simbolių paryškinimui.\n"
+    "6. Jei vartotojas klausia apie duomenų saugumą, privatumą ar kaip veikia "
+    "banko prisijungimas: Vaultie jungiasi prie banko per Enable Banking — "
+    "licencijuotą, reguliuojamą PSD2 (atvirosios bankininkystės) paslaugų "
+    "teikėją. Banko prisijungimo duomenis (naudotojo vardą, slaptažodį) "
+    "vartotojas visada įveda TIK paties banko saugiame lange — Vaultie jų "
+    "niekada nemato, negauna ir nesaugo. Jei vartotojas klausia, kodėl "
+    "grynaisiais apmokėtas pirkinys nepasirodo banko sąskaitoje ar neatimamas "
+    "iš banko likučio: „Grynieji“ yra ATSKIRAS, RANKINIU BŪDU vedamas "
+    "balansas — bankas grynųjų pinigų išlaidų fiziškai nemato, todėl jas "
+    "reikia įvesti pačiam (arba nuskenuoti kvitą), kad appsas žinotų apie "
+    "jas. Niekada neatsakyk į šiuos du klausimus iš bendrų žinių ar spėjimo — "
+    "remkis TIK šiuo paaiškinimu, nes tai konkretaus Vaultie veikimo, o ne "
+    "bendros atvirosios bankininkystės, aprašymas."
 )
+
+# The one line that differs per language — same pattern as _REPORT_LANG_RULE.
+# Stated strongly because the finance summary the model reads is in Lithuanian
+# (merchant names, categories), which otherwise pulls the reply toward LT.
+_CHAT_LANG_RULE = {
+    "lt": "VISADA atsakyk lietuvių kalba, nepriklausomai nuo to, kokia kalba "
+          "parašytas klausimas ar duomenys santraukoje. Niekada neperjunk kalbos.",
+    "en": "ALWAYS respond in English, regardless of the language of the "
+          "question or of the data in the summary. Never switch language.",
+}
+
+# Localised fallbacks so a failure/empty-question message matches the app locale.
+_FALLBACK_ASK = {
+    "lt": "Užduok klausimą apie savo finansus — pavyzdžiui „Kiek išleidau maistui?“",
+    "en": "Ask a question about your finances — for example “How much did I "
+          "spend on food?”",
+}
+_FALLBACK_ERR = {
+    "lt": "Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą po akimirkos.",
+    "en": "Sorry, I couldn't answer. Please try again in a moment.",
+}
+
+
+def _chat_system(lang: str) -> str:
+    rule = _CHAT_LANG_RULE.get((lang or "lt").lower(), _CHAT_LANG_RULE["lt"])
+    return _SYSTEM.replace("{lang_rule}", rule)
 
 
 # Summary-writing persona for the monthly review card. Same privacy contract as
@@ -56,7 +120,8 @@ _SYSTEM = (
 # raw transactions or names.
 _REPORT_SYSTEM = (
     "Tu esi „Vaultie“ asistentas. Parašyk TRUMPĄ, draugišką vieno mėnesio "
-    "finansų santrauką lietuviškai pagal žemiau pateiktus skaičius. "
+    "finansų santrauką pagal žemiau pateiktus skaičius. "
+    "{lang_rule} "
     "3–5 sakiniai, šiltas bet neutralus tonas. Natūraliai paminėk pajamas, "
     "išlaidas, grynąjį rezultatą, didžiausią išlaidų kategoriją ir santaupų "
     "normą, jei tie skaičiai pateikti. Gali trumpai palyginti su praėjusiu "
@@ -67,12 +132,32 @@ _REPORT_SYSTEM = (
     "2. Nemoralizuok ir nesmerk išlaidų — būk neutralus ir palaikantis.\n"
     "3. Neteik investicinių ar teisinių patarimų.\n"
     "4. Rašyk paprastu tekstu. NENAUDOK Markdown (jokių „**“, „#“ ar kitų "
-    "formatavimo simbolių)."
+    "formatavimo simbolių).\n"
+    "5. Naudok TIK tikrus, bendrinės kalbos žodžius ir taisyklingas jų formas "
+    "— niekada neišgalvok žodžio ir netaikyk neteisingos linksniuotės ar "
+    "asmenuotės, net jei skamba įtikinamai."
 )
 
+# The one line that differs per language. Two variants means two cached system
+# prompts, which is fine — far better than one that is always Lithuanian.
+_REPORT_LANG_RULE = {
+    "lt": "Rašyk lietuviškai.",
+    "en": "Write the summary in English.",
+}
 
-def month_report(stats: str, api_key: str) -> str:
-    """Write a short Lithuanian narrative for a month's figures.
+
+def _report_system(lang: str) -> str:
+    rule = _REPORT_LANG_RULE.get((lang or "lt").lower(), _REPORT_LANG_RULE["lt"])
+    return _REPORT_SYSTEM.replace("{lang_rule}", rule)
+
+
+def month_report(stats: str, api_key: str, lang: str = "lt") -> str:
+    """Write a short narrative for a month's figures, in the app's language.
+
+    Unlike the chat — where the reply can simply follow the language the
+    question was asked in — nothing here is written by the user, so the UI
+    locale has to be passed in. It used to be hard-coded Lithuanian, so an
+    English user's monthly summary arrived in Lithuanian.
 
     ``stats`` is a compact, PII-free block of pre-computed numbers. Returns the
     narrative text, or "" on any failure so the client can fall back to its own
@@ -83,7 +168,7 @@ def month_report(stats: str, api_key: str) -> str:
     payload = json.dumps({
         "model": _MODEL,
         "max_tokens": 400,
-        "system": [{"type": "text", "text": _REPORT_SYSTEM}],
+        "system": [{"type": "text", "text": _report_system(lang)}],
         "messages": [{"role": "user", "content": "Mėnesio skaičiai:\n\n" + stats}],
     })
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
@@ -140,18 +225,24 @@ def _sanitize_history(raw):
     return out
 
 
-def chat(summary: str, history, api_key: str) -> str:
+def chat(summary: str, history, api_key: str, lang: str = "lt") -> str:
     """Answer the latest user question given a finance summary + conversation.
 
-    Returns the assistant's reply text, or a short Lithuanian fallback string on
+    ``lang`` is the app's UI language (``lt``/``en``); the reply is written in it
+    rather than being inferred from the question, because the finance summary is
+    Lithuanian and would otherwise drag an English user's reply into Lithuanian.
+    Older clients that don't send it default to Lithuanian.
+
+    Returns the assistant's reply text, or a short localised fallback string on
     any failure (never raises — a chat hiccup must not crash the client)."""
+    lc = (lang or "lt").lower()
     summary = (summary or "").strip()[:_MAX_SUMMARY_CHARS]
     turns = _sanitize_history(history)
     if not turns:
-        return "Užduok klausimą apie savo finansus — pavyzdžiui „Kiek išleidau maistui?“"
+        return _FALLBACK_ASK.get(lc, _FALLBACK_ASK["lt"])
 
     system = [
-        {"type": "text", "text": _SYSTEM},
+        {"type": "text", "text": _chat_system(lc)},
         # The summary is stable for the whole conversation, so cache it: the
         # first question pays for it once, every follow-up reads it ~10× cheaper.
         {"type": "text",
@@ -159,8 +250,12 @@ def chat(summary: str, history, api_key: str) -> str:
          "cache_control": {"type": "ephemeral"}},
     ]
     payload = json.dumps({
-        "model": _MODEL,
+        "model": _CHAT_MODEL,
         "max_tokens": _MAX_REPLY_TOKENS,
+        # Simple Q&A over a short summary — no thinking needed. Sonnet 5 runs
+        # adaptive thinking by default when omitted, so disable it explicitly to
+        # keep replies fast and avoid billing reasoning tokens.
+        "thinking": {"type": "disabled"},
         "system": system,
         "messages": turns,
     })
@@ -193,4 +288,4 @@ def chat(summary: str, history, api_key: str) -> str:
             logging.warning("finance_chat parse failed: %s", e)
         break
 
-    return "Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą po akimirkos."
+    return _FALLBACK_ERR.get(lc, _FALLBACK_ERR["lt"])

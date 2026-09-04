@@ -10,14 +10,59 @@ Base currency is EUR for now (Eurozone users). When per-user base currency
 lands, this becomes a lookup keyed on the user's chosen base.
 """
 
+import logging
+
 # Approximate rates → EUR. Kept deliberately small and static (no network call
-# in the hot path); refined when a live FX source is added.
+# in the hot path); refined when a live FX source is added. Being approximate is
+# fine — they are used to make mixed-currency totals roughly comparable, not to
+# quote prices. Being ABSENT is not fine: see to_eur.
 _FX_TO_EUR = {
     "EUR": 1.0, "NOK": 0.086, "SEK": 0.088, "DKK": 0.134, "PLN": 0.235,
     "USD": 0.92, "GBP": 1.17, "CHF": 1.07, "CZK": 0.040, "ISK": 0.0066,
+    # Added after an audit found unknown currencies passing through at 1.0.
+    # These are the ones a Lithuanian traveller or a Revolut account realistically
+    # produces; all approximate, all better than treating them as euros.
+    "JPY": 0.0060, "HUF": 0.0025, "RON": 0.20, "BGN": 0.511, "UAH": 0.022,
+    "CAD": 0.66, "AUD": 0.60, "TRY": 0.026, "CNY": 0.13,
+    # Holiday and long-haul currencies a Revolut wallet actually ends up holding.
+    # Each one missing here is not a rounding error: to_eur returns 0.0 below, so
+    # the whole wallet reads as a 0 € balance and everything spent from it
+    # vanishes from the totals — money the user can see in their bank app and not
+    # in ours. Approximate is fine; absent is not.
+    "THB": 0.026, "AED": 0.25, "SGD": 0.68, "HKD": 0.118, "NZD": 0.55,
+    "ZAR": 0.050, "MXN": 0.050, "INR": 0.011, "ILS": 0.25, "EGP": 0.019,
+    "MAD": 0.092, "GEL": 0.34, "MDL": 0.052, "RSD": 0.0085, "ALL": 0.0099,
+    "BAM": 0.511, "MKD": 0.016, "KRW": 0.00068, "PHP": 0.016, "MYR": 0.20,
+    "IDR": 0.000057, "VND": 0.000036,
+    # 'XXX' = ISO "no currency": some banks (Swedbank) tag an account/amount with
+    # it though the money is real euros. Treat as EUR rather than zeroing it. The
+    # normalize layer already prefers a real currency where one exists.
+    "XXX": 1.0,
 }
+
+# Currencies already reported once this process lifetime — keeps a busy scan
+# from writing the same warning hundreds of times.
+_warned: set = set()
 
 
 def to_eur(value, currency):
-    """Convert ``value`` in ``currency`` to EUR. Unknown currency → passthrough."""
-    return value * _FX_TO_EUR.get((currency or "EUR").upper(), 1.0)
+    """Convert ``value`` in ``currency`` to EUR.
+
+    An unrecognised currency contributes **0**, not its face value. This used to
+    pass through at a rate of 1.0, so a ¥50 000 charge was added to the totals
+    as €50 000 — silently, with nothing in the logs. A missing row is a visible,
+    contained error; a number wrong by two orders of magnitude quietly corrupts
+    every total, budget and savings figure on the dashboard.
+
+    The warning names the currency so it can be added to the table above.
+    """
+    code = (currency or "EUR").upper()
+    rate = _FX_TO_EUR.get(code)
+    if rate is None:
+        if code not in _warned:
+            _warned.add(code)
+            logging.warning(
+                "fx: no rate for %r — amounts in it are counted as 0. "
+                "Add it to _FX_TO_EUR in fx.py.", code)
+        return 0.0
+    return value * rate

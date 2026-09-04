@@ -1,0 +1,477 @@
+<meta charset="utf-8">
+<title>Vaultie — onboarding page 3 (Planavimas · naujas biudžetas)</title>
+
+<!--
+  Rebuilt from lib/screens/preview/dashboard_preview.dart rather than from a
+  screenshot. The flow, the strings, the colours and the spacings are the ones
+  the app actually uses:
+
+    _PlanningTab (5717)      empty state, because initState sets _budgets = []
+    _addButton   (6136)      "Pridėti biudžetą"
+    _openAddSheet(6206)      showModalBottomSheet — NOT a pushed route
+    _AddBudgetSheet(6508)    "Naujas biudžetas" · chip Wrap · suggestion · save
+    onSave       (6604)      pops the sheet; the list rebuilds with the budget
+
+  Numbers continue page 2: Maistas, gėrimai spent 389,20 €. The real suggestion
+  rule (median x1.15, rounded up to a step of 25 under 500) gives exactly 450 €.
+  At day 27 of 31 the projection is 389,20/27*31 = 447 €, which is under the
+  limit, so the ring and the copy take the on-track green.
+-->
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root { --page:#EFF1F5; --ink:#101828; --muted:#667085; }
+  @media (prefers-color-scheme: dark) { :root { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; } }
+  :root[data-theme="dark"]  { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; }
+  :root[data-theme="light"] { --page:#EFF1F5; --ink:#101828; --muted:#667085; }
+
+  body { background:var(--page); color:var(--ink); padding:30px 20px 60px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1180px; margin:0 auto; }
+  header { display:flex; flex-direction:column; gap:7px; margin-bottom:26px; }
+  h1 { font-size:23px; font-weight:750; letter-spacing:-.02em; }
+  .lede { font-size:13.5px; line-height:1.55; color:var(--muted); max-width:82ch; }
+  .lede b { color:var(--ink); font-weight:650; }
+  .set { display:flex; gap:34px; flex-wrap:wrap; align-items:flex-start; }
+  figure { display:flex; flex-direction:column; gap:9px; margin:0; }
+  cap { font-size:12.5px; font-weight:750; }
+  .meta { font-size:11px; color:var(--muted); line-height:1.5; max-width:268px; }
+
+  /* ══ page frame — 1 unit = 1 logical pt of a 390pt phone ══ */
+  .p { position:relative; width:268px; aspect-ratio:390/844; border-radius:12.5%/5.8%; overflow:hidden;
+    container-type:inline-size; --px:0.2564cqw; background:#FBFDFF;
+    box-shadow:0 1px 2px rgba(16,24,40,.14), 0 16px 32px -12px rgba(16,24,40,.34); }
+  .ground { position:absolute; inset:0; background:#FBFDFF; }
+  .ground .blue { position:absolute; left:-12%; right:-12%; bottom:0; height:56%;
+    border-radius:50% 50% 0 0 / 14% 14% 0 0;
+    background:linear-gradient(168deg,#3E74FF 0%,#2F6BFF 42%,#1E4FD8 100%); }
+
+  .lay { position:absolute; inset:0; }
+  .slot { position:absolute; left:0; right:0; display:flex; justify-content:center; }
+  .slot .dev { flex:none; min-width:0; }
+  .foot { position:absolute; left:0; right:0; bottom:calc(26*var(--px)); z-index:3;
+    padding:0 calc(24*var(--px)); display:flex; flex-direction:column; gap:calc(14*var(--px)); }
+  .plain { text-align:center; }
+  .plain .h { font-size:calc(30*var(--px)); font-weight:800; line-height:1.15; color:#fff;
+    letter-spacing:calc(-.9*var(--px)); text-shadow:0 calc(2*var(--px)) calc(14*var(--px)) rgba(10,30,75,.45); }
+  .plain .h em { font-style:normal; color:#BFD6FF; }
+  .plain .b { margin-top:calc(10*var(--px)); font-size:calc(13.5*var(--px)); line-height:1.5;
+    font-weight:500; color:rgba(255,255,255,.92);
+    text-shadow:0 calc(1*var(--px)) calc(10*var(--px)) rgba(10,30,75,.45); }
+  .dots { display:flex; gap:calc(6*var(--px)); justify-content:center; }
+  .dots i { width:calc(6*var(--px)); height:calc(6*var(--px)); border-radius:50%;
+    background:rgba(255,255,255,.38); display:block; }
+  .dots i.on { width:calc(20*var(--px)); border-radius:calc(6*var(--px)); background:#fff; }
+  .cta { height:calc(54*var(--px)); border-radius:calc(16*var(--px)); background:#fff;
+    display:flex; align-items:center; justify-content:center; gap:calc(8*var(--px));
+    font-size:calc(16*var(--px)); font-weight:700; color:#1440B4;
+    box-shadow:0 calc(8*var(--px)) calc(18*var(--px)) rgba(10,34,96,.28); }
+  .cta svg { width:calc(17*var(--px)); height:calc(17*var(--px)); fill:#1440B4; }
+
+  /* ══ device ══ */
+  .dev { position:relative; aspect-ratio:390/844; container-type:inline-size;
+    padding:2.4cqw; border-radius:13.5cqw;
+    background:linear-gradient(135deg,#161619 0%,#0B0B0D 30%,#000 55%,#0E0E11 85%,#1A1A1E 100%);
+    box-shadow:0 6cqw 16cqw rgba(6,12,30,.42); }
+  /* app tokens, straight from the palette at dashboard_preview.dart:44 */
+  .scr { position:relative; width:100%; height:100%; border-radius:11.6cqw; overflow:hidden;
+    --p:0.2564cqw; --card:#FFFFFF; --soft:#EEF2F8; --hair:#E3E9F2; --psoft:#E4EDFD;
+    --ink:#14203A; --muted:#5C6A85; --faint:#7C879E; --purple:#2F6BFF; --good:#2FA34E;
+    background:#EEF1F7; }
+
+  .base { position:absolute; inset:0; padding:calc(30*var(--p)) 0 0; overflow:hidden; }
+  /* the two list states swap the instant the sheet has covered the change */
+  .st1 { animation:st1 12s steps(1,end) infinite; }
+  .st2 { animation:st2 12s steps(1,end) infinite; }
+  @keyframes st1 { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
+  @keyframes st2 { 0%,49% { opacity:0; } 50%,100% { opacity:1; } }
+  /* a plain list insertion, not a badge the app does not have */
+  .born { animation:born 12s cubic-bezier(.3,1.3,.5,1) infinite; }
+  @keyframes born {
+    0%,54%  { opacity:0; transform:translateY(calc(14*var(--p))); }
+    60%,100%{ opacity:1; transform:translateY(0); }
+  }
+
+  .scrim { position:absolute; inset:0; background:rgba(9,16,34,.42); opacity:0;
+    animation:scrim 12s cubic-bezier(.5,0,.4,1) infinite; }
+  @keyframes scrim { 0%,17% { opacity:0; } 23%,48% { opacity:1; } 54%,100% { opacity:0; } }
+
+  .sheet { position:absolute; left:0; right:0; bottom:0; background:var(--card);
+    border-radius:calc(22*var(--p)) calc(22*var(--p)) 0 0; overflow:hidden; z-index:5;
+    transform:translateY(100%); height:calc(300*var(--p));
+    animation:sheet 12s cubic-bezier(.5,0,.4,1) infinite; }
+  @keyframes sheet {
+    0%,17%   { transform:translateY(100%); height:calc(300*var(--p)); }
+    23%,33%  { transform:translateY(0);    height:calc(300*var(--p)); }
+    38%,48%  { transform:translateY(0);    height:calc(486*var(--p)); }
+    54%,100% { transform:translateY(100%); height:calc(486*var(--p)); }
+  }
+  .cchip.pick { animation:pick 12s steps(1,end) infinite; }
+  @keyframes pick {
+    0%,33%   { background:var(--card); border-color:var(--hair); color:var(--ink); }
+    34%,100% { background:var(--psoft); border-color:var(--purple); color:var(--purple); }
+  }
+  .limit { opacity:0; animation:limit 12s steps(1,end) infinite; }
+  @keyframes limit { 0%,35% { opacity:0; } 37%,100% { opacity:1; } }
+
+  .finger { position:absolute; z-index:9; width:calc(30*var(--p)); height:calc(30*var(--p));
+    border-radius:50%; background:radial-gradient(circle at 34% 30%, rgba(255,255,255,.94), rgba(255,255,255,.32) 46%, rgba(255,255,255,0) 70%);
+    border:calc(1.5*var(--p)) solid rgba(255,255,255,.8);
+    box-shadow:0 calc(3*var(--p)) calc(10*var(--p)) rgba(10,20,50,.34);
+    opacity:0; animation:finger 12s cubic-bezier(.5,0,.4,1) infinite; }
+  /* Positions measured from the rendered layout, not guessed: the add button
+     sits at (198,611), the chip at (109,474), Išsaugoti at (202,726). The
+     finger is 30pt, so each left/top is that centre minus 15. */
+  @keyframes finger {
+    0%       { opacity:0; left:calc(183*var(--p)); top:calc(636*var(--p)); transform:scale(1); }
+    8%       { opacity:1; left:calc(183*var(--p)); top:calc(596*var(--p)); transform:scale(1); }
+    16%      { opacity:1; left:calc(183*var(--p)); top:calc(596*var(--p)); transform:scale(1); }
+    18%      { opacity:1; left:calc(183*var(--p)); top:calc(596*var(--p)); transform:scale(.82); }
+    21%      { opacity:0; left:calc(183*var(--p)); top:calc(596*var(--p)); transform:scale(1); }
+    27%      { opacity:0; left:calc(94*var(--p));  top:calc(489*var(--p)); transform:scale(1); }
+    30%      { opacity:1; left:calc(94*var(--p));  top:calc(459*var(--p)); transform:scale(1); }
+    33%      { opacity:1; left:calc(94*var(--p));  top:calc(459*var(--p)); transform:scale(.82); }
+    37%      { opacity:1; left:calc(94*var(--p));  top:calc(459*var(--p)); transform:scale(1); }
+    41%      { opacity:0; left:calc(187*var(--p)); top:calc(741*var(--p)); transform:scale(1); }
+    44%      { opacity:1; left:calc(187*var(--p)); top:calc(711*var(--p)); transform:scale(1); }
+    48%      { opacity:1; left:calc(187*var(--p)); top:calc(711*var(--p)); transform:scale(.82); }
+    52%,100% { opacity:0; left:calc(187*var(--p)); top:calc(711*var(--p)); transform:scale(1); }
+  }
+  .pad { padding:0 calc(16*var(--p)); }
+
+  .ttl { font-size:calc(30*var(--p)); font-weight:800; color:var(--ink);
+    letter-spacing:calc(-.5*var(--p)); padding:calc(6*var(--p)) 0 calc(12*var(--p)); }
+  .mfilter { display:inline-flex; align-items:center; background:var(--card);
+    border:1px solid var(--hair); border-radius:calc(20*var(--p));
+    padding:calc(9*var(--p)) calc(13*var(--p)); }
+  .mfilter svg { width:calc(16*var(--p)); height:calc(16*var(--p)); fill:var(--purple); }
+  .mfilter b { font-size:calc(14*var(--p)); font-weight:600; color:var(--ink); margin:0 calc(4*var(--p)) 0 calc(7*var(--p)); }
+  .mfilter i { width:calc(18*var(--p)); height:calc(18*var(--p)); display:grid; place-items:center; }
+  .sect { font-size:calc(23*var(--p)); font-weight:800; color:var(--ink);
+    letter-spacing:calc(-.3*var(--p)); padding:calc(8*var(--p)) 0 calc(10*var(--p)); }
+
+  /* ── empty state (6155) ── */
+  .empty { background:var(--card); border:1px solid var(--hair); border-radius:calc(18*var(--p));
+    box-shadow:0 calc(1*var(--p)) calc(3*var(--p)) rgba(10,19,33,.10), 0 calc(6*var(--p)) calc(14*var(--p)) rgba(15,19,33,.10); }
+  .empty .t1 { padding:calc(18*var(--p)) calc(18*var(--p)) calc(16*var(--p));
+    font-size:calc(17*var(--p)); font-weight:800; color:var(--ink); line-height:1.25; }
+  .empty .t1 span { display:block; margin-top:calc(8*var(--p)); font-size:calc(14*var(--p));
+    font-weight:400; color:var(--muted); line-height:1.4; }
+  .empty .hr { height:1px; background:var(--hair); }
+  .empty .mid { padding:calc(22*var(--p)) calc(18*var(--p)); text-align:center; }
+  .empty .circ { width:calc(52*var(--p)); height:calc(52*var(--p)); border-radius:50%;
+    background:var(--psoft); display:grid; place-items:center; margin:0 auto calc(12*var(--p)); }
+  .empty .circ svg { width:calc(26*var(--p)); height:calc(26*var(--p)); fill:var(--purple); }
+  .empty .h3 { font-size:calc(16*var(--p)); font-weight:800; color:var(--ink); }
+  .empty .h4 { margin-top:calc(5*var(--p)); font-size:calc(13*var(--p)); color:var(--muted); line-height:1.4; }
+  .fillbtn { margin:0 calc(16*var(--p)) calc(16*var(--p)); background:var(--purple);
+    border-radius:calc(14*var(--p)); padding:calc(15*var(--p)); display:flex;
+    align-items:center; justify-content:center; gap:calc(9*var(--p));
+    font-size:calc(16*var(--p)); font-weight:700; color:#fff; }
+  .fillbtn svg { width:calc(22*var(--p)); height:calc(22*var(--p)); fill:#fff; }
+
+  /* ── filled state: banner, summary, row, outlined add (5929/5951/6019/6136) ── */
+  .banner { background:var(--card); border:1px solid var(--hair); border-radius:calc(16*var(--p));
+    padding:calc(14*var(--p)) calc(12*var(--p)) calc(16*var(--p)) calc(16*var(--p)); margin-bottom:calc(14*var(--p)); }
+  .banner .r { display:flex; align-items:flex-start; }
+  .banner .r b { font-size:calc(17*var(--p)); font-weight:800; color:var(--ink); line-height:1.25; }
+  .banner .r svg { margin-left:auto; width:calc(20*var(--p)); height:calc(20*var(--p)); fill:var(--faint); flex:none; }
+  .banner p { margin:calc(8*var(--p)) 0 0; font-size:calc(14*var(--p)); color:var(--muted); line-height:1.4; }
+
+  .sum { background:var(--card); border-radius:calc(16*var(--p));
+    padding:calc(16*var(--p)) calc(16*var(--p)) calc(14*var(--p));
+    box-shadow:0 calc(1*var(--p)) calc(3*var(--p)) rgba(10,19,33,.10), 0 calc(6*var(--p)) calc(14*var(--p)) rgba(15,19,33,.10);
+    margin-bottom:calc(12*var(--p)); }
+  .sum .top { display:flex; align-items:center; }
+  .sum .big { font-size:calc(21*var(--p)); font-weight:800; color:var(--ink); letter-spacing:calc(-.4*var(--p)); }
+  .sum .k { font-size:calc(13*var(--p)); color:var(--muted); margin-top:calc(1*var(--p)); }
+  .sum .rt { text-align:right; }
+  .ring { width:calc(62*var(--p)); height:calc(62*var(--p)); border-radius:50%; position:relative;
+    display:grid; place-items:center; flex:none;
+    background:conic-gradient(#EE7A3A 0 83%, #E7F0E8 83% 100%); }
+  .ring::after { content:''; position:absolute; inset:calc(6*var(--p)); border-radius:50%; background:var(--card); }
+  .ring span { position:relative; z-index:2; font-size:calc(14*var(--p)); font-weight:800; color:var(--ink); }
+  .proj { height:calc(118*var(--p)); margin-top:calc(16*var(--p)); position:relative; }
+  .proj svg { position:absolute; inset:0; width:100%; height:100%; }
+    .reveal { animation:reveal 4.5s cubic-bezier(.45,0,.5,1) infinite; }
+  @keyframes reveal { 0% { clip-path:inset(0 100% 0 0); } 55%,100% { clip-path:inset(0 29% 0 0); } }
+  .xs { display:flex; justify-content:space-between; margin-top:calc(6*var(--p));
+    font-size:calc(12*var(--p)); color:var(--muted); }
+  .note { margin-top:calc(8*var(--p)); font-size:calc(13.5*var(--p)); font-weight:600; color:#EE7A3A; }
+
+  .brow { background:var(--card); border:1px solid var(--hair); border-radius:calc(16*var(--p));
+    padding:calc(14*var(--p)); margin-bottom:calc(10*var(--p)); }
+  .brow .l1 { display:flex; align-items:center; }
+  .brow .ic { width:calc(40*var(--p)); height:calc(40*var(--p)); border-radius:50%;
+    display:grid; place-items:center; margin-right:calc(12*var(--p)); flex:none; }
+  .brow .ic svg { width:calc(21*var(--p)); height:calc(21*var(--p)); fill:#fff; }
+  .brow .n { font-size:calc(16.5*var(--p)); font-weight:700; color:var(--ink); white-space:nowrap; }
+  .brow .s { font-size:calc(11.5*var(--p)); color:var(--muted); margin-top:calc(2*var(--p)); }
+  .brow .lim { font-size:calc(16.5*var(--p)); font-weight:800; color:var(--ink);
+    margin-left:auto; white-space:nowrap; padding-left:calc(8*var(--p)); }
+  .brow .pen { width:calc(15*var(--p)); height:calc(15*var(--p)); fill:var(--faint); margin-left:calc(3*var(--p)); }
+  .brow .l2 { display:flex; margin-top:calc(10*var(--p)); font-size:calc(13.5*var(--p)); white-space:nowrap; }
+  .brow .l2 .a { color:var(--muted); }
+  .brow .l2 .b { margin-left:auto; font-weight:700; color:#EE7A3A; }
+  .brow .track { height:calc(9*var(--p)); border-radius:calc(6*var(--p)); margin-top:calc(8*var(--p));
+    background:rgba(238,122,58,.14); overflow:hidden; }
+  .brow .track i { display:block; height:100%; background:#EE7A3A; border-radius:calc(6*var(--p)); }
+
+  .outbtn { background:var(--card); border:1px solid var(--hair); border-radius:calc(16*var(--p));
+    padding:calc(16*var(--p)); display:flex; align-items:center; justify-content:center;
+    gap:calc(10*var(--p)); font-size:calc(16*var(--p)); font-weight:700; color:var(--purple); }
+  .outbtn svg { width:calc(22*var(--p)); height:calc(22*var(--p)); fill:var(--purple); }
+ 54%,100% { opacity:1; } }
+ 23%,50% { opacity:1; } 56%,100% { opacity:0; } }
+
+  .grab { width:calc(40*var(--p)); height:calc(4*var(--p)); border-radius:calc(3*var(--p));
+    background:var(--faint); margin:calc(10*var(--p)) auto 0; }
+  .shead { display:flex; align-items:center; padding:calc(14*var(--p)) calc(18*var(--p)) calc(6*var(--p)); }
+  .shead b { font-size:calc(20*var(--p)); font-weight:800; color:var(--ink); }
+  .shead svg { margin-left:auto; width:calc(20*var(--p)); height:calc(20*var(--p)); fill:var(--faint); }
+  .sbody { padding:calc(6*var(--p)) calc(18*var(--p)) calc(18*var(--p)); }
+  .lbl { font-size:calc(13.5*var(--p)); font-weight:600; color:var(--muted); }
+  .chips { display:flex; flex-wrap:wrap; gap:calc(9*var(--p)); margin-top:calc(10*var(--p)); }
+  .cchip { display:flex; align-items:center; gap:calc(7*var(--p)); background:var(--card);
+    border:1px solid var(--hair); border-radius:calc(12*var(--p));
+    padding:calc(9*var(--p)) calc(12*var(--p)); font-size:calc(14*var(--p)); font-weight:600; color:var(--ink); }
+  .cchip svg { width:calc(17*var(--p)); height:calc(17*var(--p)); } 39%,100% { opacity:1; } }
+  .limrow { display:flex; align-items:center; margin-top:calc(20*var(--p)); }
+  .sugg { margin-left:auto; background:var(--psoft); border-radius:calc(8*var(--p));
+    padding:calc(4*var(--p)) calc(8*var(--p)); font-size:calc(12*var(--p)); font-weight:700; color:var(--purple); }
+  .amount { display:flex; align-items:center; background:var(--soft); border:1px solid var(--hair);
+    border-radius:calc(12*var(--p)); padding:calc(13*var(--p)) calc(14*var(--p)); margin-top:calc(10*var(--p)); }
+  .amount b { font-size:calc(20*var(--p)); font-weight:800; color:var(--ink); }
+  .amount span { margin-left:auto; font-size:calc(20*var(--p)); font-weight:700; color:var(--muted); }
+  .save { margin-top:calc(22*var(--p)); background:var(--purple); border-radius:calc(14*var(--p));
+    padding:calc(16*var(--p)); text-align:center; font-size:calc(16.5*var(--p)); font-weight:800; color:#fff; }
+
+
+  .nav { position:absolute; left:0; right:0; bottom:0; height:calc(78*var(--p));
+    background:rgba(255,255,255,.94); border-top:1px solid var(--hair);
+    display:flex; align-items:flex-start; padding-top:calc(9*var(--p)); }
+  .ni { flex:1; display:flex; flex-direction:column; align-items:center; gap:calc(4*var(--p)); color:#97A2B5; }
+  .ni svg { width:calc(21*var(--p)); height:calc(21*var(--p)); fill:currentColor; }
+  .ni span { font-size:calc(10*var(--p)); font-weight:600; }
+  .ni.on { color:var(--purple); }
+
+  /* ══════ three presentations, none of them rotated ══════ */
+
+  /* A — upright, exactly like pages 1 and 2. The flow keeps its rhythm and the
+     difference between pages comes from what is on the screen. */
+  .vA .slot { top:calc(26*var(--px)); }
+  .vA .dev  { width:calc(268*var(--px)); height:calc(580*var(--px)); }
+
+  /* B — no device frame at all: the screen itself is the object. Nothing reads
+     as a mockup because there is no phone to look like one. */
+  .vB .slot { top:calc(30*var(--px)); }
+  .vB .dev  { width:calc(292*var(--px)); height:calc(566*var(--px));
+    padding:0; background:none; border-radius:calc(26*var(--px));
+    box-shadow:0 calc(18*var(--px)) calc(44*var(--px)) rgba(6,16,44,.34),
+               0 calc(2*var(--px)) calc(6*var(--px)) rgba(6,16,44,.16); }
+  .vB .scr  { border-radius:calc(26*var(--px)); }
+
+  /* C — frameless and running off the top edge, so it reads as a window onto a
+     screen rather than a picture of one. */
+  .vC .slot { top:calc(-46*var(--px)); }
+  .vC .dev  { width:calc(320*var(--px)); height:calc(650*var(--px));
+    padding:0; background:none; border-radius:0 0 calc(28*var(--px)) calc(28*var(--px));
+    box-shadow:0 calc(20*var(--px)) calc(46*var(--px)) rgba(6,16,44,.32); }
+  .vC .scr  { border-radius:0 0 calc(28*var(--px)) calc(28*var(--px)); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Onboarding, 3 puslapis — Planavimas · naujas biudžetas</h1>
+    <p class="lede">
+      Telefone: <b>Planavimo</b> dashboardas su Būsto biudžetu → pirštas spaudžia <b>„Pridėti biudžetą"</b> →
+      iš apačios pakyla lapas <b>„Naujas biudžetas"</b> su kategorijų čipsais → pasirinkus
+      <b>Maistas, gėrimai</b> čipsas nusidažo ir atsiranda <b>„siūlome 450 €"</b> → <b>„Išsaugoti"</b>
+      uždaro lapą, ir žemiau Būsto atsistoja naujas biudžetas, o suvestinė persiskaičiuoja iš
+      <b>742,50 € / 900 €</b> į <b>1 131,70 € / 1 350 €</b>. Viskas iš
+      <code>dashboard_preview.dart</code>; skaičiai tęsia 2 puslapį.
+    </p>
+  </header>
+  <div class="set" id="set"></div>
+</div>
+
+<template id="phone">
+  <div class="dev">
+    <div class="scr">
+
+      <div class="base st1"><div class="pad">
+          <div class="ttl">Planavimas</div>
+          <div class="mfilter">
+            <svg viewBox="0 0 24 24"><path d="M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2Zm12 7v10H5V9Z"/></svg>
+            <b>Šis mėnuo</b>
+            <i><svg viewBox="0 0 24 24" style="width:100%;height:100%;fill:#2F6BFF"><path d="m7 10 5 5 5-5Z"/></svg></i>
+          </div>
+          <div class="sect">Biudžetai</div>
+          <div class="sum">
+            <div class="top">
+              <div><div class="big">742,50 €</div><div class="k">išleista</div></div>
+              <div style="flex:1"></div>
+              <div class="ring" style="background:conic-gradient(#EE7A3A 0 83%, #E7F0E8 83% 100%)"><span>83%</span></div>
+              <div style="flex:1"></div>
+              <div class="rt"><div class="big">900,00 €</div><div class="k">visas biudžetas</div></div>
+            </div>
+            <div class="proj">
+              <svg viewBox="0 0 320 118" preserveAspectRatio="none">
+                <defs><linearGradient id="g54" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#EE7A3A" stop-opacity=".22"/>
+                  <stop offset="1" stop-color="#EE7A3A" stop-opacity=".02"/>
+                </linearGradient></defs>
+                <line x1="0" y1="34" x2="320" y2="34" stroke="#2FA34E" stroke-opacity=".55" stroke-width="1.4" stroke-dasharray="6 5"/>
+                <g class="reveal">
+                  <path d="M0 112 L38 105 L76 96 L114 88 L152 76 L190 66 L226 54 L226 118 L0 118Z" fill="url(#g54)"/>
+                  <path d="M0 112 L38 105 L76 96 L114 88 L152 76 L190 66 L226 54" fill="none"
+                        stroke="#EE7A3A" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+                </g>
+                <path d="M226 54 L320 10" fill="none" stroke="#7C879E" stroke-width="1.8" stroke-dasharray="5 4"/>
+                <circle cx="226" cy="54" r="4" fill="#EE7A3A" stroke="#fff" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="xs"><span>1</span><span>8</span><span>16</span><span>24</span></div>
+            <div class="note">Tokiu tempu peršoksi biudžetą ~146 € — sulėtink.</div>
+          </div><div class="brow">
+            <div class="l1">
+              <div class="ic" style="background:#98B00D"><svg viewBox="0 0 24 24"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5Z"/></svg></div>
+              <div>
+                <div class="n">Būstas, sąskaitos</div>
+                <div class="s">Pasiūlyta pagal tavo išlaidas · keisk</div>
+              </div>
+              <div class="lim">900,00 €</div>
+              <svg class="pen" viewBox="0 0 24 24"><path d="M3 17.2V21h3.8L17.8 10 14 6.2ZM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0L15 5.2 18.8 9Z"/></svg>
+            </div>
+            <div class="l2"><span class="a">742,50 € išleista</span><span class="b">157,50 € liko</span></div>
+            <div class="track"><i style="width:83%"></i></div>
+          </div><div class="outbtn"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6Z"/></svg>Pridėti biudžetą</div></div></div>
+      <div class="base st2"><div class="pad">
+          <div class="ttl">Planavimas</div>
+          <div class="mfilter">
+            <svg viewBox="0 0 24 24"><path d="M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2Zm12 7v10H5V9Z"/></svg>
+            <b>Šis mėnuo</b>
+            <i><svg viewBox="0 0 24 24" style="width:100%;height:100%;fill:#2F6BFF"><path d="m7 10 5 5 5-5Z"/></svg></i>
+          </div>
+          <div class="sect">Biudžetai</div>
+          <div class="sum">
+            <div class="top">
+              <div><div class="big">1 131,70 €</div><div class="k">išleista</div></div>
+              <div style="flex:1"></div>
+              <div class="ring" style="background:conic-gradient(#EE7A3A 0 84%, #E7F0E8 84% 100%)"><span>84%</span></div>
+              <div style="flex:1"></div>
+              <div class="rt"><div class="big">1 350,00 €</div><div class="k">visas biudžetas</div></div>
+            </div>
+            <div class="proj">
+              <svg viewBox="0 0 320 118" preserveAspectRatio="none">
+                <defs><linearGradient id="g48" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#EE7A3A" stop-opacity=".22"/>
+                  <stop offset="1" stop-color="#EE7A3A" stop-opacity=".02"/>
+                </linearGradient></defs>
+                <line x1="0" y1="34" x2="320" y2="34" stroke="#2FA34E" stroke-opacity=".55" stroke-width="1.4" stroke-dasharray="6 5"/>
+                <g class="reveal">
+                  <path d="M0 112 L38 105 L76 96 L114 88 L152 76 L190 66 L226 48 L226 118 L0 118Z" fill="url(#g48)"/>
+                  <path d="M0 112 L38 105 L76 96 L114 88 L152 76 L190 66 L226 48" fill="none"
+                        stroke="#EE7A3A" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+                </g>
+                <path d="M226 48 L320 6" fill="none" stroke="#7C879E" stroke-width="1.8" stroke-dasharray="5 4"/>
+                <circle cx="226" cy="48" r="4" fill="#EE7A3A" stroke="#fff" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="xs"><span>1</span><span>8</span><span>16</span><span>24</span></div>
+            <div class="note">Tokiu tempu peršoksi biudžetą ~245 € — sulėtink.</div>
+          </div><div class="brow">
+            <div class="l1">
+              <div class="ic" style="background:#98B00D"><svg viewBox="0 0 24 24"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5Z"/></svg></div>
+              <div>
+                <div class="n">Būstas, sąskaitos</div>
+                <div class="s">Pasiūlyta pagal tavo išlaidas · keisk</div>
+              </div>
+              <div class="lim">900,00 €</div>
+              <svg class="pen" viewBox="0 0 24 24"><path d="M3 17.2V21h3.8L17.8 10 14 6.2ZM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0L15 5.2 18.8 9Z"/></svg>
+            </div>
+            <div class="l2"><span class="a">742,50 € išleista</span><span class="b">157,50 € liko</span></div>
+            <div class="track"><i style="width:83%"></i></div>
+          </div><div class="brow born">
+            <div class="l1">
+              <div class="ic" style="background:#46AE4B"><svg viewBox="0 0 24 24"><path d="M7 2v8a3 3 0 0 0 2 2.8V22h2V12.8A3 3 0 0 0 13 10V2h-2v7H9V2Zm10 0c-1.7 0-3 2.7-3 6 0 2.4.9 4.3 2 5v9h2V2Z"/></svg></div>
+              <div>
+                <div class="n">Maistas, gėrimai</div>
+                <div class="s">Pasiūlyta pagal tavo išlaidas · keisk</div>
+              </div>
+              <div class="lim">450,00 €</div>
+              <svg class="pen" viewBox="0 0 24 24"><path d="M3 17.2V21h3.8L17.8 10 14 6.2ZM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0L15 5.2 18.8 9Z"/></svg>
+            </div>
+            <div class="l2"><span class="a">389,20 € išleista</span><span class="b">60,80 € liko</span></div>
+            <div class="track"><i style="width:86.5%"></i></div>
+          </div><div class="outbtn"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6Z"/></svg>Pridėti biudžetą</div></div></div>
+
+      <div class="scrim"></div>
+
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="shead"><b>Naujas biudžetas</b>
+          <svg viewBox="0 0 24 24"><path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7l1.4-1.4 6.3 6.3 6.3-6.3Z"/></svg>
+        </div>
+        <div class="sbody">
+          <div class="lbl">Kategorija</div>
+          <div class="chips">
+            <div class="cchip pick"><svg viewBox="0 0 24 24" fill="#46AE4B"><path d="M7 2v8a3 3 0 0 0 2 2.8V22h2V12.8A3 3 0 0 0 13 10V2h-2v7H9V2Zm10 0c-1.7 0-3 2.7-3 6 0 2.4.9 4.3 2 5v9h2V2Z"/></svg>Maistas, gėrimai</div>
+            <div class="cchip"><svg viewBox="0 0 24 24" fill="#5866F0"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11v8h-2v-2H7v2H5Zm2.2-.5h9.6l-1-3H8.2Z"/></svg>Transportas</div>
+            <div class="cchip"><svg viewBox="0 0 24 24" fill="#00897B"><path d="M6 7h12l1 13H5ZM9 7a3 3 0 0 1 6 0"/></svg>Apsipirkimas</div>
+            <div class="cchip"><svg viewBox="0 0 24 24" fill="#EE7A3A"><path d="M4 9h2v6H4Zm14 0h2v6h-2ZM7 7h2v10H7Zm8 0h2v10h-2Zm-5 4h4v2h-4Z"/></svg>Sveikata, sportas</div>
+            <div class="cchip"><svg viewBox="0 0 24 24" fill="#2E9BE6"><path d="m3 21 5-13 8 8Zm11-11 2-5 5 2-2 5Z"/></svg>Pramogos</div>
+          </div>
+          <div class="limit">
+            <div class="limrow">
+              <span class="lbl">Mėnesio limitas</span>
+              <span class="sugg">siūlome 450 €</span>
+            </div>
+            <div class="amount"><b>450</b><span>€</span></div>
+            <div class="save">Išsaugoti</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav">
+        <div class="ni"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3Zm10 0h8v5h-8ZM3 13h8v8H3Zm10-3h8v11h-8Z"/></svg><span>Pradžia</span></div>
+        <div class="ni"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9h-9Z" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Apžvalga</span></div>
+        <div class="ni"><svg viewBox="0 0 24 24"><path d="m12 2 2.2 5.8L20 10l-5.8 2.2L12 18l-2.2-5.8L4 10l5.8-2.2Z"/></svg><span>AI pokalbis</span></div>
+        <div class="ni on"><svg viewBox="0 0 24 24"><path d="M5 4h14a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm2 5h10v2H7Zm0 4h7v2H7Z"/></svg><span>Planavimas</span></div>
+        <div class="ni"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4 0-7 2-7 4.5V21h14v-2.5C19 16 16 14 12 14Z"/></svg><span>Paskyra</span></div>
+      </div>
+      <div class="finger"></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  const ARROW = '<svg viewBox="0 0 24 24"><path d="M4 11h12.2l-5.6-5.6L12 4l8 8-8 8-1.4-1.4 5.6-5.6H4Z"/></svg>';
+  const FOOT =
+    '<div class="dots"><i></i><i></i><i class="on"></i></div>' +
+    '<div class="plain"><div class="h">Susikurk biudžetą<br><em>ir laikykis jo</em></div>' +
+    '<div class="b">Limitą pasiūlysime pagal tavo<br>realų mėnesių vidurkį.</div></div>' +
+    '<div class="cta">Pradėti ' + ARROW + '</div>';
+
+  const VARIANTS = [
+    { id:'vA', cap:'A — tiesiai, kaip 1 ir 2 puslapiuose',
+      meta:'Toks pat telefonas kaip ankstesniuose puslapiuose. Trys ekranai iš eilės skaitosi kaip vienas srautas, o skirtumą neša turinys, ne pozicija. Nuobodžiausias ir saugiausias.' },
+    { id:'vB', cap:'B — be telefono rėmelio',
+      meta:'Rėmelio nėra — pats ekranas yra objektas, plaukiantis su šešėliu. Niekas neatrodo kaip mockup, nes nebėra telefono, kuris galėtų taip atrodyti. Ekranas platesnis, tad tekstas jame stambesnis.' },
+    { id:'vC', cap:'C — be rėmelio, išeina pro viršų',
+      meta:'Ekranas platesnis už puslapį ir nukirstas viršutiniu kraštu — skaitosi kaip langas į programėlę, ne kaip jos nuotrauka. Kaina: „Planavimas" antraštė lieka už kadro.' },
+  ];
+
+  const set = document.getElementById('set');
+  const tpl = document.getElementById('phone');
+  for (const v of VARIANTS) {
+    const fig = document.createElement('figure');
+    fig.innerHTML =
+      '<cap>' + v.cap + '</cap>' +
+      '<div class="p ' + v.id + '"><div class="ground"><div class="blue"></div></div>' +
+        '<div class="lay"><div class="slot"></div><div class="foot">' + FOOT + '</div></div></div>' +
+      '<div class="meta">' + v.meta + '</div>';
+    fig.querySelector('.slot').appendChild(tpl.content.cloneNode(true));
+    set.appendChild(fig);
+  }
+</script>

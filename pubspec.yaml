@@ -1,7 +1,7 @@
 name: vaultie
 description: "Vaultie — a friendly subscription tracker that keeps your recurring spend in one vault."
 publish_to: 'none'
-version: 2.0.0+12
+version: 2.0.0+43
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -17,6 +17,7 @@ dependencies:
   # Local persistence
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  flutter_secure_storage: ^10.3.1
   shared_preferences: ^2.2.0
 
   # Formatting & typography (intl is pinned by flutter_localizations)
@@ -26,6 +27,9 @@ dependencies:
   firebase_auth: ^6.5.4
   # Remote feature flags / kill-switch (e.g. banking on/off without an update)
   firebase_remote_config: ^6.0.0
+  # Crash + non-fatal error reporting. Without it a crash on someone's phone
+  # leaves no trace anywhere — the only signal is whether they bother to write in.
+  firebase_crashlytics: ^5.0.4
   google_sign_in: ^6.2.1
   flutter_local_notifications: ^22.0.1
   timezone: ^0.11.1
@@ -45,6 +49,8 @@ dependencies:
   # (Android) — intercepts the vaultie:// callback with no "Open in app?" prompt
   flutter_web_auth_2: ^4.1.0
   local_auth: ^3.0.2
+  image_picker: ^1.2.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -65,6 +71,12 @@ flutter_launcher_icons:
   ios: true
   remove_alpha_ios: true
   image_path: "assets/icon/app_icon.png"
+  # Without these, only the legacy square launcher icon was generated — no
+  # mipmap-anydpi-v26/ic_launcher.xml — and modern Android launchers (Pixel
+  # especially) fell back to a generic icon instead of ours on the home
+  # screen. Background matches app_icon.png's own baked-in blue exactly.
+  adaptive_icon_background: "#0142FB"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
 
 flutter:
   uses-material-design: true

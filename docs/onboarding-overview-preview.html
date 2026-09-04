@@ -1,0 +1,433 @@
+<meta charset="utf-8">
+<title>Vaultie — onboarding page 2 (Apžvalga → Santaupų norma)</title>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root { --page:#EFF1F5; --ink:#101828; --muted:#667085; --line:#E1E5EC; --brand:#2F6BFF; }
+  @media (prefers-color-scheme: dark) { :root { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; --line:#1D2637; --brand:#6E9BFF; } }
+  :root[data-theme="dark"]  { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; --line:#1D2637; --brand:#6E9BFF; }
+  :root[data-theme="light"] { --page:#EFF1F5; --ink:#101828; --muted:#667085; --line:#E1E5EC; --brand:#2F6BFF; }
+
+  body { background:var(--page); color:var(--ink); padding:30px 20px 60px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1180px; margin:0 auto; }
+  header { display:flex; flex-direction:column; gap:7px; margin-bottom:26px; }
+  h1 { font-size:23px; font-weight:750; letter-spacing:-.02em; }
+  .lede { font-size:13.5px; line-height:1.55; color:var(--muted); max-width:78ch; }
+  .lede b { color:var(--ink); font-weight:650; }
+
+  .set { display:flex; gap:34px; flex-wrap:wrap; align-items:flex-start; }
+  figure { display:flex; flex-direction:column; gap:9px; margin:0; }
+  cap { font-size:12.5px; font-weight:750; }
+  .meta { font-size:11px; color:var(--muted); line-height:1.5; max-width:268px; }
+
+  /* ══ the onboarding page frame ══ */
+  .p { position:relative; width:268px; aspect-ratio:390/844; border-radius:12.5%/5.8%; overflow:hidden;
+    container-type:inline-size; --px:0.2564cqw; background:#FBFDFF;
+    box-shadow:0 1px 2px rgba(16,24,40,.14), 0 16px 32px -12px rgba(16,24,40,.34); }
+
+  /* white above, blue below, parted by a shallow arc — same ground as page 1 */
+  .ground { position:absolute; inset:0; background:#FBFDFF; }
+  .ground .blue { position:absolute; left:-12%; right:-12%; bottom:0;
+    border-radius:50% 50% 0 0 / 14% 14% 0 0;
+    background:linear-gradient(168deg,#3E74FF 0%,#2F6BFF 42%,#1E4FD8 100%); }
+
+  /* ══ device ══ */
+  .dev { position:relative; aspect-ratio:390/844; container-type:inline-size;
+    padding:2.4cqw; border-radius:13.5cqw;
+    background:linear-gradient(135deg,#161619 0%,#0B0B0D 30%,#000 55%,#0E0E11 85%,#1A1A1E 100%);
+    box-shadow:0 6cqw 16cqw rgba(6,12,30,.4); }
+  .scr { position:relative; width:100%; height:100%; border-radius:11.6cqw; overflow:hidden;
+    --p:0.2564cqw; background:#EFF1F5; }
+
+  /* two screens side by side; the track slides to swap them */
+  .track { position:absolute; inset:0; width:200%; display:flex;
+    animation:swap 7s cubic-bezier(.66,0,.24,1) infinite; }
+  .pane { width:50%; height:100%; position:relative; overflow:hidden; }
+  @keyframes swap {
+    0%, 40%   { transform:translateX(0); }
+    52%, 92%  { transform:translateX(-50%); }
+    100%      { transform:translateX(0); }
+  }
+
+  /* the finger reaches the Santaupų norma row and taps just before the swap */
+  .finger { position:absolute; z-index:6; width:calc(30*var(--p)); height:calc(30*var(--p));
+    border-radius:50%; background:radial-gradient(circle at 34% 30%, rgba(255,255,255,.9), rgba(255,255,255,.28) 46%, rgba(255,255,255,0) 70%);
+    border:calc(1.5*var(--p)) solid rgba(255,255,255,.75);
+    box-shadow:0 calc(3*var(--p)) calc(10*var(--p)) rgba(10,20,50,.3);
+    left:calc(150*var(--p)); top:calc(452*var(--p)); opacity:0;
+    animation:tap 7s cubic-bezier(.66,0,.24,1) infinite; }
+  @keyframes tap {
+    0%       { opacity:0; transform:translate(calc(20*var(--p)), calc(30*var(--p))) scale(1); }
+    22%      { opacity:1; transform:translate(0,0) scale(1); }
+    38%      { opacity:1; transform:translate(0,0) scale(1); }
+    44%      { opacity:1; transform:translate(0,0) scale(.82); }
+    52%      { opacity:1; transform:translate(0,0) scale(1); }
+    62%,100% { opacity:0; transform:translate(0,0) scale(1); }
+  }
+  /* the row lights up under the finger at the moment of the tap */
+  .rowlit { animation:lit 7s cubic-bezier(.66,0,.24,1) infinite; }
+  @keyframes lit {
+    0%, 40%  { background:#FFFFFF; }
+    46%, 50% { background:#E6EEFF; }
+    56%,100% { background:#FFFFFF; }
+  }
+
+  /* ══ screen 1 — Apžvalga ══ */
+  .s1 { background:#EFF1F5; padding:calc(30*var(--p)) calc(16*var(--p)) 0; }
+  .t1 { display:flex; align-items:center; margin-top:calc(10*var(--p)); }
+  .t1 .h { font-size:calc(30*var(--p)); font-weight:800; color:#14203A; letter-spacing:calc(-.7*var(--p)); }
+  .t1 .ic { margin-left:calc(13*var(--p)); width:calc(20*var(--p)); height:calc(20*var(--p)); fill:#14203A; }
+  .t1 .sp { margin-left:auto; }
+
+  .chips { display:flex; gap:calc(9*var(--p)); margin-top:calc(13*var(--p)); }
+  .chip { display:flex; align-items:center; gap:calc(6*var(--p)); background:#fff;
+    border-radius:calc(11*var(--p)); padding:calc(8*var(--p)) calc(13*var(--p));
+    font-size:calc(12.5*var(--p)); font-weight:650; color:#14203A; }
+  .chip svg { width:calc(13*var(--p)); height:calc(13*var(--p)); fill:#2F6BFF; }
+
+  .rings { display:flex; gap:calc(12*var(--p)); margin-top:calc(15*var(--p)); }
+  .ring { flex:1; aspect-ratio:1; border-radius:50%; display:grid; place-items:center; position:relative; }
+  /* the spend ring is the category split; cumulative stops sum to 1 776,00 € */
+  .ring.out { background:conic-gradient(
+      #A9BE3F 0 41.8%, #4E9A51 41.8% 63.7%, #C8544A 63.7% 75.8%,
+      #3D6BE5 75.8% 85.3%, #5BA9DE 85.3% 92.7%, #6E7687 92.7% 100%); }
+  .ring.inc { background:conic-gradient(#6E7687 0 100%); }
+  .ring::after { content:''; position:absolute; inset:calc(13*var(--p)); border-radius:50%; background:#EFF1F5; }
+  .ring .lab { position:relative; z-index:2; text-align:center; }
+  .ring .sgn { font-size:calc(14*var(--p)); color:#5C6A85; font-weight:600; line-height:1; }
+  .ring .val { font-size:calc(21*var(--p)); font-weight:800; color:#14203A; line-height:1.25;
+    font-variant-numeric:tabular-nums; }
+  .ring .cap { font-size:calc(11.5*var(--p)); color:#5C6A85; font-weight:600; }
+
+  .row { background:#fff; border-radius:calc(13*var(--p)); padding:calc(12*var(--p)) calc(14*var(--p));
+    display:flex; align-items:center; margin-top:calc(10*var(--p)); }
+  .row .k { font-size:calc(14*var(--p)); font-weight:700; color:#14203A; }
+  .row .v { margin-left:auto; font-size:calc(13.5*var(--p)); font-weight:750; color:#14203A;
+    font-variant-numeric:tabular-nums; }
+  .badge { display:flex; align-items:center; gap:calc(4*var(--p)); background:#E6EEFF;
+    border-radius:calc(9*var(--p)); padding:calc(5*var(--p)) calc(9*var(--p));
+    font-size:calc(12*var(--p)); font-weight:750; color:#2F6BFF; margin-right:calc(10*var(--p)); }
+  .badge svg { width:calc(11*var(--p)); height:calc(11*var(--p)); fill:#2F6BFF; }
+  .chev { margin-left:calc(8*var(--p)); width:calc(11*var(--p)); height:calc(11*var(--p)); fill:#9AA6BC; }
+
+  .kh { display:flex; margin-top:calc(13*var(--p)); padding:0 calc(3*var(--p));
+    font-size:calc(12*var(--p)); color:#5C6A85; font-weight:600; }
+  .kh .r { margin-left:auto; color:#2F6BFF; font-weight:700; }
+  .cats { background:#fff; border-radius:calc(13*var(--p)); margin-top:calc(7*var(--p)); padding:0 calc(13*var(--p)); }
+  .cat { display:flex; align-items:center; padding:calc(11*var(--p)) 0; }
+  .cat + .cat { border-top:calc(1*var(--p)) solid #EDEFF4; }
+  .cat .dot { width:calc(28*var(--p)); height:calc(28*var(--p)); border-radius:50%;
+    margin-right:calc(11*var(--p)); flex:none; display:grid; place-items:center; }
+  .cat .dot svg { width:calc(15*var(--p)); height:calc(15*var(--p)); fill:#fff; }
+  .cat .n { font-size:calc(13.5*var(--p)); font-weight:700; color:#14203A; }
+  .cat .a { margin-left:auto; font-size:calc(13*var(--p)); font-weight:700; color:#14203A;
+    font-variant-numeric:tabular-nums; }
+
+  /* ══ screen 2 — Santaupų norma ══ */
+  .s2 { background:#EFF1F5; padding:calc(30*var(--p)) calc(16*var(--p)) 0; }
+  .t2 { display:flex; align-items:center; gap:calc(11*var(--p)); margin-top:calc(12*var(--p)); }
+  .t2 svg { width:calc(17*var(--p)); height:calc(17*var(--p)); fill:#14203A; }
+  .t2 .h { font-size:calc(23*var(--p)); font-weight:800; color:#14203A; letter-spacing:calc(-.5*var(--p)); }
+
+  .info { background:#E3ECFF; border-radius:calc(14*var(--p)); padding:calc(13*var(--p));
+    margin-top:calc(14*var(--p)); }
+  .info .ti { display:flex; align-items:center; gap:calc(8*var(--p));
+    font-size:calc(14*var(--p)); font-weight:800; color:#14203A; }
+  .info .ti svg { width:calc(16*var(--p)); height:calc(16*var(--p)); fill:#2F6BFF; }
+  .info p { margin:calc(9*var(--p)) 0 0; font-size:calc(12*var(--p)); line-height:1.5; color:#2A3854; }
+  .pill { background:#fff; border-radius:calc(10*var(--p)); padding:calc(9*var(--p)) calc(12*var(--p));
+    margin-top:calc(10*var(--p)); font-size:calc(12.5*var(--p)); font-weight:750; color:#2F6BFF; text-align:center; }
+
+  .norm { background:#fff; border-radius:calc(14*var(--p)); padding:calc(14*var(--p));
+    margin-top:calc(11*var(--p)); display:flex; align-items:flex-start; }
+  .norm .l .k { font-size:calc(12*var(--p)); color:#5C6A85; font-weight:600; }
+  .norm .l .row2 { display:flex; align-items:center; gap:calc(8*var(--p)); margin:calc(5*var(--p)) 0 calc(11*var(--p)); }
+  .norm .l .ib { width:calc(24*var(--p)); height:calc(24*var(--p)); border-radius:50%; background:#2F6BFF;
+    display:grid; place-items:center; }
+  .norm .l .ib svg { width:calc(13*var(--p)); height:calc(13*var(--p)); fill:#fff; }
+  .norm .l .m { font-size:calc(15*var(--p)); font-weight:800; color:#14203A; font-variant-numeric:tabular-nums; }
+  .norm .r { margin-left:auto; text-align:right; }
+  .norm .r .k { font-size:calc(13*var(--p)); font-weight:800; color:#14203A; }
+  .norm .r .big { font-size:calc(33*var(--p)); font-weight:850; color:#2F6BFF; line-height:1.1;
+    margin-top:calc(3*var(--p)); font-variant-numeric:tabular-nums; }
+  .norm .r .s { font-size:calc(11*var(--p)); color:#5C6A85; font-weight:600; }
+
+  .sect { font-size:calc(12*var(--p)); color:#5C6A85; font-weight:650; margin:calc(13*var(--p)) 0 calc(7*var(--p)) calc(3*var(--p)); }
+
+  .club { background:#fff; border-radius:calc(14*var(--p)); padding:calc(13*var(--p));
+    display:flex; align-items:center; }
+  .club .n { font-size:calc(15*var(--p)); font-weight:800; color:#14203A; }
+  .club .sub { font-size:calc(11.5*var(--p)); color:#5C6A85; font-weight:600; margin-top:calc(4*var(--p)); }
+  .club .disc { margin-left:auto; width:calc(58*var(--p)); height:calc(58*var(--p)); border-radius:50%;
+    background:#2F6BFF; display:grid; place-items:center; text-align:center; flex:none; }
+  .club .disc .v { font-size:calc(20*var(--p)); font-weight:850; color:#fff; line-height:1; }
+  .club .disc .u { font-size:calc(9*var(--p)); font-weight:700; color:#DCE7FF; }
+
+  /* bars: heights are explicit, scaled off the 29 % peak — no layout measuring */
+  .bars { background:#fff; border-radius:calc(14*var(--p)); padding:calc(14*var(--p)) calc(12*var(--p));
+    display:flex; align-items:flex-end; gap:calc(6*var(--p)); }
+  .bar { flex:1; display:flex; flex-direction:column; align-items:center; gap:calc(5*var(--p)); }
+  .bar .pv { font-size:calc(10.5*var(--p)); font-weight:750; color:#14203A; }
+  .bar .st { width:calc(15*var(--p)); border-radius:calc(5*var(--p)); background:#2F6BFF; }
+  .bar .mo { font-size:calc(10*var(--p)); color:#5C6A85; font-weight:600; }
+  .bar.on .st { background:#1E4FD8; }
+  .bar.on .pv { color:#2F6BFF; }
+
+  /* ══ the copy card (carried over from page 1) ══ */
+  .card { border-radius:calc(22*var(--px)); padding:calc(17*var(--px)) calc(16*var(--px));
+    background:linear-gradient(168deg,#232327 0%,#0E0E11 42%,#050506 100%);
+    border:1px solid rgba(255,255,255,.14); position:relative; overflow:hidden;
+    box-shadow:0 calc(12*var(--px)) calc(30*var(--px)) rgba(4,10,30,.42); text-align:center; }
+  .card::before { content:''; position:absolute; left:0; right:0; top:0; height:40%;
+    background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0)); }
+  .card .h { font-size:calc(28*var(--px)); font-weight:800; line-height:1.16;
+    letter-spacing:calc(-.9*var(--px)); color:#fff; }
+  .card .h em { font-style:normal; color:#BFD6FF; }
+  .card .b { margin-top:calc(11*var(--px)); font-size:calc(13*var(--px)); line-height:1.5;
+    font-weight:500; color:rgba(255,255,255,.86); }
+
+  .dots { display:flex; gap:calc(6*var(--px)); justify-content:center; }
+  .dots i { width:calc(6*var(--px)); height:calc(6*var(--px)); border-radius:50%;
+    background:rgba(255,255,255,.38); display:block; }
+  .dots i.on { width:calc(20*var(--px)); border-radius:calc(6*var(--px)); background:#fff; }
+  .cta { height:calc(54*var(--px)); border-radius:calc(16*var(--px)); background:#fff;
+    display:flex; align-items:center; justify-content:center; gap:calc(8*var(--px));
+    font-size:calc(16*var(--px)); font-weight:700; color:#1440B4;
+    box-shadow:0 calc(8*var(--px)) calc(18*var(--px)) rgba(10,34,96,.28); }
+  .cta svg { width:calc(17*var(--px)); height:calc(17*var(--px)); fill:#1440B4; }
+
+  /* ══════ layout ══════
+     Every variant is absolutely positioned: the device gets a named top offset
+     and a named height, the foot is pinned to the bottom. Nothing is negotiated
+     by flex, so what covers what is a decision rather than a leftover of DOM
+     order — which is exactly what went wrong in the first draft. Maps to a
+     Flutter Stack with Positioned children one for one. */
+  .lay { position:absolute; inset:0; }
+  .slot { position:absolute; left:0; right:0; display:flex; justify-content:center; }
+  /* width AND height are named. With only a height, the device stays as wide as
+     its content wants — the screen is 390pt of dashboard — and flex cannot
+     shrink it past that. Naming both removes the negotiation entirely. */
+  .slot .dev { flex:none; min-width:0; }
+  .foot { position:absolute; left:0; right:0; bottom:calc(26*var(--px)); z-index:3;
+    padding:0 calc(24*var(--px)); display:flex; flex-direction:column; gap:calc(14*var(--px)); }
+
+  /* ══ E — the honest budget: 470pt of phone, nothing overlaps anything ══ */
+  .vE .blue { height:50%; }
+  .vE .slot { top:calc(40*var(--px)); }
+  .vE .dev  { height:calc(500*var(--px)); width:calc(231*var(--px)); }
+
+  /* ══ F — big phone, and the card lies over its lower edge on purpose ══ */
+  .vF .blue { height:63%; }
+  .vF .slot { top:calc(30*var(--px)); }
+  .vF .dev  { height:calc(660*var(--px)); width:calc(305*var(--px)); }
+  /* an upward shadow so the card reads as lying on top, not colliding */
+  .vF .card { box-shadow:0 calc(-6*var(--px)) calc(34*var(--px)) rgba(4,10,30,.5),
+                         0 calc(12*var(--px)) calc(30*var(--px)) rgba(4,10,30,.42); }
+
+  /* ══ G — no black card at all; the copy sits straight on the blue ══ */
+  .vG .blue { height:56%; }
+  .vG .slot { top:calc(30*var(--px)); }
+  /* shorter than F on purpose: with no card behind it, the copy would otherwise
+     land on the phone's white screen and become unreadable */
+  .vG .dev  { height:calc(580*var(--px)); width:calc(268*var(--px)); }
+  .plain { text-align:center; }
+  .plain .h { font-size:calc(27*var(--px)); font-weight:800; line-height:1.16; color:#fff;
+    letter-spacing:calc(-.9*var(--px)); text-shadow:0 calc(2*var(--px)) calc(14*var(--px)) rgba(4,12,40,.5); }
+  .plain .h em { font-style:normal; color:#BFD6FF; }
+  .plain .b { margin-top:calc(9*var(--px)); font-size:calc(13*var(--px)); line-height:1.5;
+    font-weight:500; color:rgba(255,255,255,.92);
+    text-shadow:0 calc(1*var(--px)) calc(10*var(--px)) rgba(4,12,40,.45); }
+
+  /* ══ H — two small phones: before and after, side by side ══ */
+  .vH .blue { height:50%; }
+  .vH .slot { top:calc(60*var(--px)); gap:calc(12*var(--px)); }
+  /* flat, not tilted: a 4° rotation grows the bounding box by ~27pt a side, and
+     two tilted phones came to 434pt inside a 390pt frame */
+  .vH .dev  { height:calc(380*var(--px)); width:calc(176*var(--px)); }
+  /* frozen: the left phone holds Apžvalga, the right one the norm screen */
+  .vH .track  { animation:none; }
+  .vH .finger { animation:none; opacity:0; }
+  .vH .rowlit { animation:none; background:#E6EEFF; }
+  .vH .dev:last-child .track { transform:translateX(-50%); }
+  .vH .arrow { position:absolute; z-index:4; left:50%; top:calc(250*var(--px));
+    transform:translate(-50%,-50%); width:calc(30*var(--px)); height:calc(30*var(--px));
+    border-radius:50%; background:#fff; display:grid; place-items:center;
+    box-shadow:0 calc(4*var(--px)) calc(12*var(--px)) rgba(6,16,44,.3); }
+  .vH .arrow svg { width:calc(15*var(--px)); height:calc(15*var(--px)); fill:#2F6BFF; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Onboarding, 2 puslapis — Apžvalga atsidaro į Santaupų normą</h1>
+    <p class="lede">
+      Telefone sukasi ta pati scena: <b>Apžvalgos</b> dashboardas, pirštas bakstelėja „Santaupų norma“ eilutę,
+      ir ekranas nuslenka į <b>Santaupų normos</b> statistiką. Skiriasi tik tai, <b>kaip telefonas pateiktas</b> —
+      keturi variantai. Skaičiai išvesti iš dalių: liepos pajamos 2 400,00 €, išlaidos 1 776,00 €
+      (kategorijų suma), tad norma 624 ÷ 2400 = <b>26 %</b>.
+    </p>
+  </header>
+
+  <div class="set" id="set"></div>
+</div>
+
+<template id="phone">
+  <div class="dev">
+    <div class="scr">
+      <div class="track">
+
+        <!-- ── pane 1: Apžvalga ── -->
+        <div class="pane s1">
+          <div class="t1">
+            <div class="h">Apžvalga</div>
+            <div class="sp"></div>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 5c-5 0-9 4.5-9 7s4 7 9 7 9-4.5 9-7-4-7-9-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/></svg>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M10 3a7 7 0 1 0 4.2 12.6l4.1 4.1 1.4-1.4-4.1-4.1A7 7 0 0 0 10 3Zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></svg>
+          </div>
+
+          <div class="chips">
+            <div class="chip"><svg viewBox="0 0 24 24"><path d="M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2Zm12 7v10H5V9Z"/></svg>Šis mėnuo</div>
+            <div class="chip"><svg viewBox="0 0 24 24"><path d="M4 6h10v2H4Zm12 0h4v2h-4ZM4 11h4v2H4Zm6 0h10v2H10ZM4 16h10v2H4Zm12 0h4v2h-4Z"/></svg>Filtras</div>
+          </div>
+
+          <div class="rings">
+            <div class="ring out"><div class="lab">
+              <div class="sgn">−</div><div class="val">1 776 €</div><div class="cap">Išleista</div>
+            </div></div>
+            <div class="ring inc"><div class="lab">
+              <div class="sgn">+</div><div class="val">2 400 €</div><div class="cap">Gauta</div>
+            </div></div>
+          </div>
+
+          <div class="row"><div class="k">Liepos suma</div><div class="v">−1 776,00 €</div></div>
+
+          <div class="row rowlit">
+            <div class="badge"><svg viewBox="0 0 24 24"><path d="M12 2 9 8H3l4.5 4.5L6 20l6-3.5L18 20l-1.5-7.5L21 8h-6Z"/></svg>26 %</div>
+            <div class="k">Santaupų norma</div>
+            <div class="v">624,00 €</div>
+            <svg class="chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7-1.4-1.4L13.2 12 7.6 6.4Z"/></svg>
+          </div>
+
+          <div class="kh"><span>Kategorija</span><span class="r">Suma</span></div>
+          <div class="cats">
+            <div class="cat"><i class="dot" style="background:#A9BE3F"><svg viewBox="0 0 24 24"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5Z"/></svg></i><div class="n">Būstas, sąskaitos</div><div class="a">−742,50 €</div></div>
+            <div class="cat"><i class="dot" style="background:#4E9A51"><svg viewBox="0 0 24 24"><path d="M7 2v8a3 3 0 0 0 2 2.8V22h2V12.8A3 3 0 0 0 13 10V2h-2v7H9V2Zm10 0c-1.7 0-3 2.7-3 6 0 2.4.9 4.3 2 5v9h2V2Z"/></svg></i><div class="n">Maistas, gėrimai</div><div class="a">−389,20 €</div></div>
+            <div class="cat"><i class="dot" style="background:#C8544A"><svg viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11v8h-2v-2H7v2H5Zm2.2-.5h9.6l-1-3H8.2ZM7.5 15a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Zm9 0a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg></i><div class="n">Transportas</div><div class="a">−214,80 €</div></div>
+            <div class="cat"><i class="dot" style="background:#3D6BE5"><svg viewBox="0 0 24 24"><path d="M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm6 3.5v9l7-4.5Z"/></svg></i><div class="n">Pramogos</div><div class="a">−168,40 €</div></div>
+          </div>
+        </div>
+
+        <!-- ── pane 2: Santaupų norma ── -->
+        <div class="pane s2">
+          <div class="t2">
+            <svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7 1.4-1.4L10.8 12l5.6-5.6Z"/></svg>
+            <div class="h">Santaupų norma</div>
+          </div>
+
+          <div class="info">
+            <div class="ti">
+              <svg viewBox="0 0 24 24"><path d="M18 8c-.6-2.3-3.1-4-6-4-3.3 0-6 2.2-6 5 0 1.3.6 2.5 1.6 3.4L7 16h3l.4-1.2c.5.1 1 .2 1.6.2s1.1-.1 1.6-.2L14 16h3l-.6-3.6C17.4 11.5 18 10.3 18 9v-.4l2 .6V8Zm-8 1a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+              Kas tai?
+            </div>
+            <p>Santaupų norma rodo, kokią dalį gautų pajamų per mėnesį NEišleidai.</p>
+            <div class="pill">(pajamos − išlaidos) ÷ pajamos</div>
+            <p>Liepą gavai 2 400 €, išleidai 1 776 € → norma 26 %. Kuo didesnė, tuo daugiau atsidedi. Neblogas tikslas — 20 % ar daugiau.</p>
+          </div>
+
+          <div class="norm">
+            <div class="l">
+              <div class="k">Liepos pajamos</div>
+              <div class="row2">
+                <div class="ib"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6Z"/></svg></div>
+                <div class="m">2 400,00 €</div>
+              </div>
+              <div class="k">Liepos santaupos</div>
+              <div class="row2" style="margin-bottom:0">
+                <div class="ib"><svg viewBox="0 0 24 24"><path d="M18 8c-.6-2.3-3.1-4-6-4-3.3 0-6 2.2-6 5 0 1.3.6 2.5 1.6 3.4L7 16h3l.4-1.2c.5.1 1 .2 1.6.2s1.1-.1 1.6-.2L14 16h3l-.6-3.6C17.4 11.5 18 10.3 18 9v-.4l2 .6V8Z"/></svg></div>
+                <div class="m">624,00 €</div>
+              </div>
+            </div>
+            <div class="r">
+              <div class="k">Santaupų norma</div>
+              <div class="big">26 %</div>
+              <div class="s">santaupos / pajamos</div>
+            </div>
+          </div>
+
+          <div class="sect">Praėjusio mėn. statusas</div>
+          <div class="club">
+            <div>
+              <div class="n">Birželio santaupų klubas</div>
+              <div class="sub">21 % — virš 20 % tikslo</div>
+            </div>
+            <div class="disc"><div><div class="v">21</div><div class="u">% klubas</div></div></div>
+          </div>
+
+          <div class="sect">Paskutinių 6 mėn. normos · vidurkis 21,3 %</div>
+          <div class="bars">
+            <div class="bar"><div class="pv">18 %</div><i class="st" style="height:calc(57*var(--p))"></i><div class="mo">Vas</div></div>
+            <div class="bar"><div class="pv">22 %</div><i class="st" style="height:calc(70*var(--p))"></i><div class="mo">Kov</div></div>
+            <div class="bar"><div class="pv">12 %</div><i class="st" style="height:calc(38*var(--p))"></i><div class="mo">Bal</div></div>
+            <div class="bar"><div class="pv">29 %</div><i class="st" style="height:calc(92*var(--p))"></i><div class="mo">Geg</div></div>
+            <div class="bar"><div class="pv">21 %</div><i class="st" style="height:calc(67*var(--p))"></i><div class="mo">Bir</div></div>
+            <div class="bar on"><div class="pv">26 %</div><i class="st" style="height:calc(82*var(--p))"></i><div class="mo">Lie</div></div>
+          </div>
+        </div>
+
+      </div>
+      <div class="finger"></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  // Two lines of headline and two of body, not three and three. The copy is
+  // part of the space budget: every extra line comes straight out of the phone.
+  const COPY = {
+    h: 'Kiek iš tikrųjų<br><em>atsidedi</em>',
+    b: 'Iš pajamų ir išlaidų — tavo<br>santaupų norma kas mėnesį.'
+  };
+
+  const ARROW = '<svg viewBox="0 0 24 24"><path d="M4 11h12.2l-5.6-5.6L12 4l8 8-8 8-1.4-1.4 5.6-5.6H4Z"/></svg>';
+  const DOTS  = '<div class="dots"><i></i><i class="on"></i><i></i></div>';
+  const CTA   = '<div class="cta">Toliau ' + ARROW + '</div>';
+  const CARD  = '<div class="card"><div class="h">' + COPY.h + '</div><div class="b">' + COPY.b + '</div></div>';
+  const PLAIN = '<div class="plain"><div class="h">' + COPY.h + '</div><div class="b">' + COPY.b + '</div></div>';
+
+  const VARIANTS = [
+    { id:'vE', n:1, foot:DOTS+CARD+CTA, cap:'E — sąžiningas biudžetas',
+      meta:'Telefonas 500pt, kortelė apačioje, tarp jų 58pt oro. Niekas nieko nedengia. Kaina — telefonas mažiausias iš visų, tad statistika smulkiausia.' },
+
+    { id:'vF', n:1, foot:DOTS+CARD+CTA, cap:'F — kortelė guli ant telefono',
+      meta:'Telefonas 660pt, apatiniai 92pt sąmoningai lenda už kortelės, o kortelė meta šešėlį į viršų, kad skaitytųsi kaip sluoksnis, ne kaip susidūrimas. Ekranas didžiausias iš visų.' },
+
+    { id:'vG', n:1, foot:DOTS+PLAIN+CTA, cap:'G — be juodos kortelės',
+      meta:'Kortelės nėra, tekstas guli tiesiai ant mėlyno su švelniu šešėliu. Telefonas 580pt ir nieko nedengia. Kaina — tekstas nebeturi savo lauko, o 2 puslapis nustoja rimuotis su 1-u.' },
+
+    { id:'vH', n:2, foot:DOTS+CARD+CTA, cap:'H — du telefonai: prieš ir po',
+      extra:'<div class="arrow">'+ARROW+'</div>',
+      meta:'Kairėje Apžvalga su pažymėta eilute, dešinėje — normos ekranas, tarp jų rodyklė. Perėjimas matomas be animacijos. Kaina — abu telefonai po 380pt, tad tekstas juose vos įskaitomas.' },
+  ];
+
+  const set = document.getElementById('set');
+  const tpl = document.getElementById('phone');
+
+  for (const v of VARIANTS) {
+    const fig = document.createElement('figure');
+    fig.innerHTML =
+      '<cap>' + v.cap + '</cap>' +
+      '<div class="p ' + v.id + '">' +
+        '<div class="ground"><div class="blue"></div></div>' +
+        '<div class="lay">' +
+          '<div class="slot"></div>' + (v.extra || '') +
+          '<div class="foot">' + v.foot + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="meta">' + v.meta + '</div>';
+
+    const slot = fig.querySelector('.slot');
+    for (let i = 0; i < v.n; i++) slot.appendChild(tpl.content.cloneNode(true));
+
+    set.appendChild(fig);
+  }
+</script>

@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie · puslapis prieš banko prijungimą</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --deep:#030E30; --rule:#5B8CFF; --btn-ink:#1846E6;
+  --chk:#9EC0FF; --page:#E7EBF3; --ink:#0E1526; --sub:#3A4152;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1450px;margin:0 auto;padding:52px 28px 90px}
+h1.pt{font-size:29px;font-weight:800;letter-spacing:-1px;margin:0 0 8px}
+p.pl{font-size:15.5px;color:var(--sub);max-width:720px;margin:0;line-height:1.65}
+p.pl b{color:var(--ink);font-weight:650}
+
+.row{display:flex;gap:56px;flex-wrap:wrap;justify-content:center;margin-top:48px}
+.col{width:390px}
+.cap{margin-top:22px}
+.cap .n{font-size:11px;font-weight:800;letter-spacing:.14em;color:var(--btn-ink);text-transform:uppercase}
+.cap h3{font-size:19px;font-weight:800;letter-spacing:-.4px;margin:5px 0 7px}
+.cap p{font-size:13.5px;color:var(--sub);line-height:1.6;margin:0 0 8px}
+.cap p b{color:var(--ink);font-weight:650}
+
+/* ── device ─────────────────────────────────────────── */
+.device{width:390px;height:844px;border-radius:52px;background:#0B0D12;padding:11px;
+  box-shadow:0 40px 80px -30px rgba(16,24,40,.55),0 6px 18px rgba(16,24,40,.14);position:relative}
+.screen{width:100%;height:100%;border-radius:42px;overflow:hidden;position:relative;
+  background:var(--deep);display:flex;flex-direction:column;color:#fff}
+/* the same faint glow the renders leave behind, so the page isn't a flat slab */
+.screen:before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(120% 60% at 50% -8%, rgba(47,107,255,.30), transparent 60%),
+    radial-gradient(80% 40% at 12% 34%, rgba(91,140,255,.12), transparent 70%)}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:118px;height:33px;
+  background:#000;border-radius:20px;z-index:60}
+.sbar{height:56px;flex:0 0 auto;display:flex;align-items:flex-end;justify-content:space-between;
+  padding:0 30px 6px;font-size:15px;font-weight:650;position:relative;z-index:50}
+.bars{display:inline-flex;align-items:flex-end;gap:2px;height:11px;vertical-align:-1px}
+.bars i{width:3px;background:#fff;border-radius:1px;display:block}
+.bars i:nth-child(1){height:4px}.bars i:nth-child(2){height:6px}
+.bars i:nth-child(3){height:8.5px}.bars i:nth-child(4){height:11px}
+.batt{display:inline-block;width:25px;height:12px;border:1.4px solid rgba(255,255,255,.5);
+  border-radius:4px;padding:1.6px;vertical-align:-2px}
+.batt i{display:block;height:100%;width:76%;background:#fff;border-radius:2px}
+
+.body{flex:1;position:relative;z-index:10;display:flex;flex-direction:column;
+  padding:8px 28px 26px}
+.rule{width:34px;height:3px;background:var(--rule);border-radius:2px}
+.h1{font-size:30px;font-weight:800;line-height:1.12;letter-spacing:-.9px;margin:13px 0 0}
+.sub{font-size:14.5px;line-height:1.5;color:rgba(255,255,255,.92);margin:11px 0 0}
+.cta{height:54px;border-radius:16px;background:#fff;color:var(--btn-ink);display:flex;
+  align-items:center;justify-content:center;font-size:16.5px;font-weight:700;
+  box-shadow:0 10px 22px -10px rgba(0,20,80,.45)}
+.dots{display:flex;gap:6px;justify-content:center;margin-top:18px}
+.dots i{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.35)}
+.dots i.on{width:18px;background:#fff}
+.spacer{flex:1}
+
+/* ── A: grid of tiles ───────────────────────────────── */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
+.tile{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);
+  border-radius:16px;padding:13px 12px}
+.tile .ic{width:32px;height:32px;border-radius:10px;background:rgba(47,107,255,.28);
+  border:1px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;
+  margin-bottom:9px}
+.tile .ic svg{width:17px;height:17px;fill:none;stroke:#DBE6FF;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.tile .t{font-size:14px;font-weight:750;letter-spacing:-.2px}
+.tile .s{font-size:11.5px;line-height:1.35;color:rgba(255,255,255,.66);margin-top:3px}
+
+/* ── B: list rows ───────────────────────────────────── */
+.list{margin-top:16px}
+.lrow{display:flex;gap:12px;align-items:flex-start;padding:11px 0;
+  border-bottom:1px solid rgba(255,255,255,.09)}
+.lrow:last-child{border-bottom:0}
+.lrow .ic{width:34px;height:34px;border-radius:11px;background:rgba(47,107,255,.26);
+  border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.lrow .ic svg{width:17px;height:17px;fill:none;stroke:#DBE6FF;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.lrow .t{font-size:14.5px;font-weight:750;letter-spacing:-.2px}
+.lrow .s{font-size:12.5px;line-height:1.4;color:rgba(255,255,255,.7);margin-top:2px}
+
+/* ── C: three heroes + chips ────────────────────────── */
+.hero{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);
+  border-radius:18px;padding:14px;display:flex;gap:13px;align-items:flex-start;margin-bottom:9px}
+.hero .ic{width:40px;height:40px;border-radius:13px;background:rgba(47,107,255,.3);
+  border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.hero .ic svg{width:20px;height:20px;fill:none;stroke:#DBE6FF;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.hero .t{font-size:15px;font-weight:750;letter-spacing:-.2px}
+.hero .s{font-size:12.5px;line-height:1.4;color:rgba(255,255,255,.72);margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+  border-radius:20px;padding:7px 12px;color:rgba(255,255,255,.88)}
+.chip svg{width:13px;height:13px;fill:none;stroke:var(--chk);stroke-width:2.2;
+  stroke-linecap:round;stroke-linejoin:round}
+.chips .lbl{font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:rgba(255,255,255,.5);width:100%;margin-bottom:2px}
+
+footer{margin-top:70px;padding-top:26px;border-top:1px solid rgba(16,24,40,.12);
+  font-size:13.5px;color:var(--sub);line-height:1.75;max-width:860px}
+footer b{color:var(--ink)}
+footer ul{margin:8px 0 0;padding-left:20px}
+footer li{margin-bottom:5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1 class="pt">Puslapis prieš banko prijungimą</h1>
+<p class="pl">Vieta viskam, kas į prezentaciją netilpo: <b>biudžetas, PIN ir Face ID, priminimai, mėnesio santrauka, valiutos, tamsus režimas, PDF eksportas</b>. Visos šios funkcijos kode realiai yra — patikrinau prieš rašydamas, nes onboardingas neturi žadėti to, ko nėra.</p>
+<p class="pl" style="margin-top:10px">Trys variantai ant mūsų fono, be jokio renderio. Grandinė taptų <b>septynių puslapių</b>, tai taškų būtų šeši.</p>
+
+<div class="row">
+
+<!-- ══════════ A ══════════ -->
+<div class="col">
+  <div class="device"><div class="island"></div><div class="screen">
+    <div class="sbar"><span>9:41</span><span><span class="bars"><i></i><i></i><i></i><i></i></span>
+      &nbsp;<span style="font-size:12px;font-weight:700">5G</span>&nbsp;<span class="batt"><i></i></span></span></div>
+    <div class="body">
+      <div class="rule"></div>
+      <h2 class="h1">Ir dar viskas,<br>ko reikia kasdien</h2>
+      <p class="sub">Vaultie nėra vien ataskaita. Štai kas laukia viduje.</p>
+
+      <div class="grid">
+        <div class="tile"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg></div>
+          <div class="t">Mėnesio biudžetas</div><div class="s">Nusistatyk ribą ir matyk, kiek liko.</div></div>
+        <div class="tile"><div class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+          <div class="t">PIN ir Face ID</div><div class="s">Programėlė užrakinama, kai jos nenaudoji.</div></div>
+        <div class="tile"><div class="ic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg></div>
+          <div class="t">Priminimai</div><div class="s">Įspėjam prieš kiekvieną mokėjimą.</div></div>
+        <div class="tile"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></div>
+          <div class="t">Mėnesio santrauka</div><div class="s">Kas mėnesį — kaip sekėsi iš tikrųjų.</div></div>
+        <div class="tile"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c4 4.5 4 13.5 0 18M12 3c-4 4.5-4 13.5 0 18"/></svg></div>
+          <div class="t">Kitos valiutos</div><div class="s">Kelionės ir Revolut sąskaitos vienoje sumoje.</div></div>
+        <div class="tile"><div class="ic"><svg viewBox="0 0 24 24"><path d="M21 13a9 9 0 1 1-10-9 7 7 0 0 0 10 9z"/></svg></div>
+          <div class="t">Šviesus ir tamsus</div><div class="s">Programėlė prisitaiko prie tavęs.</div></div>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="cta">Toliau</div>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+    </div>
+  </div></div>
+  <div class="cap">
+    <div class="n">Variantas A · rekomenduoju</div>
+    <h3>Tinklelis iš šešių</h3>
+    <p>Šešios funkcijos matomos <b>vienu žvilgsniu, be slinkimo</b>. Kiekviena — pavadinimas ir viena eilutė, tiek, kiek žmogus perskaito per tris sekundes.</p>
+    <p>Svarbiausia: <b>jis neatrodo kaip kitas puslapis.</b> Banko prijungimo ekranas iškart po jo yra ikonų sąrašas eilutėmis — jei ir čia būtų sąrašas, du puslapiai iš eilės atrodytų vienodai.</p>
+  </div>
+</div>
+
+<!-- ══════════ B ══════════ -->
+<div class="col">
+  <div class="device"><div class="island"></div><div class="screen">
+    <div class="sbar"><span>9:41</span><span><span class="bars"><i></i><i></i><i></i><i></i></span>
+      &nbsp;<span style="font-size:12px;font-weight:700">5G</span>&nbsp;<span class="batt"><i></i></span></span></div>
+    <div class="body">
+      <div class="rule"></div>
+      <h2 class="h1">Pritaikyk<br>Vaultie sau</h2>
+      <p class="sub">Kelios funkcijos, kurias nusistatai pagal save.</p>
+
+      <div class="list">
+        <div class="lrow"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg></div>
+          <div><div class="t">Mėnesio biudžetas</div><div class="s">Nusistatyk ribą, o Vaultie skaičiuos, kiek liko iki mėnesio galo.</div></div></div>
+        <div class="lrow"><div class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+          <div><div class="t">PIN kodas ir Face ID</div><div class="s">Uždaryta programėlė lieka užrakinta — net jei telefonas atrakintas.</div></div></div>
+        <div class="lrow"><div class="ic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg></div>
+          <div><div class="t">Priminimai apie mokėjimus</div><div class="s">Pranešam prieš nurašymą, kad nė vienas neužkluptų netikėtai.</div></div></div>
+        <div class="lrow"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></div>
+          <div><div class="t">Mėnesio santrauka</div><div class="s">Kiekvieno mėnesio pabaigoje — kur nukeliavo pinigai ir kiek sutaupei.</div></div></div>
+        <div class="lrow"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c4 4.5 4 13.5 0 18M12 3c-4 4.5-4 13.5 0 18"/></svg></div>
+          <div><div class="t">Kitos valiutos</div><div class="s">Sąskaitos svarais ar doleriais suvedamos į vieną bendrą sumą.</div></div></div>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="cta">Toliau</div>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+    </div>
+  </div></div>
+  <div class="cap">
+    <div class="n">Variantas B · daugiausiai žodžių</div>
+    <h3>Sąrašas su paaiškinimais</h3>
+    <p>Kiekviena funkcija gauna <b>pilną sakinį</b>, ne pusę. Tinka, jei nori ne išvardyti, o paaiškinti.</p>
+    <p>Kaina: telpa <b>penkios vietoj šešių</b>, ir šitas išdėstymas yra tiksliai toks pat kaip kito puslapio — du sąrašai iš eilės.</p>
+  </div>
+</div>
+
+<!-- ══════════ C ══════════ -->
+<div class="col">
+  <div class="device"><div class="island"></div><div class="screen">
+    <div class="sbar"><span>9:41</span><span><span class="bars"><i></i><i></i><i></i><i></i></span>
+      &nbsp;<span style="font-size:12px;font-weight:700">5G</span>&nbsp;<span class="batt"><i></i></span></span></div>
+    <div class="body">
+      <div class="rule"></div>
+      <h2 class="h1">Tavo pinigai —<br>tavo taisyklės</h2>
+      <p class="sub">Trys dalykai, kuriuos nusistatai pats. Ir dar keli, kurie tiesiog veikia.</p>
+
+      <div style="margin-top:18px">
+        <div class="hero"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg></div>
+          <div><div class="t">Mėnesio biudžetas</div><div class="s">Nusistatyk ribą, o Vaultie kasdien rodys, kiek dar gali išleisti.</div></div></div>
+        <div class="hero"><div class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+          <div><div class="t">PIN kodas ir Face ID</div><div class="s">Uždaryta programėlė lieka užrakinta, net jei telefonas atrakintas.</div></div></div>
+        <div class="hero"><div class="ic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg></div>
+          <div><div class="t">Priminimai apie mokėjimus</div><div class="s">Pranešam prieš nurašymą — jokių netikėtumų.</div></div></div>
+      </div>
+
+      <div class="chips">
+        <span class="lbl">Ir dar</span>
+        <span class="chip"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Mėnesio santrauka</span>
+        <span class="chip"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Kitos valiutos</span>
+        <span class="chip"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Tamsus režimas</span>
+        <span class="chip"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>PDF eksportas</span>
+        <span class="chip"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Lietuvių ir anglų</span>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="cta">Toliau</div>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+    </div>
+  </div></div>
+  <div class="cap">
+    <div class="n">Variantas C · su hierarchija</div>
+    <h3>Trys svarbiausi, likę čipsais</h3>
+    <p>Ne viskas vienodai svarbu. <b>Biudžetas, apsauga ir priminimai</b> gauna vietos, o smulkmenos sugula į vieną eilutę po jais.</p>
+    <p>Taip telpa <b>aštuonios funkcijos</b>, o žvilgsnis vis tiek žino, nuo ko pradėti. Rizika — apatinė eilutė gali atrodyti kaip antraeilių dalykų sąvartynas.</p>
+  </div>
+</div>
+
+</div>
+
+<footer>
+  <b>Ką patikrinau prieš rašydamas.</b> Kiekviena čia išvardyta funkcija kode egzistuoja: biudžetas (<b>AppPrefs.budget</b>), PIN ir Face ID (<b>AppLock</b>), priminimai (<b>NotificationService.scheduleFromRecurring</b>), mėnesio santrauka (<b>RecapService</b>), valiutos (<b>FxRates</b>), tamsus režimas (<b>AppPrefs.darkMode</b>), kalba (<b>AppPrefs.locale</b>), PDF eksportas. Onboardingas neturi žadėti to, ko programėlėje nėra.<br><br>
+  <b>Kodėl siūlau A.</b> Ne dėl grožio, o dėl to, kas eina po jo. Banko prijungimo puslapis yra ikonų sąrašas eilutėmis su pavadinimu ir paaiškinimu — tiksliai variantas B. Du tokie puslapiai iš eilės susilies į vieną ir paskutinis, pats svarbiausias, nustos atrodyti kaip atskiras žingsnis.<br><br>
+  <b>Ko čia nėra sąmoningai.</b> Neįdėjau AI kategorijų taisymo ir kelių bankų — apie juos jau kalba ankstesni puslapiai, ir kartoti prieš pat pabaigą reikštų, kad neturim ko naujo pasakyti.<br><br>
+  <b>Ką reikės pakeisti kode</b>, kai pasirinksi: naujas puslapis tarp <b>onb_budget</b> ir <b>onb_connect</b>, ir taškų skaičius iš 5 į 6 penkiuose failuose. Fono renderio nereikia — puslapis piešiamas ant to paties tamsaus lauko su lengvu švytėjimu viršuje.
+</footer>
+
+</div>
+</body>
+</html>

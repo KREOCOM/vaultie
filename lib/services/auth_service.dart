@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import 'review_account.dart';
+
 /// Thin wrapper around [FirebaseAuth] for email/password auth.
 ///
 /// Keeps Firebase types out of the widgets and centralises the friendly
@@ -18,7 +20,14 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   bool get isLoggedIn => _auth.currentUser != null;
-  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
+  bool get isEmailVerified =>
+      // App Review's account counts as verified. Its address is not a real
+      // mailbox, so the verification link can never be clicked — without this
+      // the reviewer signs in and is parked on "check your email" forever, which
+      // is the same dead end the demo account exists to avoid. Treated here, at
+      // the single source, rather than at each of the three gates that ask.
+      ReviewAccount.isSignedIn ||
+      (_auth.currentUser?.emailVerified ?? false);
 
   /// Creates an account and immediately fires off a verification email.
   Future<UserCredential> register({

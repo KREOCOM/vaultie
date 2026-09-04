@@ -6,6 +6,10 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Vaultie naudoja Face ID, kad atrakintum programą.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Vaultie naudoja kamerą, kad nufotografuotum kvitą ir automatiškai jį suskaidytum į kategorijas.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Vaultie naudoja nuotraukas, kad galėtum pasirinkti kvitą arba profilio nuotrauką.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

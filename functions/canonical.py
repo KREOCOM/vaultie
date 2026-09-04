@@ -75,6 +75,49 @@ def _scheme_id(party):
     return party.get("scheme_identification") or None
 
 
+# A registrable web domain anywhere in a merchant signal — the STABLE identity of
+# an online / processor-routed payment (Plaid-style Named Entity Linking anchor).
+_DOMAIN_TOK = re.compile(
+    r"\b((?:[a-z0-9][a-z0-9-]*\.)+"
+    r"(?:com|lt|net|io|app|eu|co|org|shop|store|de|fr|es|it|pl|lv|ee|fi|se|no|dk|nl|ie|uk))\b",
+    re.I)
+
+
+def _strip_star(name):
+    """The real merchant behind a card-processor '*' prefix. The convention is
+    PROCESSOR*MERCHANT ("SumUp *Cafe Sol", "Pronas*Skani Mesa", "PTL*Vr.fi",
+    "Delfiplius* Uab Delfi") — the merchant is everything after the first '*'. So
+    two different processors fronting one merchant collapse to the same identity,
+    for any processor, any country. Returns the name unchanged when there is no '*'
+    or nothing usable after it."""
+    if name and "*" in name:
+        after = name.split("*", 1)[1].strip()
+        if len(after) >= 2:
+            return after
+    return name
+
+
+def _domain_of(pr, *extra):
+    """A clean registrable domain from ANY merchant signal — the website line
+    ("Mokėjimas tinklalapyje gymplius.lt"), a leading domain ("APPLE.COM/BILL"),
+    a card acceptor ("www.savasld.lt/ VILNIUS/LTU"), or any ``extra`` text passed
+    (counterparty name, raw remittance) — else None. Strips 'www.'.
+
+    This is the GLOBAL identity rule: the domain names the real merchant regardless
+    of which processor (OPAY, Paysera…) or which display-name variant the bank
+    happened to send, so every descriptor form of one merchant collapses to one
+    identity — for any merchant, any country."""
+    for cand in (pr.get("web_merchant"), pr.get("domain_merchant"),
+                 pr.get("card_merchant"), *extra):
+        if not cand:
+            continue
+        m = _DOMAIN_TOK.search(str(cand))
+        if m:
+            d = m.group(1).lower()
+            return d[4:] if d.startswith("www.") else d
+    return None
+
+
 def build_canonical(t):
     """Return the canonical identity model for one raw provider transaction."""
     direction = t.get("credit_debit_indicator")
@@ -99,8 +142,21 @@ def build_canonical(t):
     lines = t.get("remittance_information") or []
     acceptor = pr.get("card_merchant")
     domain = pr.get("domain_merchant") or pr.get("web_merchant")
+    cp_name = _strip_star(cp_name)   # "SumUp *Cafe Sol" → "Cafe Sol"
+    # clean registrable domain from any signal — incl. the star-stripped name and
+    # the raw remittance (so "PTL*Vr.fi korttimaksu" → vr.fi).
+    _rmt_text = " ".join(str(x) for x in lines)
+    web_domain = _domain_of(pr, cp_name, _rmt_text)
 
-    if cp_iban:
+    # GLOBAL RULE — Named Entity Linking anchor: a website domain in the descriptor
+    # IS the merchant, ahead of a processor's IBAN and ahead of a variant name. This
+    # is what collapses "gymplius.lt via OPAY" (whose counterparty is OPAY's IBAN)
+    # and every display-name variant to ONE merchant. A DIRECT SEPA payment with no
+    # domain in the memo (rent to a real recipient) carries no web_domain, so it
+    # keeps its IBAN identity untouched.
+    if web_domain:
+        key, src, conf = "dom:" + web_domain, S_REMIT, C_HIGH
+    elif cp_iban:
         key, src, conf = "iban:" + _norm(cp_iban), S_IBAN, C_EXACT
     elif cp_scheme:
         key, src, conf = "cid:" + _norm(cp_scheme), S_SCHEME, C_HIGH
