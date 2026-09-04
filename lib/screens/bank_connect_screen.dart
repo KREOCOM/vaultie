@@ -257,6 +257,10 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   late _Country _country = _defaultCountry();
   final _countrySearch = TextEditingController();
+  // 2026-09-04: real bug, found in audit — only the country picker had
+  // search; the actual bank list (often 50-100+ banks for a country) had
+  // none at all, so finding your own bank meant scrolling blind.
+  final _bankSearch = TextEditingController();
 
   // Enable Banking coverage — Baltics + Nordics first, then the rest of Europe.
   static const _countries = <_Country>[
@@ -295,6 +299,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   @override
   void dispose() {
     _countrySearch.dispose();
+    _bankSearch.dispose();
     super.dispose();
   }
 
@@ -311,6 +316,12 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         .toList();
   }
 
+  List<Bank> get _filteredBanks {
+    final q = _bankSearch.text.trim().toLowerCase();
+    if (q.isEmpty) return _banks;
+    return _banks.where((b) => b.name.toLowerCase().contains(q)).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -318,6 +329,9 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   }
 
   void _pickCountry(_Country c) {
+    // A leftover search term from the OLD country's bank list would
+    // otherwise silently filter the new one too.
+    _bankSearch.clear();
     setState(() => _country = c);
     _loadBanks();
   }
@@ -947,20 +961,60 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             style: const TextStyle(color: cxSubtle, fontSize: 13, height: 1.4),
           ),
         ),
-        Expanded(
-          child: _banks.isEmpty
-              ? Center(
-                  child: Text(
-                    _isLt ? 'Šioje šalyje bankų nerasta.' : 'No banks found here.',
-                    style: const TextStyle(color: cxSubtle),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                  itemCount: _banks.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _bankTile(_banks[i]),
+        if (_banks.length > 6)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: TextField(
+              controller: _bankSearch,
+              onChanged: (_) => setState(() {}),
+              style: const TextStyle(color: cxInk),
+              cursorColor: cxInk,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search_rounded, color: cxSubtle, size: 20),
+                hintText: _isLt ? 'Ieškoti banko' : 'Search bank',
+                hintStyle: const TextStyle(color: cxSubtle),
+                isDense: true,
+                filled: true,
+                fillColor: cxCard,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: cxLine),
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: cxLine),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: cxSubtle),
+                ),
+              ),
+            ),
+          ),
+        Expanded(
+          child: Builder(builder: (context) {
+            final banks = _filteredBanks;
+            if (_banks.isEmpty) {
+              return Center(
+                child: Text(
+                  _isLt ? 'Šioje šalyje bankų nerasta.' : 'No banks found here.',
+                  style: const TextStyle(color: cxSubtle),
+                ),
+              );
+            }
+            if (banks.isEmpty) {
+              return Center(
+                child: Text(_isLt ? 'Nerasta.' : 'No matches.',
+                    style: const TextStyle(color: cxSubtle)),
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              itemCount: banks.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (_, i) => _bankTile(banks[i]),
+            );
+          }),
         ),
         _consentFooter(),
       ],
@@ -1020,6 +1074,8 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               Expanded(
                 child: Text(
                   bank.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: cxInk,
                     fontSize: 15,

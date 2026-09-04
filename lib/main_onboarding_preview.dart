@@ -32,6 +32,7 @@ import 'screens/onb_banks.dart';
 import 'screens/onb_connect.dart';
 import 'screens/onb_features.dart';
 import 'screens/onb_intro.dart';
+import 'screens/onb_invest.dart';
 import 'screens/onb_month.dart';
 import 'screens/onb_overview.dart';
 import 'screens/preview/dashboard_preview.dart';
@@ -143,7 +144,9 @@ class _OnboardingPreviewApp extends StatelessWidget {
           next: OnbMonth(
             next: OnbOverview(
               next: OnbAiChat(
-                next: OnbFeatures(next: OnbConnect(next: LoginScreen())),
+                next: OnbInvest(
+                  next: OnbFeatures(next: OnbConnect(next: LoginScreen())),
+                ),
               ),
             ),
           ),

@@ -108,7 +108,8 @@ class _TickerBadge extends StatelessWidget {
       width: 40,
       height: 40,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(13)),
+      decoration:
+          BoxDecoration(color: color, borderRadius: BorderRadius.circular(13)),
       child: Text(initials,
           style: const TextStyle(
               fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -159,7 +160,9 @@ class _PortfolioTodayChartPainter extends CustomPainter {
     double yOf(double v) => padTop + h - (v - minV) / range * h;
 
     final startY = yOf(open), endY = yOf(current);
-    final line = Path()..moveTo(0, startY)..lineTo(size.width, endY);
+    final line = Path()
+      ..moveTo(0, startY)
+      ..lineTo(size.width, endY);
     final area = Path.from(line)
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
@@ -196,7 +199,8 @@ class _PortfolioTodayChartPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..color = color,
     );
-    canvas.drawCircle(Offset(size.width, endY), 6, Paint()..color = color.withValues(alpha: 0.25));
+    canvas.drawCircle(Offset(size.width, endY), 6,
+        Paint()..color = color.withValues(alpha: 0.25));
     canvas.drawCircle(Offset(size.width, endY), 4.5, Paint()..color = color);
 
     // Money labels ON the chart — "Atidarymas €X" at the start, the current
@@ -217,9 +221,10 @@ class _PortfolioTodayChartPainter extends CustomPainter {
       tp.paint(canvas, Offset(dx, y));
     }
 
-    label(Money.format(open), 0, (startY - 20).clamp(0, size.height - 16), TextAlign.left);
-    label(Money.format(current), size.width, (endY - 20).clamp(0, size.height - 16),
-        TextAlign.right);
+    label(Money.format(open), 0, (startY - 20).clamp(0, size.height - 16),
+        TextAlign.left);
+    label(Money.format(current), size.width,
+        (endY - 20).clamp(0, size.height - 16), TextAlign.right);
   }
 
   @override
@@ -444,13 +449,14 @@ class _InvestingTabState extends State<InvestingTab> {
             width: 27,
             height: 27,
             alignment: Alignment.center,
-            decoration:
-                BoxDecoration(color: p.blueSoft, borderRadius: BorderRadius.circular(9)),
+            decoration: BoxDecoration(
+                color: p.blueSoft, borderRadius: BorderRadius.circular(9)),
             child: Icon(icon, size: 14.5, color: p.blue),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(label, style: const TextStyle(fontSize: 15, color: Color(0xFFE4E1EC))),
+            child: Text(label,
+                style: const TextStyle(fontSize: 15, color: Color(0xFFE4E1EC))),
           ),
         ]),
       );
@@ -558,68 +564,83 @@ class _InvestingTabState extends State<InvestingTab> {
                 // solid point just above) — per explicit feedback, there was
                 // a gap between the disclaimer line and the screen's own
                 // bottom edge; a small shift, not a big one.
+                //
+                // 2026-09-04, audit fix: added `bottom: 0` + a
+                // SingleChildScrollView. This block used to have a LOOSE
+                // height (no bottom), which on a short device (iPhone SE)
+                // risked the CTA button and disclaimer running past the
+                // screen's own bottom edge — Stack's default clip trims
+                // painting there, but it ALSO blocks hit-testing, so the
+                // one button that starts a first investment could become
+                // fully unreachable, not just invisible. A tall screen still
+                // renders exactly as before (nothing to scroll); a short one
+                // can now scroll the last inch instead of losing it.
                 top: h * 0.49,
                 left: 24,
                 right: 24,
+                bottom: 0,
                 child: SafeArea(
                   top: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(tr('Investicijos'),
-                          style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.2,
-                              color: p.blue)),
-                      const SizedBox(height: 10),
-                      Text(tr('Turi investavęs į kryptovaliutą ar akcijas?'),
-                          style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              height: 1.16,
-                              letterSpacing: -0.3,
-                              color: p.ink)),
-                      const SizedBox(height: 10),
-                      Text(
-                          tr('Sek savo akcijas bei kriptovaliutą ir matyk jų pokyčius realiu laiku.'),
-                          style: TextStyle(fontSize: 16, height: 1.42, color: p.muted)),
-                      const SizedBox(height: 14),
-                      _trustRow(p, Icons.trending_up_rounded,
-                          tr('Tikros rinkos kainos, konvertuotos į eurus')),
-                      _trustRow(p, Icons.lock_outline_rounded,
-                          tr('Tik sekimas — jokių sujungimų su brokeriu')),
-                      _trustRow(p, Icons.category_rounded,
-                          tr('Tinka ir akcijoms, ir kriptovaliutai')),
-                      _trustRow(p, Icons.dashboard_customize_rounded,
-                          tr('Viskas vienoje vietoje su tavo finansais')),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _addHolding,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: p.blue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                            textStyle: const TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 15.5),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(tr('Investicijos'),
+                            style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.2,
+                                color: p.blue)),
+                        const SizedBox(height: 10),
+                        Text(tr('Turi investavęs į kryptovaliutą ar akcijas?'),
+                            style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                height: 1.16,
+                                letterSpacing: -0.3,
+                                color: p.ink)),
+                        const SizedBox(height: 10),
+                        Text(tr('Sek savo akcijas bei kriptovaliutą ir matyk jų pokyčius realiu laiku.'),
+                            style: TextStyle(
+                                fontSize: 16, height: 1.42, color: p.muted)),
+                        const SizedBox(height: 14),
+                        _trustRow(p, Icons.trending_up_rounded,
+                            tr('Tikros rinkos kainos, konvertuotos į eurus')),
+                        _trustRow(p, Icons.lock_outline_rounded,
+                            tr('Tik sekimas — jokių sujungimų su brokeriu')),
+                        _trustRow(p, Icons.category_rounded,
+                            tr('Tinka ir akcijoms, ir kriptovaliutai')),
+                        _trustRow(p, Icons.dashboard_customize_rounded,
+                            tr('Viskas vienoje vietoje su tavo finansais')),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _addHolding,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: p.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16)),
+                              textStyle: const TextStyle(
+                                  fontWeight: FontWeight.w800, fontSize: 15.5),
+                            ),
+                            child: Text(tr('Pridėti pirmą investiciją')),
                           ),
-                          child: Text(tr('Pridėti pirmą investiciją')),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: Text(
-                            tr('Kaina gali vėluoti kelias minutes nuo tikros rinkos kainos.'),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 11.5, color: p.faint)),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                              tr('Kaina gali vėluoti kelias minutes nuo tikros rinkos kainos.'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 11.5, color: p.faint)),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -629,7 +650,11 @@ class _InvestingTabState extends State<InvestingTab> {
       );
 
   Widget _totalCard(_Pal p) {
-    double totalValue = 0, totalPrevValue = 0, totalOpen = 0, totalHigh = 0, totalLow = 0;
+    double totalValue = 0,
+        totalPrevValue = 0,
+        totalOpen = 0,
+        totalHigh = 0,
+        totalLow = 0;
     // 2026-09-01: added per explicit request — portfolio value already
     // showed "today vs yesterday"; nothing anywhere showed the overall
     // "how has my portfolio done since I bought into it" figure. Summed
@@ -686,7 +711,8 @@ class _InvestingTabState extends State<InvestingTab> {
     // holdings list below (a Divider marks the seam, not a box).
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(tr('Portfelio vertė'),
-          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: p.faint)),
+          style: TextStyle(
+              fontSize: 13.5, fontWeight: FontWeight.w600, color: p.faint)),
       const SizedBox(height: 12),
       if (!settled)
         Padding(
@@ -695,7 +721,8 @@ class _InvestingTabState extends State<InvestingTab> {
             child: SizedBox(
               width: 22,
               height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.4, color: p.purple),
+              child:
+                  CircularProgressIndicator(strokeWidth: 2.4, color: p.purple),
             ),
           ),
         )
@@ -706,15 +733,22 @@ class _InvestingTabState extends State<InvestingTab> {
             Icon(Icons.wifi_off_rounded, size: 18, color: p.muted),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(tr('Nepavyko įkelti kainų — patikrink ryšį ir bandyk vėl.'),
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: p.muted)),
+              child: Text(
+                  tr('Nepavyko įkelti kainų — patikrink ryšį ir bandyk vėl.'),
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: p.muted)),
             ),
           ]),
         )
       else ...[
         Text(Money.format(totalValue),
             style: TextStyle(
-                fontSize: 42, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.8)),
+                fontSize: 42,
+                fontWeight: FontWeight.w800,
+                color: p.ink,
+                letterSpacing: -0.8)),
         const SizedBox(height: 8),
         Row(children: [
           Icon(up ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
@@ -722,7 +756,10 @@ class _InvestingTabState extends State<InvestingTab> {
           const SizedBox(width: 3),
           Text(
               '${Money.format(change.abs())} (${changePct.abs().toStringAsFixed(1)}%) ${tr('šiandien')}',
-              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: changeColor)),
+              style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: changeColor)),
         ]),
         if (anyCostBasis) ...[
           const SizedBox(height: 4),
@@ -761,7 +798,9 @@ class _InvestingTabState extends State<InvestingTab> {
                         ? tr('1 pozicija neįtraukta — nepavyko gauti kainos')
                         : '${_failed.length} ${tr('pozicijos neįtrauktos — nepavyko gauti kainų')}',
                     style: TextStyle(
-                        fontSize: 11.5, fontWeight: FontWeight.w600, color: p.faint)),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: p.faint)),
               ),
             ]),
           ),
@@ -795,12 +834,13 @@ class _InvestingTabState extends State<InvestingTab> {
                         ScaffoldMessenger.of(context)
                           ..hideCurrentSnackBar()
                           ..showSnackBar(SnackBar(
-                              content:
-                                  Text(tr('Netrukus — kol kas turime tik šiandienos kainą.')),
+                              content: Text(tr(
+                                  'Netrukus — kol kas turime tik šiandienos kainą.')),
                               duration: const Duration(seconds: 2)));
                       },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: label == '1D' ? p.soft : null,
                     borderRadius: BorderRadius.circular(100),
@@ -834,7 +874,9 @@ class _InvestingTabState extends State<InvestingTab> {
               const SizedBox(width: 8),
               Text(tr('Pridėti akciją, kriptovaliutą'),
                   style: TextStyle(
-                      fontSize: 15.5, fontWeight: FontWeight.w700, color: p.blue)),
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                      color: p.blue)),
             ]),
           ),
         ),
@@ -862,7 +904,9 @@ class _InvestingTabState extends State<InvestingTab> {
     final pct = hasCostBasis
         ? (price - costBasis) / costBasis * 100
         : (prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0.0);
-    final change = hasCostBasis ? shares * (price - costBasis) : shares * (price - prevClose);
+    final change = hasCostBasis
+        ? shares * (price - costBasis)
+        : shares * (price - prevClose);
     final changePct = pct;
     final up = change >= 0;
 
@@ -882,7 +926,8 @@ class _InvestingTabState extends State<InvestingTab> {
       // boxes. Matches that now that the whole tab is one dark canvas.
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair))),
+        decoration:
+            BoxDecoration(border: Border(bottom: BorderSide(color: p.hair))),
         child: Row(children: [
           CategoryIcon(
               icon: Icons.show_chart_rounded,
@@ -900,7 +945,9 @@ class _InvestingTabState extends State<InvestingTab> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700, color: p.ink)),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: p.ink)),
                 const SizedBox(height: 2),
                 Text('${_fmtShares(shares)} ${tr('vnt.')}',
                     style: TextStyle(fontSize: 12.5, color: p.muted)),
@@ -929,8 +976,7 @@ class _InvestingTabState extends State<InvestingTab> {
                   style: TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w700, color: p.ink)),
               const SizedBox(height: 2),
-              Text(
-                  '${up ? '+' : ''}${changePct.toStringAsFixed(1)}%',
+              Text('${up ? '+' : ''}${changePct.toStringAsFixed(1)}%',
                   style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
@@ -1054,7 +1100,8 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
   /// dashboard_preview.dart's own `_demoTap`, minus the `_demoOn` cancel
   /// switch (this sheet's script is a short, one-shot sequence, not a
   /// resumable loop).
-  Future<bool> _demoTap(GlobalKey k, VoidCallback act, {int settle = 900}) async {
+  Future<bool> _demoTap(GlobalKey k, VoidCallback act,
+      {int settle = 900}) async {
     final spot = _spotOf(k);
     if (spot == null) return mounted;
     setState(() {
@@ -1090,7 +1137,8 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
     if (!mounted) return;
     await Future<void>.delayed(const Duration(milliseconds: 550));
     if (!mounted) return;
-    if (!await _demoTap(_kTeslaTile, () => _pick((symbol: 'TSLA', name: 'Tesla')),
+    if (!await _demoTap(
+        _kTeslaTile, () => _pick((symbol: 'TSLA', name: 'Tesla')),
         settle: 900)) {
       return;
     }
@@ -1192,7 +1240,8 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
   // The catalog symbol format ('BINANCE:BTCUSDT') is Finnhub's own, not
   // something to show a user — strips it down to what they'd recognise.
   static String _displaySymbol(String symbol) {
-    final withoutExchange = symbol.contains(':') ? symbol.split(':').last : symbol;
+    final withoutExchange =
+        symbol.contains(':') ? symbol.split(':').last : symbol;
     return withoutExchange.endsWith('USDT')
         ? withoutExchange.substring(0, withoutExchange.length - 4)
         : withoutExchange;
@@ -1292,29 +1341,35 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
         Container(
           decoration: BoxDecoration(
               color: p.card,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24))),
           child: Column(children: [
-          const SizedBox(height: 10),
-          Container(
-              width: 40,
-              height: 4,
-              decoration:
-                  BoxDecoration(color: p.faint, borderRadius: BorderRadius.circular(3))),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
-            child: Row(children: [
-              Text(_picked == null ? tr('Pridėti akciją, kriptovaliutą') : tr('Kiek turi?'),
-                  style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w800, color: p.ink)),
-              const Spacer(),
-              GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Icon(Icons.close_rounded, color: p.faint)),
-            ]),
-          ),
-          Expanded(
-            child: _picked == null ? _pickerBody(p) : _sharesBody(p),
-          ),
+            const SizedBox(height: 10),
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: p.faint, borderRadius: BorderRadius.circular(3))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+              child: Row(children: [
+                Text(
+                    _picked == null
+                        ? tr('Pridėti akciją, kriptovaliutą')
+                        : tr('Kiek turi?'),
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: p.ink)),
+                const Spacer(),
+                GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Icon(Icons.close_rounded, color: p.faint)),
+              ]),
+            ),
+            Expanded(
+              child: _picked == null ? _pickerBody(p) : _sharesBody(p),
+            ),
           ]),
         ),
         if (widget.demo) _demoPointerLayer(),
@@ -1372,7 +1427,8 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
               SizedBox(
                   width: 15,
                   height: 15,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: p.purple)),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: p.purple)),
           ]),
         ),
       ),
@@ -1443,7 +1499,9 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700, color: p.ink)),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: p.ink)),
                     subtitle: Text(_displaySymbol(s.symbol),
                         style: TextStyle(fontSize: 12.5, color: p.muted)),
                   );
@@ -1454,7 +1512,9 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
   }
 
   Widget _modeChip(_Pal p,
-      {required String label, required bool selected, required VoidCallback onTap}) {
+      {required String label,
+      required bool selected,
+      required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1475,7 +1535,8 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
 
   String _amountHelperText(_Pal p) {
     if (_loadingPrice) return tr('Kraunama kaina...');
-    if (_priceEur == null || _priceEur! <= 0) return tr('Nepavyko gauti dabartinės kainos.');
+    if (_priceEur == null || _priceEur! <= 0)
+      return tr('Nepavyko gauti dabartinės kainos.');
     final amt = double.tryParse(_amount.text.replaceAll(',', '.'));
     if (amt == null || amt <= 0) {
       return '${tr('Dabartinė kaina')}: ${Money.format(_priceEur!)}';
@@ -1493,111 +1554,138 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
     // doc: the keyboard inset is absorbed here, not by moving the sheet.
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(18, 6, 18, 22 + keyboardInset),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          _resolvingDomain
-              ? Container(
-                  width: 46,
-                  height: 46,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                      color: p.purpleSoft, borderRadius: BorderRadius.circular(15)),
-                  child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: p.purple)),
-                )
-              : CategoryIcon(
-                  icon: Icons.show_chart_rounded,
-                  color: p.purple,
-                  size: 46,
-                  circle: false,
-                  merchant: s.name,
-                  domain: _domain),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(s.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 16.5, fontWeight: FontWeight.w800, color: p.ink)),
-              Text(_displaySymbol(s.symbol), style: TextStyle(fontSize: 12.5, color: p.muted)),
+      child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              _resolvingDomain
+                  ? Container(
+                      width: 46,
+                      height: 46,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                          color: p.purpleSoft,
+                          borderRadius: BorderRadius.circular(15)),
+                      child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: p.purple)),
+                    )
+                  : CategoryIcon(
+                      icon: Icons.show_chart_rounded,
+                      color: p.purple,
+                      size: 46,
+                      circle: false,
+                      merchant: s.name,
+                      domain: _domain),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(s.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w800,
+                              color: p.ink)),
+                      Text(_displaySymbol(s.symbol),
+                          style: TextStyle(fontSize: 12.5, color: p.muted)),
+                    ]),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _picked = null),
+                child: Text(tr('Keisti'),
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: p.blue)),
+              ),
             ]),
-          ),
-          GestureDetector(
-            onTap: () => setState(() => _picked = null),
-            child: Text(tr('Keisti'),
+            const SizedBox(height: 22),
+            // 2026-08-28: "kartais žmogus nežino kiek akcijų turi" — a toggle
+            // between "I know the share count" and "I know what I paid", the
+            // second backing into shares via the price fetched in _pick.
+            Row(children: [
+              _modeChip(p,
+                  label: tr('Kiekis'),
+                  selected: !_byAmount,
+                  onTap: () => setState(() => _byAmount = false)),
+              const SizedBox(width: 8),
+              _modeChip(p,
+                  label: tr('Suma (€)'),
+                  selected: _byAmount,
+                  onTap: () => setState(() => _byAmount = true)),
+            ]),
+            const SizedBox(height: 16),
+            Text(_byAmount ? tr('Už kiek pirkai?') : tr('Kiek akcijų turi?'),
                 style: TextStyle(
-                    fontSize: 13.5, fontWeight: FontWeight.w700, color: p.blue)),
-          ),
-        ]),
-        const SizedBox(height: 22),
-        // 2026-08-28: "kartais žmogus nežino kiek akcijų turi" — a toggle
-        // between "I know the share count" and "I know what I paid", the
-        // second backing into shares via the price fetched in _pick.
-        Row(children: [
-          _modeChip(p, label: tr('Kiekis'), selected: !_byAmount,
-              onTap: () => setState(() => _byAmount = false)),
-          const SizedBox(width: 8),
-          _modeChip(p, label: tr('Suma (€)'), selected: _byAmount,
-              onTap: () => setState(() => _byAmount = true)),
-        ]),
-        const SizedBox(height: 16),
-        Text(_byAmount ? tr('Už kiek pirkai?') : tr('Kiek akcijų turi?'),
-            style: TextStyle(fontSize: 13.5, color: p.muted, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 10),
-        Container(
-          key: widget.demo && !_byAmount ? _kSharesField : null,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-              color: p.soft,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: p.hair)),
-          child: TextField(
-            key: ValueKey(_byAmount),
-            controller: _byAmount ? _amount : _shares,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            // 2026-09-01: never autofocus in the onboarding demo — this
-            // field is never really typed into (see _runDemoSequence, which
-            // sets the controller's text directly), and a real focus request
-            // still pops the system keyboard over the tiny embedded phone
-            // even though IgnorePointer blocks a real tap from reaching it.
-            autofocus: !widget.demo,
-            onChanged: _byAmount ? (_) => setState(() {}) : null,
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: p.ink),
-            decoration: InputDecoration(
-                filled: false,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                disabledBorder: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-                hintText: '0',
-                suffixText: _byAmount ? '€' : null,
-                suffixStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: p.muted)),
-          ),
-        ),
-        if (_byAmount) ...[
-          const SizedBox(height: 8),
-          Text(_amountHelperText(p), style: TextStyle(fontSize: 12.5, color: p.faint)),
-        ],
-        const SizedBox(height: 22),
-        GestureDetector(
-          key: widget.demo ? _kAddBtn : null,
-          onTap: _submit,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            alignment: Alignment.center,
-            decoration:
-                BoxDecoration(color: p.blue, borderRadius: BorderRadius.circular(14)),
-            child: Text(tr('Pridėti'),
-                style: const TextStyle(
-                    fontSize: 16.5, fontWeight: FontWeight.w800, color: Colors.white)),
-          ),
-        ),
-      ]),
+                    fontSize: 13.5,
+                    color: p.muted,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            Container(
+              key: widget.demo && !_byAmount ? _kSharesField : null,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                  color: p.soft,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: p.hair)),
+              child: TextField(
+                key: ValueKey(_byAmount),
+                controller: _byAmount ? _amount : _shares,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                // 2026-09-01: never autofocus in the onboarding demo — this
+                // field is never really typed into (see _runDemoSequence, which
+                // sets the controller's text directly), and a real focus request
+                // still pops the system keyboard over the tiny embedded phone
+                // even though IgnorePointer blocks a real tap from reaching it.
+                autofocus: !widget.demo,
+                onChanged: _byAmount ? (_) => setState(() {}) : null,
+                style: TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.w800, color: p.ink),
+                decoration: InputDecoration(
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    hintText: '0',
+                    suffixText: _byAmount ? '€' : null,
+                    suffixStyle: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: p.muted)),
+              ),
+            ),
+            if (_byAmount) ...[
+              const SizedBox(height: 8),
+              Text(_amountHelperText(p),
+                  style: TextStyle(fontSize: 12.5, color: p.faint)),
+            ],
+            const SizedBox(height: 22),
+            GestureDetector(
+              key: widget.demo ? _kAddBtn : null,
+              onTap: _submit,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                    color: p.blue, borderRadius: BorderRadius.circular(14)),
+                child: Text(tr('Pridėti'),
+                    style: const TextStyle(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+              ),
+            ),
+          ]),
     );
   }
 
@@ -1662,13 +1750,15 @@ class _HoldingDetailScreen extends StatelessWidget {
     final prevClose = (hasRate && usdRate > 0) ? prevUsd / usdRate : 0.0;
     final value = shares * price;
     final change = shares * (price - prevClose);
-    final changePct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
+    final changePct =
+        prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
     final up = change >= 0;
     // 2026-09-01: added per explicit request — see _holdingRow's own doc.
     final costBasis = (holding['costBasis'] as num?)?.toDouble();
     final hasCostBasis = costBasis != null && costBasis > 0;
     final totalReturn = hasCostBasis ? shares * (price - costBasis) : 0.0;
-    final totalReturnPct = hasCostBasis ? (price - costBasis) / costBasis * 100 : 0.0;
+    final totalReturnPct =
+        hasCostBasis ? (price - costBasis) / costBasis * 100 : 0.0;
     final totalReturnUp = totalReturn >= 0;
 
     return Scaffold(
@@ -1677,7 +1767,8 @@ class _HoldingDetailScreen extends StatelessWidget {
         backgroundColor: p.bg,
         elevation: 0,
         foregroundColor: p.ink,
-        title: Text(name, style: TextStyle(fontWeight: FontWeight.w800, color: p.ink)),
+        title: Text(name,
+            style: TextStyle(fontWeight: FontWeight.w800, color: p.ink)),
         actions: [
           IconButton(
               onPressed: onDelete,
@@ -1709,13 +1800,19 @@ class _HoldingDetailScreen extends StatelessWidget {
               Center(
                 child: Text(Money.format(value),
                     style: TextStyle(
-                        fontSize: 34, fontWeight: FontWeight.w800, color: p.ink)),
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        color: p.ink)),
               ),
               const SizedBox(height: 6),
               Center(
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(up ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                      size: 16, color: up ? _Pal.good : _Pal.bad),
+                  Icon(
+                      up
+                          ? Icons.arrow_upward_rounded
+                          : Icons.arrow_downward_rounded,
+                      size: 16,
+                      color: up ? _Pal.good : _Pal.bad),
                   const SizedBox(width: 3),
                   Text(
                       '${Money.format(change.abs())} (${changePct.abs().toStringAsFixed(1)}%) ${tr('šiandien')}',
@@ -1753,7 +1850,8 @@ class _HoldingDetailScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: DS.e1),
                 child: Column(children: [
-                  _infoRow(p, tr('Kiek turi'), '${_InvestingTabState._fmtShares(shares)} ${tr('vnt.')}'),
+                  _infoRow(p, tr('Kiek turi'),
+                      '${_InvestingTabState._fmtShares(shares)} ${tr('vnt.')}'),
                   Divider(height: 22, color: p.hair),
                   _infoRow(p, tr('Kaina už 1 vnt.'), Money.format(price)),
                   Divider(height: 22, color: p.hair),
@@ -1765,7 +1863,8 @@ class _HoldingDetailScreen extends StatelessWidget {
                 ]),
               ),
               const SizedBox(height: 14),
-              Text(tr('Kaina gali vėluoti kelias minutes nuo tikros rinkos kainos.'),
+              Text(
+                  tr('Kaina gali vėluoti kelias minutes nuo tikros rinkos kainos.'),
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: p.faint, height: 1.4)),
             ],
@@ -1779,7 +1878,8 @@ class _HoldingDetailScreen extends StatelessWidget {
         Text(label, style: TextStyle(fontSize: 14, color: p.muted)),
         const Spacer(),
         Text(value,
-            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: p.ink)),
+            style: TextStyle(
+                fontSize: 14.5, fontWeight: FontWeight.w700, color: p.ink)),
       ]);
 }
 

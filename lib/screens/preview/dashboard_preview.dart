@@ -66,6 +66,19 @@ const _good = Color(0xFF2FA34E);
 final ValueNotifier<bool> _themeVN = ValueNotifier<bool>(false);
 bool _darkMode = false;
 
+/// 2026-09-04: real bug, found in audit — a plain `[0-9.,]` allow-list lets
+/// someone type e.g. "12.34.56", which then fails `double.tryParse` and
+/// silently resolves to a 0 amount with the Save button just going grey —
+/// no explanation anywhere. Rejects any edit that would leave more than one
+/// '.'/',' in the field, so a second separator keypress is simply a no-op
+/// instead of producing unparseable text.
+final _singleDecimalSeparator = TextInputFormatter.withFunction(
+  (oldValue, newValue) {
+    final seps = newValue.text.replaceAll(RegExp(r'[^.,]'), '').length;
+    return seps > 1 ? oldValue : newValue;
+  },
+);
+
 // Set by the live dashboard; a transaction-detail/edit screen calls this after
 // mutating the shared `_d['all']` list so totals recompute and data persists.
 void Function()? _dashRefresh;
@@ -4419,7 +4432,10 @@ class _DashboardPreviewState extends State<DashboardPreview>
             onTap: _openCashExpense,
             child: _Chip(
               icon: Icons.payments_outlined,
-              label: tr('Mokėjau grynais'),
+              // 2026-09-04: matched to the screen it opens (tr('Išleidau
+              // grynais')) — two different verbs for the same action read
+              // as slightly disjointed copy.
+              label: tr('Išleidau grynais'),
               active: true,
             ),
           ),
@@ -6290,9 +6306,16 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // engine is unsure, calm otherwise. No outer title: the halves label it.
   Widget _subsCard() {
     final subs = _d['subs'] as Map<String, dynamic>;
+    // 2026-09-04: corrected — `hidden` is always empty in practice today.
+    // DashboardStore.setRecurringHidden (the only way anything would ever
+    // land in this set) is never called anywhere in the reachable app; the
+    // real "stop tracking" path is setRecurringOverride, not this. Kept as
+    // dead-but-load-bearing plumbing (removing recurringHidden() itself is
+    // a separate decision) rather than claiming a restore flow that isn't
+    // actually wired to any UI.
     final hidden = DashboardStore.recurringHidden();
-    // allItems (incl. hidden + manual) go to the manager so it can restore hidden
-    // ones; items (hidden dropped) drive the totals/split.
+    // allItems (incl. hidden + manual) feed the manager; items (hidden
+    // dropped, which today means none) drive the totals/split.
     final allItems = _recItemsFull(subs);
     final items = allItems.where((it) => !_recHasVerdict(hidden, it)).toList();
     final excl = DashboardStore.recurringExcluded();
@@ -9069,7 +9092,8 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                                       decimal: true),
                               inputFormatters: [
                                 FilteringTextInputFormatter.allow(
-                                    RegExp(r'[0-9.,]'))
+                                    RegExp(r'[0-9.,]')),
+                                _singleDecimalSeparator,
                               ],
                               onChanged: (_) => setState(() {}),
                               style: TextStyle(
@@ -18048,32 +18072,44 @@ class _PlanningTabState extends State<_PlanningTab> {
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 2,
-                  child: GestureDetector(
-                    onTap: () {
+                  // 2026-09-04: real bug, found in audit — this button
+                  // looked identically active for a 0/empty limit as for a
+                  // valid one, then silently did nothing on tap (not even
+                  // closing the sheet) with zero explanation. Now visibly
+                  // greys out and stops responding to taps the same way an
+                  // invalid amount does everywhere else in the app.
+                  child: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: ctl,
+                    builder: (context, value, _) {
                       final v =
-                          double.tryParse(ctl.text.replaceAll(',', '.')) ?? 0;
-                      // Input is in the display currency; budgets are stored in EUR.
-                      if (v > 0) {
-                        setState(() {
-                          b.limit = v / Money.rate;
-                          b.auto = false;
-                        });
-                        _saveBudgets();
-                      }
-                      Navigator.pop(ctx);
+                          double.tryParse(value.text.replaceAll(',', '.')) ?? 0;
+                      final valid = v > 0;
+                      return GestureDetector(
+                        onTap: !valid
+                            ? null
+                            : () {
+                                // Input is in the display currency; budgets are stored in EUR.
+                                setState(() {
+                                  b.limit = v / Money.rate;
+                                  b.auto = false;
+                                });
+                                _saveBudgets();
+                                Navigator.pop(ctx);
+                              },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                              color: valid ? _purple : _faint,
+                              borderRadius: BorderRadius.circular(14)),
+                          child: Text(tr('Išsaugoti'),
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white)),
+                        ),
+                      );
                     },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                          color: _purple,
-                          borderRadius: BorderRadius.circular(14)),
-                      child: Text(tr('Išsaugoti'),
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white)),
-                    ),
                   ),
                 ),
               ]),
@@ -18616,6 +18652,10 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                       child: TextField(
                         controller: _limitCtl,
                         keyboardType: TextInputType.number,
+                        // 2026-09-04: needed so the Save button below can
+                        // actually react to what's typed here — see its own
+                        // comment.
+                        onChanged: (_) => setState(() {}),
                         style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -18688,30 +18728,39 @@ class _AddBudgetSheetState extends State<_AddBudgetSheet> {
                 ]),
               ],
               const SizedBox(height: 22),
-              GestureDetector(
-                onTap: () {
-                  final v =
-                      double.tryParse(_limitCtl.text.replaceAll(',', '.')) ?? 0;
-                  if (_sec == null || v <= 0) return;
-                  // Input is in the display currency; budgets are stored in EUR.
-                  widget.onSave(
-                      _sec!, v / Money.rate, _fromToday ? DateTime.now() : null);
-                  Navigator.pop(context);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: (_sec != null) ? _purple : _faint,
-                    borderRadius: BorderRadius.circular(14),
+              Builder(builder: (context) {
+                final v =
+                    double.tryParse(_limitCtl.text.replaceAll(',', '.')) ?? 0;
+                // 2026-09-04: real bug, found in audit — this only checked
+                // _sec != null for BOTH its color and whether tapping did
+                // anything, so a category picked then the suggested limit
+                // cleared/zeroed still looked fully active and silently
+                // did nothing on tap.
+                final valid = _sec != null && v > 0;
+                return GestureDetector(
+                  onTap: !valid
+                      ? null
+                      : () {
+                          // Input is in the display currency; budgets are stored in EUR.
+                          widget.onSave(_sec!, v / Money.rate,
+                              _fromToday ? DateTime.now() : null);
+                          Navigator.pop(context);
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: valid ? _purple : _faint,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(tr('Išsaugoti'),
+                        style: const TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
                   ),
-                  child: Text(tr('Išsaugoti'),
-                      style: const TextStyle(
-                          fontSize: 16.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white)),
-                ),
-              ),
+                );
+              }),
             ]),
           ),
         ),
@@ -19543,13 +19592,19 @@ class _AccountTabState extends State<_AccountTab> {
         title: Text(!_enUi ? 'Atjungti $bank?' : 'Disconnect $bank?',
             style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
         content: Text(
+            // 2026-09-04: was an unconditional "and we'll revoke access at
+            // the bank" — the revoke call is actually best-effort/fire-
+            // and-forget (banking_service.dart's disconnectBank never
+            // blocks this on the network succeeding), so an offline moment
+            // could leave the bank-side consent quietly still active while
+            // the app said it was gone. Worded as an attempt, not a promise.
             !_enUi
-                ? 'Pašalinsime $bank sąskaitas ir jų duomenis iš šio telefono, o '
-                    'prieigą atšauksime banke. Kiti prijungti bankai nenukentės. '
-                    'Galėsi prijungti iš naujo bet kada.'
-                : "We'll remove $bank's accounts and their data from this phone "
-                    'and revoke the access at the bank. Your other connected '
-                    'banks are untouched. You can reconnect any time.',
+                ? 'Pašalinsime $bank sąskaitas ir jų duomenis iš šio telefono. '
+                    'Taip pat pasistengsime atšaukti prieigą banke. Kiti prijungti '
+                    'bankai nenukentės. Galėsi prijungti iš naujo bet kada.'
+                : "We'll remove $bank's accounts and their data from this phone. "
+                    "We'll also try to revoke the access at the bank. Your other "
+                    'connected banks are untouched. You can reconnect any time.',
             style: TextStyle(color: _muted, height: 1.4)),
         actions: [
           TextButton(
@@ -19759,6 +19814,14 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   bool _faceId = AppLock.faceIdEnabled;
   bool _faceAvailable = false;
   bool _notif = AppPrefs.notificationsEnabled;
+  // 2026-09-04: real bug, found in audit — this toggle only reflected
+  // AppPrefs.notificationsEnabled, Vaultie's OWN setting, never the real iOS
+  // permission. Someone who declined the OS prompt (common during
+  // onboarding) and later dismissed the one-time dashboard banner about it
+  // (AppPrefs.notifBannerDismissed, permanent) had NO remaining surface
+  // anywhere in the app — including here, right next to the toggle — saying
+  // reminders don't actually fire. The toggle just read "on" forever.
+  bool _notifPermDenied = false;
   bool _forcePreviewOnboarding = AppPrefs.forcePreviewOnboarding;
   bool _aiCat = AppPrefs.aiEnrichment;
   bool _busy = false;
@@ -19769,6 +19832,9 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     // Hide the Face ID toggle where the device can't do biometrics.
     AppLock.canUseBiometrics().then((ok) {
       if (mounted) setState(() => _faceAvailable = ok);
+    });
+    NotificationService.instance.isPermissionDenied().then((denied) {
+      if (mounted) setState(() => _notifPermDenied = denied);
     });
   }
 
@@ -19822,8 +19888,15 @@ class _SettingsScreenState extends State<_SettingsScreen> {
             _valueItem('LT', tr('Kalba'), tr(_langLabel), _pickLanguage),
             _iconValueItem(
                 Icons.brightness_6_rounded, tr('Tema'), tr(_theme), _pickTheme),
-            _toggleItem(Icons.notifications_none_rounded, tr('Pranešimai'),
-                tr('Priminimai apie mokėjimus'), _notif, _toggleNotif),
+            _toggleItem(
+                Icons.notifications_none_rounded,
+                tr('Pranešimai'),
+                _notif && _notifPermDenied
+                    ? tr('Išjungta telefono nustatymuose — priminimai neateis')
+                    : tr('Priminimai apie mokėjimus'),
+                _notif,
+                _toggleNotif,
+                warn: _notif && _notifPermDenied),
             _toggleItem(
                 Icons.auto_awesome_outlined,
                 tr('AI kategorizavimas'),
@@ -20142,7 +20215,8 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       );
 
   Widget _toggleItem(IconData ic, String title, String sub, bool val,
-          ValueChanged<bool>? onChanged) =>
+          ValueChanged<bool>? onChanged,
+          {bool warn = false}) =>
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(children: [
@@ -20160,7 +20234,11 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                       fontWeight: FontWeight.w600,
                       color: onChanged == null ? _faint : _ink)),
               if (sub.isNotEmpty)
-                Text(sub, style: TextStyle(fontSize: 13, color: _muted)),
+                Text(sub,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: warn ? FontWeight.w600 : null,
+                        color: warn ? const Color(0xFFD9534F) : _muted)),
             ]),
           ),
           Switch(
@@ -20502,6 +20580,12 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   Future<void> _toggleNotif(bool on) async {
     await AppPrefs.setNotificationsEnabled(on);
     if (mounted) setState(() => _notif = on);
+    if (on) {
+      // Re-check: the person may have just granted the OS permission in
+      // Settings and come back, so the warning shouldn't linger stale.
+      final denied = await NotificationService.instance.isPermissionDenied();
+      if (mounted) setState(() => _notifPermDenied = denied);
+    }
     // scheduleFromRecurring() checks the preference AFTER cancelAll(), so
     // flipping it off here alone left every already-scheduled reminder
     // (payment, consent-expiry, monthly report, budget) armed and waiting
@@ -21008,8 +21092,8 @@ class _SettingsScreenState extends State<_SettingsScreen> {
             style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
         content: Text(
           activeSub
-              ? tr('Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.\n\nTavo „Vaultie Pro" prenumerata App Store\'e liks aktyvi ir toliau bus skaičiuojama — paskyros ištrynimas jos NEATŠAUKIA. Pirma atšauk ją per „Valdyti prenumeratą" žemiau.')
-              : tr('Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.'),
+              ? tr('Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Bandysime atjungti banko ryšį. Šio veiksmo anuliuoti negalima.\n\nTavo „Vaultie Pro" prenumerata App Store\'e liks aktyvi ir toliau bus skaičiuojama — paskyros ištrynimas jos NEATŠAUKIA. Pirma atšauk ją per „Valdyti prenumeratą" žemiau.')
+              : tr('Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Bandysime atjungti banko ryšį. Šio veiksmo anuliuoti negalima.'),
           style: TextStyle(color: _muted, height: 1.45),
         ),
         actions: [

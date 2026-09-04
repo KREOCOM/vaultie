@@ -29,9 +29,10 @@ import 'login_screen.dart';
 ///    Apple requires the renewal terms, links to Terms and Privacy, and a
 ///    restore control on any subscription screen; without them review fails.
 ///    Those are added below the button.
-///  * Five feature labels on a 390pt screen leave 70pt each, so the long ones
-///    ("Išlaidų ir biudžetų sekimas") are shortened rather than shrunk to an
-///    unreadable size.
+///
+/// (An earlier version of this screen listed five feature labels instead of
+/// today's full-bleed photo + trust row — see git history if that's ever
+/// worth revisiting; nothing here still depends on it.)
 class OnbPaywall extends StatefulWidget {
   const OnbPaywall(
       {super.key, required this.next, this.onClose, this.previewOnly = false});
@@ -77,6 +78,7 @@ const _yearly = 39.99;
 class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateMixin {
   bool _annual = true;
   bool _busy = false;
+  bool _buying = false;
   // Guards against advancing twice: purchase()/restore() flip premium synchronously,
   // which fires the entitlement listener → _advance BEFORE the await returns, then
   // the explicit success handler calls _advance again → two pushReplacements (double
@@ -183,7 +185,15 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
     // one frame — or a tap landing while `setState` is still in flight — both
     // reached here and opened two StoreKit purchase sheets for the same plan.
     if (_busy) return;
-    setState(() => _busy = true);
+    // _buying is separate from _busy — _busy alone disables every button on
+    // the screen (right, so Restore/Close can't race a purchase), but the
+    // buy button's own spinner used to key off _busy too, so tapping
+    // Restore or the close (X) button made the BUY button spin as if a
+    // purchase were in flight. _buying only turns on for an actual purchase.
+    setState(() {
+      _busy = true;
+      _buying = true;
+    });
     // 2026-09-04: found by audit — only PlatformException was ever caught,
     // inside PurchaseService itself. Anything else escaping the RevenueCat
     // call (a plugin-level exception, a bad response shape) skipped the
@@ -213,7 +223,12 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
     } catch (_) {
       if (mounted) _toast(tr('Pirkimas nepavyko. Bandyk dar kartą.'));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _buying = false;
+        });
+      }
     }
   }
 
@@ -689,7 +704,7 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
             onTap: _busy ? null : _buy,
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 150),
-              opacity: _busy ? 0.75 : 1,
+              opacity: _buying ? 0.75 : 1,
               child: Container(
                 height: 56,
                 decoration: BoxDecoration(
@@ -702,7 +717,7 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: _busy
+                  children: _buying
                       ? const [
                           SizedBox(
                             width: 20,

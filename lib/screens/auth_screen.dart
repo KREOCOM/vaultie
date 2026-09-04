@@ -132,6 +132,12 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           _ResetPasswordDialog(isLt: isLt, initialEmail: _email.text.trim()),
     );
     if (email == null || email.isEmpty) return;
+    // 2026-09-04: real bug, found in audit — nothing guarded this against
+    // being fired twice in a row (reopen the dialog, submit again) while
+    // the first email was still in flight. Same `_busy` flag every other
+    // network action on this screen already uses.
+    if (_busy) return;
+    setState(() => _busy = true);
     try {
       await _auth.sendPasswordResetEmail(email);
       if (!mounted) return;
@@ -163,6 +169,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           ),
         );
       });
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 

@@ -15,15 +15,17 @@ import 'splash_screen.dart' show SplashScreen;
 /// Standalone login / sign-up for returning-but-signed-out users, and the
 /// screen the onboarding hands off to.
 ///
-/// This used to render `onboarding/AccountScreen`, which is built on the older
-/// green `VT` identity — dark green brand, green-black ink, a green-tinted
-/// ground. Against the blue logo and the blue onboarding it read as a different
-/// product. The design here is deliberately plain: the real sign-in screen is
-/// still to be designed, and nothing should be worth keeping by accident.
+/// This used to render `onboarding/AccountScreen`, which was built on the
+/// older green `VT` identity — dark green brand, green-black ink, a
+/// green-tinted ground. Against the blue logo and the blue onboarding it
+/// read as a different product. The design here is deliberately plain: the
+/// real sign-in screen is still to be designed, and nothing should be worth
+/// keeping by accident.
 ///
-/// **The sign-in itself is untouched.** Google, Apple and email call exactly the
-/// same handlers as before, and `AccountScreen` is left in place for the old
-/// OnboardingFlow, so nothing had to be deleted to change how this looks.
+/// **The sign-in itself is untouched.** Google, Apple and email call exactly
+/// the same handlers as before. `AccountScreen` and the old `OnboardingFlow`
+/// it belonged to have since been deleted — nothing else in the app
+/// referenced either.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 

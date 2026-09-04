@@ -180,10 +180,10 @@ class _SplashScreenState extends State<SplashScreen>
         !widget.hasOnboarded) {
       // Scene pages, each running the real app inside the artwork's phone,
       // then the bank connect. The pre-scene onboarding screens are gone.
-      // The bank-tiles page (OnbWelcome) is out of the chain: the tiles moved too
-      // fast to read and the intro was a page longer than it needed to be. The
-      // screen itself is left in the tree, unreferenced, because something else
-      // is going into that slot.
+      // An earlier bank-tiles page (OnbWelcome) briefly held this slot — the
+      // tiles moved too fast to read and the intro was a page longer than it
+      // needed to be — before onb_banks.dart's own bank-coverage page (see
+      // below) replaced it. OnbWelcome has since been deleted.
       next = const OnbIntro(
         // 2026-08-17: bank-coverage page inserted here — see onb_banks.dart's
         // own doc for why every page after it bumped its own dotIndex by one.

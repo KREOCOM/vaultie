@@ -253,15 +253,28 @@ class _OnbConnectState extends State<OnbConnect>
                                 size: 13,
                                 color: Colors.white.withValues(alpha: 0.62)),
                             const SizedBox(width: 6),
-                            Text(
-                              tr('2 700+ bankų visoje Europoje'),
-                              style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white.withValues(alpha: 0.62)),
+                            // A larger accessibility text size or a longer
+                            // translation had nothing to wrap into here —
+                            // Flexible lets it wrap instead of overflow.
+                            Flexible(
+                              child: Text(
+                                tr('2 700+ bankų visoje Europoje'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withValues(alpha: 0.62)),
+                              ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 14),
+                        // 2026-09-04: every other onboarding page shows the
+                        // 7-dot progress indicator; this, the LAST page, was
+                        // the one place it silently disappeared — the
+                        // "almost done" signal vanished right when it
+                        // mattered most.
+                        SizedBox(width: double.infinity, child: _dots()),
                       ],
                     ),
                   ),
@@ -337,4 +350,24 @@ class _OnbConnectState extends State<OnbConnect>
       ),
     );
   }
+
+  // Same 7-dot indicator every other onboarding page shows, last one lit —
+  // there's no 8th dot (only 7 exist for the whole chain), so this final
+  // page reuses page 7's own "done with the tour" position rather than
+  // showing none at all.
+  Widget _dots() => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < 7; i++)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: i == 6 ? 18 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: i == 6 ? 1 : 0.35),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+        ],
+      );
 }

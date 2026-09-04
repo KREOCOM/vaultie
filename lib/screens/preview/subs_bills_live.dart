@@ -52,6 +52,41 @@ Color get _blueSoft => AppPrefs.darkMode.value ? const Color(0xFF241C3B) : const
 Color get _good => AppPrefs.darkMode.value ? const Color(0xFF34D399) : const Color(0xFF1FA971);
 Color get _bad => AppPrefs.darkMode.value ? const Color(0xFFF87171) : const Color(0xFFD9534F);
 
+/// 2026-09-04: real bug, found in audit — dismissing a candidate or
+/// deleting a confirmed item used to happen instantly on one tap, with no
+/// confirmation and no undo anywhere in the app (not even by searching for
+/// the merchant again — its name+amount stays excluded once reviewed). A
+/// mis-tap silently and permanently stopped Vaultie tracking a real
+/// subscription or bill. Same confirm-dialog shape as deleting a
+/// transaction elsewhere in the app. Top-level (not a State method) since
+/// both _LiveRecurringScreenState and _LiveSortScreenState need it.
+Future<bool> _confirmRemoveItem(
+    BuildContext context, _LiveItem it, bool isSubs) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: _card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+          isSubs ? tr('Nebesekti šios prenumeratos?') : tr('Nebesekti šios sąskaitos?'),
+          style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+      content: Text(
+          '„${it.displayName}" ${tr('daugiau nebebus rodoma šiame sąraše. Jei persigalvosi, ją reikės pridėti rankomis.')}',
+          style: TextStyle(color: _subtle, height: 1.4)),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(tr('Atšaukti'), style: TextStyle(color: _subtle))),
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('Nebesekti'),
+                style: TextStyle(color: _bad, fontWeight: FontWeight.w800))),
+      ],
+    ),
+  );
+  return ok == true;
+}
+
 // 2026-08-16: layered rings — one ring per subscription, radius ranked by
 // size (biggest = outermost), sweep proportional to its share of the
 // monthly total. First pass (see the HTML mockup this was picked from) used
@@ -179,6 +214,9 @@ String _pendingCountLabel(int n) {
 
 String _cadenceLabel(String? cycle) {
   switch (cycle) {
+    case null:
+    case 'monthly':
+      return tr('kas mėnesį');
     case 'weekly':
       return tr('kas savaitę');
     case 'biweekly':
@@ -190,7 +228,11 @@ String _cadenceLabel(String? cycle) {
     case 'quarterly':
       return tr('kas ketvirtį');
     default:
-      return tr('kas mėnesį');
+      // 2026-09-04: was silently folded into "kas mėnesį" — if the
+      // backend's cycle enum ever grows a value this switch doesn't know
+      // about, say something neutral instead of confidently claiming a
+      // cadence that might be wrong.
+      return tr('reguliariai');
   }
 }
 
@@ -1152,6 +1194,7 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
       );
 
   Future<void> _removeConfirmed(_LiveItem it) async {
+    if (!await _confirmRemoveItem(context, it, _isSubs)) return;
     await DashboardStore.setRecurringOverride(it.sid, false);
     setState(() {});
   }
@@ -1413,8 +1456,13 @@ class _LiveSortScreenState extends State<_LiveSortScreen> {
   }
 
   Future<void> _dismiss(_LiveItem it) async {
+    if (!await _confirmRemoveItem(
+        context, it, widget.wantType == 'subscription')) {
+      return;
+    }
     await DashboardStore.setRecurringOverride(it.sid, false);
     await DashboardStore.markRecurringReviewed(it.sid);
+    if (!mounted) return;
     setState(() => _items.remove(it));
     widget.onChanged();
   }

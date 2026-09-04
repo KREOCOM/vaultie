@@ -111,6 +111,7 @@ const Map<String, String> _en = {
   'Gauta': 'Received',
   'grynasis': 'net',
   'Rodyti senesnius': 'Show older',
+  'reguliariai': 'regularly',
   'tikslas': 'target',
   'Sujungtos operacijos — keisis pavadinimas ir kategorija visoms':
       'Merged transactions — the name and category will change for all of them',
@@ -237,6 +238,17 @@ const Map<String, String> _en = {
   'per mėn': 'per mo',
   'Šis mėnuo': 'This month',
   'Atšaukti': 'Cancel',
+  // 2026-09-04: Settings' notification toggle now warns when the OS
+  // permission is actually off, instead of just reflecting the app's own
+  // (separate) preference.
+  'Išjungta telefono nustatymuose — priminimai neateis':
+      'Turned off in phone settings — reminders won\'t arrive',
+  // 2026-09-04: subs_bills_live.dart's new remove-confirmation dialog.
+  'Nebesekti šios prenumeratos?': 'Stop tracking this subscription?',
+  'Nebesekti šios sąskaitos?': 'Stop tracking this bill?',
+  'daugiau nebebus rodoma šiame sąraše. Jei persigalvosi, ją reikės pridėti rankomis.':
+      'won\'t show in this list anymore. If you change your mind, you\'ll need to add it back manually.',
+  'Nebesekti': 'Stop tracking',
   'Ryšys su serveriu užtruko per ilgai. Patikrink interneto ryšį ir bandyk dar kartą.':
       'The connection to the server took too long. Check your internet connection and try again.',
   'Išsaugoti': 'Save',
@@ -776,12 +788,12 @@ const Map<String, String> _en = {
   'Atsijungti galima tik tikroje programoje.':
       'You can only sign out in the real app.',
   'Ištrinti paskyrą?': 'Delete account?',
-  'Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.':
-      'This will PERMANENTLY delete your Vaultie account and all data on this phone — transactions, subscriptions, budgets. The bank connection will be disconnected. This action cannot be undone.',
+  'Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Bandysime atjungti banko ryšį. Šio veiksmo anuliuoti negalima.':
+      'This will PERMANENTLY delete your Vaultie account and all data on this phone — transactions, subscriptions, budgets. We’ll also try to disconnect the bank connection. This action cannot be undone.',
   // 2026-09-04: added alongside the active-subscription warning in the
   // delete-account dialog — see _confirmDelete's own comment for why.
-  'Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.\n\nTavo „Vaultie Pro" prenumerata App Store\'e liks aktyvi ir toliau bus skaičiuojama — paskyros ištrynimas jos NEATŠAUKIA. Pirma atšauk ją per „Valdyti prenumeratą" žemiau.':
-      'This will PERMANENTLY delete your Vaultie account and all data on this phone — transactions, subscriptions, budgets. The bank connection will be disconnected. This action cannot be undone.\n\nYour "Vaultie Pro" subscription will stay active on the App Store and keep being charged — deleting your account does NOT cancel it. Cancel it first via "Manage subscription" below.',
+  'Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Bandysime atjungti banko ryšį. Šio veiksmo anuliuoti negalima.\n\nTavo „Vaultie Pro" prenumerata App Store\'e liks aktyvi ir toliau bus skaičiuojama — paskyros ištrynimas jos NEATŠAUKIA. Pirma atšauk ją per „Valdyti prenumeratą" žemiau.':
+      'This will PERMANENTLY delete your Vaultie account and all data on this phone — transactions, subscriptions, budgets. We’ll also try to disconnect the bank connection. This action cannot be undone.\n\nYour "Vaultie Pro" subscription will stay active on the App Store and keep being charged — deleting your account does NOT cancel it. Cancel it first via "Manage subscription" below.',
   'Ištrinti paskyrą galima tik tikroje programoje.':
       'You can only delete your account in the real app.',
   'Patvirtink slaptažodį': 'Confirm your password',
