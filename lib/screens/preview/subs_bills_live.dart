@@ -771,8 +771,13 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
               const SizedBox(width: 8),
               SizedBox(
                 width: 60,
+                // 2026-09-04: a 4-digit monthly total (≥ ~€1000) had no
+                // maxLines/overflow guard and could wrap to two lines here,
+                // breaking row alignment against the bar next to it.
                 child: Text('${sorted[i].monthly.toStringAsFixed(2)} €',
                     textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12.5,

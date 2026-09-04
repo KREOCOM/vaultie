@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -96,6 +98,17 @@ Future<void> ensureLocalDataForCurrentUser() async {
 /// deletion (and could be used on an explicit "reset"). After this the next
 /// sign-in starts from zero.
 Future<void> wipeLocalDataAndForget() async {
+  // Unlike an account-switch wipe (which archives this same key for a
+  // possible restore, see _kVaultSettings/archiveVault), this account is
+  // never coming back — so the actual photo FILE, not just the Hive path
+  // pointing at it, has to go too, or it sits on disk forever ready to be
+  // shown to whoever creates the next account on this phone.
+  final photoPath = AppPrefs.profilePhotoPath.value;
+  if (photoPath.isNotEmpty) {
+    try {
+      await File(photoPath).delete();
+    } catch (_) {}
+  }
   await _wipeLocalData();
   await Hive.box(HiveBoxes.settings).delete(_kDataOwner);
   await PurchaseService.instance.setUser(null);
@@ -132,6 +145,15 @@ const _kVaultSettings = <String>[
   'lockFaceId',
   'aiChatConsent',
   'userName',
+  // 2026-09-04: real bug, found in audit — this key was missing from both
+  // this list AND _wipeLocalData's own list below, so a profile photo
+  // wasn't scoped to the account at all: it leaked onto the next account
+  // signing in on the same phone, and that account's own "remove photo"
+  // action deleted the FIRST account's photo FILE, which — since it was
+  // never archived — was gone for good. Listing it here fixes the
+  // archive/restore side; the actual file is handled separately (see
+  // wipeLocalDataAndForget, the one path with no restore to protect).
+  'profilePhotoPath',
 ];
 
 /// Box-name suffix for a uid. Hive folds box names to lower case, so the raw
@@ -249,10 +271,14 @@ Future<void> _wipeLocalData() async {
     'lockFaceId',
     'aiChatConsent',
     'userName',
+    // 2026-09-04: see _kVaultSettings' own comment above — same bug, same
+    // fix, this is the other list that needed it.
+    'profilePhotoPath',
   ]) {
     await settings.delete(key);
   }
   AppPrefs.budget.value = null;
+  AppPrefs.profilePhotoPath.value = '';
 }
 
 Future<void> _clearBox(String name) async {

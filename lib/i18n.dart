@@ -111,6 +111,9 @@ const Map<String, String> _en = {
   'Gauta': 'Received',
   'grynasis': 'net',
   'Rodyti senesnius': 'Show older',
+  'tikslas': 'target',
+  'Sujungtos operacijos — keisis pavadinimas ir kategorija visoms':
+      'Merged transactions — the name and category will change for all of them',
   'sandoriai': 'transactions',
   'sandorių': 'transactions',
   'apžvalga': 'review',
@@ -643,6 +646,7 @@ const Map<String, String> _en = {
       'Suggested from your spending · edit',
   'Tavo biudžetas · keisk': 'Your budget · edit',
   'virš pasiūlymo': 'over the suggestion',
+  'virš biudžeto': 'over budget',
   'Šį limitą pasiūlėme pagal tavo ~3 mėn. vidurkį. Gali pakeisti į savo.':
       'We suggested this limit from your ~3-month average. You can change it to your own.',
   'Keisk savo mėnesio limitą.': 'Change your monthly limit.',
@@ -774,6 +778,10 @@ const Map<String, String> _en = {
   'Ištrinti paskyrą?': 'Delete account?',
   'Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.':
       'This will PERMANENTLY delete your Vaultie account and all data on this phone — transactions, subscriptions, budgets. The bank connection will be disconnected. This action cannot be undone.',
+  // 2026-09-04: added alongside the active-subscription warning in the
+  // delete-account dialog — see _confirmDelete's own comment for why.
+  'Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.\n\nTavo „Vaultie Pro" prenumerata App Store\'e liks aktyvi ir toliau bus skaičiuojama — paskyros ištrynimas jos NEATŠAUKIA. Pirma atšauk ją per „Valdyti prenumeratą" žemiau.':
+      'This will PERMANENTLY delete your Vaultie account and all data on this phone — transactions, subscriptions, budgets. The bank connection will be disconnected. This action cannot be undone.\n\nYour "Vaultie Pro" subscription will stay active on the App Store and keep being charged — deleting your account does NOT cancel it. Cancel it first via "Manage subscription" below.',
   'Ištrinti paskyrą galima tik tikroje programoje.':
       'You can only delete your account in the real app.',
   'Patvirtink slaptažodį': 'Confirm your password',
@@ -1023,8 +1031,12 @@ const Map<String, String> _en = {
   'Sutaupai': 'You save',
   '/ mėn.': '/ mo.',
   '/ metus': '/ yr.',
-  'metams': 'per year',
-  'mėnesiui': 'per month',
+  // 2026-09-04: was 'per year'/'per month' — its only call site
+  // (onb_paywall.dart's `_bottom()`) always concatenates it as
+  // '$price / $per', which doubled the preposition in English
+  // ("€39.99 / per year"). Bare word here; the '/' already reads as "per".
+  'metams': 'year',
+  'mėnesiui': 'month',
   'Pasirinkus metinį planą, lyginant su mėnesiniu.':
       'Choosing the annual plan instead of monthly.',
   'Atsinaujina automatiškai, kol neatšauksi App Store nustatymuose likus ne mažiau kaip 24 val. iki laikotarpio pabaigos.':
@@ -1464,6 +1476,20 @@ const Map<String, String> _en = {
   'Licencijuotas tarpininkas': 'Licensed intermediary',
   'Jungiamės per Enable Banking — ES reguliuojamą atvirosios bankininkystės tiekėją, veikiantį pagal PSD2 direktyvą.':
       'We connect through Enable Banking — an EU-regulated open banking provider operating under the PSD2 directive.',
+  // 2026-09-03's copy rewrite of this same screen (shorter step cards, a
+  // new safety-card heading) shipped without updating this map either —
+  // the exact same class of bug as the 2026-08-03 entries just above,
+  // found again by the 2026-09-04 audit. Added, not replacing the old
+  // entries above (which may still be reachable from cached strings).
+  'Vos 3 žingsniai iki prijungto banko.': 'Just 3 steps to a connected bank.',
+  'Iš daugiau nei 2 700+ Europos bankų.': 'From over 2,700+ European banks.',
+  'Nukreipsim į tavo banko programėlę ar svetainę. Prisijungi ir patvirtini prieigą taip, kaip įprastai.':
+      "We'll take you to your bank's app or website. You sign in and confirm access, just like you normally would.",
+  'Kai patvirtinsi, grįši į Vaultie — tavo operacijos susitvarkys automatiškai.':
+      "Once you confirm, you'll be back in Vaultie — your transactions will sort themselves out automatically.",
+  'Tavo banko duomenys saugūs': 'Your bank details are safe',
+  'Prisijungimas vyksta tavo banko aplinkoje. Vaultie nemato prisijungimo duomenų.':
+      "Sign-in happens inside your bank's own environment. Vaultie never sees your login details.",
   'Niekada nematome tavo slaptažodžio': 'We never see your password',
   'Prisijungi tik savo banke. Vaultie gauna leidimą skaityti operacijas — ne tavo prisijungimo duomenis.':
       "You sign in only at your own bank. Vaultie gets permission to read transactions — not your login details.",

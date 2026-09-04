@@ -59,8 +59,12 @@ class _OnbIntroState extends State<OnbIntro> {
   void _warmNextPage() {
     if (!mounted) return;
     DashboardPreview.warmDemo();
+    // 2026-09-04: was 'page3_scene.png' — that asset was superseded by
+    // 'page3_bg2.png' (see onb_month.dart) when this page's own live-demo
+    // rework landed; the precache silently kept warming a file nothing
+    // shows anymore, so the stutter this exists to prevent was back.
     precacheImage(
-        const AssetImage('assets/onboarding/page3_scene.png'), context);
+        const AssetImage('assets/onboarding/page3_bg2.png'), context);
   }
 
   void _start() {
@@ -153,7 +157,7 @@ class _OnbIntroState extends State<OnbIntro> {
                               ).createShader(const Rect.fromLTWH(0, 0, 150, 34)),
                           ),
                         ),
-                        TextSpan(text: ' ${tr('aiškiau')}'),
+                        TextSpan(text: tr(' aiškiau')),
                       ]),
                       textAlign: TextAlign.center,
                       style: TextStyle(

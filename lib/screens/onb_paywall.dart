@@ -184,26 +184,36 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
     // reached here and opened two StoreKit purchase sheets for the same plan.
     if (_busy) return;
     setState(() => _busy = true);
-    final result = await PurchaseService.instance.purchase(_plan);
-    if (!mounted) return;
-    setState(() => _busy = false);
-
-    switch (result.status) {
-      case PurchaseStatus.success:
-        _advance();
-      case PurchaseStatus.pending:
-        // Deferred/Ask-to-Buy/SCA, or the entitlement hasn't landed yet. The
-        // listener auto-advances when it does — say "processing", not "failed",
-        // so the user doesn't try to buy again.
-        _toast(tr('Pirkimas apdorojamas — palauk akimirką.'));
-      case PurchaseStatus.cancelled:
-        break;
-      case PurchaseStatus.notFound:
-        // Offerings never loaded: offline, or the products aren't live in App
-        // Store Connect yet. There is no "skip" here — say to retry when online.
-        _toast(tr('Planai kol kas nepasiekiami. Bandyk vėliau.'));
-      case PurchaseStatus.error:
-        _toast(result.message ?? tr('Pirkimas nepavyko. Bandyk dar kartą.'));
+    // 2026-09-04: found by audit — only PlatformException was ever caught,
+    // inside PurchaseService itself. Anything else escaping the RevenueCat
+    // call (a plugin-level exception, a bad response shape) skipped the
+    // `_busy = false` below entirely, leaving the button spinning forever
+    // with no way out except restarting the app — on the one screen that
+    // gates the entire subscription-only product.
+    try {
+      final result = await PurchaseService.instance.purchase(_plan);
+      if (!mounted) return;
+      switch (result.status) {
+        case PurchaseStatus.success:
+          _advance();
+        case PurchaseStatus.pending:
+          // Deferred/Ask-to-Buy/SCA, or the entitlement hasn't landed yet. The
+          // listener auto-advances when it does — say "processing", not "failed",
+          // so the user doesn't try to buy again.
+          _toast(tr('Pirkimas apdorojamas — palauk akimirką.'));
+        case PurchaseStatus.cancelled:
+          break;
+        case PurchaseStatus.notFound:
+          // Offerings never loaded: offline, or the products aren't live in App
+          // Store Connect yet. There is no "skip" here — say to retry when online.
+          _toast(tr('Planai kol kas nepasiekiami. Bandyk vėliau.'));
+        case PurchaseStatus.error:
+          _toast(result.message ?? tr('Pirkimas nepavyko. Bandyk dar kartą.'));
+      }
+    } catch (_) {
+      if (mounted) _toast(tr('Pirkimas nepavyko. Bandyk dar kartą.'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -232,16 +242,22 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
   /// Restores a previous purchase — required on any subscription screen, and
   /// the path back to premium for anyone reinstalling or on a new device.
   Future<void> _restore() async {
+    if (_busy) return;
     setState(() => _busy = true);
-    final result = await PurchaseService.instance.restore();
-    if (!mounted) return;
-    setState(() => _busy = false);
-
-    if (result.isSuccess) {
-      _toast(tr('Pirkimas atkurtas.'));
-      _advance();
-    } else {
-      _toast(tr('Nerasta pirkimų atkurti.'));
+    // Same unbounded-hang fix as _buy — see its own comment.
+    try {
+      final result = await PurchaseService.instance.restore();
+      if (!mounted) return;
+      if (result.isSuccess) {
+        _toast(tr('Pirkimas atkurtas.'));
+        _advance();
+      } else {
+        _toast(tr('Nerasta pirkimų atkurti.'));
+      }
+    } catch (_) {
+      if (mounted) _toast(tr('Nerasta pirkimų atkurti.'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 

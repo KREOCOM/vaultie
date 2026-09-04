@@ -3779,8 +3779,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
         // top inset via their own SafeArea below. Outer overlay style = light
         // icons on the dark theme; the home's inner region overrides it while the
         // (dark) banner covers the top in light theme.
+        // 2026-09-04: both AnnotatedRegions here were reading the raw
+        // AppPrefs.darkMode.value directly — the one pair in this file that
+        // bypassed the demo-aware `_darkMode` (set from `widget.demo ? false
+        // : AppPrefs.darkMode.value` in initState, line ~3255). A real
+        // device saved in dark mode replaying onboarding (Settings → Dev →
+        // force preview onboarding) got light status-bar icons drawn over
+        // what the demo correctly forces to a light background underneath.
         body: AnnotatedRegion<SystemUiOverlayStyle>(
-          value: AppPrefs.darkMode.value
+          value: _darkMode
               ? SystemUiOverlayStyle.light
               : SystemUiOverlayStyle.dark,
           child: Stack(key: _kRoot, children: [
@@ -3791,7 +3798,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
                   AnnotatedRegion<SystemUiOverlayStyle>(
                     // Dark theme = light icons (dark banner under the status bar);
                     // Frost = dark icons (the whole top is light).
-                    value: AppPrefs.darkMode.value
+                    value: _darkMode
                         ? SystemUiOverlayStyle.light
                         : SystemUiOverlayStyle.dark,
                     child: _dashboard(),
@@ -3994,7 +4001,8 @@ class _DashboardPreviewState extends State<DashboardPreview>
                     color: _card,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: _hair)),
-                child: Text('Rodyti senesnius (${monthKeys.length - shown.length})',
+                child: Text(
+                    '${tr('Rodyti senesnius')} (${monthKeys.length - shown.length})',
                     style: TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w700, color: _purple)),
               ),
@@ -9039,32 +9047,46 @@ class _ManualTxScreenState extends State<_ManualTxScreen> {
                                 fontWeight: FontWeight.w800,
                                 color: tint)),
                         const SizedBox(width: 6),
-                        IntrinsicWidth(
-                          child: TextField(
-                            controller: _amountCtl,
-                            autofocus: true,
-                            textAlign: TextAlign.center,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(
-                                    decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                  RegExp(r'[0-9.,]'))
-                            ],
-                            onChanged: (_) => setState(() {}),
-                            style: TextStyle(
-                                fontSize: 38,
-                                fontWeight: FontWeight.w800,
-                                color: _ink,
-                                letterSpacing: -1),
-                            decoration: InputDecoration(
-                              isCollapsed: true,
-                              border: InputBorder.none,
-                              hintText: '0',
-                              hintStyle: TextStyle(
+                        // 2026-09-04: IntrinsicWidth alone has no ceiling —
+                        // a long amount (6+ digits) next to a wide display
+                        // currency symbol (HUF/CHF/"lei"/"kr") could push
+                        // this Row past the card's width, since unlike the
+                        // old full-width Expanded field, nothing here caps
+                        // it. Capping at half the screen keeps the centered
+                        // look for short input while forcing the TextField
+                        // to scroll its own text internally (same as the
+                        // old field always did) instead of overflowing.
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                              maxWidth:
+                                  MediaQuery.sizeOf(context).width * 0.5),
+                          child: IntrinsicWidth(
+                            child: TextField(
+                              controller: _amountCtl,
+                              autofocus: true,
+                              textAlign: TextAlign.center,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                    RegExp(r'[0-9.,]'))
+                              ],
+                              onChanged: (_) => setState(() {}),
+                              style: TextStyle(
                                   fontSize: 38,
                                   fontWeight: FontWeight.w800,
-                                  color: _faint),
+                                  color: _ink,
+                                  letterSpacing: -1),
+                              decoration: InputDecoration(
+                                isCollapsed: true,
+                                border: InputBorder.none,
+                                hintText: '0',
+                                hintStyle: TextStyle(
+                                    fontSize: 38,
+                                    fontWeight: FontWeight.w800,
+                                    color: _faint),
+                              ),
                             ),
                           ),
                         ),
@@ -10389,7 +10411,7 @@ class _TxDetailScreenState extends State<_TxDetailScreen> {
   Future<void> _edit() async {
     final rows = _underlying;
     if (rows.length > 1) {
-      _toast('Sujungtos operacijos — keisis pavadinimas ir kategorija visoms');
+      _toast(tr('Sujungtos operacijos — keisis pavadinimas ir kategorija visoms'));
     }
     final edited = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
@@ -15182,7 +15204,7 @@ class _CategoryDetailScreen extends StatelessWidget {
                           icon: const Icon(Icons.arrow_back_ios_new_rounded,
                               size: 20, color: Colors.white)),
                       Expanded(
-                          child: Text(section.label,
+                          child: Text(tr(section.label),
                               style: const TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w700,
@@ -15194,7 +15216,11 @@ class _CategoryDetailScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Icon(section.icon, size: 64, color: Colors.white),
                   const SizedBox(height: 10),
-                  Text(section.label,
+                  // 2026-09-04: was raw `section.label` — _SecAgg carries
+                  // the raw Lithuanian label, never tr()'d before now, so
+                  // English users landed here (from a correctly-translated
+                  // list row) on a header/hero still in Lithuanian.
+                  Text(tr(section.label),
                       style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w800,
@@ -17291,7 +17317,7 @@ class _SavingsTrendPainter extends CustomPainter {
     }
     final tp = TextPainter(
       text: TextSpan(
-          text: 'tikslas $_target %',
+          text: '${tr('tikslas')} $_target %',
           style: TextStyle(
               fontSize: 9.5, fontWeight: FontWeight.w700, color: good)),
       textDirection: TextDirection.ltr,
@@ -17898,7 +17924,11 @@ class _PlanningTabState extends State<_PlanningTab> {
             Text(
               left >= 0
                   ? '${_eur(left)} ${tr('liko')}'
-                  : '${_eur(-left)} ${tr('virš pasiūlymo')}',
+                  // 2026-09-04: was unconditionally "over the suggestion",
+                  // even for a limit the user typed themselves (b.isAuto ==
+                  // false) — matches the label right above it, which
+                  // already makes this same distinction.
+                  : '${_eur(-left)} ${b.isAuto ? tr('virš pasiūlymo') : tr('virš biudžeto')}',
               style: TextStyle(
                   fontSize: 13.5, fontWeight: FontWeight.w700, color: col),
             ),
@@ -19722,7 +19752,10 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   // another tab, and a field only ever reassigns from _pickTheme's own
   // setState — reading it here means this row keeps showing whatever it said
   // when the tab was first built, stale until the tab happens to remount.
-  String get _theme => AppPrefs.darkMode.value ? 'Tamsi' : 'Šviesi';
+  // 2026-09-04: was AppPrefs.darkMode.value directly — same demo-leak class
+  // as the AnnotatedRegions above; _darkMode is the module-level, demo-aware
+  // mirror of it (see this file's own top-of-file doc).
+  String get _theme => _darkMode ? 'Tamsi' : 'Šviesi';
   bool _pin = AppLock.isPinSet;
   bool _faceId = AppLock.faceIdEnabled;
   bool _faceAvailable = false;
@@ -20958,6 +20991,15 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   }
 
   Future<void> _confirmDelete() async {
+    // 2026-09-04: real bug, found in audit — deleting the account never
+    // warned about an ACTIVE App Store subscription. Apple still bills it
+    // afterwards, and the account is gone, so there is no way back in to
+    // even see (let alone cancel) that charge. Checked here, before the
+    // dialog, so the warning (and a direct way to cancel first) only shows
+    // when it's actually true.
+    final sub = await PurchaseService.instance.subscriptionInfo();
+    final activeSub = sub?.isActive == true;
+    if (!mounted) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -20966,13 +21008,24 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         title: Text(tr('Ištrinti paskyrą?'),
             style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
         content: Text(
-          tr('Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.'),
+          activeSub
+              ? tr('Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.\n\nTavo „Vaultie Pro" prenumerata App Store\'e liks aktyvi ir toliau bus skaičiuojama — paskyros ištrynimas jos NEATŠAUKIA. Pirma atšauk ją per „Valdyti prenumeratą" žemiau.')
+              : tr('Tai VISAM LAIKUI ištrins tavo Vaultie paskyrą ir visus duomenis šiame telefone — sandorius, prenumeratas, biudžetus. Banko ryšys bus atjungtas. Šio veiksmo anuliuoti negalima.'),
           style: TextStyle(color: _muted, height: 1.45),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: Text(tr('Atšaukti'), style: TextStyle(color: _muted))),
+          if (activeSub)
+            TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx, false);
+                  PurchaseService.instance.openManageSubscriptions();
+                },
+                child: Text(tr('Valdyti prenumeratą'),
+                    style: TextStyle(
+                        color: _purple, fontWeight: FontWeight.w800))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: Text(tr('Ištrinti'),
