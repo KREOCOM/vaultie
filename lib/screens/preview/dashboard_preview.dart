@@ -30,7 +30,6 @@ import '../../services/dashboard_store.dart';
 import '../../services/logo_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/purchase_service.dart';
-import '../../services/stock_service.dart';
 import '../../ui/design_system.dart';
 import '../../user_session.dart';
 import '../bank_connect_screen.dart';

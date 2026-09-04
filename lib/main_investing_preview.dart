@@ -87,9 +87,9 @@ class _PreviewApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: InvestingTab(),
+      home: InvestingTab(onExit: () {}),
     );
   }
 }
