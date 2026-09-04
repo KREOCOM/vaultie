@@ -18,6 +18,25 @@ import 'bank_callback_screen.dart';
 import 'bank_how_it_works.dart';
 import 'login_screen.dart';
 
+/// 2026-09-04: real bug, found in audit — search on this screen (both the
+/// country picker and the bank list) compared raw lowercased text, so
+/// "cekija" never matched "Čekija". Small hand-rolled table rather than a
+/// package: covers Lithuanian plus the common Western European diacritics
+/// that actually show up in this screen's own country/bank names (France,
+/// Germany, Spain, Portugal, Scandinavia...), which is all this needs.
+String _foldDiacritics(String s) {
+  const from = 'ąčęėįšųūžĄČĘĖĮŠŲŪŽ'
+      'áàâäãåéèêëíìîïóòôöõúùûüýÿñçßøÖÜÄ';
+  const to = 'aceeisuuzACEEISUUZ'
+      'aaaaaaeeeeiiiiooooouuuuyyncsoOUA';
+  final buf = StringBuffer();
+  for (final ch in s.split('')) {
+    final i = from.indexOf(ch);
+    buf.write(i == -1 ? ch : to[i]);
+  }
+  return buf.toString();
+}
+
 /// Ensures one authorisation code is exchanged exactly once.
 ///
 /// A bank can deliver its callback through BOTH channels at once: the in-session
@@ -306,20 +325,22 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
 
   List<_Country> get _filteredCountries {
-    final q = _countrySearch.text.trim().toLowerCase();
+    final q = _foldDiacritics(_countrySearch.text.trim().toLowerCase());
     if (q.isEmpty) return _countries;
     return _countries
         .where((c) =>
-            c.lt.toLowerCase().contains(q) ||
-            c.en.toLowerCase().contains(q) ||
+            _foldDiacritics(c.lt.toLowerCase()).contains(q) ||
+            _foldDiacritics(c.en.toLowerCase()).contains(q) ||
             c.code.toLowerCase().contains(q))
         .toList();
   }
 
   List<Bank> get _filteredBanks {
-    final q = _bankSearch.text.trim().toLowerCase();
+    final q = _foldDiacritics(_bankSearch.text.trim().toLowerCase());
     if (q.isEmpty) return _banks;
-    return _banks.where((b) => b.name.toLowerCase().contains(q)).toList();
+    return _banks
+        .where((b) => _foldDiacritics(b.name.toLowerCase()).contains(q))
+        .toList();
   }
 
   @override

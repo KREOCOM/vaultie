@@ -914,19 +914,6 @@ Widget _breakdownRow(Color color, String title, String sub, double amount,
 Map<String, String>? _subAliasCache;
 Map<String, String> _subAliases() =>
     _subAliasCache ??= DashboardStore.subscriptionAliases();
-void _reloadSubAliases() =>
-    _subAliasCache = DashboardStore.subscriptionAliases();
-
-/// Display name for a recurring item — the user's alias if the series is named,
-/// otherwise the (shortened) merchant name.
-String _recName(Map it) {
-  final sid = it['sid'] as String?;
-  if (sid != null) {
-    final a = _subAliases()[sid];
-    if (a != null && a.isNotEmpty) return a;
-  }
-  return _shortNm((it['name'] as String?) ?? '—');
-}
 
 /// Display name for a transaction feed row — the subscription alias if this row
 /// belongs to a named recurring series (by sid), otherwise the merchant name.
@@ -1214,75 +1201,6 @@ bool _recCounted(Map it, Set<String> excl, Set<String> incl) {
   return it['active'] == true;
 }
 
-double _recMonthlyTotal(
-        List<Map<String, dynamic>> items, Set<String> excl, Set<String> incl) =>
-    items.fold(
-        0.0,
-        (s, it) =>
-            s +
-            (_recCounted(it, excl, incl)
-                ? ((it['monthly'] ?? 0) as num).toDouble()
-                : 0.0));
-
-List<String> _recStatusMeta(String? status) {
-  // label + whether it reads as "live"
-  switch (status) {
-    case 'active':
-      return ['Aktyvus', '1'];
-    case 'late':
-      return ['Vėluoja', '0'];
-    case 'ended':
-      return ['Baigėsi', '0'];
-    case 'early':
-      return ['Naujas', '0'];
-    default:
-      return ['', '0'];
-  }
-}
-
-String _recCycleLabel(String? cycle) {
-  switch (cycle) {
-    case 'weekly':
-      return 'kas savaitę';
-    case 'quarterly':
-      return 'kas ketvirtį';
-    case 'yearly':
-      return 'kas metus';
-    default:
-      return 'kas mėnesį';
-  }
-}
-
-const _recMonLt = [
-  '',
-  'sausio',
-  'vasario',
-  'kovo',
-  'balandžio',
-  'gegužės',
-  'birželio',
-  'liepos',
-  'rugpjūčio',
-  'rugsėjo',
-  'spalio',
-  'lapkričio',
-  'gruodžio'
-];
-
-// "kas mėnesį · paskutinį kartą liepos 14 · ×6" — helps the user judge each row.
-String _recDetail(Map it) {
-  final parts = <String>[tr(_recCycleLabel(it['cycle'] as String?))];
-  final last = it['lastCharge'] as String?;
-  final d = last != null ? DateTime.tryParse(last) : null;
-  if (d != null) {
-    final mon = _enUi ? _monAbbrEn[d.month - 1] : _recMonLt[d.month];
-    parts.add('${tr('paskutinį kartą')} $mon ${d.day}');
-  }
-  final occ = ((it['occ'] ?? 0) as num).toInt();
-  if (occ >= 2) parts.add('×$occ');
-  return parts.join(' · ');
-}
-
 // Correct Lithuanian plural for "aktyvus" (1 aktyvus · 2–9 aktyvūs · 10–20 /
 // 0 aktyvių), so a tile never reads "1 aktyvūs".
 String _ltActive(int n) {
@@ -1306,38 +1224,6 @@ String _ltActive(int n) {
 }
 
 String _activeLabel(int n) => _enUi ? '$n active' : '$n ${_ltActive(n)}';
-
-// A category glyph for a recurring row's tile (CategoryIcon falls back to this
-// when no bundled brand logo resolves). Keyed by the backend `category` string.
-IconData _reviewCatIcon(String? cat) {
-  switch (cat) {
-    case 'food':
-      return Icons.restaurant_rounded;
-    case 'fuel':
-    case 'transport':
-    case 'vehicle':
-      return Icons.local_gas_station_rounded;
-    case 'shopping':
-      return Icons.shopping_bag_rounded;
-    case 'housing':
-      return Icons.home_rounded;
-    case 'connectivity':
-      return Icons.wifi_rounded;
-    case 'entertainment':
-      return Icons.play_circle_fill_rounded;
-    case 'health':
-    case 'fitness':
-      return Icons.favorite_rounded;
-    case 'finance':
-    case 'taxes':
-    case 'invest':
-      return Icons.account_balance_rounded;
-    case 'edu':
-      return Icons.school_rounded;
-    default:
-      return Icons.autorenew_rounded;
-  }
-}
 
 // Lowercase + strip Lithuanian diacritics so search matches "ivairus" ↔ "įvairūs".
 String _fold(String s) {
@@ -2231,10 +2117,6 @@ enum DemoScript {
   /// Overview tab: switch to it, then open the savings-rate breakdown.
   overview,
 
-  /// Planning: open the add-budget sheet, then walk into the account settings
-  /// and turn the app dark.
-  budget,
-
   /// AI chat: opens straight onto the tab with a conversation already in it,
   /// then types another question and answers it.
   chat,
@@ -2285,18 +2167,6 @@ class DashboardPreview extends StatefulWidget {
 
   @override
   State<DashboardPreview> createState() => _DashboardPreviewState();
-}
-
-/// One side of `_heroSideGlow` — a flat, constant tone. See that getter for
-/// why no gradient/fade is needed: the strip is positioned from the hero's
-/// own MEASURED height, so it is already the target colour for its entire
-/// extent, including the part hidden behind the hero's rounded corner.
-class _SideGlowStrip extends StatelessWidget {
-  const _SideGlowStrip();
-
-  @override
-  Widget build(BuildContext context) =>
-      DecoratedBox(decoration: BoxDecoration(color: _previewPageBlue.withValues(alpha: 0.20)));
 }
 
 /// 2026-08-14: the hero's bottom edge — rounded top corners as normal, but
@@ -2739,7 +2609,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
     // fresh _AiChatTab) — the IndexedStack's own copy at tabNeeded index 1
     // is never shown, so it doesn't need building either.
     DemoScript.chat: <int>{},
-    DemoScript.budget: {2, 3},
   };
 
   bool _tabNeeded(int i) =>
@@ -3030,75 +2899,7 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
   }
 
-  /// Budget tour: open the add-budget sheet, close it, then show the app going
-  /// dark from the settings screen.
-  ///
-  /// The theme is flipped through [AppPrefs.darkMode]'s notifier and
-  /// [_applyTheme] — NOT through `AppPrefs.setDarkMode`, which writes to disk.
-  /// A marketing page must not leave the viewer's app dark (nor, further down
-  /// this screen, set them a PIN or change their currency); whatever the demo
-  /// touches is put back when the page is disposed.
-  Future<void> _runBudgetDemo() async {
-    if (!await _beat(1000)) return;
-    while (mounted && _demoOn) {
-      if (_tab != 3) {
-        if (!await _demoTap(_kNav3, () => setState(() => _tab = 3),
-            settle: 1500)) {
-          return;
-        }
-      }
-      setState(() => _demoPointer = null);
-      if (!await _beat(900)) return;
-
-      // 1 — add a budget: the sheet is the app's own, opened by its own handler.
-      final add = _demoAddBudget;
-      if (add != null) {
-        if (!await _demoTap(_kAddBudget, add, settle: 2600)) return;
-        setState(() => _demoPointer = null);
-        _demoPopSheet();
-        if (!await _beat(1100)) return;
-      }
-
-      // 2 — the app goes dark, then comes back.
-      if (!await _demoTap(_kNav4, () => setState(() => _tab = 4),
-          settle: 1200)) {
-        return;
-      }
-      setState(() => _demoPointer = null);
-      if (!await _beat(900)) return;
-      _demoSetDark(true);
-      if (!await _beat(2600)) return;
-      _demoSetDark(false);
-      if (!await _beat(1400)) return;
-
-      if (!await _demoTap(_kNav3, () => setState(() => _tab = 3),
-          settle: 900)) {
-        return;
-      }
-      setState(() => _demoPointer = null);
-      if (!await _beat(900)) return;
-    }
-  }
-
-  /// Closes whatever the demo opened inside the phone's own navigator.
-  void _demoPopSheet() {
-    final ctx = _kRoot.currentContext;
-    final nav = ctx != null && ctx.mounted ? Navigator.maybeOf(ctx) : null;
-    if (nav != null && nav.canPop()) nav.pop();
-  }
-
-  /// Flip the palette for show only — no write, so the viewer's own setting is
-  /// untouched. [dispose] puts it back to whatever they actually chose.
-  void _demoSetDark(bool dark) {
-    if (!mounted) return;
-    AppPrefs.darkMode.value = dark;
-    _applyTheme(dark);
-    setState(
-        () => _otherTabs = null); // cached tabs must rebuild in the new palette
-  }
-
   Future<void> _runDemo() async {
-    if (widget.script == DemoScript.budget) return _runBudgetDemo();
     if (widget.script == DemoScript.chat) return _runChatDemo();
     if (widget.script == DemoScript.overview) return _runOverviewDemo();
     if (!await _beat(700)) return;
@@ -4054,8 +3855,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
   /// Solid for a stretch after that, then fades to nothing well clear of the
   /// Prenumeratos/Sąskaitos cards rather than ending in a visible line right
   /// above them.
-  static const double _heroSideGlowOverlap = 40;
-
   // How far the hero's outer bottom corners hang below its flat center
   // "shelf" — see _HeroShapeClipper and _topBanner.
   static const double _heroLegDepth = 28;
@@ -4064,94 +3863,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // padaryk tiesiai") — 0 keeps the clipper's flat-shelf path (see
   // _HeroShapeClipper's own "0 = no groove" branch).
   static const double _heroGrooveDepth = 0;
-  // solidRun covers the 40px overlap PLUS ~20px genuinely below the hero's
-  // true bottom, so the fade's own top stop can't land inside the rounded
-  // corner's arc (which would show as the corner fading instead of solid).
-  // Fade then runs long enough to reach white by around "Šią savaitę
-  // išėjo", well short of the weekly bar chart.
-  static const double _heroSideGlowSolidRun = 60;
-  static const double _heroSideGlowFade = 170;
-  List<Widget> get _heroSideGlow {
-    final h = _heroHeight;
-    if (h == null) return const [];
-    final top = h - _heroSideGlowOverlap;
-    return [
-      Positioned(
-        top: top,
-        left: 0,
-        right: 0,
-        height: _heroSideGlowSolidRun + _heroSideGlowFade,
-        child: Column(children: [
-          SizedBox(height: _heroSideGlowSolidRun, child: const _SideGlowStrip()),
-          SizedBox(
-            height: _heroSideGlowFade,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    _previewPageBlue.withValues(alpha: 0.20),
-                    _previewPageBlue.withValues(alpha: 0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ]),
-      ),
-    ];
-  }
-
-  /// 2026-08-14: a near-black, Revolut-style ambient backdrop for the rest of
-  /// Home, below the (still blue) hero — replaces `_heroSideGlow`'s blue
-  /// continuation for now. Starts _heroSideGlowOverlap px above the hero's
-  /// REAL measured bottom for the same reason that constant exists: the
-  /// hero's own bottom corners are rounded (see _topBanner), so this has to
-  /// already be painted back there, or the corner's curve reveals a sliver
-  /// of the plain light backdrop instead.
-  ///
-  /// Deliberately does NOT try to avoid the Prenumeratos/Sąskaitos cards, the
-  /// weekly chart, or the Finansų Agentas banner — it doesn't need to. Those
-  /// are opaque cards drawn ON TOP of this in the Stack (same pattern as the
-  /// hero's own side glow), so they simply cover whatever's behind them;
-  /// this shows through only in the margins and the gaps between cards,
-  /// which is the same as "not behind the cards" from the user's side.
-  Widget _homeDarkBackdrop() {
-    final h = _heroHeight;
-    if (h == null) return const SizedBox.shrink();
-    return Positioned(
-      top: h - _heroSideGlowOverlap,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: Stack(children: [
-        const Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(color: Color(0xFF0A0A10)))),
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(-0.7, -0.25),
-                radius: 0.9,
-                colors: [const Color(0xFF2F6BFF).withValues(alpha: 0.20), const Color(0xFF2F6BFF).withValues(alpha: 0)],
-              ),
-            ),
-          ),
-        ),
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(0.9, 0.55),
-                radius: 0.9,
-                colors: [const Color(0xFF7C5CD6).withValues(alpha: 0.16), const Color(0xFF7C5CD6).withValues(alpha: 0)],
-              ),
-            ),
-          ),
-        ),
-      ]),
-    );
-  }
 
   /// The app's shared backdrop: a soft gradient, plus (in light "Frost") three
   /// faint colour glows. Painted behind every tab so the whole app stands on the
@@ -4488,85 +4199,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
   Color get _syncTint =>
       (_darkMode || designPreviewPalette) ? const Color(0xFF6EE7FF) : _purple;
 
-  // The hero (_topBanner) shrunk to nothing via Align's heightFactor, plus a
-  // grabber row that survives the collapse (so there's always something to
-  // pull back down). Align — not a raw height number — because the hero's
-  // real height varies (balance hidden/shown, +N accounts chip, safe-area
-  // insets) and this doesn't need to know it: heightFactor scales whatever
-  // height the child would naturally take.
-  List<Widget> _collapsibleHero() => [
-        AnimatedBuilder(
-          animation: _heroCollapseCtl,
-          builder: (_, child) => ClipRect(
-            child: Align(
-              alignment: Alignment.topCenter,
-              heightFactor: 1 - _heroCollapseCtl.value,
-              child: child,
-            ),
-          ),
-          child: _topBanner(),
-        ),
-        _heroGrabber(),
-      ];
-
-  // Listener + raw pointer events, NOT GestureDetector's onVerticalDragUpdate
-  // — the grabber lives inside the Home ListView, which is itself a vertical
-  // Scrollable competing for the exact same drag axis. In the gesture arena
-  // the ancestor Scrollable kept winning (or at least eating enough of the
-  // drag) that onVerticalDragUpdate barely fired. Listener's pointer
-  // callbacks are delivered on every matching hit-test target regardless of
-  // which recognizer wins the arena, so this can't lose the gesture to the
-  // list's own scrolling.
-  Widget _heroGrabber() {
-    double startY = 0;
-    double startValue = 0;
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (e) {
-        startY = e.position.dy;
-        startValue = _heroCollapseCtl.value;
-      },
-      onPointerMove: (e) {
-        final dy = e.position.dy - startY;
-        // Dragging UP (negative dy) increases the collapse value.
-        _heroCollapseCtl.value = (startValue - dy / 160).clamp(0.0, 1.0);
-      },
-      onPointerUp: (e) {
-        // Barely moved → treat as a tap: flip fully open/closed rather than
-        // snapping back to whatever startValue was (which would feel like
-        // the tap did nothing).
-        final moved = (e.position.dy - startY).abs();
-        final target = moved < 8
-            ? (startValue > 0.5 ? 0.0 : 1.0)
-            : (_heroCollapseCtl.value > 0.5 ? 1.0 : 0.0);
-        _heroCollapseCtl.animateTo(target, curve: Curves.easeOut);
-      },
-      child: Builder(builder: (context) {
-        return Container(
-          color: Colors.transparent,
-          // The hero normally pushes everything below the status bar/notch
-          // via its OWN top padding (topInset+8 — see _topBanner) — but that
-          // padding collapses away WITH the hero. Fully collapsed, this row
-          // would otherwise land partly under the status bar: barely
-          // visible, and an unreliable tap target. Its own top inset keeps
-          // it clear of the notch no matter how collapsed the hero is.
-          padding: EdgeInsets.fromLTRB(
-              0, MediaQuery.of(context).padding.top + 6, 0, 9),
-          child: Center(
-            child: Container(
-              width: 40,
-              height: 5,
-              decoration: BoxDecoration(
-                color: _muted.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-
   Widget _topBanner() {
     // Plot the FULL balance-over-time series — the same data the tapped balance
     // detail shows — sub-sampled to a clean small line. (The backend `spark` was
@@ -4705,12 +4337,13 @@ class _DashboardPreviewState extends State<DashboardPreview>
         // it. Root cause not chased down; the plain RadialGradient alone
         // already reads as rich/premium (v6 below reached the same
         // conclusion for the old top-left cluster), so dropped rather than
-        // debugged further. _glowBlob() is left defined but unused.
+        // debugged further.
         // v6 (2026-08-12): the OLD top-left three-blob cluster was removed
         // for the same reason — three rounds of artifacts (a hard-edged blur
         // block, then still-visible banding on the plain RadialGradient's
-        // own circular edge). _previewGlow() is left defined but unused
-        // below, in case either cluster is worth revisiting later.
+        // own circular edge). Both attempts' widgets (_glowBlob,
+        // _previewGlow) were deleted 2026-09-04 — see git history if either
+        // is ever worth revisiting.
         Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -5384,53 +5017,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
     if (setNow == true && mounted) await _promptCash(delta: 0);
   }
 
-  // 2026-08-16: PREVIEW-ONLY — cash on hand. No card, no fill: one line of
-  // text and two thin step buttons, so the hero doesn't gain a second block.
-  // No value yet → a quiet "+ Grynieji" ghost link starts it; set once → the
-  // full row with +/− (each opens a one-field sheet, not a blind increment,
-  // since "how much did you spend/get" needs an actual number).
-  Widget _cashRow() {
-    final cash = (_cashAsset?['amount'] as num?)?.toDouble();
-    if (cash == null) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 2),
-        child: GestureDetector(
-          onTap: () => _promptCash(delta: 0),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.add_rounded,
-                size: 15, color: Colors.white.withValues(alpha: 0.7)),
-            const SizedBox(width: 4),
-            Text(tr('Grynieji'),
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.7))),
-          ]),
-        ),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Row(children: [
-        const Text('💵', style: TextStyle(fontSize: 13)),
-        const SizedBox(width: 6),
-        Text(tr('Grynieji'),
-            style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.white.withValues(alpha: 0.7))),
-        const SizedBox(width: 8),
-        Text(_eur0(cash),
-            style: const TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-        const Spacer(),
-        _cashStepBtn(Icons.remove_rounded, () => _promptCash(delta: -1)),
-        const SizedBox(width: 8),
-        _cashStepBtn(Icons.add_rounded, () => _promptCash(delta: 1)),
-      ]),
-    );
-  }
-
   Widget _cashStepBtn(IconData icon, VoidCallback onTap) => GestureDetector(
         onTap: onTap,
         child: Container(
@@ -5610,72 +5196,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
     }
     await DashboardStore.setManualAssets(updated);
     setState(() {});
-  }
-
-  /// PREVIEW-ONLY (2026-08-12): two soft radial blobs behind the hero content,
-  /// for the layered "glow" depth the reference deck asked for instead of one
-  /// flat gradient. Only ever built when designPreviewPalette is true.
-  // 2026-08-16: PREVIEW-ONLY — the hero's balance-split bar. Only the
-  // proportions + percentages, no names/amounts: the merged chip right
-  // below already states those, so this stays a single glanceable shape
-  // instead of a second copy of the same list.
-  static const _acctSplitPalette = [
-    Colors.white,
-    Color(0xFF5AC8FA),
-    Color(0x59FFFFFF),
-    Color(0xFF1E9BD7),
-  ];
-
-  Widget _acctSplitBar(List<Map> accounts, double acctTotal) {
-    final total = acctTotal.abs() < 1e-6 ? 1.0 : acctTotal.abs();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(7),
-          child: SizedBox(
-            height: 12,
-            child: Row(children: [
-              for (var i = 0; i < accounts.length; i++)
-                Expanded(
-                  flex: ((((accounts[i]['amount'] ?? 0) as num).toDouble().abs() /
-                              total *
-                              1000)
-                          .round())
-                      .clamp(1, 1000000),
-                  child: Container(
-                      color: _acctSplitPalette[i % _acctSplitPalette.length]),
-                ),
-            ]),
-          ),
-        ),
-        if (accounts.length > 1) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 16,
-            runSpacing: 4,
-            children: [
-              for (var i = 0; i < accounts.length && i < 4; i++)
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(
-                      width: 7,
-                      height: 7,
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                          color: _acctSplitPalette[i % _acctSplitPalette.length],
-                          shape: BoxShape.circle)),
-                  Text(
-                      '${((((accounts[i]['amount'] ?? 0) as num).toDouble().abs() / total) * 100).round()}%',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: _heroDim)),
-                ]),
-            ],
-          ),
-        ],
-      ],
-    );
   }
 
   // 2026-08-16: PREVIEW-ONLY — one row of the expanded account list (stacked
@@ -6137,63 +5657,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
         ]),
       );
 
-  /// Three overlapping, ACTUALLY-blurred blobs — a hard-edged RadialGradient
-  /// falloff reads as a flat smudge no matter how saturated its colour is;
-  /// real Gaussian blur (ImageFiltered) plus higher alpha is most of what
-  /// separates "faded" from the reference deck's own luminous glow.
-  // v5 (2026-08-12): dropped ImageFiltered/blur entirely — even with a large
-  // transparent margin and TileMode.decal it still produced a visible
-  // rounded-rectangle "block" on device (Impeller compositing the blur's own
-  // layer bounds, most visible where it overlapped the chart's end labels).
-  // A plain multi-stop RadialGradient has no layer edge to show at all: it
-  // fades to fully transparent by construction, not by post-processing.
-  Widget _previewGlow() => Positioned.fill(
-        child: IgnorePointer(
-          child: Stack(children: [
-            _glowBlob(top: -160, left: -80, size: 420,
-                color: const Color(0xFFA9C4FF), alpha: 0.10),
-            _glowBlob(top: -90, left: 80, size: 260,
-                color: const Color(0xFF6E9BFF), alpha: 0.40),
-            _glowBlob(top: -70, right: 10, size: 200,
-                color: const Color(0xFF2F6BFF), alpha: 0.30),
-          ]),
-        ),
-      );
-
-  Widget _glowBlob({
-    double? top,
-    double? left,
-    double? right,
-    double? bottom,
-    required double size,
-    required Color color,
-    required double alpha,
-  }) {
-    return Positioned(
-      top: top,
-      left: left,
-      right: right,
-      bottom: bottom,
-      child: IgnorePointer(
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [
-                color.withValues(alpha: alpha),
-                color.withValues(alpha: alpha * 0.5),
-                color.withValues(alpha: 0),
-              ],
-              stops: const [0.0, 0.5, 1.0],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Balance change vs ~a month ago (the last dated point ≥30 days back, else the
   /// series start): returns (absolute €, percent). Nulls when there isn't data.
   (double?, double?) _balanceDelta(List<Map> series, double? cur) {
@@ -6306,18 +5769,15 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // engine is unsure, calm otherwise. No outer title: the halves label it.
   Widget _subsCard() {
     final subs = _d['subs'] as Map<String, dynamic>;
-    // 2026-09-04: corrected — `hidden` is always empty in practice today.
-    // DashboardStore.setRecurringHidden (the only way anything would ever
-    // land in this set) is never called anywhere in the reachable app; the
-    // real "stop tracking" path is setRecurringOverride, not this. Kept as
-    // dead-but-load-bearing plumbing (removing recurringHidden() itself is
-    // a separate decision) rather than claiming a restore flow that isn't
-    // actually wired to any UI.
-    final hidden = DashboardStore.recurringHidden();
-    // allItems (incl. hidden + manual) feed the manager; items (hidden
-    // dropped, which today means none) drive the totals/split.
+    // allItems (incl. manual) feed the manager; items drive the totals/split.
+    // 2026-09-04: was filtered through DashboardStore.recurringHidden() —
+    // removed, along with setRecurringHidden/recurringHidden themselves
+    // (see dashboard_store.dart), since nothing anywhere ever called
+    // setRecurringHidden, so the set was always empty and the filter was a
+    // permanent no-op. The real "stop tracking" path is
+    // setRecurringOverride, not this.
     final allItems = _recItemsFull(subs);
-    final items = allItems.where((it) => !_recHasVerdict(hidden, it)).toList();
+    final items = allItems;
     final excl = DashboardStore.recurringExcluded();
     final incl = DashboardStore.recurringIncluded();
     final counted = items.where((it) => _recCounted(it, excl, incl)).toList();
@@ -6419,147 +5879,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
   // the SAME _monthIncome/_monthExpenses this class already uses for the
   // month headers in _transactionsTab, tapping through to Apžvalga (index 1)
   // for the full breakdown rather than duplicating it here.
-  // Savings % for a month, or null if it had no income to divide by (the
-  // same "no income → undefined, not 0%" rule _OverviewTabState's _savingsOf
-  // uses).
-  // 2026-08-14: was `.clamp(0, 100)` — a month where you spent more than you
-  // earned rounded to a flat "0%", indistinguishable from a month you broke
-  // even on. The gauge below exists specifically to show that difference
-  // (red, below the zero tick), so the number behind it has to be honest too.
-  // 2026-08-16: a month with a tiny stray "income" row (a few € refund,
-  // say) technically satisfies earned > 0 but isn't a real income month —
-  // dividing by it produces a mathematically-correct but absurd number
-  // (-2000%+), which then blows out the 6-month chart's whole scale.
-  // Clamped to ±100 — past that point the sign and "you way overspent" is
-  // already the whole story; more precision isn't more useful.
-  int? _savingsPctFor(String mk) {
-    final earned = _monthIncome(mk);
-    if (earned <= 0) return null;
-    final spent = _monthExpenses(mk);
-    return (((earned - spent) / earned) * 100).round().clamp(-100, 100);
-  }
-
-  // 2026-08-14: a "Santaupų norma" (savings rate) card for Home, matching
-  // the reference — right below Prenumeratos/Sąskaitos. Overview already has
-  // a fuller version of this same card (_savingsCard in _OverviewTabState),
-  // but that class computes it from ITS OWN filtered-rows/month-key state,
-  // which Home doesn't share — this is a lighter, Home-scoped version off
-  // the SAME _monthIncome/_monthExpenses this class already uses for the
-  // month headers in _transactionsTab, tapping through to the real detail
-  // screen (_SavingsRateScreen — see 2026-08-15 note there) rather than
-  // duplicating it here. 2026-08-15: the bigger unboxed half-donut gauge
-  // tried here didn't read well sitting on Home among the other boxed
-  // cards — that treatment moved into the detail screen itself instead;
-  // this stayed the small boxed ring, just with the clamp removed so a
-  // month you overspent shows its real negative number, not a flat "0%".
-  Widget _savingsRateCard() {
-    final keys = (_feedAll.map((t) => _ymOf(t)).toSet().toList()..sort()); // ascending
-    final now = DateTime.now();
-    final curMk = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-
-    // Most of any given month has no salary landed yet — showing a blank
-    // "šį mėn. dar nėra" for most of the month made the card read as
-    // permanently empty on Home (a glance-y summary, unlike the Overview
-    // detail screen where drilling into an empty month is expected). Falls
-    // back to the most recent month that DID have income, labelled as such,
-    // so the card almost always has a real number on it.
-    var shownMk = curMk;
-    var pct = _savingsPctFor(curMk);
-    var isCurrent = true;
-    if (pct == null) {
-      for (final mk in keys.reversed) {
-        if (mk == curMk) continue;
-        final p = _savingsPctFor(mk);
-        if (p != null) {
-          shownMk = mk;
-          pct = p;
-          isCurrent = false;
-          break;
-        }
-      }
-    }
-    final net = _monthIncome(curMk) - _monthExpenses(curMk);
-
-    return GestureDetector(
-      // The real detail screen (_SavingsRateScreen) — same one Overview's
-      // own savings card opens (see _openSavings) — not a stand-in. Built
-      // from Home's OWN data (_feedAll/_monthIncome/_monthExpenses) since
-      // this class doesn't share _OverviewTabState's filtered-rows state.
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => _SavingsRateScreen(
-                monthKeys: keys,
-                savingsOf: (rows) {
-                  final e = _sumIncome(rows);
-                  if (e <= 0) return 0;
-                  final s = _sumExpenses(rows);
-                  return (((e - s) / e) * 100).round().clamp(-100, 100);
-                },
-                earnedOf: _sumIncome,
-                rowsOf: (mk) => _rowsForMonth(mk).toList(),
-                initialKey: shownMk,
-                all: _feedAll.toList(),
-              ))),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _hair),
-          boxShadow: _darkMode
-              ? null
-              : [
-                  BoxShadow(
-                      color: const Color(0xFF1E284A).withValues(alpha: 0.05),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6))
-                ],
-        ),
-        child: Row(children: [
-          SizedBox(
-            width: 44,
-            height: 44,
-            child: Stack(alignment: Alignment.center, children: [
-              CircularProgressIndicator(
-                value: pct == null ? 0 : (pct / 100).clamp(0.0, 1.0),
-                backgroundColor: _hair,
-                color: pct != null && pct < 0 ? DS.danger : _purple,
-                strokeWidth: 4,
-              ),
-              if (pct != null)
-                Text('$pct%',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _ink)),
-            ]),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(tr('Santaupų norma'),
-                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _ink)),
-                const SizedBox(height: 2),
-                Text(
-                    pct == null
-                        ? tr('Dar nėra pajamų duomenų')
-                        : (isCurrent
-                            ? (net >= 0
-                                ? '${tr('Sutaupei')} ${_eur0(net)}'
-                                : '${tr('Viršyta')} ${_eur0(-net)}')
-                            : '$pct% · ${tr('praėjusio mėn.')}'),
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        color: (pct != null && pct < 0) ? DS.danger : _muted)),
-              ],
-            ),
-          ),
-          Icon(Icons.chevron_right_rounded, size: 20, color: _faint),
-        ]),
-      ),
-    );
-  }
-
   // 2026-08-14: a Bilance-style "Finance Agent" promo card — sits right below
   // the weekly spend chart. 2026-08-14: the AI chat no longer has its own
   // bottom-nav row (that slot now opens Transakcijos — see _navBar) — this
@@ -7111,11 +6430,6 @@ class _DashboardPreviewState extends State<DashboardPreview>
           ),
         ),
       );
-
-  void _toast(String m) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(
-        content: Text(m), duration: const Duration(milliseconds: 3300)));
 
   // Recent, unsplit, real-spending rows whose amount is plausibly close to
   // the scanned receipt total — closest first.
@@ -18885,7 +18199,6 @@ class _AccountTab extends StatefulWidget {
 }
 
 class _AccountTabState extends State<_AccountTab> {
-  bool _promo = true;
   late List<Map<String, dynamic>> _assets = DashboardStore.manualAssets();
 
   // Bank balance = the live truth from Enable Banking (never touched by cash).
@@ -19006,60 +18319,6 @@ class _AccountTabState extends State<_AccountTab> {
             ]),
           ),
         ),
-      );
-
-  Widget _promoCard() => Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        padding: const EdgeInsets.fromLTRB(18, 18, 14, 18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [_purpleSoft, _card]),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              child: Text(tr('Naujiena: matyk visą savo turtą'),
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: _ink,
-                      height: 1.2)),
-            ),
-            Container(
-              width: 58,
-              height: 58,
-              decoration:
-                  BoxDecoration(color: _purpleSoft, shape: BoxShape.circle),
-              child: Icon(Icons.insights_rounded, size: 28, color: _purple),
-            ),
-            GestureDetector(
-                onTap: () => setState(() => _promo = false),
-                child: Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: Icon(Icons.close_rounded, size: 20, color: _faint))),
-          ]),
-          const SizedBox(height: 8),
-          Text(
-              tr('Pridėk būstą, investicijas, paskolas ir daugiau — visą finansinį vaizdą vienoje vietoje.'),
-              style: TextStyle(fontSize: 14, color: _muted, height: 1.4)),
-          const SizedBox(height: 12),
-          Row(children: [
-            Icon(Icons.auto_awesome_rounded, size: 18, color: _purple),
-            const SizedBox(width: 8),
-            Expanded(
-                child: Text(
-                    tr(
-                        'Geresni AI patarimai, kai Vaultie mato visą tavo situaciją.'),
-                    style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: _purpleDeep,
-                        height: 1.35))),
-          ]),
-        ]),
       );
 
   Widget _netWorthCard() {

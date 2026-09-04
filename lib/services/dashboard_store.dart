@@ -564,30 +564,6 @@ class DashboardStore {
     }
   }
 
-  // ── Recurring hidden (deleted from the list entirely) ─────────────────────
-  // Turning a stream OFF (setRecurringOverride) keeps it in the manager so it can
-  // be turned back on. DELETING it (trash icon) hides it from the list AND the
-  // totals for good — for streams the user never wants to see again. Keyed by
-  // sid, re-applied on every sync.
-  static const _kRecHidden = 'recHidden';
-
-  static Set<String> recurringHidden() => _loadSet(_kRecHidden);
-
-  static Future<void> setRecurringHidden(String sid, bool hidden) async {
-    if (sid.isEmpty) return;
-    final set = recurringHidden();
-    if (hidden) {
-      set.add(sid);
-    } else {
-      set.remove(sid);
-    }
-    try {
-      await _box.put(_kRecHidden, jsonEncode(set.toList()));
-    } catch (_) {
-      // No Hive box (standalone preview) → in-memory only.
-    }
-  }
-
   // ── Recurring TYPE overrides (subscription <-> bill), by sid ──────────────
   // The engine guesses whether a stream is a subscription or a bill; the user can
   // reclassify (e.g. a gym billed via a payment processor → subscription). Keyed

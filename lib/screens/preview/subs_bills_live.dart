@@ -87,67 +87,6 @@ Future<bool> _confirmRemoveItem(
   return ok == true;
 }
 
-// 2026-08-16: layered rings — one ring per subscription, radius ranked by
-// size (biggest = outermost), sweep proportional to its share of the
-// monthly total. First pass (see the HTML mockup this was picked from) used
-// a faint 10%-alpha track and thin strokes that all but disappeared against
-// the blue card on a real screen — "tik rysius padaryk kad matytųsi
-// vaizdas". Track brightened to 26% and every ring gets a floor on its
-// sweep angle so even a small subscription (SEB at 2 €) still draws a
-// visible arc instead of a barely-there sliver.
-class _RingsPainter extends CustomPainter {
-  _RingsPainter(this.entries, this.total, {this.progress = 1});
-  final List<MapEntry<String, double>> entries; // name -> monthly, sorted desc
-  final double total;
-  final double progress;
-
-  static const palette = [
-    Color(0xFF7DD3FC),
-    Color(0xFFC4B5FD),
-    Color(0xFF86EFAC),
-    Color(0xFFFCD34D),
-    Color(0xFFFDA4AF),
-    Color(0xFFFDBA74),
-  ];
-
-  static const double _strokeW = 13;
-  static const double _minR = 32;
-  static const double _minSweep = 0.30; // radians, ~17° — never fully disappears
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (entries.isEmpty || total <= 0) return;
-    final center = size.center(Offset.zero);
-    final maxR = size.width / 2 - _strokeW / 2;
-    final n = entries.length;
-    final step = n > 1 ? (maxR - _minR) / (n - 1) : 0.0;
-    final track = Paint()
-      ..color = Colors.white.withValues(alpha: 0.26)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = _strokeW;
-    for (var i = 0; i < n; i++) {
-      final r = maxR - step * i;
-      canvas.drawCircle(center, r, track);
-    }
-    for (var i = 0; i < n; i++) {
-      final r = maxR - step * i;
-      final share = entries[i].value / total;
-      final sweep = math.max(share * 2 * math.pi, _minSweep) * progress;
-      final arc = Paint()
-        ..color = palette[i % palette.length]
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = _strokeW
-        ..strokeCap = StrokeCap.round;
-      canvas.drawArc(
-          Rect.fromCircle(center: center, radius: r), -math.pi / 2, sweep, false, arc);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _RingsPainter old) =>
-      old.entries != entries || old.total != total || old.progress != progress;
-}
-
 // 2026-08-16: a generic payment-rail name (Apple Pay, Google Pay — some
 // banks never surface the underlying merchant for these) breaks the
 // assumption every OTHER key in this screen relies on, that the same name
@@ -413,11 +352,6 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   late List<_LiveItem> _all = _loadLiveItems(widget.itemsOverride);
   late final AnimationController _waveCtl =
       AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat();
-  // 2026-08-16: the layered-rings chart's own one-shot draw-in — separate
-  // controller from _waveCtl (a continuous 8s loop), so SingleTicker becomes
-  // TickerProviderStateMixin to allow both at once.
-  late final AnimationController _ringsCtl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 750))..forward();
 
   bool get _isSubs => widget.wantType == 'subscription';
 
@@ -475,7 +409,6 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
   @override
   void dispose() {
     _waveCtl.dispose();
-    _ringsCtl.dispose();
     if (widget.demo) {
       final real = AppPrefs.darkModeSaved;
       if (AppPrefs.darkMode.value != real) AppPrefs.darkMode.value = real;
@@ -732,9 +665,9 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
           // rejected on a real device as too abstract/cold. Replaced with
           // "sąrašas su juostelėmis" (dot + name + proportional mini-bar +
           // amount), picked from the second HTML comparison round.
-          // _ringsChart/_RingsPainter left defined, unused, in case rings
-          // are worth revisiting differently later. Prenumeratos only for
-          // now (_isSubs) — Sąskaitos usually has just 1-2 entries.
+          // The rings widgets were deleted 2026-09-04 — see git history if
+          // worth revisiting differently. Prenumeratos only for now
+          // (_isSubs) — Sąskaitos usually has just 1-2 entries.
           if (_isSubs && _confirmed.isNotEmpty) ...[
             const SizedBox(height: 16),
             _rankedBarsList(),
@@ -1050,96 +983,6 @@ class _LiveRecurringScreenState extends State<LiveRecurringScreen>
                 ]),
               ),
             ),
-        ],
-      ),
-    ]);
-  }
-
-  Widget _barSkyline() {
-    final sorted = [..._confirmed]..sort((a, b) => b.monthly.compareTo(a.monthly));
-    final maxV = sorted.first.monthly;
-    return SizedBox(
-      height: 118,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (var i = 0; i < sorted.length; i++)
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: sorted.length > 4 ? 3 : 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text('${sorted[i].monthly.toStringAsFixed(0)} €',
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 6),
-                    Container(
-                      height: 14 + (sorted[i].monthly / maxV) * 66,
-                      decoration: BoxDecoration(
-                        color: _rankPalette[i % _rankPalette.length],
-                        borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(8),
-                            topRight: Radius.circular(8),
-                            bottomLeft: Radius.circular(4),
-                            bottomRight: Radius.circular(4)),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(sorted[i].displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.65),
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _ringsChart() {
-    final sorted = [..._confirmed]..sort((a, b) => b.monthly.compareTo(a.monthly));
-    final entries = [for (final it in sorted) MapEntry(it.displayName, it.monthly)];
-    return Column(children: [
-      SizedBox(
-        width: 176,
-        height: 176,
-        child: AnimatedBuilder(
-          animation: _ringsCtl,
-          builder: (_, __) => CustomPaint(
-            painter: _RingsPainter(entries, _monthlyTotal, progress: _ringsCtl.value),
-          ),
-        ),
-      ),
-      const SizedBox(height: 14),
-      Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 14,
-        runSpacing: 6,
-        children: [
-          for (var i = 0; i < entries.length; i++)
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _RingsPainter.palette[i % _RingsPainter.palette.length]),
-              ),
-              const SizedBox(width: 6),
-              Text(entries[i].key,
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.82),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600)),
-            ]),
         ],
       ),
     ]);
