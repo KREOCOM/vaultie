@@ -322,6 +322,15 @@ class BankingService {
         throw BankingException(tr(
             'Ryšys su serveriu užtruko per ilgai. Patikrink interneto ryšį ir bandyk dar kartą.'));
       }
+      // 2026-09-04: finance_chat/month_summary/scan_receipt each got a
+      // generous per-day cap server-side (cost insurance against a stuck
+      // retry loop, not meant to bite real use) — without this branch it
+      // fell through to `e.message`, which is the server's raw English
+      // text, same "reads like a crash" problem as the codes above.
+      if (e.code == 'resource-exhausted') {
+        throw BankingException(tr(
+            'Šiandien pasiekei dienos limitą. Pabandyk rytoj.'));
+      }
       throw BankingException(e.message ??
           tr('Kažkas nepavyko. Bandyk dar kartą.'));
     } catch (e, s) {

@@ -21753,10 +21753,17 @@ class _AiChatTabState extends State<_AiChatTab> {
           reply.isEmpty
               ? tr('Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą.')
               : reply)));
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _msgs.add(_ChatMsg('assistant',
-          tr('Nepavyko susisiekti su serveriu. Patikrink ryšį ir bandyk dar kartą.'))));
+      // 2026-09-04: was a bare `catch (_)` — always said "check your
+      // connection" even when BankingService._call already worked out a
+      // more specific, localized reason (e.g. the daily AI cap, or "Vaultie
+      // Pro" required). Use that message when there is one; only fall back
+      // to the generic wording for a truly unclassified failure.
+      final msg = e is BankingException
+          ? e.message
+          : tr('Nepavyko susisiekti su serveriu. Patikrink ryšį ir bandyk dar kartą.');
+      setState(() => _msgs.add(_ChatMsg('assistant', msg)));
     } finally {
       if (mounted) setState(() => _sending = false);
       _scrollToEnd();
