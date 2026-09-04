@@ -656,27 +656,39 @@ class _OnbPaywallState extends State<OnbPaywall> with SingleTickerProviderStateM
     // touch more container contrast, one step down from the plan cards'
     // own text but clearly above the disclosures below the buy button.
     const trustText = Color(0xFFDCE4F7);
+    // 2026-09-04: real bug, found in a widget-test audit (a plain Row with
+    // no Flexible/Expanded around any of its 3 icon+label pairs) — on a
+    // narrow phone (iPhone SE class) the three facts plus their " · "
+    // separators don't fit on one line, which for a bare Row is a hard
+    // RenderFlex overflow, not a graceful clip. Wrap keeps this reading as
+    // one line wherever it already fit, and drops to two lines instead of
+    // erroring wherever it doesn't.
+    Widget fact(IconData icon, String label) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: trustText),
+            const SizedBox(width: 5),
+            Text(tr(label),
+                style: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w700, color: trustText)),
+          ],
+        );
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 9),
+      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(11),
         border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 10,
+        runSpacing: 4,
         children: [
-          const Icon(Icons.lock_outline_rounded, size: 12, color: trustText),
-          const SizedBox(width: 5),
-          Text(tr('Šifruota'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: trustText)),
-          Text('  ·  ', style: TextStyle(fontSize: 11, color: trustText.withValues(alpha: 0.5))),
-          const Icon(Icons.account_balance_rounded, size: 12, color: trustText),
-          const SizedBox(width: 5),
-          Text(tr('2 700+ bankų'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: trustText)),
-          Text('  ·  ', style: TextStyle(fontSize: 11, color: trustText.withValues(alpha: 0.5))),
-          const Icon(Icons.event_busy_rounded, size: 12, color: trustText),
-          const SizedBox(width: 5),
-          Text(tr('Atšauk bet kada'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: trustText)),
+          fact(Icons.lock_outline_rounded, 'Šifruota'),
+          fact(Icons.account_balance_rounded, '2 700+ bankų'),
+          fact(Icons.event_busy_rounded, 'Atšauk bet kada'),
         ],
       ),
     );
