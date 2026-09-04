@@ -1469,7 +1469,13 @@ def month_summary(req: https_fn.CallableRequest) -> dict:
     _require_auth(req)
     rid = _begin(req, "month_summary")
     _require_premium(req)
-    _check_daily_cap(_uid(req), "month_summary", 5, rid)
+    # 2026-09-04: was 5 — the client caches per month+language (see
+    # dashboard_preview.dart's _fetchAiSummary), but browsing several past
+    # months' review cards in one sitting is normal, bursty usage, not
+    # abuse; 5 risked tripping on a real user's very first exploring
+    # session. Raised well above that while staying far under anything a
+    # stuck retry loop would run up.
+    _check_daily_cap(_uid(req), "month_summary", 20, rid)
     data = req.data or {}
     text = _month_report(
         stats=str(data.get("stats") or ""),
