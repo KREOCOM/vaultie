@@ -248,8 +248,8 @@ class RevenueCatPurchaseService implements PurchaseService {
   /// purchasable-in-name-only for past buyers but must never appear as an
   /// option, so it is left unmapped and simply ignored in the offering.
   static const _productIds = {
-    'com.kreocom.vaultie.pro.monthly': PlanId.monthly,
-    'com.kreocom.vaultie.pro.yearly': PlanId.yearly,
+    'com.zivitoma.vaultie.pro.monthly': PlanId.monthly,
+    'com.zivitoma.vaultie.pro.yearly': PlanId.yearly,
     // Google Play: one subscription ("vaultie_pro") with two base plans —
     // RevenueCat reports these as "<subscriptionId>:<basePlanId>", not a flat
     // SKU like the App Store products above.
@@ -258,7 +258,7 @@ class RevenueCatPurchaseService implements PurchaseService {
   };
 
   /// RevenueCat public SDK keys.
-  static const _iosApiKey = 'appl_JazDoCzvsSABSIIooMqzkqKorso';
+  static const _iosApiKey = 'appl_CwaGtZBZEmAiTRtyFQJbgYcJYez';
   static const _androidApiKey = 'goog_YkrIvurDGsLzGWqOWqkcXVXJcFu';
 
   static const _premiumKey = 'premium';
