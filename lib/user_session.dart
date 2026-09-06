@@ -8,6 +8,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'app_prefs.dart';
 import 'main.dart';
 import 'models/subscription.dart';
+import 'services/dashboard_store.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
 
@@ -21,11 +22,19 @@ const _kDataOwner = 'dataOwnerUid';
 /// everything when a *different* user signs in, then claims the vault for them —
 /// so accounts never share data or entitlements. Call after auth resolves and
 /// before showing the dashboard.
+// TEMP DIAGNOSTIC (2026-09-06) — see landing.dart's own doc for the full
+// bug context. ensureLocalDataForCurrentUser has no BuildContext of its own
+// (called before navigation), so it records what it decided here instead;
+// landing.dart's on-screen banner reads it. Remove alongside the rest.
+String? debugLastOwnerSwitch;
+
 Future<void> ensureLocalDataForCurrentUser() async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return;
   final settings = Hive.box(HiveBoxes.settings);
   final owner = settings.get(_kDataOwner) as String?;
+  debugLastOwnerSwitch = 'owner(before)=$owner uid(now)=$uid '
+      'switch=${owner != uid}';
   if (owner != uid) {
     if (owner != null) {
       // A different account is taking over the phone. Their vaults must not mix
@@ -33,7 +42,10 @@ Future<void> ensureLocalDataForCurrentUser() async {
       // local-only, so a wipe here used to be silent, irreversible, and not
       // undone by signing back in. Set the previous owner's data aside first,
       // and only clear the live boxes once the copy is verified.
-      if (!await archiveVault(owner)) {
+      final archiveOk = await archiveVault(owner);
+      debugLastOwnerSwitch = '${debugLastOwnerSwitch!} archiveOk=$archiveOk '
+          'bankCountBeforeWipe=${DashboardStore.bankCount}';
+      if (!archiveOk) {
         // Could not preserve it (disk full, corrupt box). Destroying it is not
         // an acceptable fallback, and neither is handing it to the new account,
         // so refuse the switch: sign back out, leaving everything untouched.
@@ -43,6 +55,8 @@ Future<void> ensureLocalDataForCurrentUser() async {
       }
       await _wipeLocalData();
     }
+    debugLastOwnerSwitch = '${debugLastOwnerSwitch!} '
+        'restoreArchiveExists=${await Hive.boxExists(_archiveName(HiveBoxes.dashboard, vaultTag(uid)))}';
     // Bring this account's own vault back if it was archived earlier, then
     // re-read the cached prefs: the restore wrote straight to Hive, so the
     // in-memory notifiers (budget, name, currency) still hold what the wipe

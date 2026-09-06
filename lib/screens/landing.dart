@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../main.dart' show HiveBoxes;
+import '../user_session.dart' show debugLastOwnerSwitch;
 import '../services/dashboard_store.dart';
 import '../services/purchase_service.dart';
 import '../services/review_account.dart';
@@ -78,7 +79,8 @@ Future<Widget> landingAfterAuth() async {
       "rawDash=${saved == null ? 'null' : 'present'} "
       'dataOwner=${Hive.box(HiveBoxes.settings).get('dataOwnerUid')} '
       'uid=${FirebaseAuth.instance.currentUser?.uid} '
-      'rawBanksKey=${DashboardStore.debugRawBanks()}';
+      'rawBanksKey=${DashboardStore.debugRawBanks()} '
+      '| ${debugLastOwnerSwitch ?? "no ensureLocalDataForCurrentUser call recorded"}';
   return _DiagBanner(text: diag, child: const BankConnectScreen());
 }
 
