@@ -326,6 +326,14 @@ const Map<String, String> _en = {
   // ── "Kvitas"/"Grynieji" hero quick-action first-use explainers ──
   'Nuskenuok kvitą': 'Scan the receipt',
   'Kvito skenavimas': 'Receipt scanning',
+  'Kad atpažintų prekes ir sumą, „Vaultie" siunčia NUFOTOGRAFUOTĄ kvitą '
+          'mūsų AI tiekėjui (Anthropic).\n\n'
+          '• Nuotrauka NIEKUR neišsaugoma — panaudota atpažinimui ir iškart pašalinama.\n'
+          '• Siunčiama tik pati kvito nuotrauka, jokių kitų tavo duomenų.':
+      'To recognise the items and total, "Vaultie" sends the PHOTOGRAPHED '
+          'receipt to our AI provider (Anthropic).\n\n'
+          '• The photo is NEVER stored — it is used for recognition and deleted immediately.\n'
+          '• Only the receipt photo itself is sent, no other data of yours.',
   'Supratau, tęsti': 'Got it, continue',
   'Tik jeigu kvitas apmokėtas grynaisiais pinigais':
       'Only if the receipt was paid in cash',
@@ -706,6 +714,18 @@ const Map<String, String> _en = {
 
   // ── AI chat consent / errors ──
   'AI pokalbis apie tavo finansus': 'AI chat about your finances',
+  'Kad atsakytų į klausimus, „Vaultie" siunčia mūsų AI tiekėjui (Anthropic) '
+          'TAVO finansų SANTRAUKĄ — banko likučius, išlaidas pagal kategoriją ir '
+          'tavo pasikartojančių mokėjimų pavadinimus (pvz. „Netflix").\n\n'
+          '• Nesiunčiami atskiri sandoriai, IBAN‑ai ar kortelių numeriai.\n'
+          '• Duomenys NENAUDOJAMI dirbtinio intelekto treniravimui.\n'
+          '• Tai nėra finansinė konsultacija.':
+      'To answer questions, "Vaultie" sends our AI provider (Anthropic) a '
+          'SUMMARY of YOUR finances — bank balances, spending by category, and '
+          'the names of your recurring payments (e.g. "Netflix").\n\n'
+          '• Individual transactions, IBANs, or card numbers are never sent.\n'
+          '• Data is NOT used to train AI models.\n'
+          '• This is not financial advice.',
   'Sutinku ir tęsiu': 'I agree and continue',
   'Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą.':
       "Sorry, I couldn't answer. Please try again.",
@@ -771,6 +791,21 @@ const Map<String, String> _en = {
   'Matau tik suvestines — jokių atskirų operacijų ar vardų.':
       'I only see summaries — no individual transactions or names.',
   'AI kategorizavimas': 'AI categorisation',
+  'Kai įjungta, prekybininko pavadinimą, kurio Vaultie pati '
+          'neatpažįsta, siunčiame mūsų AI tiekėjui (Anthropic), kad '
+          'padėtų priskirti kategoriją.\n\n'
+          '• Siunčiamas TIK verslo pavadinimas — niekada suma, IBAN, '
+          'data ar kito žmogaus vardas.\n'
+          '• Asmeniniai pervedimai (žmonių vardai) niekada nesiunčiami.\n'
+          '• Duomenys NENAUDOJAMI dirbtinio intelekto treniravimui.\n\n'
+          'Bet kada gali išjungti čia, Nustatymuose.':
+      'When enabled, if Vaultie can\'t recognise a merchant name, we send it '
+          'to our AI provider (Anthropic) to help assign a category.\n\n'
+          '• ONLY the business name is sent — never an amount, IBAN, '
+          'date, or another person\'s name.\n'
+          '• Personal transfers (people\'s names) are never sent.\n'
+          '• Data is NOT used to train AI models.\n\n'
+          'You can turn this off anytime in Settings.',
   'Tiksliau atpažįsta parduotuves. Siunčia tik verslo pavadinimus.':
       'More accurate merchant recognition. Sends business names only.',
   // ── subscription info ──
