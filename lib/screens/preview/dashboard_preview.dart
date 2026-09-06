@@ -20401,7 +20401,19 @@ class _SettingsScreenState extends State<_SettingsScreen> {
       } on FirebaseAuthException catch (e) {
         // Firebase requires a fresh login before deletion — re-auth then retry.
         if (e.code != 'requires-recent-login') rethrow;
-        if (!await _reauth(auth)) return;
+        if (mounted) {
+          _snack(tr(
+              'Saugumo sumetimais patvirtink savo tapatybę, kad ištrintume paskyrą.'));
+        }
+        if (!await _reauth(auth)) {
+          // Cancelled or failed — the account was NOT deleted. Say so instead
+          // of silently returning to the dashboard as if nothing happened.
+          if (mounted) {
+            _snack(tr(
+                'Paskyra NEIŠTRINTA — tapatybės patvirtinimas atšauktas arba nepavyko.'));
+          }
+          return;
+        }
         await auth.deleteAccount();
       }
       try {

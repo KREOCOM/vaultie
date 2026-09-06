@@ -727,6 +727,10 @@ const Map<String, String> _en = {
           '• Data is NOT used to train AI models.\n'
           '• This is not financial advice.',
   'Sutinku ir tęsiu': 'I agree and continue',
+  'Saugumo sumetimais patvirtink savo tapatybę, kad ištrintume paskyrą.':
+      'For security, please confirm your identity so we can delete your account.',
+  'Paskyra NEIŠTRINTA — tapatybės patvirtinimas atšauktas arba nepavyko.':
+      'Account NOT deleted — identity confirmation was cancelled or failed.',
   'Atsiprašau, nepavyko atsakyti. Pabandyk dar kartą.':
       "Sorry, I couldn't answer. Please try again.",
   'Nepavyko susisiekti su serveriu. Patikrink ryšį ir bandyk dar kartą.':
