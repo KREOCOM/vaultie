@@ -86,6 +86,27 @@ class LocalCrypto {
     if (_cipher == null) return false;
     try {
       if (!await Hive.boxExists(name)) return true; // nothing written yet
+
+      // REAL BUG, found 2026-09-06: this function assumed a box is always
+      // plaintext the moment `migrated` reads false — but that Keychain flag
+      // (and the encryption key itself) can be lost independently of the box
+      // file on disk (e.g. a fresh install/reinstall keeps old box files in
+      // some states but not the Keychain, or the Keychain is reset). When
+      // that happens, an ALREADY-encrypted box gets opened here with NO
+      // cipher, reads back empty (wrong key = unreadable, not "nothing to
+      // migrate"), and was then DELETED as if migration had nothing to do —
+      // silent, total, unrecoverable loss of the user's whole local vault.
+      // Checking first whether the cipher already opens it catches that
+      // case and leaves the box on disk untouched instead.
+      try {
+        final alreadyEncrypted =
+            await Hive.openBox<T>(name, encryptionCipher: _cipher);
+        await alreadyEncrypted.close();
+        return true; // already migrated — nothing to do, box left alone
+      } catch (_) {
+        // Not openable with the cipher: genuinely plaintext (the real
+        // migration case below) or corrupt either way. Continue.
+      }
       final plain = await Hive.openBox<T>(name);
       final snapshot = Map<dynamic, T>.fromEntries(
         plain.keys.map((k) => MapEntry(k, plain.get(k) as T)),

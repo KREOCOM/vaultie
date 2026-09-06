@@ -160,16 +160,6 @@ class DashboardStore {
 
   static bool get hasData => _box.get(_kDash) != null;
 
-  // TEMP DIAGNOSTIC (2026-09-06) — see landing.dart's own doc. Raw, unparsed
-  // box contents so a silent jsonDecode failure (caught in [connections])
-  // shows up instead of just reading as "no banks". Remove alongside it.
-  static String debugRawBanks() {
-    final raw = _box.get(_kBanks);
-    if (raw == null) return 'MISSING';
-    final s = raw.toString();
-    return s.length > 60 ? '${s.substring(0, 60)}…(${s.length} chars)' : s;
-  }
-
   /// When the saved dashboard was last synced (for a "last updated" label).
   static DateTime? get syncedAt {
     final s = _str(_kSyncedAt);
