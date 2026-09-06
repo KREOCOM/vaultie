@@ -1,5 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
+import '../main.dart' show HiveBoxes;
 import '../services/dashboard_store.dart';
 import '../services/purchase_service.dart';
 import '../services/review_account.dart';
@@ -62,7 +65,45 @@ Future<Widget> landingAfterAuth() async {
   // not on a dashboard built from a leftover/partial blob with zero real
   // connections behind it.
   final saved = DashboardStore.load();
-  return (saved != null && DashboardStore.bankCount > 0)
-      ? DashboardPreview(data: saved)
-      : const BankConnectScreen();
+  final bankCount = DashboardStore.bankCount;
+  if (saved != null && bankCount > 0) return DashboardPreview(data: saved);
+  // TEMP DIAGNOSTIC (2026-09-06) — a real, reproducible bug report: signing
+  // out then back in with the SAME account routes to BankConnectScreen
+  // instead of the dashboard, even on a brand-new install/account. Every
+  // code path read so far looks correct on its own, so this shows the exact
+  // values landingAfterAuth actually saw ON SCREEN (a TestFlight build has
+  // no attached debugger to read debugPrint from) instead of guessing
+  // further. Remove this banner once the real cause is found.
+  final diag = 'saved=${saved != null} bankCount=$bankCount '
+      "rawDash=${saved == null ? 'null' : 'present'} "
+      'dataOwner=${Hive.box(HiveBoxes.settings).get('dataOwnerUid')} '
+      'uid=${FirebaseAuth.instance.currentUser?.uid} '
+      'rawBanksKey=${DashboardStore.debugRawBanks()}';
+  return _DiagBanner(text: diag, child: const BankConnectScreen());
+}
+
+class _DiagBanner extends StatelessWidget {
+  const _DiagBanner({required this.text, required this.child});
+  final String text;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+        children: [
+          child,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Container(
+                color: Colors.red.withValues(alpha: 0.92),
+                padding: const EdgeInsets.all(8),
+                child: SelectableText(text,
+                    style: const TextStyle(color: Colors.white, fontSize: 11)),
+              ),
+            ),
+          ),
+        ],
+      );
 }
