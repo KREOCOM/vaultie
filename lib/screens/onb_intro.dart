@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app_prefs.dart';
 import '../i18n.dart';
 import 'preview/dashboard_preview.dart';
 import 'splash_screen.dart';
@@ -115,6 +116,48 @@ class _OnbIntroState extends State<OnbIntro> {
               image: AssetImage('assets/onboarding/page1_v5.png'),
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
+            ),
+          ),
+
+          // ── Language toggle: one tap flips the WHOLE app's language,
+          // using the exact same AppPrefs.setLocale the Settings picker
+          // uses — added because Region alone (not just phone Language) can
+          // default a device to Lithuanian (see localeForRegion's own
+          // doc), which otherwise leaves a non-Lithuanian tester or
+          // reviewer stuck reading Lithuanian with no way out until they
+          // reach Settings deep inside the signed-in app.
+          Positioned(
+            top: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8, right: 20),
+                child: GestureDetector(
+                  onTap: () {
+                    AppPrefs.setLocale(effectiveLocale().languageCode == 'lt'
+                        ? const Locale('en')
+                        : const Locale('lt'));
+                    setState(() {});
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(20),
+                      border:
+                          Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      effectiveLocale().languageCode == 'lt' ? 'EN' : 'LT',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
 

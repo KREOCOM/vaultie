@@ -1137,4 +1137,60 @@ const Map<String, String> _en = {
   'Duomenys lieka tavo telefone': 'Your data stays on your phone',
   'AI — tik tavo sutikimu': 'AI — only with your consent',
   'Tu valdai prieigą': 'You control access',
+  // 2026-09-06: same bug a THIRD time on this same screen, this time in the
+  // longer step/safety-card body paragraphs (not just their headings) —
+  // found by a systematic script diffing every tr() call in the app against
+  // this map, after the 2026-08-03 and 2026-09-04 instances above were both
+  // found by hand from a single screenshot each. Manual spot-checks miss
+  // these; re-run that diff after any copy change here.
+  'Nukreipsim į tavo banko programėlę ar svetainę. Prisijungi ir patvirtini prieigą taip, kaip įprastai.':
+      "We'll redirect you to your bank's app or website. You sign in and "
+          'approve access exactly as you normally would.',
+  'Kai patvirtinsi, grįši į Vaultie — tavo operacijos susitvarkys automatiškai.':
+      "Once you confirm, you'll return to Vaultie — your transactions sync automatically.",
+  'Prisijungimas vyksta tavo banko aplinkoje. Vaultie nemato prisijungimo duomenų.':
+      "Sign-in happens on your bank's own page. Vaultie never sees your login credentials.",
+  'Jungiamės per Enable Banking — licencijuotą ES atvirosios bankininkystės tiekėją (PSD2). Prieiga tik skaitymo. Atšaukti gali bet kada.':
+      'We connect through Enable Banking — a licensed EU open banking '
+          'provider (PSD2). Access is read-only. You can revoke it anytime.',
+  'Jungiamės per Enable Banking — ES reguliuojamą atvirosios bankininkystės tiekėją, veikiantį pagal PSD2 direktyvą.':
+      'We connect through Enable Banking — an EU-regulated open banking '
+          'provider operating under the PSD2 directive.',
+  'Prisijungi tik savo banke. Vaultie gauna leidimą skaityti operacijas — ne tavo prisijungimo duomenis.':
+      'You only sign in at your own bank. Vaultie is granted permission to '
+          'read transactions — never your login credentials.',
+  'Vaultie negali atlikti mokėjimų, pervesti ar keisti nieko tavo sąskaitoje.':
+      'Vaultie cannot make payments, transfer funds, or change anything in your account.',
+  'Operacijos saugomos tavo telefone, o ne mūsų serveriuose, ir niekada neparduodamos.':
+      'Transactions are stored on your phone, not on our servers, and are never sold.',
+  'Jei įjungi AI funkcijas, mūsų tiekėjui siunčiame tik apibendrintus skaičius: likučius, išlaidas pagal kategoriją ir pasikartojančių mokėjimų pavadinimus. Ne atskirus sandorius, ne IBAN‑us.':
+      'If you turn on AI features, we send our provider only aggregated '
+          'figures: balances, spending by category, and the names of '
+          'recurring payments — never individual transactions or IBANs.',
+  'Bet kada gali ją atšaukti — Vaultie nustatymuose arba savo banke.':
+      "You can revoke it anytime — in Vaultie's settings or at your bank.",
+  'Sutikimas galioja ribotą laiką ir yra atnaujinamas pagal PSD2. Atšaukti gali bet kada.':
+      'Consent is valid for a limited time and is renewed under PSD2. You can revoke it anytime.',
+
+  // ── Same audit, four more found in other files ──
+  // lock_screen.dart
+  'Atjungsime tave, kad galėtum prisijungti iš naujo ir nusistatyti naują PIN. Tavo duomenys liks šiame telefone.':
+      "We'll sign you out so you can sign back in and set a new PIN. Your data stays on this phone.",
+  // dashboard_preview.dart — "disconnect ALL banks" confirmation
+  'Pašalinsime visus prijungtus bankus ir jų duomenis iš šio telefono. Kadangi appsas be banko nieko negali parodyti, iš karto atsidursi banko prijungimo lange — galėsi prisijungti iš naujo tada, kai norėsi. Tavo paskyra ir prenumerata nenukentės.':
+      "We'll remove all connected banks and their data from this phone. "
+          "Since the app has nothing to show without a bank, you'll land "
+          'straight on the bank-connect screen — you can reconnect whenever '
+          'you like. Your account and subscription are unaffected.',
+  // subs_bills_live.dart
+  'Vaultie rado pasikartojančių mokėjimų tavo banko istorijoje. Padėk mums atpažinti, kuriuos iš jų nori sekti.':
+      'Vaultie found recurring payments in your bank history. Help us identify which ones you want to track.',
+  'Appsas numato dieną iš paskutinio tikro mokėjimo — jeigu bankas nuskaito kitą dieną, pasirink tikrąją. Tai nekeičia, kaip appsas atpažįsta pačią sąskaitą, tik parodomą/priminimo dieną.':
+      "The app estimates the day from the last real payment — if your bank "
+          'actually charges on a different day, pick the real one. This '
+          "doesn't change how the app recognises the bill itself, only the "
+          'displayed/reminder day.',
+  // banking_service.dart
+  'Šiandien pasiekei dienos limitą. Pabandyk rytoj.':
+      "You've reached today's limit. Please try again tomorrow.",
 };
