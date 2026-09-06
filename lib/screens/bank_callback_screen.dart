@@ -112,6 +112,19 @@ class _BankCallbackScreenState extends State<BankCallbackScreen> {
         setState(() => _failed = true);
         return;
       }
+      // TEMP DIAGNOSTIC (2026-09-06) — confirm the save actually landed
+      // right after completeBankConnection returns, before navigating away.
+      // A TestFlight build has no attached debugger, so this must be
+      // visible on screen. See landing.dart's own diagnostic for context.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 12),
+        backgroundColor: Colors.red,
+        content: Text(
+            'hasData=${DashboardStore.hasData} bankCount=${DashboardStore.bankCount} '
+            'rawBanksKey=${DashboardStore.debugRawBanks()}',
+            style: const TextStyle(fontSize: 11)),
+      ));
+      await Future<void>.delayed(const Duration(seconds: 3));
       // Clears the stack rather than replacing one route.
       //
       // On a cold launch this screen sits on top of the splash, which is now
