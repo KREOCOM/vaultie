@@ -6,11 +6,211 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
 import '../app_prefs.dart';
 import '../content_theme.dart';
+import '../i18n.dart';
 import '../main.dart';
+import '../services/auth_service.dart';
 import '../services/banking_service.dart';
 import '../services/dashboard_store.dart';
-import 'bank_import_screen.dart';
-import 'preview/dashboard_preview.dart';
+import '../services/feature_flags.dart';
+import '../services/fx_rates.dart';
+import '../user_session.dart';
+import 'bank_callback_screen.dart';
+import 'bank_how_it_works.dart';
+import 'login_screen.dart';
+
+/// 2026-09-04: real bug, found in audit — search on this screen (both the
+/// country picker and the bank list) compared raw lowercased text, so
+/// "cekija" never matched "Čekija". Small hand-rolled table rather than a
+/// package: covers Lithuanian plus the common Western European diacritics
+/// that actually show up in this screen's own country/bank names (France,
+/// Germany, Spain, Portugal, Scandinavia...), which is all this needs.
+String _foldDiacritics(String s) {
+  const from = 'ąčęėįšųūžĄČĘĖĮŠŲŪŽ'
+      'áàâäãåéèêëíìîïóòôöõúùûüýÿñçßøÖÜÄ';
+  const to = 'aceeisuuzACEEISUUZ'
+      'aaaaaaeeeeiiiiooooouuuuyyncsoOUA';
+  final buf = StringBuffer();
+  for (final ch in s.split('')) {
+    final i = from.indexOf(ch);
+    buf.write(i == -1 ? ch : to[i]);
+  }
+  return buf.toString();
+}
+
+/// Ensures one authorisation code is exchanged exactly once.
+///
+/// A bank can deliver its callback through BOTH channels at once: the in-session
+/// ASWebAuthenticationSession the in-app flow is waiting on, AND the universal
+/// link the deep-link handler listens for. Each then tries to complete the same
+/// connection. The code is single-use — the first exchange connects the bank,
+/// the second gets HTTP 422 and shows a spurious "couldn't finish" over a
+/// connection that already succeeded (observed with SEB). Whichever path claims
+/// the code first completes it; the other backs off silently.
+class BankConnectClaim {
+  BankConnectClaim._();
+  static final Set<String> _claimed = <String>{};
+
+  /// True the first time [code] is seen this session, false for every repeat.
+  static bool claim(String code) => _claimed.add(code);
+}
+
+/// What [completeBankConnection] hands back: the fast dashboard to show now, the
+/// background 12-month backfill to swap in later, and the raw scan for the
+/// legacy import fallback.
+typedef BankConnectionResult = ({
+  Map<String, dynamic>? dash,
+  Future<Map<String, dynamic>?>? deeper,
+  BankScanResult scan,
+});
+
+/// Turns an authorisation [code] into a connected, saved dashboard.
+///
+/// [state] is whatever the bank's own redirect handed back alongside [code]
+/// (BankingService.stateFromCallback) — passed straight through to
+/// finishBankAuth, which the server checks against the state THIS device's
+/// own startBankAuth call issued (2026-08-16 fix).
+///
+/// Everything after we hold the code lives here so the two ways of getting one
+/// — the in-app ASWebAuthenticationSession, and a universal-link return that
+/// cold-launches the app — finish identically: fetch a fast 3-month scan,
+/// record the connection, build a combined dashboard when more than one bank is
+/// linked, persist it, and kick off the full 12-month backfill in the
+/// background. Throws [BankingException] on failure; the caller shows it.
+Future<BankConnectionResult> completeBankConnection(String code, String state,
+    {String? bank}) async {
+  // The dashboard as it stood before this connect — used to make sure the
+  // combined re-fetch below never overwrites it by dropping a bank we already had.
+  final prevDash = DashboardStore.load();
+  final scan = await BankingService.instance.finishBankAuth(
+      code, state, aiEnrichment: AppPrefs.aiEnrichment, bank: bank, monthsBack: 3);
+  final conn = scan.connection;
+  final connAccounts = (((conn?['accounts'] as List?) ?? const [])
+      .map((e) => (e as Map).cast<String, dynamic>())
+      .toList());
+  // A consent that returned ZERO accounts must not create a connection: it would
+  // increment bankCount with an empty account set, so every later refresh no-ops
+  // (refs empty) and the user is stuck with a permanent empty "connected" bank
+  // they can only clear via disconnect-all. Skip it; the caller shows the empty
+  // result screen instead.
+  // Read BEFORE addConnection, which is about to change it — this is what
+  // tells "first bank ever" apart from "just added a second one".
+  final wasFirstBank = DashboardStore.bankCount == 0;
+  if (conn != null && connAccounts.isNotEmpty) {
+    await DashboardStore.addConnection(
+      bank: bank ?? conn['bank'] as String? ?? 'Bankas',
+      sessionId: conn['sessionId'] as String?,
+      accounts: connAccounts,
+    );
+    // The bank's own expiry date, so the user can be warned before it stops
+    // answering. Recorded only for a connection that actually produced
+    // accounts — the empty-consent case above is not access to anything.
+    await DashboardStore.markConsentGranted(
+      bank ?? conn['bank'] as String? ?? 'Bankas',
+      conn['validUntil'] as String?,
+    );
+    // A Norwegian user connecting their first bank saw every figure in the
+    // app — including their own kroner balance — converted to euros, because
+    // the display currency defaults to EUR and nothing ever pointed it
+    // anywhere else. Everything still SUMS in EUR underneath (fx.py: mixed
+    // currencies cannot be added together, so a common base is not
+    // optional) — this only changes what the base is display-side, using
+    // the exact mechanism Settings' own "Bazinė valiuta" picker already
+    // calls.
+    //
+    // Only on the FIRST bank, and only away from the untouched EUR default:
+    // by the second bank the user has already seen and accepted whatever
+    // currency the app opened in, and overriding it again would undo a
+    // choice rather than make one for them. One tap in Settings reverses
+    // this either way, so getting the guess wrong here is cheap.
+    if (wasFirstBank && AppPrefs.currencyCode.value == 'EUR') {
+      final detected = detectFirstBankCurrency(connAccounts);
+      if (detected != null) await AppPrefs.setCurrencyCode(detected);
+    }
+  }
+  Map<String, dynamic>? dash = scan.dash;
+  // Set when the combined re-fetch came back missing a bank we already had (e.g.
+  // a bank rate-limited us in the connect burst). We still SHOW that dash, but we
+  // must not PERSIST it over the good one — the `deeper` refresh restores the full
+  // set, and until then the last good save (with every bank) stays on disk.
+  var combinedDroppedABank = false;
+  if (DashboardStore.bankCount > 1) {
+    try {
+      final combined = await BankingService.instance.refreshDashboard(
+          DashboardStore.accountRefs(),
+          aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 3);
+      if (combined != null) {
+        dash = combined;
+        combinedDroppedABank =
+            _banksOf(prevDash).difference(_banksOf(combined)).isNotEmpty;
+      }
+    } on BankingException {
+      // keep the single-bank dash as a fallback
+    }
+  }
+  if (dash != null && !combinedDroppedABank) {
+    await DashboardStore.save(dash, bank: bank);
+  }
+  final deeper = (dash != null)
+      ? BankingService.instance.refreshDashboard(DashboardStore.accountRefs(),
+          aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6)
+      : null;
+  // The flow is finished — clear the pending marker either path set.
+  await DashboardStore.setPendingConnect(null);
+  return (dash: dash, deeper: deeper, scan: scan);
+}
+
+/// The majority non-EUR currency among a first bank connection's accounts, or
+/// null if there isn't a real one to switch to (all EUR, no accounts, or the
+/// one that "wins" isn't a code the app's currency picker actually carries a
+/// name/symbol/live-rate for).
+///
+/// Majority by ACCOUNT COUNT, not balance — [accounts] here is connection-time
+/// metadata ({uid, iban, name, currency}, from finish_bank_auth's response)
+/// and carries no amount to weigh by. A Revolut connect returning one EUR
+/// wallet and two NOK wallets picks NOK; imperfect for someone who actually
+/// keeps most of their money in the one EUR wallet, but a reasonable guess for
+/// a screen the user can flip in one tap either way.
+///
+/// EUR is counted like any other currency and wins ties: a Revolut connect
+/// that hands back one EUR wallet and one SEK wallet in the SAME response
+/// (Revolut returns every wallet from one consent at once, so there's no
+/// real "connected first") used to switch away from EUR on a 1-1 tie, since
+/// EUR was excluded from the count entirely and so could never win. EUR is
+/// already the screen the user is looking at — a coin-flip switch away from
+/// it is worse than a coin-flip switch into it, so only a STRICT non-EUR
+/// majority moves the base currency.
+@visibleForTesting
+String? detectFirstBankCurrency(List<Map<String, dynamic>> accounts) {
+  final counts = <String, int>{};
+  for (final a in accounts) {
+    final c = (a['currency'] as String? ?? '').toUpperCase();
+    if (c.isNotEmpty) counts[c] = (counts[c] ?? 0) + 1;
+  }
+  if (counts.isEmpty) return null;
+  final eur = counts['EUR'] ?? 0;
+  final nonEur = counts.entries.where((e) => e.key != 'EUR').toList()
+    ..sort((x, y) => y.value.compareTo(x.value));
+  if (nonEur.isEmpty) return null; // all EUR — nothing to switch to
+  final top = nonEur.first;
+  if (top.value <= eur) return null; // EUR wins outright or ties
+  // currencyByCode() falls back to the EUR entry for a code the picker
+  // doesn't carry (e.g. an exotic wallet currency fx.py still prices for
+  // totals) — comparing the resolved code back against `top` is what keeps
+  // that silent fallback from being reported as a real match.
+  return currencyByCode(top.key).code == top.key ? top.key : null;
+}
+
+/// The set of bank names present in a saved dashboard payload (lowercased), read
+/// from its balance accounts. Used to detect a combined re-fetch that dropped a
+/// previously-connected bank.
+Set<String> _banksOf(Map<String, dynamic>? d) {
+  final accts = ((d?['balance'] as Map?)?['accounts'] as List?) ?? const [];
+  return accts
+      .map((a) => ((a as Map)['bank'] as String?)?.toLowerCase().trim())
+      .whereType<String>()
+      .where((b) => b.isNotEmpty)
+      .toSet();
+}
 
 /// A country Vaultie can list banks for (Enable Banking coverage).
 class _Country {
@@ -30,49 +230,56 @@ class BankConnectScreen extends StatefulWidget {
   State<BankConnectScreen> createState() => _BankConnectScreenState();
 }
 
-enum _Phase { country, loading, list, connecting, analysing, error }
+enum _Phase { intro, country, loading, list, redirect, connecting, error }
 
 class _BankConnectScreenState extends State<BankConnectScreen> {
-  _Phase _phase = _Phase.country;
+  /// Starts on [_Phase.loading], not on the country picker.
+  ///
+  /// Enable Banking needs a country from us — /aspsps takes it as a parameter
+  /// and start_auth requires it alongside the bank — but asking for it is a
+  /// step almost nobody needs: the default is Lithuania and the chip at the top
+  /// of the list changes it. The picker itself is untouched, just no longer the
+  /// first thing between a person and their bank.
+  /// First connection opens on [_Phase.intro] — the three-step explanation of
+  /// what is about to happen. Someone adding a SECOND bank has already been
+  /// through it, so they skip straight to the list.
+  late _Phase _phase =
+      DashboardStore.bankCount == 0 ? _Phase.intro : _Phase.loading;
   List<Bank> _banks = const [];
   String? _error;
   String? _connectingBank;
+  Bank? _pendingBank; // shown on _Phase.redirect, then connected
 
-  _Country _country = _countries.first; // Lithuania by default
+  // Defaults to the device's own Region when Vaultie recognises it (checked
+  // against the WHOLE locale preference list, same reasoning as
+  // localeForRegion() in app_prefs.dart — a phone's Region often rides along
+  // with a specific language variant a person picked once, e.g. "English
+  // (United Kingdom)"). Falls back to Lithuania when nothing matches.
+  //
+  // Before this, every tester opened straight onto Lithuania regardless of
+  // where they actually bank, and Enable Banking lists a country's OWN
+  // "Swedbank"/"SEB" as a same-named but entirely separate bank from a
+  // neighbouring country's — a Norwegian picking the Lithuanian Swedbank from
+  // the un-switched default authenticated against the wrong bank entirely,
+  // which just fails silently rather than reading as "wrong country".
+  static _Country _defaultCountry() {
+    final locales = WidgetsBinding.instance.platformDispatcher.locales;
+    for (final l in locales) {
+      final cc = l.countryCode;
+      if (cc == null) continue;
+      for (final c in _countries) {
+        if (c.code == cc) return c;
+      }
+    }
+    return _countries.first; // Lithuania
+  }
+
+  late _Country _country = _defaultCountry();
   final _countrySearch = TextEditingController();
-
-  // A cycling "we're working" progress while the scan runs, so a 40–80s scan
-  // never feels frozen. Advances every few seconds and holds on the last stage.
-  Timer? _stageTimer;
-  int _stage = 0;
-  static const _stagesLt = [
-    'Saugiai jungiamės prie banko…',
-    'Traukiame tavo sandorius…',
-    'Analizuojame išlaidas, pajamas ir sąskaitas…',
-    'Beveik baigėm…',
-  ];
-  static const _stagesEn = [
-    'Securely connecting to your bank…',
-    'Fetching your transactions…',
-    'Analysing spending, income and bills…',
-    'Almost done…',
-  ];
-
-  void _startStages() {
-    _stage = 0;
-    _stageTimer?.cancel();
-    _stageTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted) return;
-      setState(() {
-        if (_stage < 3) _stage++;
-      });
-    });
-  }
-
-  void _stopStages() {
-    _stageTimer?.cancel();
-    _stageTimer = null;
-  }
+  // 2026-09-04: real bug, found in audit — only the country picker had
+  // search; the actual bank list (often 50-100+ banks for a country) had
+  // none at all, so finding your own bank meant scrolling blind.
+  final _bankSearch = TextEditingController();
 
   // Enable Banking coverage — Baltics + Nordics first, then the rest of Europe.
   static const _countries = <_Country>[
@@ -110,32 +317,67 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   @override
   void dispose() {
-    _stopStages();
     _countrySearch.dispose();
+    _bankSearch.dispose();
     super.dispose();
   }
 
   bool get _isLt => Localizations.localeOf(context).languageCode == 'lt';
 
   List<_Country> get _filteredCountries {
-    final q = _countrySearch.text.trim().toLowerCase();
+    final q = _foldDiacritics(_countrySearch.text.trim().toLowerCase());
     if (q.isEmpty) return _countries;
     return _countries
         .where((c) =>
-            c.lt.toLowerCase().contains(q) ||
-            c.en.toLowerCase().contains(q) ||
+            _foldDiacritics(c.lt.toLowerCase()).contains(q) ||
+            _foldDiacritics(c.en.toLowerCase()).contains(q) ||
             c.code.toLowerCase().contains(q))
         .toList();
   }
 
+  List<Bank> get _filteredBanks {
+    final q = _foldDiacritics(_bankSearch.text.trim().toLowerCase());
+    if (q.isEmpty) return _banks;
+    return _banks
+        .where((b) => _foldDiacritics(b.name.toLowerCase()).contains(q))
+        .toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBanks(prefetch: _phase == _Phase.intro);
+  }
+
   void _pickCountry(_Country c) {
+    // A leftover search term from the OLD country's bank list would
+    // otherwise silently filter the new one too.
+    _bankSearch.clear();
     setState(() => _country = c);
     _loadBanks();
   }
 
-  Future<void> _loadBanks() async {
+  /// [prefetch] loads the list WITHOUT taking over the screen — used while the
+  /// intro is being read, so tapping "Tęsti" opens a list that is already there
+  /// instead of a spinner. Errors are held until the user actually asks for the
+  /// list; failing at them while they are reading an explanation would be noise.
+  Future<void> _loadBanks({bool prefetch = false}) async {
+    // The kill-switch, finally connected to something. It was fetched from
+    // Remote Config, updated in realtime, and read by nothing — flipping it in
+    // the Firebase console changed precisely nothing in the app. This is the
+    // one screen it needs to reach: during an Enable Banking outage, saying so
+    // beats sending everyone into a flow that cannot succeed.
+    if (!FeatureFlags.instance.bankingEnabled.value) {
+      setState(() {
+        _error = _isLt
+            ? 'Banko prijungimas laikinai nepasiekiamas. Pabandyk vėliau.'
+            : 'Bank connection is temporarily unavailable. Please try later.';
+        if (!prefetch) _phase = _Phase.error;
+      });
+      return;
+    }
     setState(() {
-      _phase = _Phase.loading;
+      if (!prefetch) _phase = _Phase.loading;
       _error = null;
     });
     try {
@@ -143,100 +385,282 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
       if (!mounted) return;
       setState(() {
         _banks = banks;
-        _phase = _Phase.list;
+        if (!prefetch) _phase = _Phase.list;
       });
     } on BankingException catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.message;
-        _phase = _Phase.error;
+        if (!prefetch) _phase = _Phase.error;
       });
     }
   }
 
+  /// One step before leaving the app. Being thrown onto a bank's website with no
+  /// warning is where people abandon — and where a careful person suspects a
+  /// scam. This names the bank, shows its real logo and says what will happen.
+  void _confirm(Bank bank) {
+    if (_phase == _Phase.connecting) return;
+    setState(() {
+      _pendingBank = bank;
+      _phase = _Phase.redirect;
+    });
+  }
+
+  /// "You are about to leave for <bank>" — the last screen before the browser.
+  ///
+  /// Centred, and built around a hand-off: Vaultie's mark, an arrow, the bank's
+  /// own. Left-aligned with the logo floating above it, this read as two
+  /// unrelated things stacked; the pair with an arrow between them says what is
+  /// actually happening in one glance, before the sentence is read.
+  Widget _redirectView(Bank bank) {
+    final lt = _isLt;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Spacer(flex: 2),
+          _bridgeLockup(bank),
+          const SizedBox(height: 26),
+          Text(
+            lt ? 'Nukreipiame į ${bank.name}' : 'Taking you to ${bank.name}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+                letterSpacing: -0.5,
+                color: cxInk),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            lt
+                ? 'Dabar trumpam paliksi Vaultie ir atsidursi savo banke. Ten prisijungi ir patvirtini prieigą prie sąskaitos. Kai baigsi — kai kurie bankai grąžina automatiškai, kiti paprašys tiesiog grįžti pačiam.'
+                : "You'll leave Vaultie for a moment and land in your bank. Sign in there and approve access to your account. When you're done, some banks bring you straight back — others will just ask you to switch back yourself.",
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14.5, height: 1.5, color: cxSubtle),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+            decoration: BoxDecoration(
+              color: cxCard,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.lock_outline_rounded,
+                  size: 18, color: Color(0xFF9FB0D8)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  lt
+                      ? 'Prisijungimo duomenis įvedi tik savo banke. Vaultie jų nemato ir nesaugo.'
+                      : 'You enter your credentials only at your bank. Vaultie never sees or stores them.',
+                  style:
+                      const TextStyle(fontSize: 12.5, height: 1.45, color: cxSubtle),
+                ),
+              ),
+            ]),
+          ),
+          const Spacer(flex: 3),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: ElevatedButton(
+              onPressed: () => _connect(bank),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: VaultieColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Text(lt ? 'Prisijungti banke' : 'Continue to bank',
+                  style: const TextStyle(
+                      fontSize: 16.5, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextButton(
+            onPressed: () => setState(() => _phase = _Phase.list),
+            child: Text(lt ? 'Rinktis kitą banką' : 'Choose a different bank',
+                style: const TextStyle(fontSize: 13.5, color: cxSubtle)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The Vaultie ↔ bank pairing, done as a guarded connection rather than a
+  /// plain "icon → arrow → icon" row: a glowing beam runs behind both tiles
+  /// through a small shield badge at the midpoint, echoing the same
+  /// bank–shield–Vaultie motif already used on the trust screens earlier in
+  /// this flow (see page7_bg.png / the onboarding "connect" page), just
+  /// rendered live so it can show THIS bank's own logo each time.
+  Widget _bridgeLockup(Bank bank) => SizedBox(
+        height: 76,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 150,
+              height: 2,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    cxSubtle.withValues(alpha: 0),
+                    cxSubtle.withValues(alpha: 0.55),
+                    cxSubtle.withValues(alpha: 0.55),
+                    cxSubtle.withValues(alpha: 0),
+                  ],
+                  stops: const [0, 0.28, 0.72, 1],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                      color: cxSubtle.withValues(alpha: 0.35), blurRadius: 12),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _markTile(
+                  child: Image.asset('assets/icon/app_icon.png',
+                      width: 64, height: 64, fit: BoxFit.cover),
+                  padded: false,
+                ),
+                const SizedBox(width: 84),
+                _bankLogoLarge(bank),
+              ],
+            ),
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: cxBg,
+                border:
+                    Border.all(color: cxSubtle.withValues(alpha: 0.55), width: 1.4),
+                boxShadow: [
+                  BoxShadow(color: cxBg, blurRadius: 0, spreadRadius: 6),
+                  BoxShadow(
+                      color: cxSubtle.withValues(alpha: 0.3), blurRadius: 14),
+                ],
+              ),
+              child: const Icon(Icons.shield_rounded,
+                  size: 15, color: cxSubtle),
+            ),
+          ],
+        ),
+      );
+
+  Widget _markTile({required Widget child, bool padded = true}) => Container(
+        width: 64,
+        height: 64,
+        clipBehavior: Clip.antiAlias,
+        padding: padded ? const EdgeInsets.all(9) : EdgeInsets.zero,
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(18)),
+        child: child,
+      );
+
+  /// The bank's own mark. Enable Banking returns a logo for the banks people
+  /// actually use; smaller ASPSPs sometimes have none, which is why the initial
+  /// tile stays as a fallback rather than being deleted.
+  Widget _bankLogoLarge(Bank bank) {
+    final logo = bank.logo;
+    final fallback = Container(
+      width: 64,
+      height: 64,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+          color: cxCard, borderRadius: BorderRadius.circular(18)),
+      child: Text(
+        bank.name.isNotEmpty ? bank.name.characters.first.toUpperCase() : '?',
+        style: const TextStyle(
+            fontSize: 27, fontWeight: FontWeight.w800, color: cxInk),
+      ),
+    );
+    if (logo == null || logo.isEmpty) return fallback;
+    return _markTile(
+      child: Image.network(logo,
+          fit: BoxFit.contain, errorBuilder: (_, __, ___) => fallback),
+    );
+  }
+
   Future<void> _connect(Bank bank) async {
+    // Hard re-entrancy guard. The phase change below hides the bank list within
+    // a frame, but two taps inside that frame — or during the await — started
+    // two consent flows: two authorisation sessions at the bank, two entries
+    // against its daily quota, and a second browser session iOS then refuses.
+    if (_phase == _Phase.connecting) return;
     setState(() {
       _phase = _Phase.connecting;
       _connectingBank = bank.name;
       _error = null;
     });
     try {
-      final url = await BankingService.instance.startBankAuth(bank.name,
+      // Remember which bank this is BEFORE the browser opens: if it hands off to
+      // its own app and the return cold-launches Vaultie, the callback carries
+      // only a code, and the resume path recovers the label from here.
+      await DashboardStore.setPendingConnect(bank.name, logo: bank.logo);
+      final (url, _) = await BankingService.instance.startBankAuth(bank.name,
           country: bank.country.isNotEmpty ? bank.country : _country.code);
+      // REVERTED (2026-08-11): tried ephemeralIntentFlags
+      // (FLAG_ACTIVITY_NO_HISTORY) here to stop the Custom Tab falling back
+      // to the bank's own page on a failed hand-off. On a MIUI device it
+      // produced a WORSE, different symptom instead: `adb logcat` caught
+      // WindowManagerShell entering `PipTransitionState(mState=exiting-pip…)`
+      // for Chrome's CustomTabActivity — the tab shrinks into a small
+      // floating Picture-in-Picture bubble rather than closing, hiding the
+      // ALREADY-correct BankCallbackScreen underneath it. The deep link
+      // hand-off itself was confirmed working the whole time (the app screen
+      // was right, just visually obscured) — this flag change is what
+      // triggered MIUI's PiP transition, not a fix for anything. Back to
+      // flutter_web_auth_2's own default flags. If touching Custom Tab
+      // launch flags again, verify with `adb logcat | grep PipTransitionState`
+      // on a real MIUI device before trusting a screenshot alone — the
+      // failure mode is easy to misread as "button doesn't work".
       final result = await FlutterWebAuth2.authenticate(
         url: url,
         callbackUrlScheme: kBankingCallbackScheme,
       );
-      final code = BankingService.codeFromCallback(Uri.parse(result));
+      final resultUri = Uri.parse(result);
+      final code = BankingService.codeFromCallback(resultUri);
       if (code == null) {
         throw BankingException(_isLt
             ? 'Negavome prisijungimo kodo iš banko.'
             : 'The bank didn\'t return a sign-in code.');
       }
-      if (!mounted) return;
-      setState(() => _phase = _Phase.analysing);
-      _startStages();
-      // RECENT-FIRST: fetch a fast 3-month window so the dashboard appears in
-      // ~15–20s instead of 60–80s. The full 12-month history is backfilled in
-      // the background (below) and swapped in when ready.
-      final scan = await BankingService.instance.finishBankAuth(
-          code, aiEnrichment: AppPrefs.aiEnrichment, bank: bank.name, monthsBack: 3);
-      if (!mounted) return;
-      // Record this bank's accounts (session id + uids + IBANs) so it can be
-      // re-fetched and merged with other banks later — without another login.
-      final conn = scan.connection;
-      if (conn != null) {
-        await DashboardStore.addConnection(
-          bank: bank.name,
-          sessionId: conn['sessionId'] as String?,
-          accounts: (((conn['accounts'] as List?) ?? const [])
-              .map((e) => (e as Map).cast<String, dynamic>())
-              .toList()),
-        );
-      }
-      // With more than one bank connected, rebuild ONE combined (still 3-month)
-      // dashboard across all of them for the fast first paint. If the combined
-      // refresh fails, fall back to this scan's data so the user is never left
-      // with nothing.
-      Map<String, dynamic>? dash = scan.dash;
-      if (DashboardStore.bankCount > 1) {
-        try {
-          final combined = await BankingService.instance.refreshDashboard(
-              DashboardStore.accountRefs(),
-              aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 3);
-          if (combined != null) dash = combined;
-        } on BankingException {
-          // keep the single-bank dash as a fallback
-        }
+      final state = BankingService.stateFromCallback(resultUri) ?? '';
+      // If the deep-link handler already claimed this code (the bank fired both
+      // channels), let it finish — don't exchange the same single-use code
+      // twice. Its BankCallbackScreen is on top and will land on the dashboard.
+      if (!BankConnectClaim.claim(code)) {
+        // Drop back to the list instead of returning mid-phase.
+        //
+        // The deep-link path got to the code first and its screen is now on top,
+        // finishing the connection. This screen stayed frozen on "Opening
+        // <bank>…" underneath it, so if the user ever came back here — or if the
+        // callback screen closed — they found a spinner that would never resolve.
+        if (mounted) setState(() => _phase = _Phase.list);
+        return;
       }
       if (!mounted) return;
-      // Persist the fast dashboard so a restart mid-backfill still has data.
-      if (dash != null) {
-        await DashboardStore.save(dash, bank: bank.name);
-      }
-      // Kick off the FULL 12-month backfill in the background (not awaited): the
-      // dashboard opens on the fast (heuristic) data and swaps this in — with
-      // complete recurring history, AI-refined categories, and reminders — when
-      // it lands. AI runs ONLY here (background), so the fast first paint stays
-      // quick while categorisation quality is upgraded a few seconds later.
-      final Future<Map<String, dynamic>?>? deeper = (dash != null)
-          ? BankingService.instance.refreshDashboard(
-              DashboardStore.accountRefs(),
-              aiEnrichment: AppPrefs.aiEnrichment, monthsBack: 6)
-          : null;
-      _stopStages();
-      if (!mounted) return;
-      // Land straight in the new dashboard. Fall back to the legacy import screen
-      // only if the backend couldn't build the dashboard payload.
+      // From here on, BankCallbackScreen owns everything — the SAME screen the
+      // universal-link resume path uses. This flow used to show its own plain,
+      // logo-less "analysing" spinner instead, so the exact same moment (a bank
+      // just approved) looked completely different depending on which of the
+      // two paths happened to complete it — that mismatch was read as "broken,
+      // random logos/colours" by testers, when both were actually working, just
+      // inconsistently dressed. One path, one screen, only the bank's own logo
+      // changes.
       await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => dash != null
-              ? DashboardPreview(data: dash, deeper: deeper)
-              : BankImportScreen(result: scan),
-        ),
+        MaterialPageRoute(builder: (_) => BankCallbackScreen(code: code, state: state)),
       );
     } on PlatformException catch (e) {
-      _stopStages();
       if (!mounted) return;
       if (e.code == 'CANCELED') {
         setState(() => _phase = _Phase.list);
@@ -249,31 +673,84 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         });
       }
     } on BankingException catch (e) {
-      _stopStages();
       if (!mounted) return;
       setState(() {
         _error = e.message;
         _phase = _Phase.error;
       });
     }
+    // No generic catch-all here anymore. Everything past a claimed code —
+    // including the "bank approved but the data fetch itself threw" case this
+    // used to guard against — is now BankCallbackScreen's job; it has its own
+    // catch-all and its own visible error/retry state.
+    //
+    // Deliberately does NOT clear the pending-connect marker on any path here.
+    // When a bank hands off to its own app, this session reports CANCELED —
+    // but the connection isn't cancelled, it's continuing via the universal
+    // link, and BankCallbackScreen still needs the bank name this marker
+    // holds. It's overwritten at the start of the next connect and cleared on
+    // success, so a stale marker after a real cancel is harmless.
+  }
+
+  /// Escape hatch when this screen is the whole stack (onboarding, or a
+  /// wrong-account sign-in): sign out and return to the sign-in choices so the
+  /// user isn't trapped. Only offered when there's no route beneath (see build).
+  Future<void> _switchAccount() async {
+    try {
+      await AuthService().signOut();
+      await onSignedOut();
+    } catch (_) {
+      // Best-effort — leaving the trap must still work.
+    }
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (r) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // From the bank list / error, "back" returns to country selection rather
-    // than leaving the flow entirely.
     final atRoot = _phase == _Phase.country;
+    // Reached in two contexts: during onboarding the stack is empty (nowhere to
+    // pop to — the old dead-end), while the in-app "+ add bank" flow pushes this
+    // on top of the dashboard (a real route beneath). Offer an exit accordingly.
+    final canPop = Navigator.of(context).canPop();
     return Theme(
       data: contentTheme(Theme.of(context)),
       child: Scaffold(
-        backgroundColor: cBg,
+        // The whole connect flow keeps the brand's deep navy, not just the
+        // trust screens (redirect/intro) — see cxBg's own doc comment. Was
+        // conditional on phase, leaving the country/list/error/loading
+        // phases on the app's plain light-mode background instead.
+        backgroundColor: cxBg,
         appBar: AppBar(
+          backgroundColor: cxBg,
+          foregroundColor: cxInk,
           leading: atRoot
-              ? null
+              ? (canPop
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      onPressed: () => Navigator.of(context).pop(),
+                    )
+                  : null)
               : IconButton(
                   icon: const Icon(Icons.arrow_back_rounded),
-                  onPressed: () => setState(() => _phase = _Phase.country),
+                  // From the redirect screen, back means the bank list — the
+                  // country picker is two steps behind and is not what was left.
+                  onPressed: () => setState(() => _phase =
+                      _phase == _Phase.redirect ? _Phase.list : _Phase.country),
                 ),
+          // No route beneath = onboarding/wrong-account: give a way out instead
+          // of trapping the user until they delete the app.
+          actions: (atRoot && !canPop)
+              ? [
+                  TextButton(
+                    onPressed: _switchAccount,
+                    child: Text(_isLt ? 'Kita paskyra' : 'Switch account'),
+                  ),
+                ]
+              : null,
           title: Text(atRoot
               ? (_isLt ? 'Pasirink šalį' : 'Choose a country')
               : (_isLt ? 'Prijungti banką' : 'Connect your bank')),
@@ -285,6 +762,18 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
 
   Widget _body() {
     switch (_phase) {
+      case _Phase.intro:
+        return BankHowItWorks(onContinue: () {
+          // The prefetch usually finished while this was being read.
+          if (_banks.isNotEmpty && _error == null) {
+            setState(() => _phase = _Phase.list);
+          } else {
+            setState(() => _phase = _Phase.loading);
+            _loadBanks();
+          }
+        });
+      case _Phase.redirect:
+        return _redirectView(_pendingBank!);
       case _Phase.country:
         return _countryList();
       case _Phase.loading:
@@ -293,14 +782,6 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         return _busy(_isLt
             ? 'Atveriamas ${_connectingBank ?? 'banko'} puslapis…\nPatvirtink prisijungimą ir grįžk į programėlę.'
             : 'Opening ${_connectingBank ?? 'the bank'}…\nApprove access, then return to the app.');
-      case _Phase.analysing:
-        final stages = _isLt ? _stagesLt : _stagesEn;
-        return _busy(
-          stages[_stage.clamp(0, stages.length - 1)],
-          hint: _isLt
-              ? 'Tai gali užtrukti iki minutės — analizuojame visus tavo sandorius. Neuždaryk programėlės.'
-              : 'This can take up to a minute — we\'re analysing all your transactions. Keep the app open.',
-        );
       case _Phase.error:
         return _errorView();
       case _Phase.list:
@@ -323,8 +804,8 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                 message,
                 key: ValueKey(message),
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: cInk, fontSize: 16, fontWeight: FontWeight.w600, height: 1.4),
+                style: const TextStyle(
+                    color: cxInk, fontSize: 16, fontWeight: FontWeight.w600, height: 1.4),
               ),
             ),
             if (hint != null) ...[
@@ -332,7 +813,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               Text(
                 hint,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+                style: const TextStyle(color: cxSubtle, fontSize: 13, height: 1.4),
               ),
             ],
           ],
@@ -354,7 +835,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             Text(
               _error ?? (_isLt ? 'Įvyko klaida.' : 'Something went wrong.'),
               textAlign: TextAlign.center,
-              style: TextStyle(color: cInk, fontSize: 15, height: 1.4),
+              style: const TextStyle(color: cxInk, fontSize: 15, height: 1.4),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -379,7 +860,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             _isLt
                 ? 'Kurioje šalyje tavo bankas? Rodysim tos šalies bankus.'
                 : 'Which country is your bank in? We\'ll show that country\'s banks.',
-            style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+            style: const TextStyle(color: cxSubtle, fontSize: 13, height: 1.4),
           ),
         ),
         Padding(
@@ -387,10 +868,27 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
           child: TextField(
             controller: _countrySearch,
             onChanged: (_) => setState(() {}),
+            style: const TextStyle(color: cxInk),
+            cursorColor: cxInk,
             decoration: InputDecoration(
-              prefixIcon: Icon(Icons.search_rounded, color: cSubtle, size: 20),
+              prefixIcon: const Icon(Icons.search_rounded, color: cxSubtle, size: 20),
               hintText: _isLt ? 'Ieškoti šalies' : 'Search country',
+              hintStyle: const TextStyle(color: cxSubtle),
               isDense: true,
+              filled: true,
+              fillColor: cxCard,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: cxLine),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: cxLine),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: cxSubtle),
+              ),
             ),
           ),
         ),
@@ -398,7 +896,7 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
           child: list.isEmpty
               ? Center(
                   child: Text(_isLt ? 'Nerasta.' : 'No matches.',
-                      style: TextStyle(color: cSubtle)))
+                      style: const TextStyle(color: cxSubtle)))
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                   itemCount: list.length,
@@ -419,9 +917,9 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: cCard,
+            color: cxCard,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: cLine),
+            border: Border.all(color: cxLine),
           ),
           child: Row(
             children: [
@@ -430,11 +928,11 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               Expanded(
                 child: Text(
                   _isLt ? c.lt : c.en,
-                  style: TextStyle(
-                      color: cInk, fontSize: 15, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      color: cxInk, fontSize: 15, fontWeight: FontWeight.w600),
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded, color: cSubtle, size: 16),
+              const Icon(Icons.arrow_forward_ios_rounded, color: cxSubtle, size: 16),
             ],
           ),
         ),
@@ -460,14 +958,14 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                   Text(_country.flag, style: const TextStyle(fontSize: 18)),
                   const SizedBox(width: 8),
                   Text(_isLt ? _country.lt : _country.en,
-                      style: TextStyle(
-                          color: cInk,
+                      style: const TextStyle(
+                          color: cxInk,
                           fontSize: 14,
                           fontWeight: FontWeight.w700)),
                   const SizedBox(width: 8),
                   Text(_isLt ? '· Keisti' : '· Change',
                       style: const TextStyle(
-                          color: VaultieColors.primary,
+                          color: Color(0xFF8FB6FF),
                           fontSize: 13,
                           fontWeight: FontWeight.w600)),
                 ],
@@ -481,40 +979,114 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
             _isLt
                 ? 'Pasirink savo banką. Prisijungsi saugiai banko puslapyje — mes niekada nematome tavo slaptažodžio.'
                 : 'Pick your bank. You sign in securely on the bank\'s own page — we never see your password.',
-            style: TextStyle(color: cSubtle, fontSize: 13, height: 1.4),
+            style: const TextStyle(color: cxSubtle, fontSize: 13, height: 1.4),
           ),
         ),
-        Expanded(
-          child: _banks.isEmpty
-              ? Center(
-                  child: Text(
-                    _isLt ? 'Šioje šalyje bankų nerasta.' : 'No banks found here.',
-                    style: TextStyle(color: cSubtle),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                  itemCount: _banks.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _bankTile(_banks[i]),
+        if (_banks.length > 6)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: TextField(
+              controller: _bankSearch,
+              onChanged: (_) => setState(() {}),
+              style: const TextStyle(color: cxInk),
+              cursorColor: cxInk,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search_rounded, color: cxSubtle, size: 20),
+                hintText: _isLt ? 'Ieškoti banko' : 'Search bank',
+                hintStyle: const TextStyle(color: cxSubtle),
+                isDense: true,
+                filled: true,
+                fillColor: cxCard,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: cxLine),
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: cxLine),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: cxSubtle),
+                ),
+              ),
+            ),
+          ),
+        Expanded(
+          child: Builder(builder: (context) {
+            final banks = _filteredBanks;
+            if (_banks.isEmpty) {
+              return Center(
+                child: Text(
+                  _isLt ? 'Šioje šalyje bankų nerasta.' : 'No banks found here.',
+                  style: const TextStyle(color: cxSubtle),
+                ),
+              );
+            }
+            if (banks.isEmpty) {
+              return Center(
+                child: Text(_isLt ? 'Nerasta.' : 'No matches.',
+                    style: const TextStyle(color: cxSubtle)),
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              itemCount: banks.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (_, i) => _bankTile(banks[i]),
+            );
+          }),
         ),
+        _consentFooter(),
       ],
     );
   }
+
+  /// The two facts that used to live on BankInfoScreen and nowhere else.
+  ///
+  /// The 90-day limit in particular existed on that one screen only: drop it
+  /// and nothing in the app would ever tell a person their bank access expires
+  /// and has to be granted again. Sitting here, it is read at the moment
+  /// consent is actually given rather than two screens earlier.
+  Widget _consentFooter() => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.lock_outline_rounded, size: 14, color: cxSubtle),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                _isLt
+                    ? 'Duomenys saugomi tik tavo telefone · Sutikimas galioja 90 dienų'
+                    : 'Data is stored only on your phone · Consent lasts 90 days',
+                style: const TextStyle(color: cxSubtle, fontSize: 11.5, height: 1.35),
+              ),
+            ),
+          ],
+        ),
+      );
 
   Widget _bankTile(Bank bank) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _connect(bank),
+        onTap: () => _confirm(bank),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: cCard,
+            // 2026-09-03: a plain flat cxCard fill read as bland next to a
+            // reference mockup — per explicit request, a soft gradient plus
+            // a brighter (still low-alpha) border instead, same idea as the
+            // paywall's own upgraded plan cards.
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF182A5C), Color(0xFF101C42)],
+            ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: cLine),
+            border: Border.all(color: const Color(0xFF8FB6FF).withValues(alpha: 0.22)),
           ),
           child: Row(
             children: [
@@ -523,8 +1095,10 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
               Expanded(
                 child: Text(
                   bank.name,
-                  style: TextStyle(
-                    color: cInk,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: cxInk,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -535,16 +1109,16 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
-                    color: cHiBg,
+                    color: cxSubtle.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text('TESTAS',
-                      style: TextStyle(
-                          color: cSubtle,
+                  child: Text(tr('TESTAS'),
+                      style: const TextStyle(
+                          color: cxSubtle,
                           fontWeight: FontWeight.w700,
                           fontSize: 10)),
                 ),
-              Icon(Icons.arrow_forward_ios_rounded, color: cSubtle, size: 16),
+              const Icon(Icons.arrow_forward_ios_rounded, color: cxSubtle, size: 16),
             ],
           ),
         ),
@@ -552,34 +1126,36 @@ class _BankConnectScreenState extends State<BankConnectScreen> {
     );
   }
 
+  /// A bank's real logo, same [Bank.logo] URL as before — this is not a
+  /// placeholder. What changed: it now sits on its own backing tile instead
+  /// of directly on the dark card. Plenty of these logos are dark text or
+  /// partly transparent, drawn straight for whichever bank supplied them —
+  /// on cxCard's navy that made some vanish and others look inconsistent
+  /// bank to bank ("bankai atrodo keistai"). Pure white washed out the
+  /// logos that are themselves light/white-stroked (drawn for a dark
+  /// background originally) — per explicit follow-up, a soft light-grey
+  /// tile instead, which still lifts dark logos but doesn't erase light
+  /// ones the same way.
   Widget _bankLogo(Bank bank) {
     final logo = bank.logo;
-    if (logo != null && logo.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          logo,
-          width: 36,
-          height: 36,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _logoFallback(bank),
-        ),
-      );
-    }
-    return _logoFallback(bank);
-  }
-
-  Widget _logoFallback(Bank bank) {
     return Container(
-      width: 36,
-      height: 36,
-      alignment: Alignment.center,
+      width: 40,
+      height: 40,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: VaultieColors.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFFC9D2E8),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: const Icon(Icons.account_balance,
-          color: VaultieColors.primary, size: 20),
+      child: logo != null && logo.isNotEmpty
+          ? Image.network(
+              logo,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => _logoFallbackIcon(),
+            )
+          : _logoFallbackIcon(),
     );
   }
+
+  Widget _logoFallbackIcon() =>
+      const Icon(Icons.account_balance, color: VaultieColors.primary, size: 20);
 }

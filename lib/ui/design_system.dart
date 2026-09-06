@@ -1,6 +1,5 @@
-import 'dart:ui' show FontFeature;
-
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../services/logo_service.dart';
 
@@ -19,37 +18,55 @@ class DS {
   static const hairline = Color(0xFFE8ECE7); // borders / dividers
   static const track = Color(0xFFE9ECE8); // chart/ring track
 
-  // Ink ramp (green-black, softened from pure black)
-  static const ink = Color(0xFF1A2620); // primary text
-  static const ink2 = Color(0xFF6C7972); // secondary text
-  static const ink3 = Color(0xFF9AA69E); // tertiary / captions
+  // Ink ramp (blue-black, softened from pure black)
+  static const ink = Color(0xFF0B1533); // primary text
+  static const ink2 = Color(0xFF4C5B7D); // secondary text
+  static const ink3 = Color(0xFF8A94A8); // tertiary / captions
 
-  // Brand + semantic
-  static const brand = Color(0xFF174E35);
-  static const accent = Color(0xFF1E8E4E);
-  static const paid = Color(0xFF1E8E4E); // positive / settled
+  // Brand + semantic. Brand follows the blue identity; `paid` stays green
+  // because there it means "positive", not "Vaultie".
+  static const brand = Color(0xFF003DE1);
+  static const accent = Color(0xFF2F6BFF);
+  static const paid = Color(0xFF12A366); // positive / settled
   static const pending = Color(0xFFB5831A); // awaiting / expected
   static const danger = Color(0xFFC0402B);
 
   // ── Spacing: 4-pt scale ────────────────────────────────────────────────────
   static const double s2 = 2, s4 = 4, s6 = 6, s8 = 8, s10 = 10, s12 = 12;
-  static const double s14 = 14, s16 = 16, s20 = 20, s24 = 24, s28 = 28, s32 = 32;
+  static const double s14 = 14,
+      s16 = 16,
+      s20 = 20,
+      s24 = 24,
+      s28 = 28,
+      s32 = 32;
 
   /// Screen horizontal margin — a single source of truth for optical alignment.
   static const double gutter = 20;
 
   // ── Radius scale (visual sizes; squircle multiplies internally) ────────────
-  static const double rIcon = 12, rRow = 16, rCard = 20, rHero = 24, rPill = 100;
+  static const double rIcon = 12,
+      rRow = 16,
+      rCard = 20,
+      rHero = 24,
+      rPill = 100;
 
   // ── Elevation: neutral, two-layer, tuned soft ──────────────────────────────
   static const _sh = Color(0xFF13211A);
   static List<BoxShadow> get e1 => const [
-        BoxShadow(color: Color(0x0A13211A), blurRadius: 3, offset: Offset(0, 1)),
-        BoxShadow(color: Color(0x0F13211A), blurRadius: 14, offset: Offset(0, 6)),
+        BoxShadow(
+            color: Color(0x0A13211A), blurRadius: 3, offset: Offset(0, 1)),
+        BoxShadow(
+            color: Color(0x0F13211A), blurRadius: 14, offset: Offset(0, 6)),
       ];
   static List<BoxShadow> get e2 => [
-        BoxShadow(color: _sh.withValues(alpha: 0.05), blurRadius: 6, offset: const Offset(0, 2)),
-        BoxShadow(color: _sh.withValues(alpha: 0.07), blurRadius: 26, offset: const Offset(0, 12)),
+        BoxShadow(
+            color: _sh.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2)),
+        BoxShadow(
+            color: _sh.withValues(alpha: 0.07),
+            blurRadius: 26,
+            offset: const Offset(0, 12)),
       ];
 }
 
@@ -70,53 +87,105 @@ class AppType {
   static const _tab = [FontFeature.tabularFigures()];
 
   static const displayLg = TextStyle(
-      color: DS.ink, fontSize: 27, fontWeight: FontWeight.w800, height: 1.05, letterSpacing: -0.5);
+      color: DS.ink,
+      fontSize: 27,
+      fontWeight: FontWeight.w800,
+      height: 1.05,
+      letterSpacing: -0.5);
   static const display = TextStyle(
-      color: DS.ink, fontSize: 22, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: -0.4);
+      color: DS.ink,
+      fontSize: 22,
+      fontWeight: FontWeight.w800,
+      height: 1.1,
+      letterSpacing: -0.4);
 
   static const moneyLg = TextStyle(
-      color: DS.ink, fontSize: 22, fontWeight: FontWeight.w800, height: 1.0,
-      letterSpacing: -0.4, fontFeatures: _tab);
+      color: DS.ink,
+      fontSize: 22,
+      fontWeight: FontWeight.w800,
+      height: 1.0,
+      letterSpacing: -0.4,
+      fontFeatures: _tab);
   static const money = TextStyle(
-      color: DS.ink, fontSize: 15.5, fontWeight: FontWeight.w700, height: 1.0,
-      letterSpacing: -0.1, fontFeatures: _tab);
+      color: DS.ink,
+      fontSize: 15.5,
+      fontWeight: FontWeight.w700,
+      height: 1.0,
+      letterSpacing: -0.1,
+      fontFeatures: _tab);
   static const moneySm = TextStyle(
-      color: DS.ink3, fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.0,
-      letterSpacing: 0, fontFeatures: _tab);
+      color: DS.ink3,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w600,
+      height: 1.0,
+      letterSpacing: 0,
+      fontFeatures: _tab);
 
   static const rowTitle = TextStyle(
-      color: DS.ink, fontSize: 15.5, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.2);
+      color: DS.ink,
+      fontSize: 15.5,
+      fontWeight: FontWeight.w700,
+      height: 1.15,
+      letterSpacing: -0.2);
   static const rowSub = TextStyle(
       color: DS.ink2, fontSize: 12.5, fontWeight: FontWeight.w500, height: 1.2);
 
   static const label = TextStyle(
       color: DS.ink2, fontSize: 13, fontWeight: FontWeight.w500, height: 1.2);
   static const overline = TextStyle(
-      color: DS.ink3, fontSize: 11.5, fontWeight: FontWeight.w700, height: 1.2, letterSpacing: 0.6);
+      color: DS.ink3,
+      fontSize: 11.5,
+      fontWeight: FontWeight.w700,
+      height: 1.2,
+      letterSpacing: 0.6);
 }
 
-/// Formats money the Lithuanian way — grouped integer, comma decimals, trailing
-/// euro. Always 2 decimals, tabular-safe. Optional leading sign.
+/// Formats money for display — Lithuanian style (grouped integer, comma
+/// decimals, trailing symbol) when the UI language is Lithuanian, English
+/// style (comma-grouped, period decimals, leading symbol) otherwise. Always
+/// 2 decimals, tabular-safe. Optional leading sign.
 class Money {
   Money._();
+  // Display currency. Amounts are stored in EUR; multiply by [rate] (EUR → base)
+  // and show [symbol] to present the user's chosen base currency. Default = EUR.
+  static double rate = 1.0;
+  static String symbol = '€';
+  // Kept in lockstep with [rate]/[symbol] by AppPrefs.applyDisplayCurrency()
+  // — same reasoning as those two: this class can't import app_prefs.dart
+  // itself (app_prefs.dart already imports THIS file, and Dart doesn't allow
+  // the cycle), so the UI language is pushed in from outside rather than
+  // read here. Was missing entirely, so every MoneyText stayed Lithuanian-
+  // formatted ("1 234,56 €") even in English, while formatMoney()
+  // (app_prefs.dart) correctly localized — the two disagreed everywhere.
+  static bool isLt = true;
   static String format(double v, {bool signed = false}) {
+    v = v * rate;
     final sign = signed ? (v < 0 ? '−' : '+') : (v < 0 ? '−' : '');
-    final a = v.abs();
-    final whole = a.truncate();
-    final cents = ((a - whole) * 100).round().toString().padLeft(2, '0');
+    if (!isLt) {
+      final amount = NumberFormat.currency(
+              locale: 'en', symbol: symbol, decimalDigits: 2)
+          .format(v.abs());
+      return '$sign$amount';
+    }
+    // Round to whole cents FIRST, then split — otherwise a value like 12.999
+    // rounds its fractional part to 100 and prints "12,100 €" instead of 13,00.
+    final totalCents = (v.abs() * 100).round();
+    final whole = totalCents ~/ 100;
+    final cents = (totalCents % 100).toString().padLeft(2, '0');
     final digits = whole.toString();
     final buf = StringBuffer();
     for (var i = 0; i < digits.length; i++) {
       if (i != 0 && (digits.length - i) % 3 == 0) buf.write(' ');
       buf.write(digits[i]);
     }
-    return '$sign$buf,$cents €';
+    return '$sign$buf,$cents $symbol';
   }
 }
 
 /// Money as text with tabular figures baked into the style.
 class MoneyText extends StatelessWidget {
-  const MoneyText(this.amount, {super.key, this.style = AppType.money, this.signed = false});
+  const MoneyText(this.amount,
+      {super.key, this.style = AppType.money, this.signed = false});
   final double amount;
   final TextStyle style;
   final bool signed;
@@ -144,6 +213,7 @@ class CategoryIcon extends StatelessWidget {
     this.size = 38,
     this.circle = true,
     this.merchant,
+    this.domain,
   });
   final IconData icon;
   final Color color;
@@ -153,6 +223,15 @@ class CategoryIcon extends StatelessWidget {
   /// The raw merchant name/key to resolve a logo from (null = no logo, glyph).
   final String? merchant;
 
+  /// The merchant's own domain, as guessed server-side by the backend
+  /// resolver (e.g. "mql5.com") — set only when [merchant] didn't resolve to
+  /// a bundled asset. Used to ask OUR OWN [kMerchantLogoEndpoint], never a
+  /// third party directly: the client never learns of, let alone calls,
+  /// Clearbit or Google — only Vaultie's backend does, with a bare domain
+  /// name that is never tied to a user or a transaction. See merchant_logo
+  /// in functions/main.py.
+  final String? domain;
+
   Widget _glyph() =>
       Center(child: Icon(icon, color: Colors.white, size: size * 0.52));
 
@@ -160,10 +239,8 @@ class CategoryIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final shape = circle ? const CircleBorder() : squircle(size * 0.32);
     final name = merchant;
-    // BUNDLED logos only — resolves on-device, so showing a logo never tells any
-    // third party which merchants the user pays. A brand we don't ship shows its
-    // category tile, never a network fetch: for a finance app that leak isn't
-    // worth a nicer icon.
+    // Bundled logos resolve entirely on-device — tried first, since it costs
+    // nothing and covers the merchants people pay recurring bills to most.
     final asset = name == null ? null : logoAssetForName(name);
 
     Widget onTile(Widget child) => SizedBox(
@@ -177,34 +254,40 @@ class CategoryIcon extends StatelessWidget {
           ),
         );
 
-    if (asset == null) return onTile(_glyph());
-
     // Padding keeps a square brand mark off the tile's edges; white behind it
     // because brand marks are drawn for light backgrounds and many are
     // transparent, so on the category colour they'd smear into it.
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Material(
-        color: Colors.white,
-        shape: shape,
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: EdgeInsets.all(size * 0.16),
-          child: Image.asset(
-            asset,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => onTile(_glyph()),
+    Widget onLogo(ImageProvider image) => SizedBox(
+          width: size,
+          height: size,
+          child: Material(
+            color: Colors.white,
+            shape: shape,
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: EdgeInsets.all(size * 0.16),
+              child: Image(
+                image: image,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => onTile(_glyph()),
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        );
+
+    if (asset != null) return onLogo(AssetImage(asset));
+    if (domain != null && domain!.isNotEmpty) {
+      return onLogo(NetworkImage(
+          '$kMerchantLogoEndpoint?domain=${Uri.encodeQueryComponent(domain!)}'));
+    }
+    return onTile(_glyph());
   }
 }
 
 /// A soft-tint filter/segment pill (calendar range, filter, etc.).
 class FilterPill extends StatelessWidget {
-  const FilterPill({super.key, required this.icon, required this.label, this.onTap});
+  const FilterPill(
+      {super.key, required this.icon, required this.label, this.onTap});
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -225,7 +308,9 @@ class FilterPill extends StatelessWidget {
               const SizedBox(width: DS.s8),
               Text(label,
                   style: const TextStyle(
-                      color: DS.brand, fontSize: 14, fontWeight: FontWeight.w700)),
+                      color: DS.brand,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700)),
             ],
           ),
         ),
@@ -263,7 +348,9 @@ class AppCard extends StatelessWidget {
         color: color,
         clipBehavior: Clip.antiAlias,
         shape: squircle(radius,
-            side: border == null ? BorderSide.none : BorderSide(color: border!, width: 1)),
+            side: border == null
+                ? BorderSide.none
+                : BorderSide(color: border!, width: 1)),
         child: Padding(padding: padding, child: child),
       ),
     );

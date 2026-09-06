@@ -197,12 +197,6 @@
   "file": "disney.png",
   "url": "https://static-assets.bamgrid.com/product/disneyplus/favicons/disPlus-favicon-180x180.7d56f648dc95f591721935193bc827cb.png"
  },
- "dropbox": {
-  "bytes": 1379,
-  "domain": "dropbox.com",
-  "file": "dropbox.png",
-  "url": "https://www.google.com/s2/favicons?domain=dropbox.com&sz=256"
- },
  "duolingo": {
   "bytes": 9900,
   "domain": "duolingo.com",
@@ -244,12 +238,6 @@
   "domain": "figma.com",
   "file": "figma.png",
   "url": "https://static.figma.com/app/icon/2/touch-180.png"
- },
- "general": {
-  "bytes": 1533,
-  "domain": "gjensidige.lt",
-  "file": "general.png",
-  "url": "https://www.gjensidige.lt/Content/gfx/icons/favicon.ico"
  },
  "gintarine": {
   "bytes": 7580,
@@ -299,12 +287,6 @@
   "file": "hesburger.png",
   "url": "https://www.google.com/s2/favicons?domain=hesburger.lt&sz=256"
  },
- "hm": {
-  "bytes": 1405,
-  "domain": "hm.com",
-  "file": "hm.png",
-  "url": "https://www.google.com/s2/favicons?domain=hm.com&sz=256"
- },
  "hulu": {
   "bytes": 35962,
   "domain": "hulu.com",
@@ -334,12 +316,6 @@
   "domain": "inbank.lt",
   "file": "inbank.png",
   "url": "https://www.google.com/s2/favicons?domain=inbank.lt&sz=256"
- },
- "jysk": {
-  "bytes": 1217,
-  "domain": "jysk.lt",
-  "file": "jysk.png",
-  "url": "https://www.google.com/s2/favicons?domain=jysk.lt&sz=256"
  },
  "kfc": {
   "bytes": 12543,
@@ -550,12 +526,6 @@
   "domain": "senukai.lt",
   "file": "senukai.png",
   "url": "https://www.google.com/s2/favicons?domain=senukai.lt&sz=256"
- },
- "slack": {
-  "bytes": 927,
-  "domain": "slack.com",
-  "file": "slack.png",
-  "url": "https://www.google.com/s2/favicons?domain=slack.com&sz=256"
  },
  "sodra": {
   "bytes": 12168,

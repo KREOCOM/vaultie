@@ -1,0 +1,270 @@
+<meta charset="utf-8">
+<title>Vaultie — po onboardingo: santrauka → bankas → paywall</title>
+
+<!--
+  Everything promised here exists in the code. Deliberately absent:
+    · a free trial — paywall_screen.dart:20 sets kShowTrialTimeline = false,
+      with a comment that the RevenueCat products have no trial and that
+      advertising one risks an App Store 3.1.2 rejection
+    · a yearly plan — PurchaseService.plans has only monthly and lifetime
+    · "sync forever" — bank consent lasts 90 days (bank_info_screen.dart:27)
+  Prices are the static fallbacks from purchase_service.dart:51.
+-->
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root { --page:#EFF1F5; --ink:#101828; --muted:#667085; --line:#E1E5EC; }
+  @media (prefers-color-scheme: dark) { :root { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; --line:#1D2637; } }
+  :root[data-theme="dark"]  { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; --line:#1D2637; }
+  :root[data-theme="light"] { --page:#EFF1F5; --ink:#101828; --muted:#667085; --line:#E1E5EC; }
+
+  body { background:var(--page); color:var(--ink); padding:30px 20px 70px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1240px; margin:0 auto; }
+  h1 { font-size:24px; font-weight:750; letter-spacing:-.02em; margin:0 0 8px; }
+  h2 { font-size:18px; font-weight:750; margin:42px 0 6px; }
+  .lede { font-size:13.5px; line-height:1.6; color:var(--muted); max-width:86ch; margin:0 0 6px; }
+  .lede b { color:var(--ink); font-weight:650; }
+  .warn { border-left:3px solid #E0574F; padding:10px 0 10px 14px; margin:16px 0 0;
+    font-size:13px; line-height:1.6; color:var(--muted); max-width:86ch; }
+  .warn b { color:#E0574F; }
+  code { font-size:12px; background:rgba(127,127,127,.14); padding:1px 5px; border-radius:4px; }
+
+  .set { display:flex; gap:30px; flex-wrap:wrap; align-items:flex-start; margin-top:16px; }
+  figure { display:flex; flex-direction:column; gap:9px; margin:0; }
+  cap { font-size:12.5px; font-weight:750; }
+  .meta { font-size:11px; color:var(--muted); line-height:1.5; max-width:268px; }
+
+  /* ══ phone frame — 1 unit = 1pt of a 390pt screen ══ */
+  .p { position:relative; width:268px; aspect-ratio:390/844; border-radius:12.5%/5.8%; overflow:hidden;
+    container-type:inline-size; --px:0.2564cqw; background:#EEF1F7;
+    box-shadow:0 1px 2px rgba(16,24,40,.14), 0 16px 32px -12px rgba(16,24,40,.34); }
+  .p.sm { width:170px; }
+  .scr { position:absolute; inset:0; --p:var(--px); overflow:hidden;
+    --card:#FFF; --hair:#E3E9F2; --ink:#14203A; --muted:#5C6A85; --faint:#7C879E;
+    --purple:#2F6BFF; --psoft:#E4EDFD; --good:#2FA34E; }
+  .pad { padding:calc(54*var(--p)) calc(20*var(--p)) 0; }
+
+  .ttl { font-size:calc(27*var(--p)); font-weight:800; color:var(--ink); line-height:1.18;
+    letter-spacing:calc(-.6*var(--p)); }
+  .sub { margin-top:calc(9*var(--p)); font-size:calc(14*var(--p)); line-height:1.5; color:var(--muted); }
+
+  /* ── the value summary ── */
+  .feat { display:flex; gap:calc(13*var(--p)); align-items:flex-start; margin-top:calc(16*var(--p)); }
+  .feat .ic { width:calc(38*var(--p)); height:calc(38*var(--p)); border-radius:calc(12*var(--p));
+    background:var(--psoft); display:grid; place-items:center; flex:none; }
+  .feat .ic svg { width:calc(20*var(--p)); height:calc(20*var(--p)); fill:var(--purple); }
+  .feat .t { font-size:calc(15*var(--p)); font-weight:750; color:var(--ink); }
+  .feat .d { font-size:calc(12.5*var(--p)); line-height:1.45; color:var(--muted); margin-top:calc(2*var(--p)); }
+
+  .cta { position:absolute; left:calc(20*var(--p)); right:calc(20*var(--p)); bottom:calc(30*var(--p)); }
+  .btn { height:calc(54*var(--p)); border-radius:calc(15*var(--p)); background:var(--purple);
+    display:flex; align-items:center; justify-content:center; gap:calc(8*var(--p));
+    font-size:calc(16*var(--p)); font-weight:750; color:#fff; }
+  .btn svg { width:calc(17*var(--p)); height:calc(17*var(--p)); fill:#fff; }
+  .btn.ghost { background:transparent; color:var(--muted); height:calc(40*var(--p)); font-size:calc(14*var(--p)); font-weight:650; }
+  .legal { margin-top:calc(9*var(--p)); font-size:calc(10.5*var(--p)); line-height:1.45; color:var(--faint); text-align:center; }
+
+  /* ── bank connect ── */
+  .chip { display:inline-flex; align-items:center; gap:calc(7*var(--p)); background:var(--card);
+    border:1px solid var(--hair); border-radius:calc(20*var(--p));
+    padding:calc(8*var(--p)) calc(13*var(--p)); font-size:calc(13*var(--p)); font-weight:650; color:var(--ink); }
+  .srch { margin-top:calc(14*var(--p)); background:#EEF2F8; border:1px solid var(--hair);
+    border-radius:calc(12*var(--p)); padding:calc(12*var(--p)) calc(14*var(--p));
+    font-size:calc(14*var(--p)); color:var(--faint); }
+  .bank { display:flex; align-items:center; gap:calc(12*var(--p)); background:var(--card);
+    border:1px solid var(--hair); border-radius:calc(14*var(--p));
+    padding:calc(12*var(--p)); margin-top:calc(9*var(--p)); }
+  .bank i { width:calc(36*var(--p)); height:calc(36*var(--p)); border-radius:calc(9*var(--p));
+    flex:none; display:grid; place-items:center; font-size:calc(13*var(--p)); font-weight:800; color:#fff; }
+  .bank .n { font-size:calc(15*var(--p)); font-weight:650; color:var(--ink); }
+
+  .consent { background:var(--psoft); border-radius:calc(14*var(--p)); padding:calc(14*var(--p)); margin-top:calc(14*var(--p)); }
+  .consent li { list-style:none; display:flex; gap:calc(9*var(--p)); align-items:flex-start;
+    font-size:calc(12.5*var(--p)); line-height:1.45; color:#2A3854; margin-top:calc(8*var(--p)); }
+  .consent li:first-child { margin-top:0; }
+  .consent svg { width:calc(14*var(--p)); height:calc(14*var(--p)); fill:var(--purple); flex:none; margin-top:calc(2*var(--p)); }
+  .consent ul { margin:0; padding:0; }
+
+  /* ── paywall ── */
+  .plan { display:flex; gap:calc(10*var(--p)); margin-top:calc(16*var(--p)); }
+  .plan > div { flex:1; border:1.5px solid var(--hair); border-radius:calc(15*var(--p));
+    padding:calc(13*var(--p)); text-align:center; position:relative; background:var(--card); }
+  .plan > div.on { border-color:var(--purple); background:var(--psoft); }
+  .plan .badge { position:absolute; top:calc(-9*var(--p)); left:50%; transform:translateX(-50%);
+    background:var(--purple); color:#fff; font-size:calc(9*var(--p)); font-weight:800;
+    padding:calc(3*var(--p)) calc(8*var(--p)); border-radius:calc(7*var(--p)); letter-spacing:.05em; white-space:nowrap; }
+  .plan .nm { font-size:calc(13*var(--p)); font-weight:750; color:var(--ink); }
+  .plan .pr { font-size:calc(22*var(--p)); font-weight:800; color:var(--ink); margin-top:calc(4*var(--p)); }
+  .plan .pe { font-size:calc(11.5*var(--p)); color:var(--muted); }
+  .bullet { display:flex; gap:calc(10*var(--p)); align-items:flex-start; margin-top:calc(10*var(--p)); }
+  .bullet svg { width:calc(15*var(--p)); height:calc(15*var(--p)); fill:var(--good); flex:none; margin-top:calc(2*var(--p)); }
+  .bullet span { font-size:calc(13*var(--p)); line-height:1.4; color:var(--ink); }
+
+  /* ── flow strips ── */
+  .flow { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:14px; }
+  .arrow { font-size:22px; color:var(--muted); }
+  .step { display:flex; flex-direction:column; gap:6px; align-items:center; }
+  .step b { font-size:11px; font-weight:700; }
+  .verdict { font-size:12.5px; line-height:1.6; color:var(--muted); max-width:86ch; margin-top:10px; }
+  .verdict b { color:var(--ink); }
+</style>
+
+<div class="wrap">
+  <h1>Po onboardingo: ką parodyti, kada prašyti banko, kada prašyti pinigų</h1>
+  <p class="lede">
+    Trys ekranai ir trys jų tvarkos. Viskas, kas čia žadama, <b>egzistuoja kode</b> — funkcijų sąrašas
+    surinktas iš tikrų ekranų, o kainos yra <code>purchase_service.dart:51</code> reikšmės.
+  </p>
+
+  <div class="warn">
+    <b>Radau problemą, kurią verta spręsti anksčiau už dizainą.</b> Programėlėje yra <b>du</b> paywall'ai.
+    Naujasis, <code>lib/screens/onboarding/paywall_screen.dart</code>, siūlo <b>7 dienų nemokamą bandymą</b>
+    ir <b>metinį planą už 29,99 €</b> — RevenueCat'e nėra nei vieno, nei kito (yra tik <code>€3.99/mėn</code>
+    ir <code>€29.99 visam laikui</code>). Be to, <code>onboarding_flow.dart:190</code> sukuria jį <b>be
+    <code>onPurchase</code></b>, tad mygtukas „Pradėti 7 dienų bandymą" pereina į netikrą šaką ir visada
+    „pavyksta" nieko nenuskaičiavęs. Senasis <code>paywall_screen.dart:20</code> tai jau žino:
+    <code>kShowTrialTimeline = false</code> su komentaru, kad bandymo reklamavimas rizikuoja
+    App Store atmetimu pagal 3.1.2. Žemiau esantis paywall'as rodo tik realius planus.
+  </div>
+
+  <h2>Trys ekranai</h2>
+  <div class="set" id="screens"></div>
+
+  <h2>Trys tvarkos</h2>
+  <p class="lede">Tie patys ekranai, skirtinga seka. Skiriasi tuo, <b>kada žmogus pamato savo tikrus skaičius</b>.</p>
+  <div id="flows"></div>
+</div>
+
+<script>
+  const ICON = {
+    sync:'<path d="M12 4V1L8 5l4 4V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8Z"/>',
+    repeat:'<path d="M7 7h10v3l4-4-4-4v3H5v6h2Zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2Z"/>',
+    tag:'<path d="M12 2 2 12l10 10 10-10Zm-3 8a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/>',
+    bell:'<path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.9V4a1 1 0 0 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1Z"/>',
+    doc:'<path d="M6 2h8l6 6v14H6Zm8 1.5V9h5.5Z"/>',
+    bank:'<path d="M12 3 2 8v2h20V8Zm-7 9h2v6H5Zm5 0h2v6h-2Zm5 0h2v6h-2ZM3 20h18v2H3Z"/>',
+    check:'<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4Z"/>',
+    lock:'<path d="M6 10V8a6 6 0 1 1 12 0v2h1v12H5V10Zm2 0h8V8a4 4 0 1 0-8 0Z"/>',
+    arrow:'<path d="M4 11h12.2l-5.6-5.6L12 4l8 8-8 8-1.4-1.4 5.6-5.6H4Z"/>',
+  };
+
+  // Only features that exist. Each line names a real screen or service.
+  const FEATURES = [
+    ['sync',  'Sandoriai atsinaujina patys',   'Sinchronizuojama kas 30 min. — nereikia nieko vesti ranka.'],
+    ['repeat','Prenumeratos randamos automatiškai', 'Vaultie atpažįsta pasikartojančius mokėjimus ir suskaičiuoja, kiek jie kainuoja per metus.'],
+    ['tag',   'Išlaidos susirūšiuoja pačios',  'Kiekvienas sandoris gauna kategoriją; nesutinki — pakeiti vienu bakstelėjimu.'],
+    ['bell',  'Priminimai prieš mokėjimus',    'Pranešimas dieną prieš, kad sąskaita neužkluptų.'],
+    ['doc',   'Eksportas į CSV ir PDF',        'Visi sandoriai — į skaičiuoklę arba tvarkingą ataskaitą.'],
+  ];
+
+  const SUMMARY = `
+    <div class="pad">
+      <div class="ttl">Prijunk banką —<br>toliau viskas vyksta pačiam</div>
+      <div class="sub">Tai, ką matei, veikia iš tavo tikrų sandorių. Štai kas atsiranda juos prijungus:</div>
+      ${FEATURES.map(f => `
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24">${ICON[f[0]]}</svg></div>
+          <div><div class="t">${f[1]}</div><div class="d">${f[2]}</div></div>
+        </div>`).join('')}
+    </div>
+    <div class="cta">
+      <div class="btn">Prijungti banką <svg viewBox="0 0 24 24">${ICON.arrow}</svg></div>
+      <div class="btn ghost">Vėliau</div>
+    </div>`;
+
+  const BANK = `
+    <div class="pad">
+      <div class="ttl">Prijungti banką</div>
+      <div class="chip" style="margin-top:calc(12*var(--p))">🇱🇹 Lietuva · Keisti</div>
+      <div class="sub" style="font-size:calc(13*var(--p))">Pasirink savo banką. Prisijungsi saugiai banko puslapyje — mes niekada nematome tavo slaptažodžio.</div>
+      <div class="bank"><i style="background:#F26A21">S</i><div class="n">Swedbank</div></div>
+      <div class="bank"><i style="background:#00A94F">SEB</i><div class="n">SEB</div></div>
+      <div class="bank"><i style="background:#E30613">L</i><div class="n">Luminor</div></div>
+      <div class="bank"><i style="background:#2F6BFF">R</i><div class="n">Revolut</div></div>
+      <div class="consent">
+        <ul>
+          <li><svg viewBox="0 0 24 24">${ICON.lock}</svg>Prisijungsi per saugų „Enable Banking" tiltą</li>
+          <li><svg viewBox="0 0 24 24">${ICON.check}</svg>Matysime tik transakcijų istoriją — jokių slaptažodžių</li>
+          <li><svg viewBox="0 0 24 24">${ICON.check}</svg>Duomenys saugomi tik tavo telefone</li>
+          <li><svg viewBox="0 0 24 24">${ICON.check}</svg>Sutikimas galioja 90 dienų</li>
+        </ul>
+      </div>
+    </div>`;
+
+  const PAYWALL = `
+    <div class="pad">
+      <div class="ttl">Atrakink<br>Vaultie Premium</div>
+      <div class="sub" style="font-size:calc(13.5*var(--p))">Nemokamai — iki 5 prenumeratų. Premium nuima ribas ir atrakina banko prijungimą.</div>
+      <div class="plan">
+        <div class="on"><div class="badge">GERIAUSIA</div>
+          <div class="nm">Visam laikui</div><div class="pr">€29.99</div><div class="pe">vienkart.</div></div>
+        <div><div class="nm">Mėnesinis</div><div class="pr">€3.99</div><div class="pe">/mėn.</div></div>
+      </div>
+      <div style="margin-top:calc(14*var(--p))">
+        ${[
+          'Prijunkite banką — automatiškai raskite pasikartojančius mokėjimus',
+          'Neribotas prenumeratų ir sąskaitų skaičius',
+          'Išsami išlaidų analitika ir grafikai',
+          'Mokėjimų priminimai kiekvienai prenumeratai',
+          'Duomenų eksportas (CSV)',
+        ].map(b => `<div class="bullet"><svg viewBox="0 0 24 24">${ICON.check}</svg><span>${b}</span></div>`).join('')}
+      </div>
+    </div>
+    <div class="cta">
+      <div class="btn">Pirkti — €29.99</div>
+      <div class="btn ghost">Atkurti pirkimus</div>
+      <div class="legal">„Visam laikui" — vienkartinis pirkimas. Mokėjimas nuskaičiuojamas iš Apple ID.<br>Naudojimo sąlygos · Privatumo politika</div>
+    </div>`;
+
+  const SCREENS = [
+    { id:'sum',  cap:'1 — Ką gausi prijungęs banką', html:SUMMARY,
+      meta:'Penkios funkcijos, kurių onboardinge nerodėm. Kiekviena egzistuoja: sinchronizacija kas 30 min., prenumeratų atpažinimas, auto-kategorizavimas, priminimai, CSV/PDF eksportas.' },
+    { id:'bank', cap:'2 — Banko pasirinkimas', html:BANK,
+      meta:'Tikras srautas: šalis → bankas → banko puslapis → „Analizuojame…". Sutikimo tekstai paimti iš bank_info_screen.dart, įskaitant 90 dienų galiojimą.' },
+    { id:'pay',  cap:'3 — Paywall (tik realūs planai)', html:PAYWALL,
+      meta:'Be bandomojo laikotarpio ir be metinio plano, nes jų RevenueCat\'e nėra. Su „Atkurti pirkimus" ir teisiniais tekstais, kurių naujajame onboardingo paywall\'e nėra.' },
+  ];
+
+  const scr = document.getElementById('screens');
+  for (const s of SCREENS) {
+    const f = document.createElement('figure');
+    f.innerHTML = `<cap>${s.cap}</cap><div class="p"><div class="scr">${s.html}</div></div><div class="meta">${s.meta}</div>`;
+    scr.appendChild(f);
+  }
+
+  const FLOWS = [
+    { cap:'A — Vertė → bankas → paywall', steps:['sum','bank','pay'],
+      verdict:'<b>Bankas prašomas anksčiausiai.</b> Žmogus pamato savo tikrus skaičius prieš mokėjimo prašymą, tad paywall\'as ateina jau turint ką prarasti. Kaina — prijungusių, bet nemokančių bus daug, o jiems reikės veikiančios nemokamos versijos.' },
+    { cap:'B — Vertė → paywall → bankas', steps:['sum','pay','bank'],
+      verdict:'<b>Pinigai prašomi anksčiausiai.</b> Mokantys ateina apsisprendę, palaikymo mažiau. Kaina — didžioji dalis iškris nepamatę nė vieno savo skaičiaus, o pažadas lieka neįrodytas.' },
+    { cap:'C — Vertė → bankas → pirmas rezultatas → paywall', steps:['sum','bank','res','pay'],
+      verdict:'<b>Paywall\'as ateina iškart po to, kai žmogus pamato savo mėnesio suvestinę.</b> Ilgiausias kelias, bet vienintelis, kur pinigų prašoma tada, kai vertė ką tik įrodyta jo paties duomenimis. Kaina — reikia, kad pirmas rezultatas būtų greitas; kode skenavimas trunka „iki minutės".' },
+  ];
+
+  const RESULT = `
+    <div class="pad">
+      <div class="ttl">Liepa paruošta</div>
+      <div class="sub">Radome 5 prenumeratas ir suskirstėme 214 sandorių.</div>
+      <div class="feat"><div class="ic"><svg viewBox="0 0 24 24">${ICON.repeat}</svg></div>
+        <div><div class="t">84,26 € / mėn prenumeratoms</div><div class="d">= 1 011,12 € per metus</div></div></div>
+      <div class="feat"><div class="ic"><svg viewBox="0 0 24 24">${ICON.bank}</svg></div>
+        <div><div class="t">1 776,00 € išleista</div><div class="d">2 400,00 € gauta · santaupų norma 26 %</div></div></div>
+    </div>
+    <div class="cta"><div class="btn">Žiūrėti apžvalgą <svg viewBox="0 0 24 24">${ICON.arrow}</svg></div></div>`;
+
+  const HTML = { sum:SUMMARY, bank:BANK, pay:PAYWALL, res:RESULT };
+  const NAME = { sum:'Santrauka', bank:'Bankas', pay:'Paywall', res:'Pirmas rezultatas' };
+
+  const flows = document.getElementById('flows');
+  for (const fl of FLOWS) {
+    const d = document.createElement('div');
+    d.innerHTML = `<h2 style="font-size:15px;margin-bottom:2px">${fl.cap}</h2>
+      <div class="flow">${fl.steps.map((s,i) =>
+        `${i ? '<div class="arrow">→</div>' : ''}
+         <div class="step"><div class="p sm"><div class="scr">${HTML[s]}</div></div><b>${NAME[s]}</b></div>`
+      ).join('')}</div>
+      <div class="verdict">${fl.verdict}</div>`;
+    flows.appendChild(d);
+  }
+</script>

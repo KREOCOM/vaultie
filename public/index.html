@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — Tavo finansų draugas</title>
+<meta name="description" content="Vaultie — visi pasikartojantys mokėjimai vienoje vietoje. Sukurta ir valdoma MB ZIVITOMA.">
+<link rel="icon" href="img/icon.png">
+<style>
+  :root {
+    --ink: #0B1533; --sub: #4C5B7D; --paper: #FCFCFD;
+    --card: #FFFFFF; --line: #E6EAF2; --blue: #003DE1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #EEF1F8; --sub: #A2ADC4; --paper: #0A1024;
+      --card: #121A36; --line: #222C4E; --blue: #6E96FF;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 22px 72px; }
+  /* Full-bleed dark hero — the same deep navy the app opens on (onboarding,
+     splash), so the website reads as the same brand the moment it loads
+     instead of a bare white support page. */
+  .hero {
+    background: linear-gradient(180deg, #0A1533, #030E30);
+    padding: 28px 0 46px;
+  }
+  .hero .wrap { padding: 0 22px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 34px; }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: -0.3px; font-size: 19px; color: #fff; }
+  .mark { width: 34px; height: 34px; border-radius: 9px; display: block; }
+  .langs { display: flex; gap: 6px; }
+  .langs button {
+    font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    padding: 6px 13px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.25);
+    background: transparent; color: rgba(255,255,255,0.75);
+  }
+  .langs button[aria-pressed="true"] { background: #5B8CFF; border-color: #5B8CFF; color: #fff; }
+  h1 { font-size: 32px; line-height: 1.18; letter-spacing: -0.7px; margin: 0 0 12px; color: #fff; }
+  .intro { font-size: 16.5px; color: rgba(255,255,255,0.82); margin: 0; max-width: 480px; }
+  .content-top { padding-top: 30px; }
+  section {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 15px; padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 9px; letter-spacing: -0.2px; }
+  section p { margin: 0; color: var(--sub); }
+  section p + p { margin-top: 10px; }
+  ul { margin: 0; padding-left: 20px; color: var(--sub); }
+  li { margin-bottom: 8px; }
+  li:last-child { margin-bottom: 0; }
+  a { color: var(--blue); }
+  footer { margin-top: 34px; color: var(--sub); font-size: 13.5px; text-align: center; }
+  footer a { color: var(--sub); }
+  /* Hide the language that is not showing — never impose a display on the one
+     that is, or elements with their own display lose it. */
+  [data-lang]:not(.on) { display: none; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="wrap">
+    <header>
+      <div class="brand"><img class="mark" src="img/icon.png" alt=""> Vaultie</div>
+      <div class="langs">
+        <button type="button" data-set="lt" aria-pressed="true">LT</button>
+        <button type="button" data-set="en" aria-pressed="false">EN</button>
+      </div>
+    </header>
+
+    <div data-lang="lt" class="on">
+      <h1>Suprask savo finansus geriau</h1>
+      <p class="intro">Vaultie prijungia tavo banką tik skaitymui ir suranda visus pasikartojančius mokėjimus — prenumeratas, sąskaitas, nuomą, paskolas — kad matytum, kiek iš tikrųjų kainuoja tavo mėnuo. Kuriama ir valdoma MB ZIVITOMA.</p>
+    </div>
+    <div data-lang="en">
+      <h1>See where your money goes</h1>
+      <p class="intro">Vaultie connects to your bank read-only and finds everything that repeats — subscriptions, bills, rent, loans — so you can see what your month actually costs. Built and operated by MB ZIVITOMA.</p>
+    </div>
+  </div>
+</div>
+
+<div class="wrap content-top">
+
+  <section>
+    <h2 data-lang="lt" class="on">Kaip veikia</h2>
+    <h2 data-lang="en">How it works</h2>
+    <p data-lang="lt" class="on">Prijungi banką (tik skaitymui, per licencijuotą PSD2 tiekėją Enable Banking), o Vaultie automatiškai surūšiuoja operacijas ir surenka visus pasikartojančius mokėjimus į vieną aiškų vaizdą. Duomenys lieka tavo telefone.</p>
+    <p data-lang="en">You connect your bank (read-only, via Enable Banking, a licensed PSD2 provider), and Vaultie automatically sorts your transactions and pulls every recurring payment into one clear view. Your data stays on your phone.</p>
+  </section>
+
+  <section>
+    <h2 data-lang="lt" class="on">Atsisiųsti</h2>
+    <h2 data-lang="en">Download</h2>
+    <p data-lang="lt" class="on">Vaultie skirta iPhone ir Android. Ieškok „Vaultie" App Store arba Google Play.</p>
+    <p data-lang="en">Vaultie is available for iPhone and Android. Search "Vaultie" on the App Store or Google Play.</p>
+  </section>
+
+  <section>
+    <h2 data-lang="lt" class="on">Susisiekti</h2>
+    <h2 data-lang="en">Contact</h2>
+    <p data-lang="lt" class="on">Klausimai, problemos ar pasiūlymai — rašyk <a href="mailto:support@vaultieapp.com">support@vaultieapp.com</a>. Atsakome per 1–2 darbo dienas.</p>
+    <p data-lang="en">Questions, problems or suggestions — email <a href="mailto:support@vaultieapp.com">support@vaultieapp.com</a>. We reply within 1–2 working days.</p>
+  </section>
+
+  <section>
+    <h2 data-lang="lt" class="on">Dažniausi klausimai</h2>
+    <h2 data-lang="en">Common questions</h2>
+    <ul data-lang="lt" class="on">
+      <li><b>Ar matote mano banko slaptažodį?</b> Ne. Prisijungi savo banko puslapyje arba banko programėlėje. Vaultie gauna tik laikiną prieigos raktą operacijoms skaityti.</li>
+      <li><b>Ar Vaultie gali pervesti pinigus?</b> Ne. Prieiga yra tik skaitymui — inicijuoti mokėjimo techniškai neįmanoma.</li>
+      <li><b>Kur laikomi mano duomenys?</b> Tavo telefone, užšifruoti. Serveris apdoroja operacijas, kad atpažintų pasikartojančius mokėjimus, bet jų kopijos nesaugo.</li>
+      <li><b>Kodėl reikia prisijungti prie banko iš naujo?</b> ES taisyklės riboja prieigą 90 dienų. Pasibaigus terminui prieigą patvirtini iš naujo — įspėsime prieš tai.</li>
+      <li><b>Kaip atjungti banką?</b> Programėlės nustatymuose. Galima atjungti vieną banką arba visus.</li>
+      <li><b>Kaip atšaukti prenumeratą?</b> App Store nustatymuose → tavo vardas → Prenumeratos. Programėlės ištrynimas prenumeratos neatšaukia.</li>
+    </ul>
+    <ul data-lang="en">
+      <li><b>Do you see my banking password?</b> No. You log in on your bank's own page or app. Vaultie receives only a temporary token for reading transactions.</li>
+      <li><b>Can Vaultie move money?</b> No. Access is read-only — initiating a payment is technically impossible.</li>
+      <li><b>Where is my data kept?</b> On your phone, encrypted. The server processes transactions to recognise recurring payments but keeps no copy of them.</li>
+      <li><b>Why do I have to reconnect my bank?</b> EU rules cap access at 90 days. You re-approve it when it lapses — we warn you before it does.</li>
+      <li><b>How do I disconnect a bank?</b> In the app's settings. You can disconnect one bank or all of them.</li>
+      <li><b>How do I cancel?</b> App Store settings → your name → Subscriptions. Deleting the app does not cancel the subscription.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 data-lang="lt" class="on">Paskyros ir duomenų ištrynimas</h2>
+    <h2 data-lang="en">Deleting your account and data</h2>
+    <p data-lang="lt" class="on">Programėlės nustatymuose arba <a href="delete-account.html">šiame puslapyje</a>. Banko prieigos atšaukiamos, o duomenys ištrinami.</p>
+    <p data-lang="en">In the app's settings, or on <a href="delete-account.html">this page</a>. Bank consents are revoked and the data is deleted.</p>
+  </section>
+
+  <footer>
+    <span data-lang="lt" class="on">Vaultie · <a href="privacy.html">Privatumo politika</a> · <a href="terms.html">Naudojimo sąlygos</a> · <a href="delete-account.html">Ištrinti paskyrą</a></span>
+    <span data-lang="en">Vaultie · <a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Use</a> · <a href="delete-account.html">Delete account</a></span>
+    <br>
+    <span data-lang="lt" class="on">Vaultie valdo MB ZIVITOMA, įmonės kodas 304754869, Vytauto g. 118-4, LT-00153 Palanga, Lietuva.</span>
+    <span data-lang="en">Vaultie is operated by MB ZIVITOMA, company code 304754869, Vytauto g. 118-4, LT-00153 Palanga, Lithuania.</span>
+  </footer>
+</div>
+
+<script>
+  // Language follows the browser on first paint, then the visitor's choice.
+  var buttons = document.querySelectorAll('.langs button');
+  function setLang(code) {
+    document.documentElement.lang = code;
+    document.querySelectorAll('[data-lang]').forEach(function (el) {
+      el.classList.toggle('on', el.getAttribute('data-lang') === code);
+    });
+    buttons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-set') === code));
+    });
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { setLang(b.getAttribute('data-set')); });
+  });
+  setLang((navigator.language || 'lt').toLowerCase().indexOf('lt') === 0 ? 'lt' : 'en');
+</script>
+</body>
+</html>

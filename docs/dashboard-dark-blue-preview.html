@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vaultie — dark blue fintech preview</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    background:#0b0f1a;
+    min-height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    padding:40px 20px;
+  }
+  .note {
+    position:fixed; top:16px; left:16px; color:#7d8bab; font-size:12px;
+    max-width:260px; line-height:1.5;
+  }
+  .phone {
+    width:390px;
+    border-radius:44px;
+    overflow:hidden;
+    position:relative;
+    box-shadow:0 40px 100px rgba(0,0,0,0.6), 0 0 0 10px #05070c;
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(47,107,255,0.35), transparent 60%),
+      linear-gradient(180deg, #0A2A70 0%, #0A1B4C 35%, #061530 70%, #020817 100%);
+    color:#F7F9FF;
+  }
+  .statusbar { display:flex; justify-content:space-between; padding:16px 24px 0; font-size:14px; font-weight:600; }
+  .topbar { display:flex; align-items:center; padding:18px 20px 4px; }
+  .topbar h1 { font-size:20px; font-weight:800; }
+  .topbar .icons { margin-left:auto; display:flex; gap:14px; opacity:0.85; font-size:16px; }
+
+  .balance { padding:18px 20px 6px; }
+  .balance .label { font-size:13px; color:#AAB8D6; }
+  .balance .amount { font-size:34px; font-weight:800; letter-spacing:-0.5px; margin-top:4px; }
+  .balance .delta { font-size:13px; margin-top:6px; color:#7CE0A3; font-weight:600; }
+  .balance .delta.neg { color:#FF8A80; }
+
+  .chart-wrap { padding:14px 12px 4px; }
+  svg.chart { width:100%; display:block; }
+
+  .chips { display:flex; gap:10px; padding:10px 20px 4px; overflow:hidden; }
+  .chip {
+    flex:1; display:flex; align-items:center; gap:8px;
+    background:rgba(16,42,96,0.55);
+    border:1px solid rgba(67,133,255,0.35);
+    border-radius:14px; padding:10px 12px;
+    box-shadow:0 8px 24px rgba(36,116,255,0.15);
+    font-size:12.5px; font-weight:700;
+  }
+  .chip .dot { width:20px; height:20px; border-radius:6px; background:#2F6BFF; flex:none; }
+  .chip .pct { margin-left:auto; color:#AAB8D6; font-weight:600; }
+
+  .card {
+    margin:14px 20px 0;
+    background:rgba(16,42,96,0.55);
+    border:1px solid rgba(67,133,255,0.30);
+    border-radius:22px;
+    padding:16px;
+    box-shadow:0 10px 30px rgba(36,116,255,0.18);
+  }
+  .card-row { display:flex; align-items:center; }
+  .card-row + .card-row { margin-top:14px; }
+  .card .swatch { width:8px; height:8px; border-radius:50%; margin-right:8px; }
+  .card .sw1 { background:#2F6BFF; }
+  .card .sw2 { background:#29B6F6; }
+  .card .ctitle { font-size:13px; color:#AAB8D6; }
+  .card .cval { margin-left:auto; text-align:right; }
+  .card .cval b { font-size:16px; font-weight:800; display:block; }
+  .card .cval span { font-size:11.5px; color:#7d8bab; }
+
+  .review {
+    margin:12px 20px 0;
+    display:flex; align-items:center; gap:10px;
+    background:rgba(16,42,96,0.4);
+    border:1px solid rgba(67,133,255,0.22);
+    border-radius:16px; padding:13px 14px;
+    font-size:13px; font-weight:700; color:#F7F9FF;
+  }
+  .review .ico { color:#29B6F6; font-size:16px; }
+  .review .arrow { margin-left:auto; color:#7d8bab; }
+
+  .week {
+    margin:14px 20px 20px;
+    background:rgba(16,42,96,0.4);
+    border:1px solid rgba(67,133,255,0.22);
+    border-radius:16px; padding:14px;
+    display:flex; align-items:center;
+  }
+  .week .t { font-size:12.5px; color:#AAB8D6; }
+  .week .v { margin-left:auto; font-size:16px; font-weight:800; }
+
+  .navbar {
+    display:flex; justify-content:space-around;
+    padding:12px 0 22px;
+    border-top:1px solid rgba(67,133,255,0.18);
+    background:rgba(4,10,26,0.55);
+  }
+  .navitem { display:flex; flex-direction:column; align-items:center; gap:4px; font-size:10.5px; color:#7d8bab; font-weight:600; }
+  .navitem.active { color:#4F8CFF; }
+  .navitem .dot2 { width:22px; height:22px; border-radius:7px; background:currentColor; opacity:0.18; }
+</style>
+</head>
+<body>
+<div class="note">Tik peržiūra HTML'e — jei patiks, perdarysiu tikrame Flutter kode ir patikrinsim ant telefono, kaip visada.</div>
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span>🔋 87%</span></div>
+  <div class="topbar">
+    <h1>Pradžia</h1>
+    <div class="icons"><span>👁</span><span>☀️</span><span>🔍</span></div>
+  </div>
+
+  <div class="balance">
+    <div class="label">Bendras likutis</div>
+    <div class="amount">6 584 €</div>
+    <div class="delta neg">↓ −18,6% · −1 504 € nuo praėjusio mėn.</div>
+  </div>
+
+  <div class="chart-wrap">
+    <svg class="chart" viewBox="0 0 350 90" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#29B6F6" stop-opacity="0.35"/>
+          <stop offset="100%" stop-color="#29B6F6" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="glow"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <path d="M0,55 L25,60 L50,40 L75,50 L100,30 L125,45 L150,20 L175,35 L200,15 L225,38 L250,25 L275,48 L300,20 L325,42 L350,30 L350,90 L0,90 Z" fill="url(#fill)"/>
+      <path d="M0,55 L25,60 L50,40 L75,50 L100,30 L125,45 L150,20 L175,35 L200,15 L225,38 L250,25 L275,48 L300,20 L325,42 L350,30" fill="none" stroke="#29B6F6" stroke-width="2.5" filter="url(#glow)"/>
+    </svg>
+  </div>
+
+  <div class="chips">
+    <div class="chip"><div class="dot"></div>Revolut<span class="pct">92%</span></div>
+    <div class="chip"><div class="dot"></div>SEB<span class="pct">8%</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-row">
+      <span class="swatch sw1"></span>
+      <span class="ctitle">Prenumeratos</span>
+      <span class="cval"><b>91,42 €/mėn</b><span>6 aktyvios</span></span>
+    </div>
+    <div class="card-row">
+      <span class="swatch sw2"></span>
+      <span class="ctitle">Sąskaitos</span>
+      <span class="cval"><b>1 619,75 €/mėn</b><span>3 aktyvios</span></span>
+    </div>
+  </div>
+
+  <div class="review"><span class="ico">✦</span>Patikrink pasikartojančius mokėjimus<span class="arrow">›</span></div>
+
+  <div class="week"><span class="t">Šią savaitę išėjo · vidurkis 60 €/d.</span><span class="v">419,74 €</span></div>
+
+  <div class="navbar">
+    <div class="navitem active"><div class="dot2"></div>Pradžia</div>
+    <div class="navitem"><div class="dot2"></div>Apžvalga</div>
+    <div class="navitem"><div class="dot2"></div>Agentas</div>
+    <div class="navitem"><div class="dot2"></div>Planavimas</div>
+    <div class="navitem"><div class="dot2"></div>Paskyra</div>
+  </div>
+</div>
+</body>
+</html>

@@ -68,6 +68,8 @@
   "byCategory": "By category",
 
   "billingWeekly": "Weekly",
+  "billingBiweekly": "Every two weeks",
+  "billingSemiannual": "Twice a year",
   "billingMonthly": "Monthly",
   "billingQuarterly": "Quarterly",
   "billingYearly": "Yearly",

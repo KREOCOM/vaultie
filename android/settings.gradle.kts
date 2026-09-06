@@ -22,6 +22,12 @@ plugins {
     id("com.android.application") version "9.0.1" apply false
     // START: FlutterFire Configuration
     id("com.google.gms.google-services") version("4.4.4") apply false
+    // Required by the firebase_crashlytics Dart package — without this Gradle
+    // plugin, no build ID gets injected into the release APK and the app
+    // crashes on EVERY launch with "The Crashlytics build ID is missing"
+    // (confirmed live 2026-08-05: release build, immediate FATAL EXCEPTION in
+    // FirebaseInitProvider, before any Flutter/Dart code runs).
+    id("com.google.firebase.crashlytics") version("3.0.5") apply false
     // END: FlutterFire Configuration
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
 }

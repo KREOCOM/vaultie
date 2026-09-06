@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kreocom.vaultie",
+      "sha256_cert_fingerprints": [
+        "1B:9E:B2:77:EB:71:58:EC:68:FC:27:F9:A0:F8:C7:00:4E:9C:00:78:F3:B6:50:21:68:EC:4F:F1:82:4D:9D:60"
+      ]
+    }
+  }
+]

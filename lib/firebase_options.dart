@@ -58,12 +58,12 @@ class DefaultFirebaseOptions {
   );
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDtRzHnfkQ3Py4uzr_CEsnwwv_cwtTjNqQ',
-    appId: '1:747647617629:ios:bcff332211f85762e0dbb4',
+    appId: '1:747647617629:ios:691389e4e216ab24e0dbb4',
     messagingSenderId: '747647617629',
     projectId: 'vaultie-1a2c4',
     storageBucket: 'vaultie-1a2c4.firebasestorage.app',
     iosClientId:
-        '747647617629-cdo51ad7bmgca85329000ebd8ipsjrmj.apps.googleusercontent.com',
-    iosBundleId: 'com.kreocom.vaultie',
+        '747647617629-m01ihis1o3spjghkkn22liu6364v4r4a.apps.googleusercontent.com',
+    iosBundleId: 'com.zivitoma.vaultie',
   );
 }

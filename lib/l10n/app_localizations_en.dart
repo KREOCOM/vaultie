@@ -183,6 +183,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get billingWeekly => 'Weekly';
 
   @override
+  String get billingBiweekly => 'Every two weeks';
+
+  @override
+  String get billingSemiannual => 'Twice a year';
+
+  @override
   String get billingMonthly => 'Monthly';
 
   @override

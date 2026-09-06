@@ -7,7 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
 import '../user_session.dart';
-import 'onboarding_choice_screen.dart';
+import 'landing.dart';
 import 'verify_email_screen.dart';
 
 /// Email/password sign-in & registration backed by Firebase Auth.
@@ -50,8 +50,13 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     duration: const Duration(milliseconds: 550),
   )..forward();
 
-  static const _bg = Color(0xFF050F08);
-  static const _accent = Color(0xFF4CAF72);
+  // The blue identity. This screen is pushed straight from the blue LoginScreen
+  // and used to arrive in the old green one, which read as a different app at
+  // the exact moment a user is asked to hand over an email and password. Kept
+  // dark (the layout and every text colour assume a dark ground) — deep navy
+  // from the same palette rather than a light rebuild that risks the form.
+  static const _bg = Color(0xFF061439);
+  static const _accent = Color(0xFF2F6BFF);
 
   @override
   void dispose() {
@@ -80,12 +85,12 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         await ensureLocalDataForCurrentUser();
         if (!mounted) return;
         // Signed-in but unverified accounts are held at the verify screen.
+        final landing = _auth.isEmailVerified
+            ? await landingAfterAuth()
+            : const VerifyEmailScreen();
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => _auth.isEmailVerified
-                ? landingAfterAuth()
-                : const VerifyEmailScreen(),
-          ),
+          MaterialPageRoute(builder: (_) => landing),
         );
       } else {
         // register() already fires the verification email; land the user on
@@ -127,24 +132,45 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           _ResetPasswordDialog(isLt: isLt, initialEmail: _email.text.trim()),
     );
     if (email == null || email.isEmpty) return;
+    // 2026-09-04: real bug, found in audit — nothing guarded this against
+    // being fired twice in a row (reopen the dialog, submit again) while
+    // the first email was still in flight. Same `_busy` flag every other
+    // network action on this screen already uses.
+    if (_busy) return;
+    setState(() => _busy = true);
     try {
       await _auth.sendPasswordResetEmail(email);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isLt
-              ? 'Slaptažodžio atkūrimo nuoroda išsiųsta į $email.'
-              : 'Password reset link sent to $email.'),
-        ),
-      );
+      // The dialog's own pop transition is still animating right after
+      // `showDialog` returns — a SnackBar fired in the same frame got
+      // shown and torn down by that transition before it ever became
+      // visible (the request itself still went through, so the email
+      // arrived, but the app looked like the button did nothing). One
+      // frame's delay lets the dialog finish closing first.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 6),
+            content: Text(isLt
+                ? 'Nuoroda išsiųsta į $email. Nematai? Patikrink šlamšto (spam) aplanką.'
+                : 'Link sent to $email. Don\'t see it? Check your spam folder.'),
+          ),
+        );
+      });
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authErrorMessage(e, isLithuanian: isLt)),
-          backgroundColor: VaultieColors.danger,
-        ),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authErrorMessage(e, isLithuanian: isLt)),
+            backgroundColor: VaultieColors.danger,
+          ),
+        );
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -162,8 +188,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       // through the email-verification gate. An Apple private-relay address can
       // report emailVerified=false and would otherwise trap the user on the
       // verify screen with no working way out.
+      final landing = await landingAfterAuth();
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => landingAfterAuth()),
+        MaterialPageRoute(builder: (_) => landing),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -201,8 +229,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       // Social accounts (Google/Apple) are provider-verified — go straight to
       // the dashboard, never the email-verification gate (see signInWithGoogle).
+      final landing = await landingAfterAuth();
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => landingAfterAuth()),
+        MaterialPageRoute(builder: (_) => landing),
       );
     } on FirebaseAuthException catch (e) {
       // Surface the exact code so real-device failures are diagnosable
@@ -254,16 +284,25 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: _bg,
+        // The bottom panel's height is fixed (its own fields + both sign-in
+        // buttons), not scrollable — Android's smaller/varied keyboard
+        // heights shrank the body enough to overflow it by a few pixels
+        // (RenderFlex, "BOTTOM OVERFLOWED"). The keyboard already pans the
+        // focused field into view on its own; the body doesn't need to
+        // resize for it too.
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
-            // Subtle green radial glow in the centre.
+            // The centre glow. Also came from the green identity (#206B41) and
+            // tinted the whole screen green behind the logo; now the same blue
+            // the login screen and the splash use.
             const Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     center: Alignment(0, -0.35),
                     radius: 0.95,
-                    colors: [Color(0x59206B41), Color(0x00050F08)],
+                    colors: [Color(0x592F6BFF), Color(0x00061439)],
                     stops: [0.0, 0.72],
                   ),
                 ),
@@ -314,9 +353,15 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                               ),
                               const SizedBox(height: 6),
                               Text(
+                                // Not "prenumeratų sekiklis": subscriptions are
+                                // only part of what the scan finds. Rent, loans,
+                                // utilities and any other standing payment are
+                                // the larger half of a real monthly commitment,
+                                // and naming only subscriptions undersells the
+                                // product on the very first screen.
                                 isLt
-                                    ? 'Tavo prenumeratų sekiklis'
-                                    : 'Your subscription tracker',
+                                    ? 'Visi tavo mokėjimai vienoje vietoje'
+                                    : 'All your money in one place',
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.55),
                                   fontSize: 15,
@@ -353,7 +398,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         child: Container(
           width: double.infinity,
           decoration: const BoxDecoration(
-            color: Color(0xFF0B160F),
+            // Was #0B160F — a dark GREEN, left over from the old "VT" identity.
+            // Everything around it had already moved to navy, so the sign-up form
+            // sat on a green panel inside a blue app. Matched to the login
+            // screen's own panel so the two screens read as one flow.
+            color: Color(0xFF0B1428),
             borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
             border: Border(
               top: BorderSide(color: Color(0x1AFFFFFF)),
@@ -555,7 +604,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF2E7D4F), Color(0xFF4CAF72)],
+          colors: [Color(0xFF003DE1), Color(0xFF2F6BFF)],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [

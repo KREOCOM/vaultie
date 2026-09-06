@@ -2,7 +2,10 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["W5Z6765SQ9.com.kreocom.vaultie"],
+        "appIDs": [
+          "W5Z6765SQ9.com.kreocom.vaultie",
+          "N4HH226795.com.zivitoma.vaultie"
+        ],
         "components": [
           { "/": "/banking/callback*" }
         ]

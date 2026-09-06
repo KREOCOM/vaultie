@@ -109,6 +109,42 @@
       "brand_relationships": [],
       "popularity_prior": 0.6,
       "recurring_type": "frequent"
+    },
+    {
+      "entity_id": "ikea",
+      "canonical_name": "IKEA",
+      "entity_type": "BRAND",
+      "aliases": ["ikea"],
+      "related_aliases": [],
+      "country_coverage": ["LT", "LV", "EE", "SE", "FI", "PL", "DE"],
+      "categories": ["hardware"],
+      "merchant_type": "FURNITURE_STORE",
+      "icon_key": null,
+      "known_domains": ["ikea.com", "ikea.lt"],
+      "known_locations": [],
+      "is_processor": false,
+      "is_brand": true,
+      "brand_relationships": [],
+      "popularity_prior": 0.6,
+      "recurring_type": "frequent"
+    },
+    {
+      "entity_id": "mql5",
+      "canonical_name": "MetaQuotes",
+      "entity_type": "MERCHANT",
+      "aliases": ["mql5", "metaquotes", "metaquotes mq", "metaquotes software"],
+      "related_aliases": [],
+      "country_coverage": [],
+      "categories": ["other"],
+      "merchant_type": "OTHER",
+      "icon_key": "SOFTWARE",
+      "known_domains": ["mql5.com"],
+      "known_locations": [],
+      "is_processor": false,
+      "is_brand": true,
+      "brand_relationships": [],
+      "popularity_prior": 0.5,
+      "recurring_type": "frequent"
     }
   ]
 }

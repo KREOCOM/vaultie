@@ -59,6 +59,8 @@
   "byCategory": "Pagal kategoriją",
 
   "billingWeekly": "Kas savaitę",
+  "billingBiweekly": "Kas dvi savaites",
+  "billingSemiannual": "Du kartus per metus",
   "billingMonthly": "Kas mėnesį",
   "billingQuarterly": "Kas ketvirtį",
   "billingYearly": "Kas metus",

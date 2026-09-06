@@ -8,6 +8,8 @@ String billingCycleLabel(AppLocalizations l, BillingCycle cycle) =>
       BillingCycle.monthly => l.billingMonthly,
       BillingCycle.quarterly => l.billingQuarterly,
       BillingCycle.yearly => l.billingYearly,
+      BillingCycle.biweekly => l.billingBiweekly,
+      BillingCycle.semiannual => l.billingSemiannual,
     };
 
 // Category labels moved to `expense_categories.dart` (categoryLabel(key, isLt))

@@ -3,9 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>747647617629-cdo51ad7bmgca85329000ebd8ipsjrmj.apps.googleusercontent.com</string>
+	<string>747647617629-m01ihis1o3spjghkkn22liu6364v4r4a.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.747647617629-cdo51ad7bmgca85329000ebd8ipsjrmj</string>
+	<string>com.googleusercontent.apps.747647617629-m01ihis1o3spjghkkn22liu6364v4r4a</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>747647617629-0jjhb6bu49avuijijs6ojfh9e6nm94b5.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyDtRzHnfkQ3Py4uzr_CEsnwwv_cwtTjNqQ</string>
 	<key>GCM_SENDER_ID</key>
@@ -13,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.kreocom.vaultie</string>
+	<string>com.zivitoma.vaultie</string>
 	<key>PROJECT_ID</key>
 	<string>vaultie-1a2c4</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:747647617629:ios:bcff332211f85762e0dbb4</string>
+	<string>1:747647617629:ios:691389e4e216ab24e0dbb4</string>
 </dict>
 </plist>

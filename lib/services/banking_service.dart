@@ -1,9 +1,15 @@
 import 'dart:convert';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+import '../main.dart' show navigatorKey;
 import '../models/subscription.dart';
+import '../screens/login_screen.dart';
 import 'dashboard_store.dart';
 
 /// Custom-scheme deep link the app itself listens for. The bank redirects to
@@ -163,8 +169,13 @@ class BankScanResult {
 
 BillingCycle _cycleFromString(String s) => switch (s) {
       'weekly' => BillingCycle.weekly,
+      'biweekly' => BillingCycle.biweekly,
       'quarterly' => BillingCycle.quarterly,
+      'semiannual' => BillingCycle.semiannual,
       'yearly' => BillingCycle.yearly,
+      // 'custom' and anything unrecognised still land on monthly. The server
+      // sends a correctly derived `monthlyAmount` alongside, so the total is
+      // right either way — this only decides the label on an imported item.
       _ => BillingCycle.monthly,
     };
 
@@ -193,8 +204,10 @@ class BankingService {
   Future<String> financeChat({
     required String summary,
     required List<Map<String, String>> messages,
+    required String lang,
   }) {
-    return _call('finance_chat', {'summary': summary, 'messages': messages},
+    return _call(
+        'finance_chat', {'summary': summary, 'messages': messages, 'lang': lang},
         (m) => (m['reply'] as String?)?.trim() ?? '',
         timeout: const Duration(seconds: 60));
   }
@@ -202,10 +215,55 @@ class BankingService {
   /// Ask the AI to write a short narrative for a month's review card. [stats] is
   /// a compact, PII-free block of pre-computed figures. Returns the narrative, or
   /// an empty string on failure so the caller can fall back to a templated text.
-  Future<String> monthSummary({required String stats}) {
-    return _call('month_summary', {'stats': stats},
+  Future<String> monthSummary({required String stats, required String lang}) {
+    return _call('month_summary', {'stats': stats, 'lang': lang},
         (m) => (m['text'] as String?)?.trim() ?? '',
         timeout: const Duration(seconds: 60));
+  }
+
+  /// Parse a photographed receipt into categorised line items, to pre-fill
+  /// the manual split editor (see dashboard_preview.dart
+  /// _SplitTransactionScreen) or Bill Split. [imageB64] is the photo,
+  /// base64-encoded; [mediaType] is its MIME type ('image/jpeg' or
+  /// 'image/png'). Returns `(items, total, merchant)` — items as
+  /// `{name, price, category}` maps, merchant the store/restaurant name if
+  /// legible (else null); an empty item list on any failure (network, no
+  /// items recognised) so the caller falls back to its own empty manual
+  /// editor rather than erroring out.
+  Future<(List<Map<String, dynamic>>, double, String?)> scanReceipt({
+    required String imageB64,
+    required String mediaType,
+  }) {
+    return _call(
+        'scan_receipt', {'image': imageB64, 'mediaType': mediaType},
+        (m) => (
+              ((m['items'] as List?) ?? const [])
+                  .whereType<Map>()
+                  .map((e) => e.cast<String, dynamic>())
+                  .toList(),
+              ((m['total'] as num?) ?? 0).toDouble(),
+              (m['merchant'] as String?),
+            ),
+        // Matches scan_receipt's own timeout_sec=110 (main.py) — a vision
+        // call over a busy receipt can genuinely take a while; 45s was
+        // cutting the client off before the function itself had timed out,
+        // which read as "the scan failed" on a request that was still
+        // running server-side.
+        timeout: const Duration(seconds: 110));
+  }
+
+  /// Today's date where the USER is, as YYYY-MM-DD.
+  ///
+  /// The backend runs in UTC and the user does not. At 01:30 on a Monday in
+  /// Lithuania it is still Sunday in UTC, so the server computed the previous
+  /// week and the whole week view shifted seven days; in the first hours of a
+  /// month, "this month" was still the last one. Only the device knows where
+  /// its owner is, so the date travels with the request.
+  static String _localToday() {
+    final n = DateTime.now();
+    final m = n.month.toString().padLeft(2, '0');
+    final d = n.day.toString().padLeft(2, '0');
+    return '${n.year}-$m-$d';
   }
 
   Future<T> _call<T>(String name, Map<String, dynamic> data,
@@ -216,11 +274,137 @@ class BankingService {
               options: HttpsCallableOptions(timeout: timeout))
           : _functions.httpsCallable(name);
       final res = await callable.call(data);
-      return parse((res.data as Map).cast<Object?, Object?>());
+      // Parsing is deliberately OUTSIDE the network catch below.
+      //
+      // The whole method used to end in `catch (_) → "Could not reach the
+      // server. Check your connection."`, which also swallowed every failure in
+      // `parse` — a field arriving as a string instead of a number, a shape the
+      // bank changed. The user was sent to check their internet after a request
+      // that had SUCCEEDED, and after their single-use consent had been spent.
+      try {
+        return parse((res.data as Map).cast<Object?, Object?>());
+      } catch (e, s) {
+        try {
+          await FirebaseCrashlytics.instance.recordError(e, s,
+              reason: 'Unparseable payload from $name');
+        } catch (_) {}
+        throw BankingException(
+            'Your bank replied, but we could not read the answer. '
+            'This is our problem, not your connection — please try again.');
+      }
     } on FirebaseFunctionsException catch (e) {
-      throw BankingException(e.message ?? 'Something went wrong. Please try again.');
-    } catch (_) {
+      if (e.code == 'unauthenticated') {
+        // Token revoked / account disabled / signed out elsewhere — the session
+        // is dead. Don't leave the user staring at a stale dashboard with no way
+        // forward: sign out and route to login (re-auth restores a valid token).
+        try {
+          await FirebaseAuth.instance.signOut();
+        } catch (_) {}
+        navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+      }
+      // Server messages are written in English for the logs. The ones a user can
+      // actually meet get a localised text here — an English sentence in the
+      // middle of a Lithuanian app reads like a crash, not like an explanation.
+      if (e.code == 'permission-denied') {
+        throw BankingException(tr(
+            'Reikia aktyvios „Vaultie Pro" prenumeratos.'));
+      }
+      // 'deadline-exceeded'/'unavailable' carry the raw gRPC code as their
+      // `message` (there is no server-side text to show — the request never
+      // got a response to relay), so falling through to `e.message ?? ...`
+      // put the literal string "DEADLINE_EXCEEDED" on screen. A cold Cloud
+      // Function instance plus one weak-signal moment is enough to trip the
+      // 60s client timeout even when the call would have succeeded a few
+      // seconds later — this reads as a connectivity hiccup to the user, not
+      // an error code.
+      if (e.code == 'deadline-exceeded' || e.code == 'unavailable') {
+        throw BankingException(tr(
+            'Ryšys su serveriu užtruko per ilgai. Patikrink interneto ryšį ir bandyk dar kartą.'));
+      }
+      // 2026-09-04: finance_chat/month_summary/scan_receipt each got a
+      // generous per-day cap server-side (cost insurance against a stuck
+      // retry loop, not meant to bite real use) — without this branch it
+      // fell through to `e.message`, which is the server's raw English
+      // text, same "reads like a crash" problem as the codes above.
+      if (e.code == 'resource-exhausted') {
+        throw BankingException(tr(
+            'Šiandien pasiekei dienos limitą. Pabandyk rytoj.'));
+      }
+      throw BankingException(e.message ??
+          tr('Kažkas nepavyko. Bandyk dar kartą.'));
+    } catch (e, s) {
+      // Was a bare `catch (_)` — every genuine cause (DNS failure, App Check
+      // hiccup, a plugin-level exception) got relabelled "check your
+      // connection" with no trace of what it actually was, so a real,
+      // reproducible bug would look identical to a flaky wifi moment forever.
+      try {
+        await FirebaseCrashlytics.instance
+            .recordError(e, s, reason: 'Network failure calling $name');
+      } catch (_) {}
       throw BankingException('Could not reach the server. Check your connection.');
+    }
+  }
+
+  /// Revokes the user's bank consents and deletes their server-side data
+  /// (bank_links ownership + entitlement cache). Best-effort — must NEVER block
+  /// account deletion, so any failure is swallowed. Call BEFORE Firebase auth
+  /// deletion, while the token is still valid. Returns how many sessions revoked.
+  /// Revokes ONE bank's consent and forgets its accounts server-side, leaving
+  /// every other bank connected. The backend ignores any id this user is not
+  /// recorded as owning, so passing the wrong one removes nothing rather than
+  /// somebody else's bank.
+  ///
+  /// Best-effort by design: if the call fails the bank is still removed locally,
+  /// because refusing to let someone disconnect their own bank is the worse
+  /// outcome — the consent then lapses at the ~90-day cliff.
+  Future<void> disconnectBank(
+      {required List<String> sessionIds,
+      required List<String> accountUids}) async {
+    try {
+      await _call<void>('disconnect_bank',
+          {'sessionIds': sessionIds, 'accountUids': accountUids}, (_) {});
+    } catch (e) {
+      if (kDebugMode) debugPrint('disconnectBank failed: $e');
+    }
+  }
+
+  /// Revokes every connected bank's consent (at Enable Banking, not just
+  /// locally) and forgets them all. Same revoke-then-wipe sequence
+  /// dashboard_preview.dart's own "Atjungti bankus" UI flow uses per bank,
+  /// factored out here (no BuildContext, no dialogs) so it can also run
+  /// headless — see PurchaseService's lapsed-subscription listener.
+  ///
+  /// Enable Banking bills per connected Account for every calendar month it
+  /// was reachable in, prorated by neither days nor subscription cycle — a
+  /// churned trial user whose bank stays connected keeps costing real money
+  /// until the ~90-day PSD2 consent ceiling, with nothing to make them come
+  /// back and disconnect it themselves. Best-effort per bank, same as
+  /// [disconnectBank]: a revoke failing must never block the local wipe.
+  Future<void> disconnectAllConnectedBanks() async {
+    for (final c in DashboardStore.connections()) {
+      final sessionIds = [
+        if ((c['sessionId'] as String?)?.isNotEmpty ?? false)
+          c['sessionId'] as String,
+      ];
+      final accountUids = ((c['accounts'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((a) => (a['uid'] as String?) ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (sessionIds.isEmpty && accountUids.isEmpty) continue;
+      await disconnectBank(sessionIds: sessionIds, accountUids: accountUids);
+    }
+    await DashboardStore.disconnectAllBanks();
+  }
+
+  Future<int> deleteUserData(List<String> sessionIds) async {
+    try {
+      return await _call<int>('delete_user_data', {'sessionIds': sessionIds},
+          (m) => (m['revoked'] as num?)?.toInt() ?? 0,
+          timeout: const Duration(seconds: 12));
+    } catch (_) {
+      return 0; // server unreachable / already gone — deletion proceeds anyway
     }
   }
 
@@ -240,8 +424,11 @@ class BankingService {
     });
   }
 
-  /// Begins consent for [bankName]; returns the bank's authorization URL to open.
-  Future<String> startBankAuth(String bankName, {String country = 'LT'}) {
+  /// Begins consent for [bankName]; returns the bank's authorization URL to
+  /// open AND the `state` the server tied to this call (see finishBankAuth's
+  /// own doc for why the caller must hang onto it).
+  Future<(String url, String state)> startBankAuth(String bankName,
+      {String country = 'LT'}) {
     return _call(
         'start_bank_auth',
         {
@@ -249,12 +436,18 @@ class BankingService {
           'country': country,
           'redirectUrl': kBankingRedirectUrl,
         },
-        (m) => (m['url'] ?? '') as String);
+        (m) => ((m['url'] ?? '') as String, (m['state'] ?? '') as String));
   }
 
   /// Exchanges the redirect [code] for the scan result: importable recurring
   /// candidates plus frequent-spending merchants (never recurring, feed-only).
-  Future<BankScanResult> finishBankAuth(String code,
+  ///
+  /// [state] must be the SAME value the bank's own redirect handed back
+  /// alongside [code] (see [codeFromCallback]/[stateFromCallback]) — the
+  /// server checks it matches what THIS session's startBankAuth issued
+  /// before exchanging the code, so a code lifted from an unrelated auth
+  /// flow can never be replayed into this account (2026-08-16 fix).
+  Future<BankScanResult> finishBankAuth(String code, String state,
       {bool aiEnrichment = false, String? bank, int monthsBack = 6}) async {
     // Hand the backend the last-known raw scan and keep whatever it gives back.
     // A connect only fetches the bank being connected, so this cache is what
@@ -269,9 +462,10 @@ class BankingService {
         // function runs at 300s/512Mi — restored via deploy.sh after each deploy).
         // `bank` labels the connection so the stored record + Account breakdown
         // name the right bank.
-        {'code': code, 'debug': kDebugMode, 'aiEnrichment': aiEnrichment,
+        {'code': code, 'state': state, 'debug': kDebugMode,
+         'aiEnrichment': aiEnrichment,
          'monthsBack': monthsBack, if (bank != null) 'bank': bank,
-         'known': DashboardStore.knownScan()}, (m) {
+         'today': _localToday(), 'known': DashboardStore.knownScan()}, (m) {
       known = _known(m);
       final cands = (m['candidates'] as List?) ?? const [];
       final freq = (m['frequent'] as List?) ?? const [];
@@ -309,6 +503,7 @@ class BankingService {
       if (rawDash != null) {
         try {
           dash = jsonDecode(jsonEncode(rawDash)) as Map<String, dynamic>;
+          _attachStaleBanks(dash, m);
         } catch (_) {
           dash = null;
         }
@@ -341,6 +536,22 @@ class BankingService {
     return res;
   }
 
+  /// Fold the scan's `staleBanks` (bank labels whose data the backend served from
+  /// the last-known cache this scan, not from the bank itself) INTO the dashboard
+  /// payload's `balance` map, so the signal travels and persists with the data it
+  /// describes. The Account view reads it to flag those banks as "not updated",
+  /// and DashboardStore.save reads it to avoid advancing the "last synced" clock
+  /// on a scan where nothing actually came fresh. Absent/malformed → empty list.
+  static void _attachStaleBanks(Map<String, dynamic> dash, Map<Object?, Object?> m) {
+    final stale = <String>[
+      for (final b in (m['staleBanks'] as List?) ?? const [])
+        if (b != null) b.toString(),
+    ];
+    if (dash['balance'] is Map) {
+      (dash['balance'] as Map)['staleBanks'] = stale;
+    }
+  }
+
   /// The `known` block (last-known raw scan) from a scan response, deep-converted
   /// out of Firebase's Map<Object?,Object?> so it can be stored and sent back.
   static Map<String, dynamic>? _known(Map<Object?, Object?> m) {
@@ -361,15 +572,25 @@ class BankingService {
   /// payload entirely; [onDiag] receives that scan's per-account diagnostics so
   /// the caller can tell WHY a bank is missing — a rate-limited bank needs a
   /// wait, an expired one needs a reconnect — instead of guessing.
+  /// [freshDays] asks the bank for only that many recent days and fills the rest
+  /// of [monthsBack] from the phone's own copy. A booked transaction is final, so
+  /// re-downloading six months every refresh fetched data we already hold — that
+  /// is most of what a refresh used to spend its time on. Pass null to force a
+  /// full scan (first refresh after a wipe, or when the cache is suspect); the
+  /// backend also falls back to a full scan on its own if the phone sends no
+  /// history to merge with.
   Future<Map<String, dynamic>?> refreshDashboard(
       List<Map<String, dynamic>> accounts,
       {bool aiEnrichment = false,
       int monthsBack = 6,
+      int? freshDays = 21,
       void Function(List<dynamic> scanDiag)? onDiag}) async {
     Map<String, dynamic>? known;
     final dash = await _call('refresh_dashboard',
         {'accounts': accounts, 'aiEnrichment': aiEnrichment,
-         'monthsBack': monthsBack, 'known': DashboardStore.knownScan()},
+         'monthsBack': monthsBack, 'today': _localToday(),
+         if (freshDays != null) 'freshDays': freshDays,
+         'known': DashboardStore.knownScan()},
         (m) {
       known = _known(m);
       if (kDebugMode) {
@@ -382,7 +603,9 @@ class BankingService {
       final rawDash = m['dash'];
       if (rawDash == null) return null;
       try {
-        return jsonDecode(jsonEncode(rawDash)) as Map<String, dynamic>;
+        final dash = jsonDecode(jsonEncode(rawDash)) as Map<String, dynamic>;
+        _attachStaleBanks(dash, m);
+        return dash;
       } catch (_) {
         return null;
       }
@@ -412,4 +635,9 @@ class BankingService {
     if (!isCustomScheme && !isUniversalLink) return null;
     return uri.queryParameters['code'];
   }
+
+  /// The `state` Enable Banking echoes back on the same callback — see
+  /// finishBankAuth's doc. null just means finish_bank_auth will (correctly)
+  /// reject the exchange, same as any other tampered/missing value.
+  static String? stateFromCallback(Uri uri) => uri.queryParameters['state'];
 }

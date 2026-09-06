@@ -42,6 +42,31 @@ _KEY_STOPWORDS = {
 _FOLD = str.maketrans("ąčęėįšųūž", "aceeisuuz")
 
 
+# Bank transaction codes that mean "the user moved their own money" rather than
+# "the user paid someone". Kept in step with dashboard.py's Pervedimai section:
+# exchanges, top-ups and cash. Transfers proper are handled by the own-IBAN
+# check, which is more precise where an IBAN exists.
+_MOVEMENT_CODES = {"EXCHANGE", "TOPUP", "CWDL", "ATM", "CSHW"}
+
+
+# Description-only currency exchange (Revolut stamps no EXCHANGE code, only text).
+# Kept in sync with dashboard._EXCHANGE_HINT — a monthly NOK→EUR conversion must
+# not cluster into a phantom "bill" in the subscriptions total.
+_EXCHANGE_HINT = re.compile(
+    r"exchanged?\s+to\b|currency\s+exchange|valiut\w*\s+keit|konvertav|"
+    r"[a-z]{3}\s*(?:→|->)\s*[a-z]{3}", re.I)
+
+
+def _is_money_movement(t: dict) -> bool:
+    """True when this transaction is the user shifting their own money."""
+    code = ((t.get("bank_transaction_code") or {}).get("code") or "").upper()
+    if code in _MOVEMENT_CODES:
+        return True
+    text = " ".join([str(t.get("note") or "")]
+                    + [str(x) for x in (t.get("remittance_information") or [])])
+    return bool(_EXCHANGE_HINT.search(text))
+
+
 def counterparty_name(t: dict):
     """Best-effort merchant/counterparty name across ASPSP shapes."""
     for key in ("creditor", "debtor", "ultimate_creditor", "ultimate_debtor"):
@@ -114,18 +139,53 @@ def _clean_name(raw: str) -> str:
     return s or raw.strip()
 
 
+def _amount_bucket(amount: float, existing) -> float:
+    """The key [amount] belongs under: an existing near-equal one, or itself.
+
+    "Near" is 2% of the larger amount. The tolerance must stay RELATIVE: an
+    absolute floor of 0.50 EUR looks harmless but is 17% of a 2.99 charge, and it
+    swallowed a one-off 3.49 App Store purchase into the 2.99 subscription — a
+    non-subscription amount presented as recurring. 2% covers the drift this
+    exists for (a 399 loan booked as 398) and nothing else.
+
+    Returns the FIRST matching existing key, so a run of drifting amounts
+    collapses onto whichever was seen first rather than chaining arbitrarily far.
+    """
+    for k in existing:
+        span = max(abs(k), abs(amount))
+        if span > 0 and abs(k - amount) <= max(0.02, span * 0.02):
+            return k
+    return amount
+
+
 def _classify_cadence(gap_days: float):
+    """Map an average gap to (billing cycle, human label).
+
+    Every branch here feeds the monthly-commitment total, so a cycle that is
+    merely *close enough* is a wrong number on the user's screen. Two branches
+    used to collapse into "monthly" and both understated or overstated badly:
+
+      * a 14-day gap was labelled "biweekly" but billed as monthly — a 30 €
+        fortnightly charge counted as 30 €/month instead of 65 €;
+      * ANY unrecognised gap fell through to "monthly" — a 600 € insurance paid
+        twice a year (~182 days) counted as 600 EVERY MONTH instead of 100.
+
+    Both now carry their own cycle, and anything still unrecognised is returned
+    as "custom" so the callers derive from the real gap instead of assuming.
+    """
     if 6 <= gap_days <= 8:
         return "weekly", "weekly"
     if 12 <= gap_days <= 16:
-        return "monthly", "biweekly"
+        return "biweekly", "biweekly"
     if 25 <= gap_days <= 35:
         return "monthly", "monthly"
     if 85 <= gap_days <= 95:
         return "quarterly", "quarterly"
+    if 170 <= gap_days <= 195:
+        return "semiannual", "semiannual"
     if 350 <= gap_days <= 380:
         return "yearly", "yearly"
-    return "monthly", f"~{round(gap_days)}d"
+    return "custom", f"~{round(gap_days)}d"
 
 
 def _add_months(d: dt.date, months: int) -> dt.date:
@@ -140,12 +200,20 @@ def _add_months(d: dt.date, months: int) -> dt.date:
 def _next_billing(last: dt.date, cycle: str, gap_days: float) -> dt.date:
     if cycle == "weekly":
         return last + dt.timedelta(days=7)
+    if cycle == "biweekly":
+        return last + dt.timedelta(days=14)
     if cycle == "quarterly":
         return _add_months(last, 3)
+    if cycle == "semiannual":
+        return _add_months(last, 6)
     if cycle == "yearly":
         return _add_months(last, 12)
     if cycle == "monthly":
         return _add_months(last, 1)
+    # "custom": use the gap we actually measured. This line already existed and
+    # was already right — it was simply unreachable, because the classifier never
+    # returned anything but a known cycle. A half-yearly charge was therefore
+    # projected one month out, five months early.
     return last + dt.timedelta(days=round(gap_days))
 
 
@@ -162,10 +230,53 @@ def _dates(items):
 
 
 def _avg_gap(dates):
+    """The TYPICAL gap between charges — median, not mean, of consecutive
+    day-differences.
+
+    A mean is wrecked by a single missing observation: one payment that went
+    through a not-yet-connected bank (or was genuinely paid late) doubles ONE
+    gap, and that alone can drag a true ~30-day monthly cadence up to ~37
+    days — just outside the classifier's 25-35-day "monthly" band below —
+    misclassifying the whole stream as "custom" and multiplying its
+    monthly-equivalent by the wrong ratio. Confirmed live 2026-08-04: a real
+    ~399 EUR/mo MOGO payment, with one month's charge sitting on a
+    not-yet-connected second bank, displayed as ~326 EUR.
+
+    The median tolerates that same single outlier: with gaps [29, 29, 30,
+    61], the mean is 37.25 (misclassified as "custom") but the median is 29.5
+    (correctly "monthly") — a late or cross-bank payment has to make up
+    close to HALF the observed gaps before it can throw this off, not just
+    one. For a short history (2-3 gaps) the median and the mean are the same
+    value, so nothing changes there.
+    """
     if len(dates) < 2:
         return None
-    gaps = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)]
-    return sum(gaps) / len(gaps) if gaps else None
+    gaps = sorted((dates[i + 1] - dates[i]).days for i in range(len(dates) - 1))
+    if not gaps:
+        return None
+    n = len(gaps)
+    mid = n // 2
+    return float(gaps[mid]) if n % 2 else (gaps[mid - 1] + gaps[mid]) / 2
+
+
+def _median(values):
+    """Middle value of a sorted list — robust to one skewed outlier.
+
+    Same rationale as `_avg_gap`, applied to amounts instead of dates. A plain
+    mean of every charge in a stream is wrecked by one anomalous amount (an
+    add-on fee bundled into a single month, or two genuinely distinct
+    obligations sharing one generic payment-processor counterparty name that
+    merchant-name grouping folded together): a real ~35 EUR/mo membership with
+    one unrelated ~46 EUR charge mixed in averaged to a number the user never
+    actually paid. The median resists that — over half the charges have to
+    move together to shift it, not just one. For a tightly-clustered stream
+    (the overwhelming case: same price every time) median and mean coincide,
+    so nothing changes there.
+    """
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    return s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2
 
 
 # ── Payment-stream segmentation (between merchant grouping and feature
@@ -269,11 +380,20 @@ def segment_streams(items, key):
         return [(items, "single", f"{key}#0")]
     dated = [(_iso(d), a) for d, a, _ in items]
 
-    # L3a — fixed-amount recurring sub-streams.
+    # L3a — fixed-amount recurring sub-streams, bucketed by NEAR-equal amount.
+    #
+    # Bucketing on the exact cent split one obligation in two whenever the amount
+    # drifted: a MOGO loan booked as 399.00 and 398.00 in alternating months
+    # became two interleaved streams, and because each only saw every OTHER
+    # payment, each measured twice the real gap and was priced at half — 399/mo
+    # was reported as 199/mo. The same split produced a phantom second MOGO row
+    # from another bank at 163/mo. Amounts within ~2% (floor 0.50 EUR) are the
+    # same charge; anything further apart stays separate, which is what keeps
+    # iCloud at 2.99 from being merged with Apple One at 19.95.
     by_amt = defaultdict(list)
     for i, (d, a) in enumerate(dated):
         if a is not None:
-            by_amt[round(a, 2)].append(i)
+            by_amt[_amount_bucket(round(a, 2), by_amt.keys())].append(i)
     fixed = []
     used = [False] * len(items)
     for amt, idxs in sorted(by_amt.items()):
@@ -363,6 +483,12 @@ _SPENDING_CATEGORIES = {
     "flights", "ferry",
     "shopping", "retail", "clothing", "apparel", "electronics", "furniture",
     "convenience", "alcohol", "liquor", "tobacco", "pharmacy",
+    # Missing entirely until a one-off bus ticket (mcc.py MCC 4131 -> "transport",
+    # paid via Vipps) got auto-added as a "confirmed" monthly subscription at a
+    # single occurrence: a known merchant hit with occ<2 only diverts to the
+    # one-off "spending" bucket when its category is in this set, and no
+    # transport-family category was ever in it.
+    "transport", "taxi", "parking", "transit",
 }
 
 
@@ -388,20 +514,151 @@ def _category_for_unknown(raw_name: str, avg: float) -> str:
     return "other"
 
 
+# First char uppercase (incl. LT), then >=2 lowercase — a single capitalised NAME
+# token like "Sulajeva" / "Petrauskas". An ALL-CAPS brand ("NETFLIX") or a dotted
+# domain ("apple.com") deliberately does NOT match.
+_PERSON_TOKEN_RE = re.compile(r"^[A-ZŠŽĖČĄĮŲŪ][a-zšžėčąįųū\-]{2,}$")
+
+
+def _bare_person_like(canon_g: dict, name: str) -> bool:
+    """A bare single-token surname on a transfer with NO card-acceptor / web-domain
+    evidence — i.e. a P2P to a private individual whose descriptor is just their
+    name. ``_looks_like_person`` misses this because it demands two tokens; a bare
+    surname on a CARD purchase is still excluded here by the acceptor/domain guard,
+    so a one-word merchant stays a merchant. Heuristic (a bare capitalised brand
+    paid by SEPA and unknown to the DB could slip through), but in this domain P2P
+    transfers dominate the single-token-no-acceptor case, and known brands are DB
+    hits that never reach here."""
+    rmt = canon_g.get("remittance") or {}
+    if rmt.get("acceptor") or rmt.get("domain"):
+        return False
+    toks = [x for x in re.split(r"\s+", (name or "").strip()) if x]
+    return len(toks) == 1 and bool(_PERSON_TOKEN_RE.match(toks[0]))
+
+
+# Distinctive Lithuanian SURNAME endings (ASCII, matched after _FOLD). Unlike the
+# bare -a/-ė that Maxima, Norfa, Litena, Camelia also end in, these are almost never
+# brand names, so a 2–4 token counterparty carrying one is a natural person, not a
+# merchant. Validated on real names + brands in test_lt_person.py (13/13 people
+# caught, 0 brands mistaken). Folding means ALLCAPS / diacritic-stripped bank forms
+# ("GABRIELE MAZEIKAITE", "Rasa Konciute") still match.
+_LT_SURNAME_END = ("iene", "aite", "yte", "iute", "ute", "ske", "evicius",
+                   "avicius", "icius", "auskas", "iauskas", "inskas", "ynas",
+                   "unas", "evas", "ovas", "eva", "ova", "auske", "inske",
+                   "aitis", "utis")
+_LT_PERSON_LEGAL = {"uab", "ab", "mb", "vsi", "ii", "kub", "tub", "zub", "vi",
+                    "si", "llc", "pay", "ltd", "oy", "ou"}
+
+# Payment processors / aggregators — when one of these is the counterparty, its
+# name must NOT be shown as the merchant (the real merchant is the domain).
+_PROC_TOKENS = ("opay", "paysera", "montonio", "maksekeskus", "makecommerce",
+                "neopay", "kevin", "sumup", "stripe", "adyen", "paypal", "klarna")
+
+
+def _lt_person(name: str) -> bool:
+    """A Lithuanian personal name (first name + surname) by its DISTINCTIVE surname
+    ending: 2–4 tokens, no legal form, no digits, at least one token ending in a
+    surname suffix after folding diacritics. Pure name-shape — the caller still
+    gates on transfer context (no card acceptor/domain), so a card merchant that
+    happens to match can never be mistaken for a person."""
+    toks = [t for t in re.split(r"[\s.*/\\]+", (name or "").strip()) if t]
+    if not (2 <= len(toks) <= 4):
+        return False
+    folded = [t.lower().translate(_FOLD) for t in toks]
+    if any(t in _LT_PERSON_LEGAL for t in folded):
+        return False
+    if any(any(c.isdigit() for c in t) for t in toks):
+        return False
+    return any(t.endswith(_LT_SURNAME_END) for t in folded)
+
+
+def _name_tokens(name: str) -> frozenset:
+    """Folded (lowercased, diacritics stripped) token set of a name — used to
+    match a transfer counterparty against the user's own account-holder names."""
+    toks = [t for t in re.split(r"[\s.*/\\]+", (name or "").strip()) if t]
+    return frozenset(t.lower().translate(_FOLD) for t in toks)
+
+
+# Business words that a bare (no legal form) company name carries but a person's
+# name never does. A two-word counterparty that looks person-shaped BUT contains
+# one of these is a business, not a person, so it stays a bill/subscription — this
+# is what keeps "Artus Grupė", "Teva Baltics", "Verslo Vartai", "Vilniaus Vandenys"
+# out of the person→transfer rule while foreign personal names (John Smith) go
+# through it. ASCII-folded (matched after _FOLD), so diacritics/caps don't matter.
+_BUSINESS_TOKENS = frozenset({
+    "grupe", "group", "baltic", "baltics", "baltija", "baltijos", "vartai",
+    "sprendimai", "sistema", "sistemos", "system", "systems", "servisas",
+    "serviso", "service", "services", "prekyba", "prekybos", "trade", "trading",
+    "statyba", "statybos", "build", "construction", "transportas", "transport",
+    "logistika", "logistics", "studija", "studio", "studios", "klinika", "clinic",
+    "clinics", "medicina", "vandenys", "vanduo", "energija", "energy",
+    "energetika", "bankas", "bank", "draudimas", "insurance", "investicijos",
+    "invest", "capital", "holding", "holdings", "solutions", "solution", "media",
+    "telecom", "telekomas", "consulting", "consult", "partners", "partneriai",
+    "technologijos", "technologies", "tech", "software", "digital", "parduotuve",
+    "shop", "store", "market", "marketas", "express", "cargo", "auto", "motors",
+    "gamyba", "factory", "fabrikas", "pramone", "turtas", "realty", "estate",
+    "properties", "finance", "finansai", "credit", "kreditas", "leasing",
+    "lizingas", "grozis", "sportas", "fitness", "klubas", "centras", "center",
+})
+
+
+def _has_business_token(name: str) -> bool:
+    """True when a name carries a company word (see [_BUSINESS_TOKENS])."""
+    return bool(_name_tokens(name) & _BUSINESS_TOKENS)
+
+
+def _looks_person_shaped(name: str) -> bool:
+    """A generic personal-name SHAPE — 2–4 alphabetic tokens, no legal form, no
+    digits (foreign names included). Mirrors entity._looks_like_person, but is
+    evaluated here against the RAW remittance name too: when a bank fills only the
+    remittance (no structured creditor.name), canonical's party_kind_hint is empty,
+    so a foreign 'John Smith' otherwise slipped through as a housing bill."""
+    toks = [t for t in re.split(r"[\s.*/\\]+", (name or "").strip()) if t]
+    if not (2 <= len(toks) <= 4):
+        return False
+    folded = [t.lower().translate(_FOLD) for t in toks]
+    if any(t in _LT_PERSON_LEGAL for t in folded):
+        return False
+    if any(any(c.isdigit() for c in t) for t in toks):
+        return False
+    return all(re.match(r"^[A-Za-zĄČĘĖĮŠŲŪŽąčęėįšųūž.'\-]+$", t) for t in toks)
+
+
 # ── Recurring stream LIFECYCLE (Plaid/Tink-style) ───────────────────────────
 # A historical recurring pattern is NOT an active future commitment forever. A
 # finished tax plan / paid-off loan / cancelled subscription keeps its history
 # but must drop out of the monthly & annual projection once the expected charges
 # stop arriving. Tolerances scale with each stream's OWN cadence, so a yearly
 # bill isn't declared dead after two months.
-_CYCLE_DAYS = {"weekly": 7, "monthly": 30, "quarterly": 91, "yearly": 365}
+_CYCLE_DAYS = {"weekly": 7, "biweekly": 14, "monthly": 30, "quarterly": 91,
+               "semiannual": 182, "yearly": 365}
 # per-charge cost → monthly-equivalent, so the projection is a true monthly sum
 # regardless of billing frequency (a €600 yearly bill counts as €50/mo, not €600).
-_CYCLE_PER_MONTH = {"weekly": 4.345, "monthly": 1.0,
-                    "quarterly": 1 / 3.0, "yearly": 1 / 12.0}
+_CYCLE_PER_MONTH = {"weekly": 4.345, "biweekly": 2.174, "monthly": 1.0,
+                    "quarterly": 1 / 3.0, "semiannual": 1 / 6.0,
+                    "yearly": 1 / 12.0}
+
+_DAYS_PER_MONTH = 365.25 / 12  # 30.44
 
 
-def _lifecycle(last: dt.date, cycle: str, occ: int, today: dt.date):
+def _per_month(cycle: str, gap_days) -> float:
+    """How many times a month this stream charges.
+
+    Falls back to the measured gap rather than to 1.0. `.get(cycle, 1.0)` meant
+    every unrecognised cadence was quietly priced as monthly, which is where the
+    600 €-a-month "insurance" came from.
+    """
+    known = _CYCLE_PER_MONTH.get(cycle)
+    if known is not None:
+        return known
+    if gap_days and gap_days > 0:
+        return _DAYS_PER_MONTH / gap_days
+    return 1.0
+
+
+def _lifecycle(last: dt.date, cycle: str, occ: int, today: dt.date,
+               gap_days=None):
     """Return ``(status, days_since_last)`` for a recurring stream.
 
       early  — <2 sightings: detected but unproven (Plaid EARLY_DETECTION).
@@ -414,7 +671,11 @@ def _lifecycle(last: dt.date, cycle: str, occ: int, today: dt.date):
     status just steers whether it counts as a future commitment; the user can
     always override it.
     """
-    cd = _CYCLE_DAYS.get(cycle, 30)
+    # Tolerances scale with the stream's OWN cadence. A "custom" cadence has no
+    # entry here, and defaulting it to 30 days declared every long-cycle stream
+    # dead within a couple of months — so a half-yearly bill dropped out of the
+    # projection and simply stopped being counted.
+    cd = _CYCLE_DAYS.get(cycle) or (round(gap_days) if gap_days else 30)
     days = (today - last).days
     if occ < 2:
         return "early", days
@@ -429,7 +690,7 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
                      needs_review, auto_detected, confident, today=None):
     today = today or dt.date.today()
     amounts = [a for _, a, _ in items]
-    avg = round(sum(amounts) / len(amounts), 2)
+    typical = round(_median(amounts), 2)
     occ = len(items)
     gap = _avg_gap(dates)
     if gap is not None:
@@ -440,15 +701,36 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
         # confirm; billing math still needs a cycle, so keep monthly internally.
         gap, cycle, label = 30.0, "monthly", "once"
     last = dates[-1] if dates else today
-    status, days_since = _lifecycle(last, cycle, occ, today)
+    status, days_since = _lifecycle(last, cycle, occ, today, gap)
     # Monthly-equivalent of this stream's typical charge (the projection unit).
-    monthly = round(avg * _CYCLE_PER_MONTH.get(cycle, 1.0), 2)
+    monthly = round(typical * _per_month(cycle, gap), 2)
+    # TWO charges are ONE interval, and one interval is not a cadence. When that
+    # lone interval also matches no known cycle, "custom" prices the stream off
+    # the measured gap: two MOGO payments of 399 EUR, 74 days apart, became a
+    # confident "163 EUR/mo" — an amount the user has never paid, silently added
+    # to the monthly commitment, and sitting next to the SAME loan detected from
+    # another bank. The monthly-equivalent arithmetic is right; the confidence is
+    # not. Ask instead of assuming: flag it for review so the user is asked,
+    # rather than it appearing as a settled commitment.
+    #
+    # ONLY the review flag. It stays counted while it waits, which is this
+    # codebase's existing rule for everything uncertain ("possible" merchants are
+    # counted and flagged too). Clearing `confident` instead looks tempting and is
+    # wrong twice over: dashboard.py:860 uses `confident` to decide what enters
+    # the recurring list at all, so it would DELETE the stream rather than
+    # question it — and a two-charge Apple bill 36 days apart lands in this same
+    # branch, because the monthly window stops at 35 days.
+    #
+    # A recognised cycle seen twice (a yearly bill, ~365 days apart) is NOT
+    # affected — that gap identifies itself, it isn't inferred from one sample.
+    if occ < 3 and cycle == "custom":
+        needs_review = True
     return {
         "name": display,
         "type": mtype,                      # subscription | bill | transfer
         "autoDetected": auto_detected,      # known merchant vs user-review
         "confident": confident,             # ≥2 sightings → a real pattern
-        "cost": avg,                        # typical per-charge amount
+        "cost": typical,                     # typical per-charge amount (median)
         "monthlyAmount": monthly,           # per-charge normalized to a month
         "currency": "EUR",
         "billingCycle": cycle,
@@ -468,7 +750,7 @@ def _build_candidate(display, mtype, category, logo, items, dates, *,
 
 def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNOWN,
                      classify_unknown=None, corpus=None, today=None,
-                     own_ibans=None):
+                     own_ibans=None, own_names=None):
     """Return ``{"candidates": [...], "frequent": [...], "debug": {...}}``.
 
     Every outgoing merchant becomes a candidate (even seen once), tagged
@@ -488,6 +770,16 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
     # user's own accounts (e.g. a monthly SEB→Revolut top-up) is NOT a bill and
     # must never become a recurring commitment.
     own = {str(i).replace(" ", "").upper() for i in (own_ibans or []) if i}
+    # The user's OWN account-holder names. Many banks — SEB especially — put only
+    # a NAME on a transfer between the user's own accounts, with NO counterparty
+    # IBAN, so the IBAN check below can't catch "me moving money to myself". That
+    # left a €350 SEB→SEB self-transfer to "Osvaldas Sulajevas" surfacing as a
+    # monthly bill. Matching the holder name closes it: a DBIT whose counterparty
+    # IS one of the user's own account names is an own transfer, never a bill or
+    # subscription — you do not subscribe to yourself. Only names with 2+ tokens
+    # are used, so a generic product label ("Sąskaita") can never match anything.
+    own_name_toks = [ts for ts in (_name_tokens(n) for n in (own_names or []))
+                     if len(ts) >= 2]
     groups = defaultdict(list)
     group_hit = {}
     group_canon = {}
@@ -519,10 +811,31 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
             continue
         # Stage 1 — stable counterparty identity from structured fields.
         canon = canonical.build_canonical(t)
+        # Money movement is never a subscription, whatever its rhythm.
+        #
+        # A currency exchange, a top-up or a cash withdrawal is the user moving
+        # their own money. Someone who converts to EUR whenever they need it
+        # produces a run of similar amounts, which is exactly what the detector
+        # is built to notice — so "Exchanged to EUR, 860 €" was being presented
+        # as a monthly bill. The IBAN check below only catches transfers between
+        # known accounts; an in-app exchange has no counterparty IBAN at all,
+        # so it sailed straight through. Same vocabulary dashboard.py files
+        # under "Pervedimai".
+        if _is_money_movement(t):
+            n_skipped += 1
+            continue
         # Own-account transfer (SEB↔Revolut etc.): never a recurring bill.
         if own:
             cpi = (canon.get("counterparty") or {}).get("iban")
             if cpi and str(cpi).replace(" ", "").upper() in own:
+                n_skipped += 1
+                continue
+        # Same, by holder NAME — for banks that send a self-transfer with a name
+        # but no counterparty IBAN (the IBAN check above can't see it).
+        if own_name_toks:
+            cp_toks = _name_tokens(raw)
+            if len(cp_toks) >= 2 and any(
+                    cp_toks <= o or o <= cp_toks for o in own_name_toks):
                 n_skipped += 1
                 continue
         id_src[canon["identity_source"]] += 1
@@ -567,8 +880,13 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
         # payment to an unknown merchant still clusters — cold start, unseen
         # country. Otherwise fall back to the KB brand canonical (collapses card
         # acceptor variants) and then to the normalized name (LAST RESORT).
-        if canon["identity_source"] in (canonical.S_IBAN, canonical.S_SCHEME):
-            key = canon["identity_key"]
+        _idkey = canon.get("identity_key") or ""
+        if canon["identity_source"] in (canonical.S_IBAN, canonical.S_SCHEME) \
+                or _idkey.startswith("dom:"):
+            # Structured IBAN/scheme, OR a web-domain identity (dom:gymplius.lt) —
+            # the domain groups every processor/name variant of one merchant into
+            # a single stream, ahead of the KB name (which varies: Gym+/GymPlius).
+            key = _idkey
         elif hit is not None:
             key = "k:" + hit[0].lower()          # canonical brand → collapses variants
         else:
@@ -609,23 +927,108 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
                 auto_detected=True, confident=confident, today=today)
         else:
             cp_name = (canon_g.get("counterparty") or {}).get("name")
-            if not stable and not _include_unknown(st_items[0][2], st_items):
+            raw_name = st_items[0][2]
+            if not stable and not _include_unknown(raw_name, st_items):
                 return "filtered"
             avg = round(sum(amounts) / len(amounts), 2)
-            category = _category_for_unknown(st_items[0][2], avg)
-            typ = "bill" if category in ("housing", "finance") else "subscription"
-            if stable and typ == "subscription":
-                typ = "bill"       # deliberate transfers lean bill, not subscription
-            # Weak person-like hint: demote to "transfer" ONLY when this is NOT a
-            # confident regular stream. A CONFIDENT, regular payment is a real
-            # commitment (rent to a private landlord, a monthly allowance) and
-            # stays a bill so it counts — the person-name heuristic is too weak to
-            # override a strong recurrence signal (it also fires on 2-word
-            # business names). One-off / irregular person payments still become
-            # transfers (excluded from the total).
-            if not confident and (canon_g.get("counterparty") or {}).get("party_kind_hint") == "person_like":
+            category = _category_for_unknown(raw_name, avg)
+
+            # EVERYDAY-SPENDING GUARD. An unrecognised card counterparty (no DB hit,
+            # no IBAN/scheme id) in the generic "other" category, whose stream is
+            # NOT a credible recurring pattern (amounts vary and/or the cadence is
+            # irregular) and whose name is not a digital service, is spending at a
+            # local shop/café we simply don't know — "Skani mėsa" (a butcher stall),
+            # "Tiltų" (a bar). By SHAPE it is indistinguishable from a subscription
+            # except that a subscription bills a near-constant amount on a regular
+            # monthly+ cadence; without that evidence it belongs in `frequent`, not
+            # the subscription list. Bank-agnostic: keyed on the stream, never a name.
+            #
+            # ALSO route a WEEKLY-cadence unknown to spending, even when the amounts
+            # are near-constant: a subscription bills monthly-or-longer, so a regular
+            # sub-monthly charge at an unrecognised merchant is a shop/café visited
+            # weekly (groceries, coffee), not a subscription — "Uab Litena Parduotuvė"
+            # (two shop payments a week apart read as a weekly €462/mo sub). The user
+            # confirms the residual few; the point is not to DEFAULT them to a sub.
+            _gaps = sorted((dates[i + 1] - dates[i]).days
+                           for i in range(len(dates) - 1)) if len(dates) >= 2 else []
+            _sub_monthly = bool(_gaps) and _gaps[len(_gaps) // 2] < 20
+            if not stable and category == "other" \
+                    and not any(h in raw_name.lower() for h in _SERVICE_HINTS) \
+                    and (_sub_monthly or not _stream_credible(dates, amounts)):
+                fk = _merchant_key(raw_name) or raw_name.lower()
+                if fk:
+                    freq_amounts[fk] = list(amounts)
+                    freq_meta[fk] = (_clean_name(raw_name), "frequent", "other", None)
+                    return "spending"
+
+            # A confidently-detected Lithuanian personal name (first name + surname
+            # ending) on a NON-card transfer is a person, full stop — never a bill or
+            # subscription, whatever the amount. This overrides the housing/finance
+            # exception below, which was surfacing "Lina Gliožerienė" / "Gabrielė
+            # Mažeikaitė" as €200-a-month "bills". Card purchases (acceptor/domain
+            # present) are excluded, so a brand is never read as a person.
+            rmt = canon_g.get("remittance") or {}
+            is_card = bool(rmt.get("acceptor") or rmt.get("domain"))
+            lt_person = not is_card and _lt_person(cp_name or raw_name)
+
+            is_person = (canon_g.get("counterparty") or {}).get(
+                "party_kind_hint") == "person_like" \
+                or _bare_person_like(canon_g, cp_name or raw_name)
+            # A person-to-person transfer is a transfer, not a bill — however
+            # regularly it repeats. Sending family money every month, splitting
+            # rent with a flatmate, repaying a friend: none of these are
+            # subscriptions, and showing them as such is the single most obvious
+            # "this app is broken" bug for a new user paying an actual person.
+            #
+            # The exception is a genuine COMMITMENT to a private individual —
+            # rent to a landlord, a loan repayment. Those surface as housing or
+            # finance from the memo (`_category_for_unknown`), so they stay bills;
+            # only person-like streams that are NEITHER become transfers. This
+            # replaces the old rule that kept CONFIDENT person streams as bills,
+            # which is exactly what surfaced a personal transfer as a
+            # subscription.
+            bare_person = _bare_person_like(canon_g, cp_name or raw_name)
+            # A company word (Grupė, Baltics, Sistemos, Vandenys…) marks a business
+            # that merely looks person-shaped — it OVERRIDES every person signal,
+            # including a distinctive-surname false hit ("Teva Baltics" → "teva"
+            # ends "eva"). A generic two-word name on a non-card transfer counts as
+            # a person too, which closes the foreign-name gap (a €300/mo "John
+            # Smith" no longer becomes a housing bill).
+            is_business = _has_business_token(cp_name or raw_name)
+            # `is_person` relies on party_kind_hint, which canonical builds from the
+            # structured creditor.name only. Also test the RAW name shape so a
+            # foreign/generic person whose name the bank put ONLY in the remittance
+            # (no creditor.name) is still caught, not booked as a housing bill.
+            generic_person = ((is_person or _looks_person_shaped(cp_name or raw_name))
+                              and not is_card)
+            if not is_business and (lt_person or bare_person or generic_person):
+                # HARD RULE: a personal name is a person-to-person transfer — NEVER
+                # a bill or subscription, whatever the amount or memo. The old code
+                # kept a person as a BILL when the amount/memo read "housing/finance"
+                # (rent to a landlord); that one exception is exactly what surfaced
+                # real people (a €350 self-transfer, monthly family money, splitting
+                # rent, foreign names >€200) under Sąskaitos / Prenumeratos. You do
+                # not subscribe to a person. The money still shows in the feed as a
+                # transfer — it is simply never a recurring commitment.
                 typ = "transfer"
-            disp = cp_name if stable else _clean_name(st_items[0][2])
+            else:
+                typ = "bill" if category in ("housing", "finance") else "subscription"
+                if stable and typ == "subscription":
+                    typ = "bill"   # deliberate transfers lean bill, not subscription
+            # Display name: for a web-domain identity whose counterparty is a
+            # PROCESSOR (OPAY, Paysera…), show the merchant domain-brand instead of
+            # the processor's name ("UAB OPAY SOLUTIONS" → "Gymplius"). When the
+            # counterparty already IS the merchant (card "APPLE.COM/BILL",
+            # "www.savasld.lt"), keep that name so it still matches its feed rows.
+            _gk = str(canon_g.get("identity_key") or "")
+            _cpl = (cp_name or "").lower()
+            _is_proc = any(p in _cpl for p in _PROC_TOKENS)
+            if _gk.startswith("dom:") and _is_proc:
+                disp = _gk[4:].rsplit(".", 1)[0].replace("-", " ").title()
+            elif stable:
+                disp = cp_name
+            else:
+                disp = _clean_name(st_items[0][2])
             cand = _build_candidate(disp, typ, category, None, st_items, dates,
                                     needs_review=True, auto_detected=False,
                                     confident=confident, today=today)
@@ -642,7 +1045,8 @@ def detect_recurring(transactions: list, *, min_occurrences: int = MIN_OCC_UNKNO
         canon_g = group_canon.get(key, {})
         src = canon_g.get("identity_source")
         conf = canon_g.get("identity_confidence")
-        stable = src in (canonical.S_IBAN, canonical.S_SCHEME)
+        stable = src in (canonical.S_IBAN, canonical.S_SCHEME) \
+            or str(canon_g.get("identity_key") or "").startswith("dom:")
         # Segment the merchant group into payment streams. Each RECURRING stream
         # is emitted separately (so one merchant's one-off can never inherit
         # another stream's recurrence); the merchant's non-recurring one-offs are

@@ -1,0 +1,331 @@
+<meta charset="utf-8">
+<title>Vaultie — onboarding page 4 (Liepos apžvalga · kaip parodyti ilgą ekraną)</title>
+
+<!--
+  The question this file answers: the month overview is far longer than one
+  phone screen. Three ways to show that inside the onboarding frame.
+
+  Numbers continue page 2's July: categories sum to 1 776,00 € of spending
+  against 2 400,00 € of income, so the daily average is 1776/31 = 57,29 € and
+  the savings rate is 26 %. June is invented only where a comparison needs it.
+-->
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root { --page:#EFF1F5; --ink:#101828; --muted:#667085; }
+  @media (prefers-color-scheme: dark) { :root { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; } }
+  :root[data-theme="dark"]  { --page:#080C13; --ink:#E8EDF7; --muted:#8492AB; }
+  :root[data-theme="light"] { --page:#EFF1F5; --ink:#101828; --muted:#667085; }
+
+  body { background:var(--page); color:var(--ink); padding:30px 20px 60px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1180px; margin:0 auto; }
+  header { display:flex; flex-direction:column; gap:7px; margin-bottom:26px; }
+  h1 { font-size:23px; font-weight:750; letter-spacing:-.02em; }
+  .lede { font-size:13.5px; line-height:1.55; color:var(--muted); max-width:82ch; }
+  .lede b { color:var(--ink); font-weight:650; }
+  .set { display:flex; gap:34px; flex-wrap:wrap; align-items:flex-start; }
+  figure { display:flex; flex-direction:column; gap:9px; margin:0; }
+  cap { font-size:12.5px; font-weight:750; }
+  .meta { font-size:11px; color:var(--muted); line-height:1.5; max-width:268px; }
+
+  .p { position:relative; width:268px; aspect-ratio:390/844; border-radius:12.5%/5.8%; overflow:hidden;
+    container-type:inline-size; --px:0.2564cqw; background:#FBFDFF;
+    box-shadow:0 1px 2px rgba(16,24,40,.14), 0 16px 32px -12px rgba(16,24,40,.34); }
+  .ground { position:absolute; inset:0; background:#FBFDFF; }
+  .ground .blue { position:absolute; left:-12%; right:-12%; bottom:0; height:44%;
+    border-radius:50% 50% 0 0 / 14% 14% 0 0;
+    background:linear-gradient(168deg,#3E74FF 0%,#2F6BFF 42%,#1E4FD8 100%); }
+  .lay { position:absolute; inset:0; }
+  .slot { position:absolute; left:0; right:0; display:flex; justify-content:center;
+    flex-wrap:wrap; gap:calc(10*var(--px)); }
+  .slot .dev { flex:none; min-width:0; }
+  .foot { position:absolute; left:0; right:0; bottom:calc(26*var(--px)); z-index:3;
+    padding:0 calc(24*var(--px)); display:flex; flex-direction:column; gap:calc(14*var(--px)); }
+  .plain { text-align:center; }
+  .plain .h { font-size:calc(30*var(--px)); font-weight:800; line-height:1.15; color:#fff;
+    letter-spacing:calc(-.9*var(--px)); text-shadow:0 calc(2*var(--px)) calc(14*var(--px)) rgba(10,30,75,.45); }
+  .plain .h em { font-style:normal; color:#BFD6FF; }
+  .plain .b { margin-top:calc(10*var(--px)); font-size:calc(13.5*var(--px)); line-height:1.5;
+    font-weight:500; color:rgba(255,255,255,.92);
+    text-shadow:0 calc(1*var(--px)) calc(10*var(--px)) rgba(10,30,75,.45); }
+  .dots { display:flex; gap:calc(6*var(--px)); justify-content:center; }
+  .dots i { width:calc(6*var(--px)); height:calc(6*var(--px)); border-radius:50%;
+    background:rgba(255,255,255,.38); display:block; }
+  .dots i.on { width:calc(20*var(--px)); border-radius:calc(6*var(--px)); background:#fff; }
+  .cta { height:calc(54*var(--px)); border-radius:calc(16*var(--px)); background:#fff;
+    display:flex; align-items:center; justify-content:center; gap:calc(8*var(--px));
+    font-size:calc(16*var(--px)); font-weight:700; color:#1440B4;
+    box-shadow:0 calc(8*var(--px)) calc(18*var(--px)) rgba(10,34,96,.28); }
+  .cta svg { width:calc(17*var(--px)); height:calc(17*var(--px)); fill:#1440B4; }
+
+  .dev { position:relative; aspect-ratio:390/844; container-type:inline-size;
+    padding:2.4cqw; border-radius:13.5cqw;
+    background:linear-gradient(135deg,#161619 0%,#0B0B0D 30%,#000 55%,#0E0E11 85%,#1A1A1E 100%);
+    box-shadow:0 6cqw 16cqw rgba(6,12,30,.42); }
+  .scr { position:relative; width:100%; height:100%; border-radius:11.6cqw; overflow:hidden;
+    --p:0.2564cqw; --card:#FFF; --hair:#E3E9F2; --ink:#14203A; --muted:#5C6A85;
+    --purple:#2F6BFF; background:#EEF1F7; }
+
+  /* the blue app bar stays put while the content moves under it */
+  .bar { position:absolute; left:0; right:0; top:0; height:calc(120*var(--p)); z-index:4;
+    background:#2149C8; display:flex; align-items:flex-end; padding:0 calc(16*var(--p)) calc(14*var(--p));
+    gap:calc(12*var(--p)); }
+  .bar svg { width:calc(20*var(--p)); height:calc(20*var(--p)); fill:#fff; }
+  .bar b { font-size:calc(23*var(--p)); font-weight:800; color:#fff; }
+
+  .feed { position:absolute; left:0; right:0; top:calc(120*var(--p)); }
+  .col { padding:calc(14*var(--p)) calc(16*var(--p)) calc(20*var(--p)); }
+
+  .chips { display:flex; gap:calc(10*var(--p)); }
+  .chip { display:flex; align-items:center; gap:calc(7*var(--p)); background:var(--card);
+    border-radius:calc(20*var(--p)); padding:calc(9*var(--p)) calc(14*var(--p));
+    font-size:calc(14*var(--p)); font-weight:650; color:var(--ink); }
+  .chip svg { width:calc(15*var(--p)); height:calc(15*var(--p)); fill:var(--purple); }
+
+  .rings { display:flex; gap:calc(14*var(--p)); margin-top:calc(16*var(--p)); }
+  .ring { flex:1; aspect-ratio:1; border-radius:50%; display:grid; place-items:center; position:relative; }
+  .ring.out { background:conic-gradient(#C8544A 0 41.8%, #46AE4B 41.8% 63.7%,
+      #5866F0 63.7% 75.8%, #2E9BE6 75.8% 85.3%, #EE7A3A 85.3% 92.7%, #98B00D 92.7% 100%); }
+  .ring.inc { background:conic-gradient(#6E7687 0 100%); }
+  .ring::after { content:''; position:absolute; inset:calc(15*var(--p)); border-radius:50%; background:#EEF1F7; }
+  .ring div { position:relative; z-index:2; text-align:center; }
+  .ring .s { font-size:calc(15*var(--p)); color:var(--muted); font-weight:600; line-height:1; }
+  .ring .v { font-size:calc(25*var(--p)); font-weight:800; color:var(--ink); line-height:1.3; }
+  .ring .c { font-size:calc(12.5*var(--p)); color:var(--muted); font-weight:600; }
+
+  .card { background:var(--card); border-radius:calc(14*var(--p)); padding:calc(14*var(--p));
+    margin-top:calc(11*var(--p)); }
+  .rowline { display:flex; align-items:center; font-size:calc(15*var(--p)); font-weight:700; color:var(--ink); }
+  .rowline span { margin-left:auto; }
+
+  .stats { display:flex; }
+  .stats div { flex:1; text-align:center; }
+  .stats .v { font-size:calc(16*var(--p)); font-weight:800; color:var(--ink); }
+  .stats .k { font-size:calc(11*var(--p)); color:var(--muted); margin-top:calc(2*var(--p)); }
+  .stats i { width:1px; background:var(--hair); }
+
+  .ai .tag { display:flex; align-items:center; gap:calc(7*var(--p)); }
+  .ai .tag b { font-size:calc(11.5*var(--p)); font-weight:800; color:var(--purple); letter-spacing:.06em; }
+  .ai .tag em { font-style:normal; font-size:calc(9.5*var(--p)); font-weight:700; color:var(--purple);
+    background:#E4EDFD; border-radius:calc(5*var(--p)); padding:calc(2*var(--p)) calc(5*var(--p)); }
+  .ai h4 { margin:calc(9*var(--p)) 0 calc(8*var(--p)); font-size:calc(18*var(--p)); font-weight:800; color:var(--ink); }
+  .ai p { margin:0; font-size:calc(13*var(--p)); line-height:1.5; color:#2A3854; }
+
+  .kh { display:flex; margin:calc(16*var(--p)) calc(3*var(--p)) calc(7*var(--p));
+    font-size:calc(12.5*var(--p)); color:var(--muted); font-weight:600; }
+  .kh b { margin-left:auto; color:var(--purple); }
+  .cat { display:flex; align-items:center; padding:calc(11*var(--p)) 0; }
+  .cat + .cat { border-top:1px solid #EDEFF4; }
+  .cat .ic { width:calc(32*var(--p)); height:calc(32*var(--p)); border-radius:50%;
+    display:grid; place-items:center; margin-right:calc(12*var(--p)); flex:none; }
+  .cat .ic svg { width:calc(16*var(--p)); height:calc(16*var(--p)); fill:#fff; }
+  .cat .n { font-size:calc(14.5*var(--p)); font-weight:700; color:var(--ink); }
+  .cat .a { margin-left:auto; font-size:calc(14*var(--p)); font-weight:700; color:var(--ink); white-space:nowrap; }
+  .cat .a.pos { color:#2FA34E; }
+
+  .h2 { font-size:calc(21*var(--p)); font-weight:800; color:var(--ink); margin:calc(20*var(--p)) 0 calc(4*var(--p)); }
+
+  /* the insight card, from dashboard_preview.dart:4655 — card radius 18 with a
+     hairline, a 40pt icon tile tinted 14 % of the category colour, and the
+     outlined "Nusistatyti biudžetą" button that was missing here entirely */
+  .icard { background:var(--card); border:1px solid var(--hair); border-radius:calc(18*var(--p));
+    padding:calc(16*var(--p)); margin-top:calc(11*var(--p));
+    box-shadow:0 calc(1*var(--p)) calc(3*var(--p)) rgba(10,19,33,.10), 0 calc(6*var(--p)) calc(14*var(--p)) rgba(15,19,33,.10); }
+  .ins { display:flex; gap:calc(12*var(--p)); align-items:flex-start; }
+  .ins .ic { width:calc(40*var(--p)); height:calc(40*var(--p)); border-radius:calc(12*var(--p));
+    display:grid; place-items:center; flex:none; }
+  .ins .ic svg { width:calc(22*var(--p)); height:calc(22*var(--p)); }
+  .ins p { margin:0; font-size:calc(15.5*var(--p)); font-weight:600; line-height:1.35; color:var(--ink); }
+  .ins .up { color:#E0574F; font-weight:800; }
+  .ins .dn { color:#2FA34E; font-weight:800; }
+  .pair { display:flex; gap:calc(10*var(--p)); margin-top:calc(14*var(--p)); }
+  .pair > div { flex:1; background:#EEF2F8; border:1px solid var(--hair); border-radius:calc(12*var(--p));
+    padding:calc(12*var(--p)); display:flex; align-items:center; gap:calc(10*var(--p)); }
+  .pair i { width:calc(26*var(--p)); height:calc(26*var(--p)); border-radius:50%; flex:none; }
+  .pair .v { font-size:calc(15*var(--p)); font-weight:800; color:var(--ink); }
+  .pair .k { font-size:calc(12*var(--p)); color:var(--muted); }
+  .setb { margin-top:calc(12*var(--p)); border:1px solid var(--purple); border-radius:calc(12*var(--p));
+    padding:calc(12*var(--p)); text-align:center;
+    font-size:calc(14.5*var(--p)); font-weight:700; color:var(--purple); }
+
+  .day { display:flex; align-items:center; padding:calc(8*var(--p)) 0; }
+  .day .ic { width:calc(26*var(--p)); height:calc(26*var(--p)); border-radius:50%;
+    display:grid; place-items:center; margin-right:calc(11*var(--p)); flex:none; }
+  .day .ic svg { width:calc(13*var(--p)); height:calc(13*var(--p)); fill:#fff; }
+  .day .n { font-size:calc(13.5*var(--p)); color:var(--ink); }
+  .day .a { margin-left:auto; font-size:calc(13.5*var(--p)); font-weight:650; color:var(--ink); }
+
+  /* ══ how the long screen is presented ══ */
+  /* A — one continuous slow scroll from top to bottom */
+  .vA .feed { animation:scrollA 16s cubic-bezier(.42,0,.58,1) infinite; }
+  /* 1 963pt of content, 724pt of viewport below the bar → 1 239pt of travel.
+     Measured, not estimated — and re-measured after the insight cards grew. */
+  @keyframes scrollA {
+    0%,4%    { transform:translateY(0); }
+    92%,100% { transform:translateY(calc(-1239*var(--p))); }
+  }
+
+  /* B — the same travel, but it stops at each section long enough to read */
+  .vB .feed { animation:scrollB 16s cubic-bezier(.5,0,.35,1) infinite; }
+  /* stops chosen at section tops, not at even intervals */
+  @keyframes scrollB {
+    0%,14%   { transform:translateY(0); }                          /* žiedai, suma */
+    22%,36%  { transform:translateY(calc(-355*var(--p))); }        /* AI santrauka */
+    44%,58%  { transform:translateY(calc(-934*var(--p))); }        /* įžvalgos */
+    66%,86%  { transform:translateY(calc(-1239*var(--p))); }       /* dienos vidurkis, prekybininkai */
+    96%,100% { transform:translateY(0); }
+  }
+
+  .vA .slot, .vB .slot { top:calc(26*var(--px)); }
+  .vA .dev,  .vB .dev  { width:calc(268*var(--px)); height:calc(580*var(--px)); }
+
+  /* C — four small screens, each frozen at a different section */
+  .vC .slot { top:calc(24*var(--px)); padding:0 calc(10*var(--px)); }
+  .vC .dev  { width:calc(129*var(--px)); height:calc(279*var(--px)); padding:1.8cqw; border-radius:10cqw; }
+  .vC .scr  { border-radius:8.6cqw; }
+  .vC .feed { animation:none; }
+  .vC .dev:nth-child(2) .feed { transform:translateY(calc(-355*var(--p))); }
+  .vC .dev:nth-child(3) .feed { transform:translateY(calc(-934*var(--p))); }
+  .vC .dev:nth-child(4) .feed { transform:translateY(calc(-1239*var(--p))); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Onboarding, 4 puslapis — mėnesio apžvalga netelpa į vieną ekraną</h1>
+    <p class="lede">
+      Liepos apžvalgoje yra žiedai, suma, statistika, AI santrauka, kategorijos, įžvalgos, dienos
+      vidurkis ir prekybininkai — apie <b>1 900pt</b> turinio prieš <b>844pt</b> ekrano. Trys būdai tai parodyti.
+      Skaičiai tęsia 2 puslapį: išlaidos <b>1 776,00 €</b>, pajamos <b>2 400,00 €</b>, tad dienos vidurkis
+      <b>57,29 €</b>, o santaupų norma <b>26 %</b>.
+    </p>
+  </header>
+  <div class="set" id="set"></div>
+</div>
+
+<template id="phone">
+  <div class="dev">
+    <div class="scr">
+      <div class="bar">
+        <svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7 1.4-1.4L10.8 12l5.6-5.6Z"/></svg>
+        <b>Liepos apžvalga</b>
+      </div>
+      <div class="feed"><div class="col">
+
+        <div class="chips">
+          <div class="chip"><svg viewBox="0 0 24 24"><path d="M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2Zm12 7v10H5V9Z"/></svg>Liepa</div>
+          <div class="chip"><svg viewBox="0 0 24 24"><path d="M4 6h10v2H4Zm12 0h4v2h-4ZM4 11h4v2H4Zm6 0h10v2H10ZM4 16h10v2H4Zm12 0h4v2h-4Z"/></svg>Filtras</div>
+        </div>
+
+        <div class="rings">
+          <div class="ring out"><div><div class="s">−</div><div class="v">1 776 €</div><div class="c">Išleista</div></div></div>
+          <div class="ring inc"><div><div class="s">+</div><div class="v">2 400 €</div><div class="c">Gauta</div></div></div>
+        </div>
+
+        <div class="card"><div class="rowline">Liepos suma <span>−1 776,00 €</span></div></div>
+
+        <div class="card stats">
+          <div><div class="v">1 776 €</div><div class="k">išleista</div></div><i></i>
+          <div><div class="v">2 400 €</div><div class="k">uždirbta</div></div><i></i>
+          <div><div class="v">+624 €</div><div class="k">grynasis</div></div><i></i>
+          <div><div class="v">26 %</div><div class="k">santaupų</div></div>
+        </div>
+
+        <div class="card ai">
+          <div class="tag"><b>SANTRAUKA</b><em>AI</em></div>
+          <h4>Liepos finansų momentas 📸</h4>
+          <p>Liepa buvo tvarkinga. Gavai 2 400 €, išleidai 1 776 €, tad atsidėjai 624 € — santaupų norma
+             26 %, virš 20 % tikslo. Daugiausia nusinešė būstas ir sąskaitos (743 €) bei maistas (389 €).
+             Palyginti su birželiu, maistui išleidai mažiau, o būstui daugiau.</p>
+        </div>
+
+        <div class="kh">Kategorija<b>Suma</b></div>
+        <div class="card" style="padding:0 calc(13*var(--p))">
+          <div class="cat"><div class="ic" style="background:#98B00D"><svg viewBox="0 0 24 24"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5Z"/></svg></div><div class="n">Būstas, sąskaitos</div><div class="a">−742,50 €</div></div>
+          <div class="cat"><div class="ic" style="background:#46AE4B"><svg viewBox="0 0 24 24"><path d="M7 2v8a3 3 0 0 0 2 2.8V22h2V12.8A3 3 0 0 0 13 10V2h-2v7H9V2Zm10 0c-1.7 0-3 2.7-3 6 0 2.4.9 4.3 2 5v9h2V2Z"/></svg></div><div class="n">Maistas, gėrimai</div><div class="a">−389,20 €</div></div>
+          <div class="cat"><div class="ic" style="background:#5866F0"><svg viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11v8h-2v-2H7v2H5Zm2.2-.5h9.6l-1-3H8.2Z"/></svg></div><div class="n">Transportas</div><div class="a">−214,80 €</div></div>
+          <div class="cat"><div class="ic" style="background:#2E9BE6"><svg viewBox="0 0 24 24"><path d="m3 21 5-13 8 8Zm11-11 2-5 5 2-2 5Z"/></svg></div><div class="n">Pramogos</div><div class="a">−168,40 €</div></div>
+          <div class="cat"><div class="ic" style="background:#EE7A3A"><svg viewBox="0 0 24 24"><path d="M4 9h2v6H4Zm14 0h2v6h-2ZM7 7h2v10H7Zm8 0h2v10h-2Zm-5 4h4v2h-4Z"/></svg></div><div class="n">Sveikata, sportas</div><div class="a">−131,60 €</div></div>
+          <div class="cat"><div class="ic" style="background:#6E7687"><svg viewBox="0 0 24 24"><path d="M7 7h10v2H7Zm0 4h10v2H7Zm0 4h6v2H7Z"/></svg></div><div class="n">Kita</div><div class="a">−129,50 €</div></div>
+        </div>
+
+        <div class="h2">Įžvalgos</div>
+        <div class="icard">
+          <div class="ins">
+            <div class="ic" style="background:rgba(70,174,75,.14)"><svg viewBox="0 0 24 24" fill="#46AE4B"><path d="M7 2v8a3 3 0 0 0 2 2.8V22h2V12.8A3 3 0 0 0 13 10V2h-2v7H9V2Zm10 0c-1.7 0-3 2.7-3 6 0 2.4.9 4.3 2 5v9h2V2Z"/></svg></div>
+            <p>Kategorijai „Maistas" išleidai <span class="dn">62 €</span> mažiau nei praėjusį mėnesį.</p>
+          </div>
+          <div class="pair">
+            <div><i style="background:#46AE4B"></i><div><div class="v">−451,20 €</div><div class="k">Birželis</div></div></div>
+            <div><i style="background:#46AE4B"></i><div><div class="v">−389,20 €</div><div class="k">Liepa</div></div></div>
+          </div>
+          <div class="setb">Nusistatyti biudžetą</div>
+        </div>
+        <div class="icard">
+          <div class="ins">
+            <div class="ic" style="background:rgba(152,176,13,.14)"><svg viewBox="0 0 24 24" fill="#98B00D"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5Z"/></svg></div>
+            <p>Kategorijai „Būstas" išleidai <span class="up">118 €</span> daugiau nei praėjusį mėnesį.</p>
+          </div>
+          <div class="pair">
+            <div><i style="background:#98B00D"></i><div><div class="v">−624,50 €</div><div class="k">Birželis</div></div></div>
+            <div><i style="background:#98B00D"></i><div><div class="v">−742,50 €</div><div class="k">Liepa</div></div></div>
+          </div>
+          <div class="setb">Nusistatyti biudžetą</div>
+        </div>
+
+        <div class="h2">Vidutinės dienos išlaidos</div>
+        <div class="card">
+          <div class="rowline">Liepa <span>−57,29 €</span></div>
+          <div style="height:calc(9*var(--p))"></div>
+          <div class="day"><div class="ic" style="background:#98B00D"><svg viewBox="0 0 24 24"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5Z"/></svg></div><div class="n">Būstas, sąskaitos</div><div class="a">−23,95 €</div></div>
+          <div class="day"><div class="ic" style="background:#46AE4B"><svg viewBox="0 0 24 24"><path d="M7 2v8a3 3 0 0 0 2 2.8V22h2V12.8A3 3 0 0 0 13 10V2h-2v7H9V2Zm10 0c-1.7 0-3 2.7-3 6 0 2.4.9 4.3 2 5v9h2V2Z"/></svg></div><div class="n">Maistas, gėrimai</div><div class="a">−12,55 €</div></div>
+          <div class="day"><div class="ic" style="background:#5866F0"><svg viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11v8h-2v-2H7v2H5Zm2.2-.5h9.6l-1-3H8.2Z"/></svg></div><div class="n">Transportas</div><div class="a">−6,93 €</div></div>
+          <div class="day"><div class="ic" style="background:#2E9BE6"><svg viewBox="0 0 24 24"><path d="m3 21 5-13 8 8Zm11-11 2-5 5 2-2 5Z"/></svg></div><div class="n">Pramogos</div><div class="a">−5,43 €</div></div>
+          <div class="day"><div class="ic" style="background:#EE7A3A"><svg viewBox="0 0 24 24"><path d="M4 9h2v6H4Zm14 0h2v6h-2ZM7 7h2v10H7Zm8 0h2v10h-2Zm-5 4h4v2h-4Z"/></svg></div><div class="n">Sveikata, sportas</div><div class="a">−4,25 €</div></div>
+        </div>
+
+        <div class="h2">Prekybininkai</div>
+        <div class="card"><div class="rowline">34 prekybininkai <span>›</span></div></div>
+
+        <div class="h2">Didžiausios išlaidos</div>
+        <div class="card" style="padding:0 calc(13*var(--p))">
+          <div class="cat"><div class="ic" style="background:#98B00D"><svg viewBox="0 0 24 24"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5Z"/></svg></div><div class="n">Nuoma<div style="font-size:calc(11*var(--p));color:var(--muted);font-weight:500">Liepos 1</div></div><div class="a">−520,00 €</div></div>
+          <div class="cat"><div class="ic" style="background:#46AE4B"><svg viewBox="0 0 24 24"><path d="M7 2v8a3 3 0 0 0 2 2.8V22h2V12.8A3 3 0 0 0 13 10V2h-2v7H9V2Zm10 0c-1.7 0-3 2.7-3 6 0 2.4.9 4.3 2 5v9h2V2Z"/></svg></div><div class="n">Maxima<div style="font-size:calc(11*var(--p));color:var(--muted);font-weight:500">Liepos 12</div></div><div class="a">−86,40 €</div></div>
+        </div>
+
+      </div></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  const ARROW = '<svg viewBox="0 0 24 24"><path d="M4 11h12.2l-5.6-5.6L12 4l8 8-8 8-1.4-1.4 5.6-5.6H4Z"/></svg>';
+  const FOOT =
+    '<div class="dots"><i></i><i></i><i></i><i class="on"></i></div>' +
+    '<div class="plain"><div class="h">Visas mėnuo<br><em>vienoje vietoje</em></div>' +
+    '<div class="b">Kur nuėjo pinigai, kas pasikeitė<br>ir kiek tai kainuoja per dieną.</div></div>' +
+    '<div class="cta">Pradėti ' + ARROW + '</div>';
+
+  const VARIANTS = [
+    { id:'vA', n:1, cap:'A — vientisas slinkimas',
+      meta:'Ekranas slenka nuo viršaus iki apačios per 16s be sustojimų. Matosi, kad turinio daug, bet akis nespėja nieko perskaityti — praslenka kaip pabėgęs sąrašas.' },
+    { id:'vB', n:1, cap:'B — slinkimas su stotelėmis',
+      meta:'Tas pats kelias, bet sustoja keturiose vietose po ~2s: žiedai, AI santrauka, įžvalgos, dienos vidurkis. Matosi ir kiekis, ir turinys. Ilgiausias iš trijų.' },
+    { id:'vC', n:4, cap:'C — keturi maži ekranai',
+      meta:'Keturi telefonai po 129pt pločio, kiekvienas sustabdytas ties kita sekcija. Viskas matosi iš karto, bet 129pt yra trečdalis normalaus — skaičiai virsta dėmėmis.' },
+  ];
+
+  const set = document.getElementById('set');
+  const tpl = document.getElementById('phone');
+  for (const v of VARIANTS) {
+    const fig = document.createElement('figure');
+    fig.innerHTML =
+      '<cap>' + v.cap + '</cap>' +
+      '<div class="p ' + v.id + '"><div class="ground"><div class="blue"></div></div>' +
+        '<div class="lay"><div class="slot"></div><div class="foot">' + FOOT + '</div></div></div>' +
+      '<div class="meta">' + v.meta + '</div>';
+    const slot = fig.querySelector('.slot');
+    for (let i = 0; i < v.n; i++) slot.appendChild(tpl.content.cloneNode(true));
+    set.appendChild(fig);
+  }
+</script>

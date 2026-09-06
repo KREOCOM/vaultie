@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Onboarding 1 — badge styles behind "We connect" text</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    background:#111; min-height:100vh;
+    display:flex; flex-wrap:wrap; gap:32px; align-items:flex-start; justify-content:center;
+    padding:40px 20px;
+  }
+  .col { display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .label { color:#aaa; font-size:13px; font-weight:600; text-align:center; max-width:300px; }
+  .phone {
+    width:300px; aspect-ratio:852/1846;
+    border-radius:38px; overflow:hidden; position:relative;
+    box-shadow:0 30px 80px rgba(0,0,0,0.6);
+    background-image:url('page1_v2_preview.png');
+    background-size:cover; background-position:center;
+  }
+  .statusbar { position:absolute; top:14px; left:20px; right:20px; display:flex; justify-content:space-between; color:#fff; font-size:12px; font-weight:600; z-index:5;}
+  .headline { position:absolute; top:70px; left:20px; right:20px; text-align:center; color:#fff; z-index:5; }
+  .headline h1 { font-size:22px; font-weight:800; line-height:1.15; }
+  .headline p { font-size:11.5px; color:rgba(255,255,255,0.85); margin-top:8px; line-height:1.4; padding:0 6px; }
+
+  .connect {
+    position:absolute; top:28%; left:20px; right:20px; z-index:4;
+    display:flex; justify-content:center;
+  }
+  .connect span {
+    color:#fff; font-size:12.5px; font-weight:600; text-align:center;
+    display:inline-block; max-width:100%;
+  }
+  .connect b { font-weight:800; }
+
+  /* Variant A: soft glass pill, subtle border+blur */
+  .a span {
+    background:rgba(255,255,255,0.14);
+    border:1px solid rgba(255,255,255,0.3);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-radius:100px;
+    padding:9px 18px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.3);
+  }
+
+  /* Variant B: solid brand-blue pill, no blur, crisp */
+  .b span {
+    background:#2F6BFF;
+    border-radius:100px;
+    padding:9px 18px;
+    box-shadow:0 8px 20px rgba(47,107,255,0.45);
+  }
+
+  /* Variant C: thin outline only, no fill */
+  .c span {
+    background:transparent;
+    border:1.5px solid rgba(255,255,255,0.55);
+    border-radius:100px;
+    padding:8px 18px;
+  }
+
+  /* Variant D: small rectangular tag (not a full pill), soft glass */
+  .d span {
+    background:rgba(16,32,80,0.55);
+    border:1px solid rgba(255,255,255,0.22);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-radius:10px;
+    padding:8px 14px;
+    box-shadow:0 8px 22px rgba(0,0,0,0.35);
+  }
+</style>
+</head>
+<body>
+
+<div class="col">
+  <div class="label">Variant A — soft frosted-glass pill</div>
+  <div class="phone">
+    <div class="statusbar"><span>17:53</span><span>4G 🔋</span></div>
+    <div class="headline">
+      <h1>Understand your<br>money better</h1>
+      <p>Vaultie helps you see where your money goes, make better decisions and keep everything in one place.</p>
+    </div>
+    <div class="connect a"><span>We connect to <b>2,500+ banks</b> across Europe</span></div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="label">Variant B — solid brand-blue pill</div>
+  <div class="phone">
+    <div class="statusbar"><span>17:53</span><span>4G 🔋</span></div>
+    <div class="headline">
+      <h1>Understand your<br>money better</h1>
+      <p>Vaultie helps you see where your money goes, make better decisions and keep everything in one place.</p>
+    </div>
+    <div class="connect b"><span>We connect to <b>2,500+ banks</b> across Europe</span></div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="label">Variant C — thin outline only, no fill</div>
+  <div class="phone">
+    <div class="statusbar"><span>17:53</span><span>4G 🔋</span></div>
+    <div class="headline">
+      <h1>Understand your<br>money better</h1>
+      <p>Vaultie helps you see where your money goes, make better decisions and keep everything in one place.</p>
+    </div>
+    <div class="connect c" style="left:34px; right:34px;"><span>We connect to <b>2,500+ banks</b> across Europe</span></div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="label">Variant D — small rounded-rectangle tag</div>
+  <div class="phone">
+    <div class="statusbar"><span>17:53</span><span>4G 🔋</span></div>
+    <div class="headline">
+      <h1>Understand your<br>money better</h1>
+      <p>Vaultie helps you see where your money goes, make better decisions and keep everything in one place.</p>
+    </div>
+    <div class="connect d" style="left:34px; right:34px;"><span>We connect to <b>2,500+ banks</b> across Europe</span></div>
+  </div>
+</div>
+
+</body>
+</html>

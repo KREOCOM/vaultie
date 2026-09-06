@@ -185,6 +185,12 @@ class AppLocalizationsLt extends AppLocalizations {
   String get billingWeekly => 'Kas savaitę';
 
   @override
+  String get billingBiweekly => 'Kas dvi savaites';
+
+  @override
+  String get billingSemiannual => 'Du kartus per metus';
+
+  @override
   String get billingMonthly => 'Kas mėnesį';
 
   @override

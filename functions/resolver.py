@@ -363,6 +363,22 @@ def _rank(ev, roles, surfaces, use_global=False):
     return ranked
 
 
+_DOMAIN_LIKE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
+
+
+def _domain_like(name):
+    """A canonical name that already IS a domain (e.g. "MQL5.COM") — some KB
+    entities were seeded with a domain-shaped canonical_name and never got a
+    separate logo_domain/known_domains value, so the logo lookup found
+    nothing despite the resolver having identified the merchant correctly.
+    Used only as the last fallback in enrich(); an explicit logo_domain or
+    known_domains entry always wins."""
+    if not name:
+        return None
+    candidate = name.strip().lower()
+    return candidate if _DOMAIN_LIKE.match(candidate) else None
+
+
 # ── P7: post-resolution enrichment ──
 def enrich(entity, ev, roles):
     if entity is None:
@@ -387,7 +403,8 @@ def enrich(entity, ev, roles):
         "brand": entity.get("canonical_name") if entity.get("is_brand") else None,
         "icon_key": entity.get("icon_key"),
         "logo_domain": entity.get("logo_domain") or (
-            entity.get("known_domains") or [None])[0],
+            entity.get("known_domains") or [None])[0] or
+            _domain_like(entity.get("canonical_name")),
     }
 
 
@@ -519,12 +536,20 @@ def _finalize(ev, roles, ranked):
             _identity_complete(top, ev):
         ent = top["entity"]
         canonical = ent["canonical_name"] if ent else top["surface"]
+        enrichment = enrich(ent, ev, roles)
+        # A no-KB-entity match (surface-only, e.g. from the global index) hits
+        # enrich()'s early "entity is None" branch, which never sees
+        # `canonical` — so a domain-shaped surface like "MQL5.COM" never got
+        # its own logo_domain fallback applied. This is the one place that
+        # actually has both the enrichment AND the canonical name in hand.
+        if not enrichment.get("logo_domain"):
+            enrichment["logo_domain"] = _domain_like(canonical)
         result.update(
             status=RESOLVED,
             entity=ent,
             canonical_name=canonical,
             entity_type=(ent["entity_type"] if ent else "MERCHANT"),
-            enrichment=enrich(ent, ev, roles),
+            enrichment=enrichment,
         )
         return result
 
@@ -555,7 +580,12 @@ def resolve_hit(t, corpus, classify_unknown=None):
         return surface, hit, res
     if res["status"] == RESOLVED:  # domain-only resolve (no KB entity)
         enr = res["enrichment"]
-        hit = (res["canonical_name"], enr["recurring_type"], enr["category"], None)
+        # Used to hardcode None here — true while logo_domain only ever came
+        # from a KB entity's own field, false since enrich()/_finalize() also
+        # fall back to a domain-shaped canonical name (e.g. "MQL5.COM" from
+        # the descriptor itself, with no KB entity behind it at all).
+        hit = (res["canonical_name"], enr["recurring_type"], enr["category"],
+               enr["logo_domain"])
         return surface, hit, res
     # Abstained: local deterministic hook (kept for parity with the old path;
     # same (name, amount) contract the previous classify_unknown used).

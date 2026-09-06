@@ -59,18 +59,27 @@ class SubscriptionAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(size * 0.29);
-    // Bundled asset only — resolves on-device, so an avatar never discloses the
-    // merchant to any third party. No bundled logo → category icon / initials,
-    // never a network fetch.
+    // Bundled asset first — resolves on-device, no network involved. Then
+    // [logoDomain] via Vaultie's own proxy (kMerchantLogoEndpoint): the
+    // client calls only Vaultie's backend, never Clearbit/Google directly —
+    // see CategoryIcon's `domain` field for the same pattern. Only then
+    // category icon / initials.
     final asset = _logoAsset;
-    if (asset == null) {
+    ImageProvider? image;
+    if (asset != null) {
+      image = AssetImage(asset);
+    } else if (logoDomain != null && logoDomain!.isNotEmpty) {
+      image = NetworkImage(
+          '$kMerchantLogoEndpoint?domain=${Uri.encodeQueryComponent(logoDomain!)}');
+    }
+    if (image == null) {
       return category != null ? _categoryIcon(radius) : _initials(radius);
     }
     return SizedBox(
       width: size,
       height: size,
-      child: Image.asset(
-        asset,
+      child: Image(
+        image: image,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stack) => _fallback(radius),
         frameBuilder: (context, child, frame, sync) => ClipRRect(

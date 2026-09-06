@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../i18n.dart';
+import '../main.dart' show navigatorKey;
 import '../services/app_lock.dart';
+import '../services/auth_service.dart';
+import '../user_session.dart';
+import 'login_screen.dart';
 
-const _bg = Color(0xFF160E30);
-const _bg2 = Color(0xFF2A1E58);
+// These are fixed rather than themed: the lock covers the whole app before any
+// theme is applied. They now match the near-black dark palette instead of the
+// violet one, which stopped matching anything when the theme changed.
+const _bg = Color(0xFF0A0910);
+const _bg2 = Color(0xFF1A1726);
 const _ink = Color(0xFFEDEAF6);
-const _dim = Color(0xFF9A93B8);
-const _accent = Color(0xFF8B5CF6);
+const _dim = Color(0xFF948DAC);
+const _accent = Color(0xFF4C86FF);
 
 const _pinLength = 4;
 
@@ -23,22 +31,45 @@ class LockScreen extends StatefulWidget {
 class _LockScreenState extends State<LockScreen> {
   String _entry = '';
   bool _error = false;
+  bool _prompted = false;
 
   @override
   void initState() {
     super.initState();
-    // Offer Face ID immediately if the user enabled it.
+    // Let the lock screen actually appear before the system sheet covers it.
+    // Prompting in the first frame put Face ID over a screen the user had not
+    // seen yet, which is why it felt like the app grabbed at their face the
+    // moment it opened — iOS itself shows its lock UI first and then scans.
     if (AppLock.faceIdEnabled) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _tryFaceId());
+      Future<void>.delayed(const Duration(milliseconds: 450), () {
+        if (mounted) _tryFaceId();
+      });
     }
   }
 
   Future<void> _tryFaceId() async {
+    if (_prompted) return;           // one automatic prompt per lock, no retries
+    _prompted = true;
     final ok = await AppLock.authenticateBiometric();
-    if (ok && mounted) widget.onUnlocked();
+    if (ok && mounted) {
+      widget.onUnlocked();
+    } else {
+      // a failed or cancelled scan falls back to the keypad; the Face ID key
+      // on the pad is there to try again deliberately
+      _prompted = false;
+    }
   }
 
   void _press(String d) {
+    // Too many wrong tries → the keypad is in cooldown; ignore input and say so.
+    if (AppLock.pinLockoutSecondsRemaining() > 0) {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _error = true;
+        _entry = '';
+      });
+      return;
+    }
     if (_entry.length >= _pinLength) return;
     HapticFeedback.selectionClick();
     setState(() {
@@ -47,10 +78,12 @@ class _LockScreenState extends State<LockScreen> {
     });
     if (_entry.length == _pinLength) {
       if (AppLock.verifyPin(_entry)) {
+        AppLock.resetPinFailures();
         HapticFeedback.mediumImpact();
         widget.onUnlocked();
       } else {
         HapticFeedback.heavyImpact();
+        AppLock.registerPinFailure();
         setState(() {
           _error = true;
           _entry = '';
@@ -64,16 +97,66 @@ class _LockScreenState extends State<LockScreen> {
     setState(() => _entry = _entry.substring(0, _entry.length - 1));
   }
 
+  /// Signs out and clears the PIN, landing on sign-in.
+  ///
+  /// The vault stays on the device and comes back when its owner signs in
+  /// again, so this costs nothing but the PIN. Without it, a forgotten PIN —
+  /// or a PIN left behind by whoever used the phone before — has no answer but
+  /// deleting the app.
+  Future<void> _forgotPin() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('Pamiršai PIN kodą?')),
+        content: Text(tr('Atjungsime tave, kad galėtum prisijungti iš naujo ir '
+            'nusistatyti naują PIN. Tavo duomenys liks šiame telefone.')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Atšaukti'))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Atsijungti'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await AppLock.clearPin();
+    try {
+      await AuthService().signOut();
+      await onSignedOut();
+    } catch (_) {
+      // Already signed out, or offline — the PIN is cleared either way, which
+      // is what unblocks the screen.
+    }
+    if (!mounted) return;
+    // Send the user to sign-in BEFORE dropping the overlay. The lock only ever
+    // shows over a signed-in dashboard, so just lifting the overlay would reveal
+    // the PREVIOUS user's data in full — and the person tapping "forgot PIN" is
+    // exactly the one who must not see it. Replace the whole stack with LoginScreen
+    // via the app's root navigator, then drop the overlay.
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
+    widget.onUnlocked();
+  }
+
   @override
   Widget build(BuildContext context) {
     return _PinScaffold(
-      title: 'Įvesk PIN kodą',
-      subtitle: _error ? 'Neteisingas PIN — bandyk dar' : 'Vaultie užrakinta',
+      title: tr('Įvesk PIN kodą'),
+      subtitle: AppLock.pinLockoutSecondsRemaining() > 0
+          ? '${tr('Per daug bandymų. Palauk')} ${AppLock.pinLockoutSecondsRemaining()} s'
+          : _error
+              ? tr('Neteisingas PIN — bandyk dar')
+              : tr('Vaultie užrakinta'),
       entry: _entry,
       error: _error,
       onDigit: _press,
       onBackspace: _backspace,
       faceIdButton: AppLock.faceIdEnabled ? _tryFaceId : null,
+      onForgot: _forgotPin,
     );
   }
 }
@@ -128,12 +211,12 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return _PinScaffold(
-      title: _first == null ? 'Naujas PIN kodas' : 'Pakartok PIN',
+      title: _first == null ? tr('Naujas PIN kodas') : tr('Pakartok PIN'),
       subtitle: _error
-          ? 'PIN nesutapo — pradėk iš naujo'
+          ? tr('PIN nesutapo — pradėk iš naujo')
           : _first == null
-              ? 'Sugalvok 4 skaitmenų kodą'
-              : 'Įvesk tą patį kodą dar kartą',
+              ? tr('Sugalvok 4 skaitmenų kodą')
+              : tr('Įvesk tą patį kodą dar kartą'),
       entry: _entry,
       error: _error,
       onDigit: _press,
@@ -154,6 +237,7 @@ class _PinScaffold extends StatelessWidget {
     required this.onBackspace,
     this.faceIdButton,
     this.onClose,
+    this.onForgot,
   });
   final String title, subtitle, entry;
   final bool error;
@@ -161,6 +245,10 @@ class _PinScaffold extends StatelessWidget {
   final VoidCallback onBackspace;
   final Future<void> Function()? faceIdButton;
   final VoidCallback? onClose;
+
+  /// Way out for someone who cannot answer this screen. Without it a forgotten
+  /// PIN means reinstalling the app.
+  final VoidCallback? onForgot;
 
   @override
   Widget build(BuildContext context) {
@@ -213,6 +301,13 @@ class _PinScaffold extends StatelessWidget {
               ),
               const Spacer(flex: 3),
               _pad(),
+              if (onForgot != null)
+                TextButton(
+                  onPressed: onForgot,
+                  child: Text(tr('Pamiršai PIN kodą?'),
+                      style: const TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w600, color: _dim)),
+                ),
               const SizedBox(height: 20),
             ],
           ),

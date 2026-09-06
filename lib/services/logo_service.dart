@@ -6,10 +6,20 @@
 /// party. Names are normalised (diacritics folded, non-alphanumerics stripped)
 /// and matched on whole words, so "TV3 Go"/"tv3go" resolve alike while a brand's
 /// letters buried in an unrelated word ("iki" in "vaikiškas") never false-match.
-/// Nothing matches → the caller shows its category tile / initials.
+/// Nothing matches → the caller falls back to [kMerchantLogoEndpoint] (a
+/// Vaultie-owned proxy — see [CategoryIcon]'s `domain` field), then finally
+/// its category tile / initials.
 library;
 
 import 'bundled_logos.g.dart';
+
+/// Vaultie's own logo proxy (functions/main.py:merchant_logo). Fetches a
+/// merchant's logo server-side from a public logo/favicon service and hands
+/// back the image — the client calls only this, Vaultie's own domain, never
+/// Clearbit or Google directly; only a bare merchant domain crosses that
+/// boundary, resolved on the server with no user or transaction attached.
+const kMerchantLogoEndpoint =
+    'https://europe-west1-vaultie-1a2c4.cloudfunctions.net/merchant_logo';
 
 const Map<String, String> _serviceDomains = {
   // Streaming / video
@@ -200,10 +210,27 @@ const Map<String, String> _serviceDomains = {
 // accented spelling silently loses its letters ("eurovaistinė" → "eurovaistin")
 // and never matches anything.
 const _fold = {
-  'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's',
-  'ų': 'u', 'ū': 'u', 'ž': 'z',
-  'ä': 'a', 'ö': 'o', 'õ': 'o', 'ü': 'u', 'å': 'a', 'æ': 'a', 'ø': 'o',
-  'é': 'e', 'è': 'e', 'ó': 'o', 'ñ': 'n', 'ç': 'c',
+  'ą': 'a',
+  'č': 'c',
+  'ę': 'e',
+  'ė': 'e',
+  'į': 'i',
+  'š': 's',
+  'ų': 'u',
+  'ū': 'u',
+  'ž': 'z',
+  'ä': 'a',
+  'ö': 'o',
+  'õ': 'o',
+  'ü': 'u',
+  'å': 'a',
+  'æ': 'a',
+  'ø': 'o',
+  'é': 'e',
+  'è': 'e',
+  'ó': 'o',
+  'ñ': 'n',
+  'ç': 'c',
 };
 
 String _foldDiacritics(String s) {
@@ -273,7 +300,8 @@ String? _keyForName(String name) {
   for (var n = words.length; n >= 1; n--) {
     for (var i = 0; i + n <= words.length; i++) {
       final joined = words.sublist(i, i + n).join();
-      if (joined.length >= 2 && _serviceDomains.containsKey(joined)) return joined;
+      if (joined.length >= 2 && _serviceDomains.containsKey(joined))
+        return joined;
     }
   }
   return null;

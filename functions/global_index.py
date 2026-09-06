@@ -73,8 +73,24 @@ def lookup(surface):
     n = _norm(surface)
     if len(n) < 3:
         return []
-    row = conn.execute("SELECT entity FROM merchants WHERE norm = ?", (n,)).fetchone()
-    if row is None:
+    # Caught live: fetchone() came back an empty tuple `()`, not None — `row[0]`
+    # threw IndexError, and because nothing here was defensive, that ONE bad
+    # merchant lookup took the WHOLE recurring-detection pass down with it (a
+    # real user's dashboard came back with subs_active=0 for every subscription
+    # they had, not just the one merchant that failed to resolve). `_conn` is
+    # opened with check_same_thread=False specifically so it CAN be touched from
+    # more than one thread, but a single sqlite3 connection is not actually safe
+    # for concurrent execute()/fetchone() from different threads at once — this
+    # is almost certainly that: two lookups landing on the same connection at
+    # the same moment, one's cursor state clobbering the other's. `if not row`
+    # (catches () same as None) plus a hard try/except make a single corrupted
+    # read a silent miss for that one merchant instead of a crash for everyone.
+    try:
+        row = conn.execute(
+            "SELECT entity FROM merchants WHERE norm = ?", (n,)).fetchone()
+        if not row:
+            return []
+        e = json.loads(row[0])
+    except Exception:
         return []
-    e = json.loads(row[0])
     return [(e, "brand" if e.get("is_brand") else "exact")]

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaultie — App Privacy juodraštis</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#10141c; --muted:#5b6577; --hair:#e4e7ee;
+    --card:#f7f8fb; --yes:#1f7a3d; --no:#8a9099; --warn:#8a5a00; --warnbg:#fff7e6;
+    --accent:#1846E6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0d1017; --ink:#eef1f6; --muted:#9aa4b6; --hair:#242a36;
+           --card:#151a24; --yes:#4ec27a; --no:#6c7484; --warn:#e0a94a; --warnbg:#221a08;
+           --accent:#7aa2ff; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 22px 80px}
+  h1{font-size:30px;letter-spacing:-.6px;margin:0 0 6px}
+  .sub{color:var(--muted);margin:0 0 30px;font-size:15px}
+  h2{font-size:19px;letter-spacing:-.3px;margin:36px 0 10px;padding-top:18px;border-top:1px solid var(--hair)}
+  h2:first-of-type{border-top:0}
+  p{margin:0 0 12px}
+  code{background:var(--card);padding:1px 5px;border-radius:5px;font-size:13px;
+       font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .tbl{width:100%;overflow-x:auto;margin:14px 0}
+  table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:640px}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{font-weight:700;font-size:12.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .y{color:var(--yes);font-weight:700}
+  .n{color:var(--no)}
+  .card{background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:14px 16px;margin:14px 0}
+  .warn{background:var(--warnbg);border-color:var(--warn)}
+  .warn h3{color:var(--warn);margin:0 0 8px;font-size:15.5px}
+  .ev{color:var(--muted);font-size:13px;margin-top:4px}
+  ul{margin:0 0 12px;padding-left:20px}
+  li{margin:0 0 6px}
+  .tag{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 7px;border-radius:20px;
+       background:var(--accent);color:#fff;vertical-align:2px;margin-left:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Vaultie — App Privacy juodraštis</h1>
+<p class="sub">Atsakymai App Store Connect „App Privacy“ klausimynui, išvesti iš kodo 2026-07-29. Kiekvienas punktas turi įrodymą faile. <strong>Tai juodraštis — deklaraciją pasirašai tu.</strong></p>
+
+<div class="card warn">
+  <h3>Vienas sprendimas, kurio negaliu priimti už tave</h3>
+  <p>Ar banko duomenys deklaruojami kaip <em>renkami</em> (collected). Apple laiko duomenis renkamais, jei jie išsiunčiami iš įrenginio ir saugomi ilgiau, nei reikia užklausai įvykdyti. Vaultie serveris sandorių <strong>nesaugo</strong> — jis paima juos iš Enable Banking ir grąžina į telefoną, kur jie guli Hive. Firestore laikomi tik sąskaitų ir sesijų ID.</p>
+  <p>Bet AI santrauka <strong>išsiunčiama Anthropic</strong>, o tai trečioji šalis. <strong>Rekomenduoju deklaruoti „Financial Info → Other Financial Info“ kaip renkamus</strong> ir susietus su tapatybe. Konservatyvus atsakymas nekainuoja nieko, o per siauras — tai netiksli deklaracija, dėl kurios Apple gali pašalinti programą jau po patvirtinimo.</p>
+</div>
+
+<h2>Suvestinė — ką atsakyti</h2>
+<div class="tbl">
+<table>
+<thead><tr><th>Duomenų tipas</th><th>Renkama?</th><th>Susieta su tapatybe</th><th>Sekimui (tracking)</th><th>Paskirtis</th></tr></thead>
+<tbody>
+<tr><td><strong>Contact Info</strong> → Email Address</td><td class="y">TAIP</td><td>Taip</td><td>Ne</td><td>App Functionality</td></tr>
+<tr><td><strong>Financial Info</strong> → Other Financial Info</td><td class="y">TAIP</td><td>Taip</td><td>Ne</td><td>App Functionality</td></tr>
+<tr><td><strong>Identifiers</strong> → User ID</td><td class="y">TAIP</td><td>Taip</td><td>Ne</td><td>App Functionality</td></tr>
+<tr><td><strong>Purchases</strong> → Purchase History</td><td class="y">TAIP</td><td>Taip</td><td>Ne</td><td>App Functionality</td></tr>
+<tr><td><strong>Diagnostics</strong> → Crash Data</td><td class="y">TAIP</td><td>Taip</td><td>Ne</td><td>App Functionality</td></tr>
+<tr><td><strong>Identifiers</strong> → Device ID</td><td class="n">NE</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><strong>Usage Data</strong></td><td class="n">NE</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><strong>Location</strong></td><td class="n">NE</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><strong>Contacts</strong></td><td class="n">NE</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><strong>Health &amp; Fitness</strong></td><td class="n">NE</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><strong>Browsing / Search History</strong></td><td class="n">NE</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><strong>Sensitive Info</strong></td><td class="n">NE</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><strong>User Content</strong></td><td class="n">NE</td><td>—</td><td>—</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>„Do you use data for tracking?“ → NE.</strong> Nėra reklamos SDK, nėra Firebase Analytics, nėra IDFA, jokie duomenys nedalinami duomenų brokeriams. Todėl <code>AppTrackingTransparency</code> nereikalingas.</p>
+
+<h2>Spaudžiam per App Store Connect — eilės tvarka</h2>
+<p class="sub" style="margin-bottom:16px">App Store Connect → tavo programa → <em>App Privacy</em> → <em>Get Started</em>. Eik iš viršaus į apačią; ko čia nėra — žymėk „nerenkama“.</p>
+
+<div class="card">
+<ol>
+  <li><strong>„Do you or your third-party partners collect data from this app?“</strong> → <strong>Yes</strong></li>
+  <li>Pažymėk <strong>tik šiuos penkis</strong> duomenų tipus:
+    <ul>
+      <li>Contact Info → <strong>Email Address</strong></li>
+      <li>Financial Info → <strong>Other Financial Info</strong></li>
+      <li>Identifiers → <strong>User ID</strong></li>
+      <li>Purchases → <strong>Purchase History</strong></li>
+      <li>Diagnostics → <strong>Crash Data</strong></li>
+    </ul>
+  </li>
+  <li>Kiekvienam iš penkių Apple užduos tuos pačius tris klausimus. Atsakymai <strong>vienodi visiems penkiems</strong>:
+    <ul>
+      <li>Paskirtis → <strong>App Functionality</strong> (daugiau nieko nežymėk)</li>
+      <li>„Is this data linked to the user’s identity?“ → <strong>Yes</strong></li>
+      <li>„Is this data used for tracking purposes?“ → <strong>No</strong></li>
+    </ul>
+  </li>
+  <li>Peržiūros lange turi likti <strong>„Data Linked to You“ — 5 tipai</strong>, o „Data Used to Track You“ — <strong>tuščia</strong>. Jei tracking neliko tuščias, kažkur pažymėta ne taip.</li>
+  <li><strong>Publish</strong>.</li>
+</ol>
+</div>
+
+<div class="card warn">
+  <h3>Dažniausia klaida čia</h3>
+  <p><strong>Crash Data</strong> instinktyviai žymimas kaip <em>Not Linked</em>, nes atrodo anoniminis. Vaultie atveju tai neteisinga: <code>user_session.dart:60</code> nustato Crashlytics vartotojo ID. Turi būti <strong>Linked</strong>.</p>
+</div>
+
+<h2>Kiekvieno „TAIP“ pagrindimas</h2>
+
+<h3>Email Address <span class="tag">Contact Info</span></h3>
+<p>Firebase Auth — registracija el. paštu, Sign in with Apple, Google Sign-In.</p>
+<p class="ev">Įrodymas: <code>firebase_auth</code>, <code>sign_in_with_apple</code>, <code>google_sign_in</code> (pubspec.yaml); 24 <code>FirebaseAuth</code> panaudojimai <code>lib/</code>.</p>
+
+<h3>Other Financial Info <span class="tag">Financial Info</span></h3>
+<p>Banko likučiai, sandoriai, kategorijos ir pasikartojantys mokėjimai — per Enable Banking kaip licencijuotą AISP. Serveris jų <strong>nesaugo</strong>; Firestore kolekcijoje laikomi tik <code>accounts</code> ir <code>sessions</code> ID, kad kitas vartotojas negalėtų paprašyti svetimos sąskaitos.</p>
+<p>AI pokalbiui ir mėnesio santraukai Anthropic siunčiama <em>santrauka</em>: likučiai, išlaidos pagal kategoriją, pasikartojančių mokėjimų pavadinimai. Nesiunčiami pavieniai sandoriai, IBAN‑ai ar kortelių numeriai. Vartotojas duoda atskirą sutikimą prieš pirmą siuntimą.</p>
+<p class="ev">Įrodymas: <code>functions/main.py:216–229</code> (Firestore rašo tik ID), <code>functions/main.py:875</code> („compact, PII-free finance summary“), <code>functions/finance_chat.py</code>, sutikimo dialogas <code>dashboard_preview.dart</code>.</p>
+
+<h3>User ID <span class="tag">Identifiers</span></h3>
+<p>Firebase uid. Tas pats uid perduodamas RevenueCat ir Crashlytics.</p>
+<p class="ev">Įrodymas: <code>lib/user_session.dart:60</code> (<code>setUserIdentifier(uid)</code>), <code>lib/services/purchase_service.dart:425</code> (<code>Purchases.logIn(uid)</code>).</p>
+
+<h3>Purchase History <span class="tag">Purchases</span></h3>
+<p>RevenueCat tvarko prenumeratą ir teises. Susieta su uid.</p>
+<p class="ev">Įrodymas: <code>purchases_flutter</code> (pubspec.yaml), <code>purchase_service.dart:424–425, 500</code>.</p>
+
+<h3>Crash Data <span class="tag">Diagnostics</span></h3>
+<p>Firebase Crashlytics, įjungtas <strong>tik release</strong> builduose. Susietas su tapatybe, nes nustatomas uid.</p>
+<p class="ev">Įrodymas: <code>lib/main.dart:139</code> (<code>setCrashlyticsCollectionEnabled(kReleaseMode)</code>), <code>lib/user_session.dart:60</code>.</p>
+
+<h2>Kodėl kiti — „NE“</h2>
+<ul>
+  <li><strong>Usage Data / Analytics:</strong> Firebase Analytics apskritai nėra projekte. Iš Firebase naudojami tik Auth, Crashlytics ir Remote Config.</li>
+  <li><strong>Device ID / IDFA:</strong> nėra reklamos SDK, nėra <code>AppTrackingTransparency</code>.</li>
+  <li><strong>Pranešimai:</strong> <code>flutter_local_notifications</code> — <em>lokalūs</em>, planuojami telefone. Nėra FCM, nėra push tokenų, niekas nesiunčiama į serverį.</li>
+  <li><strong>Location, Contacts, Photos, Mikrofonas:</strong> nėra nei SDK, nei leidimų.</li>
+  <li><strong>User Content:</strong> vartotojo įvedami dalykai (biudžetas, rankiniai sandoriai, vardas) lieka telefone — Hive ir <code>shared_preferences</code>.</li>
+</ul>
+
+<h2>Trys dalykai, kuriuos verta pasitikrinti prieš siunčiant</h2>
+<ul>
+  <li><strong>Trynimo teisė veikia.</strong> <code>delete_user_data</code> ištrina serverio pėdsaką ir atšaukia banko sutikimus, ir nėra už prenumeratos — pasibaigusios prenumeratos vartotojas vis tiek gali ištrinti save. Tai gerai; Apple tikrina paskyros trynimą.</li>
+  <li><strong>Anthropic kaip trečioji šalis.</strong> Įsitikink, kad tai parašyta ir privatumo politikoje, ne tik programos sutikimo dialoge — jie turi sutapti.</li>
+  <li><strong>Kontaktinis el. paštas.</strong> Politikoje dabar <code>osva50042@gmail.com</code>; kai turėsi Vaultie domeną, pakeisk prieš pateikimą.</li>
+</ul>
+
+</div>
+</body>
+</html>
